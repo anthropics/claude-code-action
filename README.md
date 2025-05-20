@@ -331,6 +331,7 @@ permissions:
   with:
     anthropic_model: "anthropic.claude-3-7-sonnet-20250219-beta:0"
     use_bedrock: "true"
+    github_token: ${{ steps.app-token.outputs.token }}
     # ... other inputs
 ```
 
@@ -353,6 +354,7 @@ permissions:
   with:
     anthropic_model: "claude-3-7-sonnet@20250219"
     use_vertex: "true"
+    github_token: ${{ steps.app-token.outputs.token }}
     # ... other inputs
 ```
 
