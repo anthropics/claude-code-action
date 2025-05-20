@@ -306,8 +306,14 @@ Use provider-specific model names based on your chosen provider:
 
 Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
 
+**Important:** Add the following at the top level of your workflow YAML to enable OIDC:
 ```yaml
-# For AWS Bedrock with OIDC
+permissions:
+  id-token: write # Required for OIDC
+```
+
+#### For AWS Bedrock with OIDC
+```yaml
 - name: Configure AWS Credentials (OIDC)
   uses: aws-actions/configure-aws-credentials@v4
   with:
@@ -326,13 +332,10 @@ Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
     anthropic_model: "anthropic.claude-3-7-sonnet-20250219-beta:0"
     use_bedrock: "true"
     # ... other inputs
-
-  permissions:
-    id-token: write # Required for OIDC
 ```
 
+#### For GCP Vertex AI with OIDC
 ```yaml
-# For GCP Vertex AI with OIDC
 - name: Authenticate to Google Cloud
   uses: google-github-actions/auth@v2
   with:
@@ -351,9 +354,6 @@ Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
     anthropic_model: "claude-3-7-sonnet@20250219"
     use_vertex: "true"
     # ... other inputs
-
-  permissions:
-    id-token: write # Required for OIDC
 ```
 
 ## Security
