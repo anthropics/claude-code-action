@@ -82,6 +82,13 @@ jobs:
 
 > **Note**: This action is currently in beta. Features and APIs may change as we continue to improve the integration.
 
+## Outputs
+
+| Output           | Description                                   |
+| ---------------- | --------------------------------------------- |
+| `comment_id`     | ID of the comment created by Claude           |
+| `execution_file` | Path to the Claude Code execution output file |
+
 ## Examples
 
 ### Ways to Tag @claude
