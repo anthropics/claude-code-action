@@ -339,7 +339,9 @@ permissions:
 
 **secrets:**
 - VERTEX_PROJECT_ID: Your Google Cloud project ID where Vertex AI and Claude access are configured.
-- VERTEX_REGION:
+- `VERTEX_REGION`: The default region for Vertex AI model execution (e.g. `us-east5`).
+- `VERTEX_REGION_CLAUDE_3_7_SONNET`: Model-specific override for the `claude-3-7-sonnet` model. Must match the region where the model is available in Vertex AI.
+
 ```yaml
 - name: Authenticate to Google Cloud
   uses: google-github-actions/auth@v2
@@ -358,6 +360,7 @@ permissions:
   env:
     ANTHROPIC_VERTEX_PROJECT_ID: ${{ secrets.VERTEX_PROJECT_ID }}
     CLOUD_ML_REGION: ${{ secrets.VERTEX_REGION }}
+    VERTEX_REGION_CLAUDE_3_7_SONNET: ${{ secrets.VERTEX_REGION_CLAUDE_3_7_SONNET }}
   with:
     anthropic_model: "claude-3-7-sonnet"
     use_vertex: "true"
