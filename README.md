@@ -446,7 +446,7 @@ anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
 This applies to all sensitive values including API keys, access tokens, and credentials.
-We also reccomend that you always use short-lived tokens when possible
+We also recommend that you always use short-lived tokens when possible
 
 ## License
 
