@@ -1,10 +1,12 @@
 import * as core from "@actions/core";
+import * as fs from "fs";
+import * as path from "path";
 
 export async function prepareMcpConfig(
   githubToken: string,
   owner: string,
   repo: string,
-  branch: string,
+  branch: string
 ): Promise<string> {
   try {
     const mcpConfig = {
@@ -39,6 +41,31 @@ export async function prepareMcpConfig(
         },
       },
     };
+
+    // Read existing .mcp.json from execution environment
+    const mcpJsonPath = path.join(process.env.GITHUB_WORKSPACE, ".mcp.json");
+
+    try {
+      if (fs.existsSync(mcpJsonPath)) {
+        const existingMcpContent = fs.readFileSync(mcpJsonPath, "utf8");
+        const existingMcpConfig = JSON.parse(existingMcpContent);
+
+        // Merge existing MCP servers with our default ones, preserving our defaults
+        if (existingMcpConfig.mcpServers) {
+          // Create a new merged object with our defaults taking precedence
+          mcpConfig.mcpServers = {
+            ...existingMcpConfig.mcpServers,
+            ...mcpConfig.mcpServers
+          };
+        }
+
+        console.log(`Found and merged .mcp.json from: ${mcpJsonPath}`);
+      }
+    } catch (readError) {
+      console.warn(
+        `Failed to read .mcp.json from ${mcpJsonPath}: ${readError}`
+      );
+    }
 
     return JSON.stringify(mcpConfig, null, 2);
   } catch (error) {
