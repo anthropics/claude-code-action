@@ -84,10 +84,10 @@ jobs:
 
 ## Outputs
 
-| Output           | Description                                   |
-| ---------------- | --------------------------------------------- |
-| `comment_id`     | ID of the comment created by Claude           |
-| `execution_file` | Path to the Claude Code execution output file |
+| Output           | Description                                             |
+| ---------------- | ------------------------------------------------------- |
+| `comment_ids`    | Newline-separated list of comment IDs created by Claude |
+| `execution_file` | Path to the Claude Code execution output file           |
 
 ## Examples
 
