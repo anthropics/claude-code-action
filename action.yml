@@ -109,7 +109,7 @@ runs:
         # Model configuration
         ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
         GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
-        
+
         # Provider configuration
         ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
 
