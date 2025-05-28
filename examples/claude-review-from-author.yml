@@ -22,20 +22,11 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Review PR from Specific Author
-        uses: anthropics/claude-code-action@beta
+      - name: Review PR from specific author
+        uses: rgreed14xiv/claude-code-action@beta
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          timeout_minutes: "60"
           direct_prompt: |
             Please provide a thorough review of this pull request.
-
-            Since this is from a specific author that requires careful review,
-            please pay extra attention to:
-            - Adherence to project coding standards
-            - Proper error handling
-            - Security best practices
-            - Test coverage
-            - Documentation
-
-            Provide detailed feedback and suggestions for improvement.
+            Pay extra attention to coding standards, security practices,
+            and test coverage since this is from an external contributor.
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

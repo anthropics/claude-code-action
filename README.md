@@ -53,7 +53,7 @@ jobs:
   claude-response:
     runs-on: ubuntu-latest
     steps:
-      - uses: anthropics/claude-code-action@beta
+      - uses: rgreed14xiv/claude-code-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -159,7 +159,7 @@ on:
       - "src/api/**/*.ts"
 
 steps:
-  - uses: anthropics/claude-code-action@beta
+  - uses: rgreed14xiv/claude-code-action@beta
     with:
       direct_prompt: |
         Update the API documentation in README.md to reflect
@@ -183,7 +183,7 @@ jobs:
       github.event.pull_request.user.login == 'developer1' ||
       github.event.pull_request.user.login == 'external-contributor'
     steps:
-      - uses: anthropics/claude-code-action@beta
+      - uses: rgreed14xiv/claude-code-action@beta
         with:
           direct_prompt: |
             Please provide a thorough review of this pull request.
@@ -201,7 +201,7 @@ Perfect for automatically reviewing PRs from new team members, external contribu
 4. **Branch Management**: Creates new PRs for human authors, pushes directly for Claude's own PRs
 5. **Communication**: Posts updates at every step to keep you informed
 
-This action is built on top of [`anthropics/claude-code-base-action`](https://github.com/anthropics/claude-code-base-action).
+This action is built on top of [`rgreed14xiv/claude-code-base-action`](https://github.com/rgreed14xiv/claude-code-base-action).
 
 ## Capabilities and Limitations
 
@@ -242,7 +242,7 @@ Claude does **not** have access to execute arbitrary Bash commands by default. I
 **Note**: If your repository has a `.mcp.json` file in the root directory, Claude will automatically detect and use the MCP server tools defined there. However, these tools still need to be explicitly allowed via the `allowed_tools` configuration.
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: rgreed14xiv/claude-code-action@beta
   with:
     allowed_tools: "Bash(npm install),Bash(npm run test),Edit,Replace,NotebookEditCell"
     disallowed_tools: "TaskOutput,KillTask"
@@ -256,7 +256,7 @@ Claude does **not** have access to execute arbitrary Bash commands by default. I
 Use a specific Claude model:
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: rgreed14xiv/claude-code-action@beta
   with:
     # model: "claude-3-5-sonnet-20241022"  # Optional: specify a different model
     # ... other inputs
@@ -284,20 +284,20 @@ Use provider-specific model names based on your chosen provider:
 
 ```yaml
 # For direct Anthropic API (default)
-- uses: anthropics/claude-code-action@beta
+- uses: rgreed14xiv/claude-code-action@beta
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     # ... other inputs
 
 # For Amazon Bedrock with OIDC
-- uses: anthropics/claude-code-action@beta
+- uses: rgreed14xiv/claude-code-action@beta
   with:
     model: "anthropic.claude-3-7-sonnet-20250219-beta:0" # Cross-region inference
     use_bedrock: "true"
     # ... other inputs
 
 # For Google Vertex AI with OIDC
-- uses: anthropics/claude-code-action@beta
+- uses: rgreed14xiv/claude-code-action@beta
   with:
     model: "claude-3-7-sonnet@20250219"
     use_vertex: "true"
@@ -323,7 +323,7 @@ Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
     app-id: ${{ secrets.APP_ID }}
     private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-- uses: anthropics/claude-code-action@beta
+- uses: rgreed14xiv/claude-code-action@beta
   with:
     model: "anthropic.claude-3-7-sonnet-20250219-beta:0"
     use_bedrock: "true"
@@ -348,7 +348,7 @@ Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
     app-id: ${{ secrets.APP_ID }}
     private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-- uses: anthropics/claude-code-action@beta
+- uses: rgreed14xiv/claude-code-action@beta
   with:
     model: "claude-3-7-sonnet@20250219"
     use_vertex: "true"

@@ -94,7 +94,7 @@ runs:
     - name: Run Claude Code
       id: claude-code
       if: steps.prepare.outputs.contains_trigger == 'true'
-      uses: anthropics/claude-code-base-action@5097b6cdfe5fc5a3ac0166cc344c34ed23c93982 # https://github.com/anthropics/claude-code-base-action/releases/tag/v0.0.5
+      uses: rgreed14xiv/claude-code-base-action@beta
       with:
         prompt_file: /tmp/claude-prompts/claude-prompt.txt
         allowed_tools: ${{ env.ALLOWED_TOOLS }}
