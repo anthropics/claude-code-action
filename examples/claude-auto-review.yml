@@ -17,22 +17,16 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Automatic PR Review
-        uses: anthropics/claude-code-action@beta
+      - name: Auto review PR
+        uses: rgreed14xiv/claude-code-action@beta
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          timeout_minutes: "60"
           direct_prompt: |
-            Please review this pull request and provide comprehensive feedback.
-
-            Focus on:
+            Please review this PR. Look at the changes and provide thoughtful feedback on:
             - Code quality and best practices
             - Potential bugs or issues
-            - Performance considerations
-            - Security implications
-            - Test coverage
-            - Documentation updates if needed
+            - Suggestions for improvements
+            - Overall architecture and design decisions
 
-            Provide constructive feedback with specific suggestions for improvement.
-            Use inline comments to highlight specific areas of concern.
-          # allowed_tools: "mcp__github__add_pull_request_review_comment"
+            Be constructive and specific in your feedback. Give inline comments where applicable.
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: "mcp__github__add_pull_request_review_comment"
