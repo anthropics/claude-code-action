@@ -78,6 +78,7 @@ jobs:
 | `allowed_tools`       | Additional tools for Claude to use (the base GitHub tools will always be included)                                   | No       | ""        |
 | `disallowed_tools`    | Tools that Claude should never use                                                                                   | No       | ""        |
 | `custom_instructions` | Additional custom instructions to include in the prompt for Claude                                                   | No       | ""        |
+| `system_prompt`       | Custom system prompt to replace the default Claude system prompt. Variables can be used for substitution (see documentation) | No       | ""        |
 | `assignee_trigger`    | The assignee username that triggers the action (e.g. @claude). Only used for issue assignment                        | No       | -         |
 | `trigger_phrase`      | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                        | No       | `@claude` |
 
@@ -261,6 +262,75 @@ Use a specific Claude model:
     # model: "claude-3-5-sonnet-20241022"  # Optional: specify a different model
     # ... other inputs
 ```
+
+### Custom System Prompt
+
+You can completely customize Claude's behavior by providing your own system prompt. This replaces the default functional instructions while still providing all the necessary GitHub context.
+
+**How it works:**
+- Your custom system prompt defines Claude's behavior and instructions
+- GitHub context (PR details, comments, files, etc.) is automatically appended to your prompt
+- This ensures Claude always has the necessary context while giving you full control over functionality
+- Both custom and default system prompts use the same variable substitution schema
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    system_prompt: |
+      You are a specialized code reviewer for {{REPOSITORY}}.
+      
+      Your role is to:
+      1. Review TypeScript code for best practices
+      2. Check for security vulnerabilities
+      3. Suggest performance improvements
+      4. Ensure proper error handling
+      
+      Always be constructive and provide specific examples.
+      
+      Use {{COMMENT_TOOL_INFO}} to update your GitHub comment with findings.
+    # ... other inputs
+```
+
+**Variable Substitution:**
+The system prompt supports variable substitution using `{{VARIABLE_NAME}}` syntax. Available variables include:
+
+- `{{REPOSITORY}}` - Repository name (e.g., "owner/repo")
+- `{{EVENT_TYPE}}` - Type of GitHub event (e.g., "REVIEW_COMMENT", "ISSUE_CREATED")
+- `{{TRIGGER_COMMENT}}` - The comment that triggered Claude
+- `{{TRIGGER_USERNAME}}` - Username who triggered the action
+- `{{TRIGGER_PHRASE}}` - The trigger phrase used (e.g., "@claude")
+- `{{FORMATTED_CONTEXT}}` - Formatted repository context
+- `{{PR_OR_ISSUE_BODY}}` - The PR or issue description
+- `{{COMMENTS}}` - All comments on the PR/issue
+- `{{REVIEW_COMMENTS}}` - PR review comments (for PRs only)
+- `{{CHANGED_FILES}}` - Files changed in the PR (for PRs only)
+- `{{COMMENT_TOOL_INFO}}` - Instructions for updating GitHub comments
+- `{{CUSTOM_INSTRUCTIONS}}` - Value from the `custom_instructions` input
+- `{{DIRECT_PROMPT}}` - Value from the `direct_prompt` input (if provided)
+- `{{IS_PR}}` - "true" if this is a PR event, "false" for issues
+- `{{PR_NUMBER}}` - PR number (for PR events)
+- `{{ISSUE_NUMBER}}` - Issue number (for issue events)
+- `{{CLAUDE_COMMENT_ID}}` - ID of Claude's comment to update
+
+**Conditional Logic:**
+The system prompt also supports conditional blocks using Handlebars-style syntax:
+- `{{#if CONDITION}}...{{/if}}` - Include content only if condition is true
+- `{{#if IS_PR}}...{{else}}...{{/if}}` - Include different content based on condition
+
+**Context Appended Automatically:**
+After your custom system prompt, the action automatically appends a context section containing:
+- Formatted repository context
+- PR/issue body and comments
+- Changed files (for PRs)
+- Event metadata
+- Tool usage instructions
+
+This ensures Claude always has the necessary GitHub context while allowing you to define the behavior.
+
+**Default System Prompt:**
+The default system prompt is also built using this same substitution schema and can be found in [`src/create-prompt/default-system-prompt.ts`](./src/create-prompt/default-system-prompt.ts) for reference.
+
+**Note**: When using a custom system prompt, the `custom_instructions` input will be appended to your prompt if provided.
 
 ## Cloud Providers
 

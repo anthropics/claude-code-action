@@ -4,6 +4,7 @@ export type CommonFields = {
   triggerPhrase: string;
   triggerUsername?: string;
   customInstructions?: string;
+  systemPrompt?: string;
   allowedTools?: string;
   disallowedTools?: string;
   directPrompt?: string;
