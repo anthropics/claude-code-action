@@ -32,6 +32,10 @@ inputs:
     description: "Additional custom instructions to include in the prompt for Claude"
     required: false
     default: ""
+  system_prompt:
+    description: "Custom system prompt to replace the default Claude system prompt. Variables can be used for substitution (see documentation)"
+    required: false
+    default: ""
   direct_prompt:
     description: "Direct instruction for Claude (bypasses normal trigger detection)"
     required: false
@@ -87,6 +91,7 @@ runs:
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}
+        SYSTEM_PROMPT: ${{ inputs.system_prompt }}
         DIRECT_PROMPT: ${{ inputs.direct_prompt }}
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_RUN_ID: ${{ github.run_id }}

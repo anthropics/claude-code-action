@@ -572,6 +572,79 @@ describe("generatePrompt", () => {
     expect(prompt).toContain("Create a PR](https://github.com/");
     expect(prompt).toContain("Reference to the original PR");
   });
+
+  test("should use custom system prompt when provided", () => {
+    const context: PreparedContext = {
+      repository: "test-owner/test-repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      triggerUsername: "test-user",
+      systemPrompt: "You are a custom assistant for {{REPOSITORY}}. Event: {{EVENT_TYPE}}. User: {{TRIGGER_USERNAME}}.",
+      eventData: {
+        eventName: "issue_comment",
+        commentId: "67890",
+        isPR: false,
+        defaultBranch: "main",
+        claudeBranch: "claude/issue-67890-20240101_120000",
+        issueNumber: "67890",
+        commentBody: "@claude please fix this",
+      },
+    };
+
+    const prompt = generatePrompt(context, mockGitHubData);
+
+    expect(prompt).toContain("You are a custom assistant for test-owner/test-repo");
+    expect(prompt).toContain("Event: GENERAL_COMMENT");
+    expect(prompt).toContain("User: test-user");
+    expect(prompt).not.toContain("You are Claude, an AI assistant");
+  });
+
+  test("should append custom instructions to custom system prompt", () => {
+    const context: PreparedContext = {
+      repository: "test-owner/test-repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      systemPrompt: "Custom prompt for {{REPOSITORY}}.",
+      customInstructions: "Additional instructions here.",
+      eventData: {
+        eventName: "issue_comment",
+        commentId: "67890",
+        isPR: false,
+        defaultBranch: "main",
+        claudeBranch: "claude/issue-67890-20240101_120000",
+        issueNumber: "67890",
+        commentBody: "@claude please fix this",
+      },
+    };
+
+    const prompt = generatePrompt(context, mockGitHubData);
+
+    expect(prompt).toContain("Custom prompt for test-owner/test-repo");
+    expect(prompt).toContain("CUSTOM INSTRUCTIONS:\nAdditional instructions here.");
+  });
+
+  test("should fall back to default prompt when no custom system prompt provided", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issue_comment",
+        commentId: "67890",
+        isPR: false,
+        issueNumber: "123",
+        defaultBranch: "main",
+        claudeBranch: "claude/issue-67890-20240101_120000",
+        commentBody: "@claude please fix this",
+      },
+    };
+
+    const prompt = generatePrompt(envVars, mockGitHubData);
+
+    expect(prompt).toContain("You are Claude, an AI assistant");
+    expect(prompt).toContain("<formatted_context>");
+    expect(prompt).toContain("Your task is to analyze the context");
+  });
 });
 
 describe("getEventTypeAndContext", () => {
@@ -582,8 +655,9 @@ describe("getEventTypeAndContext", () => {
       triggerPhrase: "@claude",
       eventData: {
         eventName: "pull_request_review_comment",
+        commentId: "67890",
         isPR: true,
-        prNumber: "123",
+        prNumber: "456",
         commentBody: "@claude please fix this",
       },
     };
@@ -604,7 +678,7 @@ describe("getEventTypeAndContext", () => {
         eventAction: "assigned",
         isPR: false,
         issueNumber: "999",
-        defaultBranch: "main",
+        defaultBranch: "develop",
         claudeBranch: "claude/issue-999-20240101_120000",
         assigneeTrigger: "claude-bot",
       },

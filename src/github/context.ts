@@ -31,6 +31,7 @@ export type ParsedGitHubContext = {
     allowedTools: string;
     disallowedTools: string;
     customInstructions: string;
+    systemPrompt: string;
     directPrompt: string;
   };
 };
@@ -54,6 +55,7 @@ export function parseGitHubContext(): ParsedGitHubContext {
       allowedTools: process.env.ALLOWED_TOOLS ?? "",
       disallowedTools: process.env.DISALLOWED_TOOLS ?? "",
       customInstructions: process.env.CUSTOM_INSTRUCTIONS ?? "",
+      systemPrompt: process.env.SYSTEM_PROMPT ?? "",
       directPrompt: process.env.DIRECT_PROMPT ?? "",
     },
   };

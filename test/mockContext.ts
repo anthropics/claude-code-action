@@ -10,14 +10,11 @@ import type {
 const defaultInputs = {
   triggerPhrase: "/claude",
   assigneeTrigger: "",
-  anthropicModel: "claude-3-7-sonnet-20250219",
   allowedTools: "",
   disallowedTools: "",
   customInstructions: "",
+  systemPrompt: "",
   directPrompt: "",
-  useBedrock: false,
-  useVertex: false,
-  timeoutMinutes: 30,
 };
 
 const defaultRepository = {

@@ -65,6 +65,7 @@ describe("checkWritePermissions", () => {
       allowedTools: "",
       disallowedTools: "",
       customInstructions: "",
+      systemPrompt: "",
       directPrompt: "",
     },
   });
