@@ -463,8 +463,8 @@ Tool usage example for mcp__github__update_pull_request_comment:
 }
 All four parameters (owner, repo, commentId, body) are required.
 </comment_tool_info>`
-    : `<comment_tool_info>
-IMPORTANT: For this event type, you have been provided with ONLY the mcp__github__update_issue_comment tool to update comments.
+      : `<comment_tool_info>
+IMPORTANT: You have access to various tools for file operations, code analysis, and GitHub operations. For updating your GitHub comment, use the mcp__github__update_issue_comment tool. To create a new PR, use the mcp__github__create_pull_request tool.
 
 Tool usage example for mcp__github__update_issue_comment:
 {
