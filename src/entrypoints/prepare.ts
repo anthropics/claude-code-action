@@ -89,6 +89,7 @@ async function run() {
       context.repository.owner,
       context.repository.repo,
       branchInfo.currentBranch,
+      commentId.toString(),
     );
     core.setOutput("mcp_config", mcpConfig);
   } catch (error) {

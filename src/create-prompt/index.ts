@@ -31,23 +31,12 @@ const BASE_ALLOWED_TOOLS = [
   "Write",
   "mcp__github_file_ops__commit_files",
   "mcp__github_file_ops__delete_files",
+  "mcp__github_file_ops__update_claude_comment",
 ];
 const DISALLOWED_TOOLS = ["WebSearch", "WebFetch"];
 
-export function buildAllowedToolsString(
-  eventData: EventData,
-  customAllowedTools?: string,
-): string {
+export function buildAllowedToolsString(customAllowedTools?: string): string {
   let baseTools = [...BASE_ALLOWED_TOOLS];
-
-  // Add the appropriate comment tool based on event type
-  if (eventData.eventName === "pull_request_review_comment") {
-    // For inline PR review comments, only use PR comment tool
-    baseTools.push("mcp__github__update_pull_request_comment");
-  } else {
-    // For all other events (issue comments, PR reviews, issues), use issue comment tool
-    baseTools.push("mcp__github__update_issue_comment");
-  }
 
   let allAllowedTools = baseTools.join(",");
   if (customAllowedTools) {
@@ -447,33 +436,15 @@ ${sanitizeContent(context.directPrompt)}
 </direct_prompt>`
     : ""
 }
-${
-  eventData.eventName === "pull_request_review_comment"
-    ? `<comment_tool_info>
-IMPORTANT: For this inline PR review comment, you have been provided with ONLY the mcp__github__update_pull_request_comment tool to update this specific review comment.
+${`<comment_tool_info>
+IMPORTANT: You have been provided with the mcp__github_file_ops__update_claude_comment tool to update your comment. This tool automatically handles both issue and PR comments.
 
-Tool usage example for mcp__github__update_pull_request_comment:
+Tool usage example for mcp__github_file_ops__update_claude_comment:
 {
-  "owner": "${context.repository.split("/")[0]}",
-  "repo": "${context.repository.split("/")[1]}",
-  "commentId": ${eventData.commentId || context.claudeCommentId},
   "body": "Your comment text here"
 }
-All four parameters (owner, repo, commentId, body) are required.
-</comment_tool_info>`
-    : `<comment_tool_info>
-IMPORTANT: For this event type, you have been provided with ONLY the mcp__github__update_issue_comment tool to update comments.
-
-Tool usage example for mcp__github__update_issue_comment:
-{
-  "owner": "${context.repository.split("/")[0]}",
-  "repo": "${context.repository.split("/")[1]}",
-  "commentId": ${context.claudeCommentId},
-  "body": "Your comment text here"
-}
-All four parameters (owner, repo, commentId, body) are required.
-</comment_tool_info>`
-}
+Only the body parameter is required - the tool automatically knows which comment to update.
+</comment_tool_info>`}
 
 Your task is to analyze the context, understand the request, and provide helpful responses and/or implement code changes as needed.
 
@@ -487,7 +458,7 @@ Follow these steps:
 1. Create a Todo List:
    - Use your GitHub comment to maintain a detailed task list based on the request.
    - Format todos as a checklist (- [ ] for incomplete, - [x] for complete).
-   - Update the comment using ${eventData.eventName === "pull_request_review_comment" ? "mcp__github__update_pull_request_comment" : "mcp__github__update_issue_comment"} with each task completion.
+   - Update the comment using mcp__github_file_ops__update_claude_comment with each task completion.
 
 2. Gather Context:
    - Analyze the pre-fetched data provided above.
@@ -517,11 +488,11 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
         - Look for bugs, security issues, performance problems, and other issues
         - Suggest improvements for readability and maintainability
         - Check for best practices and coding standards
-        - Reference specific code sections with file paths and line numbers${eventData.isPR ? "\n      - AFTER reading files and analyzing code, you MUST call mcp__github__update_issue_comment to post your review" : ""}
+        - Reference specific code sections with file paths and line numbers${eventData.isPR ? "\n      - AFTER reading files and analyzing code, you MUST call mcp__github_file_ops__update_claude_comment to post your review" : ""}
       - Formulate a concise, technical, and helpful response based on the context.
       - Reference specific code with inline formatting or code blocks.
       - Include relevant file paths and line numbers when applicable.
-      - ${eventData.isPR ? "IMPORTANT: Submit your review feedback by updating the Claude comment. This will be displayed as your PR review." : "Remember that this feedback must be posted to the GitHub comment."}
+      - ${eventData.isPR ? "IMPORTANT: Submit your review feedback by updating the Claude comment using mcp__github_file_ops__update_claude_comment. This will be displayed as your PR review." : "Remember that this feedback must be posted to the GitHub comment using mcp__github_file_ops__update_claude_comment."}
 
    B. For Straightforward Changes:
       - Use file system tools to make the change locally.
@@ -576,8 +547,8 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
 
 Important Notes:
 - All communication must happen through GitHub PR comments.
-- Never create new comments. Only update the existing comment using ${eventData.eventName === "pull_request_review_comment" ? "mcp__github__update_pull_request_comment" : "mcp__github__update_issue_comment"} with comment_id: ${context.claudeCommentId}.
-- This includes ALL responses: code reviews, answers to questions, progress updates, and final results.${eventData.isPR ? "\n- PR CRITICAL: After reading files and forming your response, you MUST post it by calling mcp__github__update_issue_comment. Do NOT just respond with a normal response, the user will not see it." : ""}
+- Never create new comments. Only update the existing comment using mcp__github_file_ops__update_claude_comment.
+- This includes ALL responses: code reviews, answers to questions, progress updates, and final results.${eventData.isPR ? "\n- PR CRITICAL: After reading files and forming your response, you MUST post it by calling mcp__github_file_ops__update_claude_comment. Do NOT just respond with a normal response, the user will not see it." : ""}
 - You communicate exclusively by editing your single comment - not through any other means.
 - Use this spinner HTML when work is in progress: <img src="https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f" width="14px" height="14px" style="vertical-align: middle; margin-left: 4px;" />
 ${eventData.isPR && !eventData.claudeBranch ? `- Always push to the existing branch when triggered on a PR.` : `- IMPORTANT: You are already on the correct branch (${eventData.claudeBranch || "the created branch"}). Never create new branches when triggered on issues or closed/merged PRs.`}
@@ -665,7 +636,6 @@ export async function createPrompt(
 
     // Set allowed tools
     const allAllowedTools = buildAllowedToolsString(
-      preparedContext.eventData,
       preparedContext.allowedTools,
     );
     const allDisallowedTools = buildDisallowedToolsString(

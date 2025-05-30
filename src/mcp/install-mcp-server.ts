@@ -5,6 +5,7 @@ export async function prepareMcpConfig(
   owner: string,
   repo: string,
   branch: string,
+  claudeCommentId?: string,
 ): Promise<string> {
   try {
     const mcpConfig = {
@@ -35,6 +36,9 @@ export async function prepareMcpConfig(
             REPO_NAME: repo,
             BRANCH_NAME: branch,
             REPO_DIR: process.env.GITHUB_WORKSPACE || process.cwd(),
+            ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
+            GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
+            IS_PR: process.env.IS_PR || "false",
           },
         },
       },

@@ -7,6 +7,7 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
+import { Octokit } from "@octokit/rest";
 
 type GitHubRef = {
   object: {
@@ -419,6 +420,106 @@ server.tool(
           {
             type: "text",
             text: JSON.stringify(simplifiedResult, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error: ${errorMessage}`,
+          },
+        ],
+        error: errorMessage,
+        isError: true,
+      };
+    }
+  },
+);
+
+// Update Claude comment tool
+server.tool(
+  "update_claude_comment",
+  "Update the Claude comment with progress and results (automatically handles both issue and PR comments)",
+  {
+    body: z.string().describe("The updated comment content"),
+  },
+  async ({ body }) => {
+    try {
+      const githubToken = process.env.GITHUB_TOKEN;
+      const claudeCommentId = process.env.CLAUDE_COMMENT_ID;
+      const eventName = process.env.GITHUB_EVENT_NAME;
+
+      if (!githubToken) {
+        throw new Error("GITHUB_TOKEN environment variable is required");
+      }
+      if (!claudeCommentId) {
+        throw new Error("CLAUDE_COMMENT_ID environment variable is required");
+      }
+
+      const owner = REPO_OWNER;
+      const repo = REPO_NAME;
+      const commentId = parseInt(claudeCommentId, 10);
+
+      // Create Octokit instance
+      const octokit = new Octokit({
+        auth: githubToken,
+      });
+
+      // Determine if this is a PR review comment based on event type
+      const isPullRequestReviewComment =
+        eventName === "pull_request_review_comment";
+
+      let response;
+
+      try {
+        if (isPullRequestReviewComment) {
+          // Try PR review comment API first
+          response = await octokit.rest.pulls.updateReviewComment({
+            owner,
+            repo,
+            comment_id: commentId,
+            body,
+          });
+        } else {
+          // Use issue comment API (works for both issues and PR general comments)
+          response = await octokit.rest.issues.updateComment({
+            owner,
+            repo,
+            comment_id: commentId,
+            body,
+          });
+        }
+      } catch (error: any) {
+        // If PR review comment update fails with 404, fall back to issue comment API
+        if (isPullRequestReviewComment && error.status === 404) {
+          response = await octokit.rest.issues.updateComment({
+            owner,
+            repo,
+            comment_id: commentId,
+            body,
+          });
+        } else {
+          throw error;
+        }
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                id: response.data.id,
+                html_url: response.data.html_url,
+                updated_at: response.data.updated_at,
+              },
+              null,
+              2,
+            ),
           },
         ],
       };
