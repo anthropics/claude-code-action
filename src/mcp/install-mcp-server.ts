@@ -5,9 +5,10 @@ export async function prepareMcpConfig(
   owner: string,
   repo: string,
   branch: string,
+  additionalMcpConfig?: string,
 ): Promise<string> {
   try {
-    const mcpConfig = {
+    const baseMcpConfig = {
       mcpServers: {
         github: {
           command: "docker",
@@ -40,7 +41,37 @@ export async function prepareMcpConfig(
       },
     };
 
-    return JSON.stringify(mcpConfig, null, 2);
+    // Merge with additional MCP config if provided
+    if (additionalMcpConfig && additionalMcpConfig.trim()) {
+      try {
+        const additionalConfig = JSON.parse(additionalMcpConfig);
+
+        // Validate that parsed JSON is an object
+        if (typeof additionalConfig !== "object" || additionalConfig === null) {
+          throw new Error("MCP config must be a valid JSON object");
+        }
+
+        core.info("Merging additional MCP server configuration with built-in servers");
+
+        // Merge configurations with user config overriding built-in servers
+        const mergedConfig = {
+          ...baseMcpConfig,
+          ...additionalConfig,
+          mcpServers: {
+            ...baseMcpConfig.mcpServers,
+            ...additionalConfig.mcpServers,
+          },
+        };
+
+        return JSON.stringify(mergedConfig, null, 2);
+      } catch (parseError) {
+        core.warning(
+          `Failed to parse additional MCP config: ${parseError}. Using base config only.`,
+        );
+      }
+    }
+
+    return JSON.stringify(baseMcpConfig, null, 2);
   } catch (error) {
     core.setFailed(`Install MCP server failed with error: ${error}`);
     process.exit(1);
