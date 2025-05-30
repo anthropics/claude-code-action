@@ -276,6 +276,20 @@ export function prepareContext(
           baseBranch,
           claudeBranch,
         };
+      } else if (eventAction === "labeled") {
+        const payload = context.payload;
+        const labelName =
+          "label" in payload && payload.label ? payload.label.name : "";
+
+        eventData = {
+          eventName: "issues",
+          eventAction: "labeled",
+          isPR: false,
+          issueNumber,
+          defaultBranch,
+          claudeBranch,
+          label: labelName,
+        };
       } else {
         throw new Error(`Unsupported issue action: ${eventAction}`);
       }
@@ -338,6 +352,11 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
         return {
           eventType: "ISSUE_CREATED",
           triggerContext: `new issue with '${envVars.triggerPhrase}' in body`,
+        };
+      } else if (eventData.eventAction === "labeled") {
+        return {
+          eventType: "ISSUE_LABELED",
+          triggerContext: `issue labeled with '${eventData.label}'`,
         };
       }
       return {
