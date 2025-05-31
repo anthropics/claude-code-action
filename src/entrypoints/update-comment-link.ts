@@ -87,13 +87,29 @@ async function run() {
     const currentBody = comment.body ?? "";
 
     // Check if we need to add branch link for new branches
-    const { shouldDeleteBranch, branchLink } = await checkAndDeleteEmptyBranch(
-      octokit,
-      owner,
-      repo,
-      claudeBranch,
-      baseBranch,
-    );
+    // For issues, we don't delete branches anymore to allow reuse
+    const skipBranchDeletion = !context.isPR && claudeBranch;
+    
+    let shouldDeleteBranch = false;
+    let branchLink = "";
+    
+    if (skipBranchDeletion) {
+      // For issue branches, just add the branch link without checking for deletion
+      const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${claudeBranch}`;
+      branchLink = `\n[View branch](${branchUrl})`;
+      console.log(`Keeping issue branch ${claudeBranch} for potential reuse`);
+    } else {
+      // For PR branches, use the existing cleanup logic
+      const result = await checkAndDeleteEmptyBranch(
+        octokit,
+        owner,
+        repo,
+        claudeBranch,
+        baseBranch,
+      );
+      shouldDeleteBranch = result.shouldDeleteBranch;
+      branchLink = result.branchLink;
+    }
 
     // Check if we need to add PR URL when we have a new branch
     let prLink = "";

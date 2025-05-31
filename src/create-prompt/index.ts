@@ -361,6 +361,7 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
 export function generatePrompt(
   context: PreparedContext,
   githubData: FetchDataResult,
+  isReusedBranch?: boolean,
 ): string {
   const {
     contextData,
@@ -534,7 +535,7 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
       - Use mcp__github_file_ops__commit_files to commit files atomically in a single commit (supports single or multiple files).
       - When pushing changes with this tool and TRIGGER_USERNAME is not "Unknown", include a "Co-authored-by: ${context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>" line in the commit message.`
           : `
-      - You are already on the correct branch (${eventData.claudeBranch || "the PR branch"}). Do not create a new branch.
+      - You are already on the correct branch (${eventData.claudeBranch || "the PR branch"}). Do not create a new branch.${isReusedBranch ? `\n      - NOTE: This branch (${eventData.claudeBranch}) was reused from a previous Claude invocation on this issue. It may already contain some work.` : ''}
       - Push changes directly to the current branch using mcp__github_file_ops__commit_files (works for both new and existing files)
       - Use mcp__github_file_ops__commit_files to commit files atomically in a single commit (supports single or multiple files).
       - When pushing changes and TRIGGER_USERNAME is not "Unknown", include a "Co-authored-by: ${context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>" line in the commit message.
@@ -641,6 +642,7 @@ export async function createPrompt(
   claudeBranch: string | undefined,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
+  isReusedBranch?: boolean,
 ) {
   try {
     const preparedContext = prepareContext(
@@ -653,7 +655,7 @@ export async function createPrompt(
     await mkdir("/tmp/claude-prompts", { recursive: true });
 
     // Generate the prompt
-    const promptContent = generatePrompt(preparedContext, githubData);
+    const promptContent = generatePrompt(preparedContext, githubData, isReusedBranch);
 
     // Log the final prompt to console
     console.log("===== FINAL PROMPT =====");
