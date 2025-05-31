@@ -65,6 +65,11 @@ jobs:
           # trigger_phrase: "/claude"
           # Optional: add assignee trigger for issues
           # assignee_trigger: "claude"
+          # Optional: add custom environment variables (YAML format)
+          # claude_env: |
+          #   NODE_ENV: test
+          #   DEBUG: true
+          #   API_URL: https://api.example.com
 ```
 
 ## Inputs
@@ -84,6 +89,7 @@ jobs:
 | `custom_instructions` | Additional custom instructions to include in the prompt for Claude                                                   | No       | ""        |
 | `assignee_trigger`    | The assignee username that triggers the action (e.g. @claude). Only used for issue assignment                        | No       | -         |
 | `trigger_phrase`      | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                        | No       | `@claude` |
+| `claude_env`          | Custom environment variables to pass to Claude Code execution (YAML format)                                          | No       | ""        |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 
@@ -232,6 +238,23 @@ This action is built on top of [`anthropics/claude-code-base-action`](https://gi
 - **Perform Branch Operations**: Cannot merge branches, rebase, or perform other git operations beyond pushing commits
 
 ## Advanced Configuration
+
+### Custom Environment Variables
+
+You can pass custom environment variables to Claude Code execution using the `claude_env` input. This is useful for CI/test setups that require specific environment variables:
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    claude_env: |
+      NODE_ENV: test
+      CI: true
+      DATABASE_URL: postgres://test:test@localhost:5432/test_db
+      API_KEY: test-api-key
+    # ... other inputs
+```
+
+The `claude_env` input accepts YAML format where each line defines a key-value pair. These environment variables will be available to Claude Code during execution, allowing it to run tests, build processes, or other commands that depend on specific environment configurations.
 
 ### Custom Tools
 

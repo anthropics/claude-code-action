@@ -39,6 +39,10 @@ inputs:
     description: "Direct instruction for Claude (bypasses normal trigger detection)"
     required: false
     default: ""
+  claude_env:
+    description: "Custom environment variables to pass to Claude Code execution (YAML format)"
+    required: false
+    default: ""
 
   # Auth configuration
   anthropic_api_key:
@@ -109,6 +113,7 @@ runs:
         use_bedrock: ${{ inputs.use_bedrock }}
         use_vertex: ${{ inputs.use_vertex }}
         anthropic_api_key: ${{ inputs.anthropic_api_key }}
+        claude_env: ${{ inputs.claude_env }}
       env:
         # Model configuration
         ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
