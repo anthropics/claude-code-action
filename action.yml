@@ -62,6 +62,9 @@ inputs:
     default: "30"
 
 outputs:
+  comment_ids:
+    description: "Newline-separated list of comment IDs created by Claude"
+    value: ${{ steps.prepare.outputs.claude_comment_id }}
   execution_file:
     description: "Path to the Claude Code execution output file"
     value: ${{ steps.claude-code.outputs.execution_file }}
