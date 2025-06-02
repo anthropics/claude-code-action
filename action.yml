@@ -95,53 +95,45 @@ runs:
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_RUN_ID: ${{ github.run_id }}
 
-    - name: Run Claude (local CLI)
-      id: run_claude
+    - name: Run Claude Code
+      id: claude-code
       if: steps.prepare.outputs.contains_trigger == 'true'
-      shell: bash
-      run: |
-        PROMPT_FILE="/tmp/claude-prompts/claude-prompt.txt"
-        OUTPUT_JSON="/tmp/claude-output.json"
+      uses: starup-ai-pj/claude-code-base-action@main
+      with:
+        prompt_file: /tmp/claude-prompts/claude-prompt.txt
+        allowed_tools: ${{ env.ALLOWED_TOOLS }}
+        disallowed_tools: ${{ env.DISALLOWED_TOOLS }}
+        timeout_minutes: ${{ inputs.timeout_minutes }}
+        model: ${{ inputs.model || inputs.anthropic_model }}
+        mcp_config: ${{ steps.prepare.outputs.mcp_config }}
+        use_bedrock: ${{ inputs.use_bedrock }}
+        use_vertex: ${{ inputs.use_vertex }}
+        anthropic_api_key: ${{ inputs.anthropic_api_key }}
+      env:
+        # Model configuration
+        ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
+        GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
 
-        if [[ ! -s "$PROMPT_FILE" ]]; then
-          echo "ERROR: Prompt file not found or empty: $PROMPT_FILE"
-          exit 1
-        fi
+        # Provider configuration
+        ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
 
-        # プロンプト文字列を読み込む
-        PROMPT_TEXT="$(cat "$PROMPT_FILE")"
+        # AWS configuration
+        AWS_REGION: ${{ env.AWS_REGION }}
+        AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+        AWS_SESSION_TOKEN: ${{ env.AWS_SESSION_TOKEN }}
+        ANTHROPIC_BEDROCK_BASE_URL: ${{ env.ANTHROPIC_BEDROCK_BASE_URL }}
 
-        # ローカルの claude CLI を JSON 形式で呼び出す
-        # ── 必須オプション ──
-        #   -p (--print): 非対話モードで結果をプリントして終了
-        #   --output-format json: JSON フォーマットで出力
-        #
-        # 追加で model やツール設定を反映したい場合は、
-        #   --model "<モデル名>"
-        #   --allowedTools "<許可ツール>"
-        #   --disallowedTools "<禁止ツール>"
-        #   --mcp-config "<JSON 文字列またはファイルパス>"
-        # などを付与してください。
-        #
-        # 例：
-        #  claude -p --output-format json \
-        #    --model "sonnet" \
-        #    --allowedTools "{{ inputs.allowed_tools }}" \
-        #    --disallowedTools "{{ inputs.disallowed_tools }}" \
-        #    --mcp-config "{{ steps.prepare.outputs.mcp_config }}" \
-        #    "$PROMPT_TEXT" > "$OUTPUT_JSON"
+        # GCP configuration
+        ANTHROPIC_VERTEX_PROJECT_ID: ${{ env.ANTHROPIC_VERTEX_PROJECT_ID }}
+        CLOUD_ML_REGION: ${{ env.CLOUD_ML_REGION }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+        ANTHROPIC_VERTEX_BASE_URL: ${{ env.ANTHROPIC_VERTEX_BASE_URL }}
 
-        PROMPT_TEXT="$(cat "$PROMPT_FILE")"
-        /home/amano/.npm-global/bin/claude -p "$(cat "$PROMPT_FILE")"  --output-format json  > "$OUTPUT_JSON"
-
-        if [[ $? -ne 0 ]]; then
-          echo "ERROR: claude CLI exited with non-zero status"
-          exit 1
-        fi
-
-        # 実行結果ファイルのパスを出力変数にセット
-        echo "::set-output name=execution_file::${OUTPUT_JSON}"
-
+        # Model-specific regions for Vertex
+        VERTEX_REGION_CLAUDE_3_5_HAIKU: ${{ env.VERTEX_REGION_CLAUDE_3_5_HAIKU }}
+        VERTEX_REGION_CLAUDE_3_5_SONNET: ${{ env.VERTEX_REGION_CLAUDE_3_5_SONNET }}
+        VERTEX_REGION_CLAUDE_3_7_SONNET: ${{ env.VERTEX_REGION_CLAUDE_3_7_SONNET }}
 
     - name: Update comment with job link
       if: steps.prepare.outputs.contains_trigger == 'true' && steps.prepare.outputs.claude_comment_id && always()
