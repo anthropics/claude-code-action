@@ -9,7 +9,10 @@ export type Octokits = {
 
 export function createOctokit(token: string): Octokits {
   return {
-    rest: new Octokit({ auth: token }),
+    rest: new Octokit({
+      auth: token,
+      baseUrl: GITHUB_API_URL,
+    }),
     graphql: graphql.defaults({
       baseUrl: GITHUB_API_URL,
       headers: {

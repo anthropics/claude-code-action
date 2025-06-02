@@ -32,6 +32,7 @@ export type ParsedGitHubContext = {
     disallowedTools: string;
     customInstructions: string;
     directPrompt: string;
+    baseBranch?: string;
   };
 };
 
@@ -55,6 +56,7 @@ export function parseGitHubContext(): ParsedGitHubContext {
       disallowedTools: process.env.DISALLOWED_TOOLS ?? "",
       customInstructions: process.env.CUSTOM_INSTRUCTIONS ?? "",
       directPrompt: process.env.DIRECT_PROMPT ?? "",
+      baseBranch: process.env.BASE_BRANCH,
     },
   };
 

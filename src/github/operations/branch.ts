@@ -14,7 +14,7 @@ import type { Octokits } from "../api/client";
 import type { FetchDataResult } from "../data/fetcher";
 
 export type BranchInfo = {
-  defaultBranch: string;
+  baseBranch: string;
   claudeBranch?: string;
   currentBranch: string;
 };
@@ -26,14 +26,8 @@ export async function setupBranch(
 ): Promise<BranchInfo> {
   const { owner, repo } = context.repository;
   const entityNumber = context.entityNumber;
+  const { baseBranch } = context.inputs;
   const isPR = context.isPR;
-
-  // Get the default branch first
-  const repoResponse = await octokits.rest.repos.get({
-    owner,
-    repo,
-  });
-  const defaultBranch = repoResponse.data.default_branch;
 
   if (isPR) {
     const prData = githubData.contextData as GitHubPullRequest;
@@ -42,7 +36,7 @@ export async function setupBranch(
     // Check if PR is closed or merged
     if (prState === "CLOSED" || prState === "MERGED") {
       console.log(
-        `PR #${entityNumber} is ${prState}, creating new branch from default...`,
+        `PR #${entityNumber} is ${prState}, creating new branch from source...`,
       );
       // Fall through to create a new branch like we do for issues
     } else {
@@ -51,23 +45,43 @@ export async function setupBranch(
 
       const branchName = prData.headRefName;
 
-      // Execute git commands to checkout PR branch
-      await $`git fetch origin ${branchName}`;
+      // Execute git commands to checkout PR branch (shallow fetch for performance)
+      // Fetch the branch with a depth of 20 to avoid fetching too much history, while still allowing for some context
+      await $`git fetch origin --depth=20 ${branchName}`;
       await $`git checkout ${branchName}`;
 
       console.log(`Successfully checked out PR branch for PR #${entityNumber}`);
 
-      // For open PRs, return branch info
+      // For open PRs, we need to get the base branch of the PR
+      const baseBranch = prData.baseRefName;
+
       return {
-        defaultBranch,
+        baseBranch,
         currentBranch: branchName,
       };
     }
   }
 
+  // Determine source branch - use baseBranch if provided, otherwise fetch default
+  let sourceBranch: string;
+
+  if (baseBranch) {
+    // Use provided base branch for source
+    sourceBranch = baseBranch;
+  } else {
+    // No base branch provided, fetch the default branch to use as source
+    const repoResponse = await octokits.rest.repos.get({
+      owner,
+      repo,
+    });
+    sourceBranch = repoResponse.data.default_branch;
+  }
+
   // Creating a new branch for either an issue or closed/merged PR
   const entityType = isPR ? "pr" : "issue";
-  console.log(`Creating new branch for ${entityType} #${entityNumber}...`);
+  console.log(
+    `Creating new branch for ${entityType} #${entityNumber} from source branch: ${sourceBranch}...`,
+  );
 
   const timestamp = new Date()
     .toISOString()
@@ -79,14 +93,14 @@ export async function setupBranch(
   const newBranch = `claude/${entityType}-${entityNumber}-${timestamp}`;
 
   try {
-    // Get the SHA of the default branch
-    const defaultBranchRef = await octokits.rest.git.getRef({
+    // Get the SHA of the source branch
+    const sourceBranchRef = await octokits.rest.git.getRef({
       owner,
       repo,
-      ref: `heads/${defaultBranch}`,
+      ref: `heads/${sourceBranch}`,
     });
 
-    const currentSHA = defaultBranchRef.data.object.sha;
+    const currentSHA = sourceBranchRef.data.object.sha;
 
     console.log(`Current SHA: ${currentSHA}`);
 
@@ -98,8 +112,8 @@ export async function setupBranch(
       sha: currentSHA,
     });
 
-    // Checkout the new branch
-    await $`git fetch origin ${newBranch}`;
+    // Checkout the new branch (shallow fetch for performance)
+    await $`git fetch origin --depth=1 ${newBranch}`;
     await $`git checkout ${newBranch}`;
 
     console.log(
@@ -108,9 +122,9 @@ export async function setupBranch(
 
     // Set outputs for GitHub Actions
     core.setOutput("CLAUDE_BRANCH", newBranch);
-    core.setOutput("DEFAULT_BRANCH", defaultBranch);
+    core.setOutput("BASE_BRANCH", sourceBranch);
     return {
-      defaultBranch,
+      baseBranch: sourceBranch,
       claudeBranch: newBranch,
       currentBranch: newBranch,
     };

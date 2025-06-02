@@ -39,25 +39,19 @@ async function retryWithBackoff<T>(
     }
   }
 
-  throw new Error(
-    `Operation failed after ${maxAttempts} attempts. Last error: ${
-      lastError?.message ?? "Unknown error"
-    }`,
-  );
+  console.error(`Operation failed after ${maxAttempts} attempts`);
+  throw lastError;
 }
 
 async function getOidcToken(): Promise<string> {
   try {
     const oidcToken = await core.getIDToken("claude-code-github-action");
 
-    if (!oidcToken) {
-      throw new Error("OIDC token not found");
-    }
-
     return oidcToken;
   } catch (error) {
+    console.error("Failed to get OIDC token:", error);
     throw new Error(
-      `Failed to get OIDC token: ${error instanceof Error ? error.message : String(error)}`,
+      "Could not fetch an OIDC token. Did you remember to add `id-token: write` to your workflow permissions?",
     );
   }
 }
@@ -74,9 +68,15 @@ async function exchangeForAppToken(oidcToken: string): Promise<string> {
   );
 
   if (!response.ok) {
-    throw new Error(
-      `App token exchange failed: ${response.status} ${response.statusText}`,
+    const responseJson = (await response.json()) as {
+      error?: {
+        message?: string;
+      };
+    };
+    console.error(
+      `App token exchange failed: ${response.status} ${response.statusText} - ${responseJson?.error?.message ?? "Unknown error"}`,
     );
+    throw new Error(`${responseJson?.error?.message ?? "Unknown error"}`);
   }
 
   const appTokenData = (await response.json()) as {
@@ -117,7 +117,9 @@ export async function setupGitHubToken(): Promise<string> {
     core.setOutput("GITHUB_TOKEN", appToken);
     return appToken;
   } catch (error) {
-    core.setFailed(`Failed to setup GitHub token: ${error}`);
+    core.setFailed(
+      `Failed to setup GitHub token: ${error}.\n\nIf you instead wish to use this action with a custom GitHub token or custom GitHub app, provide a \`github_token\` in the \`uses\` section of the app in your workflow yml file.`,
+    );
     process.exit(1);
   }
 }

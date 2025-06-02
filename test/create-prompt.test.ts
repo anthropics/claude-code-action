@@ -8,7 +8,6 @@ import {
   buildDisallowedToolsString,
 } from "../src/create-prompt";
 import type { PreparedContext } from "../src/create-prompt";
-import type { EventData } from "../src/create-prompt/types";
 
 describe("generatePrompt", () => {
   const mockGitHubData = {
@@ -127,7 +126,7 @@ describe("generatePrompt", () => {
         eventName: "issue_comment",
         commentId: "67890",
         isPR: false,
-        defaultBranch: "main",
+        baseBranch: "main",
         claudeBranch: "claude/issue-67890-20240101_120000",
         issueNumber: "67890",
         commentBody: "@claude please fix this",
@@ -183,7 +182,7 @@ describe("generatePrompt", () => {
         eventAction: "opened",
         isPR: false,
         issueNumber: "789",
-        defaultBranch: "main",
+        baseBranch: "main",
         claudeBranch: "claude/issue-789-20240101_120000",
       },
     };
@@ -210,7 +209,7 @@ describe("generatePrompt", () => {
         eventAction: "assigned",
         isPR: false,
         issueNumber: "999",
-        defaultBranch: "develop",
+        baseBranch: "develop",
         claudeBranch: "claude/issue-999-20240101_120000",
         assigneeTrigger: "claude-bot",
       },
@@ -238,7 +237,7 @@ describe("generatePrompt", () => {
         eventAction: "opened",
         isPR: false,
         issueNumber: "789",
-        defaultBranch: "main",
+        baseBranch: "main",
         claudeBranch: "claude/issue-789-20240101_120000",
       },
     };
@@ -285,7 +284,7 @@ describe("generatePrompt", () => {
         commentId: "67890",
         isPR: false,
         issueNumber: "123",
-        defaultBranch: "main",
+        baseBranch: "main",
         claudeBranch: "claude/issue-67890-20240101_120000",
         commentBody: "@claude please fix this",
       },
@@ -307,7 +306,7 @@ describe("generatePrompt", () => {
         commentId: "67890",
         isPR: false,
         issueNumber: "123",
-        defaultBranch: "main",
+        baseBranch: "main",
         claudeBranch: "claude/issue-67890-20240101_120000",
         commentBody: "@claude please fix this",
       },
@@ -362,7 +361,7 @@ describe("generatePrompt", () => {
         eventAction: "opened",
         isPR: false,
         issueNumber: "789",
-        defaultBranch: "main",
+        baseBranch: "main",
         claudeBranch: "claude/issue-789-20240101_120000",
       },
     };
@@ -400,7 +399,7 @@ describe("generatePrompt", () => {
         commentId: "67890",
         isPR: false,
         issueNumber: "123",
-        defaultBranch: "main",
+        baseBranch: "main",
         claudeBranch: "claude/issue-123-20240101_120000",
         commentBody: "@claude please fix this",
       },
@@ -432,7 +431,7 @@ describe("generatePrompt", () => {
         prNumber: "456",
         commentBody: "@claude please fix this",
         claudeBranch: "claude/pr-456-20240101_120000",
-        defaultBranch: "main",
+        baseBranch: "main",
       },
     };
 
@@ -470,7 +469,7 @@ describe("generatePrompt", () => {
         isPR: true,
         prNumber: "456",
         commentBody: "@claude please fix this",
-        // No claudeBranch or defaultBranch for open PRs
+        // No claudeBranch or baseBranch for open PRs
       },
     };
 
@@ -503,7 +502,7 @@ describe("generatePrompt", () => {
         prNumber: "789",
         commentBody: "@claude please update this",
         claudeBranch: "claude/pr-789-20240101_123000",
-        defaultBranch: "develop",
+        baseBranch: "develop",
       },
     };
 
@@ -531,7 +530,7 @@ describe("generatePrompt", () => {
         commentId: "review-comment-123",
         commentBody: "@claude fix this issue",
         claudeBranch: "claude/pr-999-20240101_140000",
-        defaultBranch: "main",
+        baseBranch: "main",
       },
     };
 
@@ -559,7 +558,7 @@ describe("generatePrompt", () => {
         isPR: true,
         prNumber: "555",
         claudeBranch: "claude/pr-555-20240101_150000",
-        defaultBranch: "main",
+        baseBranch: "main",
       },
     };
 
@@ -604,7 +603,7 @@ describe("getEventTypeAndContext", () => {
         eventAction: "assigned",
         isPR: false,
         issueNumber: "999",
-        defaultBranch: "main",
+        baseBranch: "main",
         claudeBranch: "claude/issue-999-20240101_120000",
         assigneeTrigger: "claude-bot",
       },
@@ -619,15 +618,7 @@ describe("getEventTypeAndContext", () => {
 
 describe("buildAllowedToolsString", () => {
   test("should return issue comment tool for regular events", () => {
-    const mockEventData: EventData = {
-      eventName: "issue_comment",
-      commentId: "123",
-      isPR: true,
-      prNumber: "456",
-      commentBody: "Test comment",
-    };
-
-    const result = buildAllowedToolsString(mockEventData);
+    const result = buildAllowedToolsString();
 
     // The base tools should be in the result
     expect(result).toContain("Edit");
@@ -636,22 +627,15 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("LS");
     expect(result).toContain("Read");
     expect(result).toContain("Write");
-    expect(result).toContain("mcp__github__update_issue_comment");
+    expect(result).toContain("mcp__github_file_ops__update_claude_comment");
+    expect(result).not.toContain("mcp__github__update_issue_comment");
     expect(result).not.toContain("mcp__github__update_pull_request_comment");
     expect(result).toContain("mcp__github_file_ops__commit_files");
     expect(result).toContain("mcp__github_file_ops__delete_files");
   });
 
   test("should return PR comment tool for inline review comments", () => {
-    const mockEventData: EventData = {
-      eventName: "pull_request_review_comment",
-      isPR: true,
-      prNumber: "456",
-      commentBody: "Test review comment",
-      commentId: "789",
-    };
-
-    const result = buildAllowedToolsString(mockEventData);
+    const result = buildAllowedToolsString();
 
     // The base tools should be in the result
     expect(result).toContain("Edit");
@@ -660,23 +644,16 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("LS");
     expect(result).toContain("Read");
     expect(result).toContain("Write");
+    expect(result).toContain("mcp__github_file_ops__update_claude_comment");
     expect(result).not.toContain("mcp__github__update_issue_comment");
-    expect(result).toContain("mcp__github__update_pull_request_comment");
+    expect(result).not.toContain("mcp__github__update_pull_request_comment");
     expect(result).toContain("mcp__github_file_ops__commit_files");
     expect(result).toContain("mcp__github_file_ops__delete_files");
   });
 
   test("should append custom tools when provided", () => {
-    const mockEventData: EventData = {
-      eventName: "issue_comment",
-      commentId: "123",
-      isPR: true,
-      prNumber: "456",
-      commentBody: "Test comment",
-    };
-
     const customTools = "Tool1,Tool2,Tool3";
-    const result = buildAllowedToolsString(mockEventData, customTools);
+    const result = buildAllowedToolsString(customTools);
 
     // Base tools should be present
     expect(result).toContain("Edit");
@@ -721,5 +698,52 @@ describe("buildDisallowedToolsString", () => {
     expect(parts).toContain("WebSearch");
     expect(parts).toContain("BadTool1");
     expect(parts).toContain("BadTool2");
+  });
+
+  test("should remove hardcoded disallowed tools if they are in allowed tools", () => {
+    const customDisallowedTools = "BadTool1,BadTool2";
+    const allowedTools = "WebSearch,SomeOtherTool";
+    const result = buildDisallowedToolsString(
+      customDisallowedTools,
+      allowedTools,
+    );
+
+    // WebSearch should be removed from disallowed since it's in allowed
+    expect(result).not.toContain("WebSearch");
+
+    // WebFetch should still be disallowed since it's not in allowed
+    expect(result).toContain("WebFetch");
+
+    // Custom disallowed tools should still be present
+    expect(result).toContain("BadTool1");
+    expect(result).toContain("BadTool2");
+  });
+
+  test("should remove all hardcoded disallowed tools if they are all in allowed tools", () => {
+    const allowedTools = "WebSearch,WebFetch,SomeOtherTool";
+    const result = buildDisallowedToolsString(undefined, allowedTools);
+
+    // Both hardcoded disallowed tools should be removed
+    expect(result).not.toContain("WebSearch");
+    expect(result).not.toContain("WebFetch");
+
+    // Result should be empty since no custom disallowed tools provided
+    expect(result).toBe("");
+  });
+
+  test("should handle custom disallowed tools when all hardcoded tools are overridden", () => {
+    const customDisallowedTools = "BadTool1,BadTool2";
+    const allowedTools = "WebSearch,WebFetch";
+    const result = buildDisallowedToolsString(
+      customDisallowedTools,
+      allowedTools,
+    );
+
+    // Hardcoded tools should be removed
+    expect(result).not.toContain("WebSearch");
+    expect(result).not.toContain("WebFetch");
+
+    // Only custom disallowed tools should remain
+    expect(result).toBe("BadTool1,BadTool2");
   });
 });

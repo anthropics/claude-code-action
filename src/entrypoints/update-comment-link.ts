@@ -12,13 +12,14 @@ import {
 } from "../github/context";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import { checkAndDeleteEmptyBranch } from "../github/operations/branch-cleanup";
+import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 
 async function run() {
   try {
     const commentId = parseInt(process.env.CLAUDE_COMMENT_ID!);
     const githubToken = process.env.GITHUB_TOKEN!;
     const claudeBranch = process.env.CLAUDE_BRANCH;
-    const defaultBranch = process.env.DEFAULT_BRANCH || "main";
+    const baseBranch = process.env.BASE_BRANCH || "main";
     const triggerUsername = process.env.TRIGGER_USERNAME;
 
     const context = parseGitHubContext();
@@ -92,7 +93,7 @@ async function run() {
       owner,
       repo,
       claudeBranch,
-      defaultBranch,
+      baseBranch,
     );
 
     // Check if we need to add PR URL when we have a new branch
@@ -102,7 +103,7 @@ async function run() {
       // Check if comment already contains a PR URL
       const serverUrlPattern = serverUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const prUrlPattern = new RegExp(
-        `${serverUrlPattern}\\/.+\\/compare\\/${defaultBranch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.\\.\\.`,
+        `${serverUrlPattern}\\/.+\\/compare\\/${baseBranch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.\\.\\.`,
       );
       const containsPRUrl = currentBody.match(prUrlPattern);
 
@@ -113,7 +114,7 @@ async function run() {
             await octokit.rest.repos.compareCommitsWithBasehead({
               owner,
               repo,
-              basehead: `${defaultBranch}...${claudeBranch}`,
+              basehead: `${baseBranch}...${claudeBranch}`,
             });
 
           // If there are changes (commits or file changes), add the PR URL
@@ -128,7 +129,7 @@ async function run() {
             const prBody = encodeURIComponent(
               `This PR addresses ${entityType.toLowerCase()} #${context.entityNumber}\n\nGenerated with [Claude Code](https://claude.ai/code)`,
             );
-            const prUrl = `${serverUrl}/${owner}/${repo}/compare/${defaultBranch}...${claudeBranch}?quick_pull=1&title=${prTitle}&body=${prBody}`;
+            const prUrl = `${serverUrl}/${owner}/${repo}/compare/${baseBranch}...${claudeBranch}?quick_pull=1&title=${prTitle}&body=${prBody}`;
             prLink = `\n[Create a PR](${prUrl})`;
           }
         } catch (error) {
@@ -145,38 +146,48 @@ async function run() {
       duration_api_ms?: number;
     } | null = null;
     let actionFailed = false;
+    let errorDetails: string | undefined;
 
-    // Check for existence of output file and parse it if available
-    try {
-      const outputFile = process.env.OUTPUT_FILE;
-      if (outputFile) {
-        const fileContent = await fs.readFile(outputFile, "utf8");
-        const outputData = JSON.parse(fileContent);
+    // First check if prepare step failed
+    const prepareSuccess = process.env.PREPARE_SUCCESS !== "false";
+    const prepareError = process.env.PREPARE_ERROR;
 
-        // Output file is an array, get the last element which contains execution details
-        if (Array.isArray(outputData) && outputData.length > 0) {
-          const lastElement = outputData[outputData.length - 1];
-          if (
-            lastElement.role === "system" &&
-            "cost_usd" in lastElement &&
-            "duration_ms" in lastElement
-          ) {
-            executionDetails = {
-              cost_usd: lastElement.cost_usd,
-              duration_ms: lastElement.duration_ms,
-              duration_api_ms: lastElement.duration_api_ms,
-            };
+    if (!prepareSuccess && prepareError) {
+      actionFailed = true;
+      errorDetails = prepareError;
+    } else {
+      // Check for existence of output file and parse it if available
+      try {
+        const outputFile = process.env.OUTPUT_FILE;
+        if (outputFile) {
+          const fileContent = await fs.readFile(outputFile, "utf8");
+          const outputData = JSON.parse(fileContent);
+
+          // Output file is an array, get the last element which contains execution details
+          if (Array.isArray(outputData) && outputData.length > 0) {
+            const lastElement = outputData[outputData.length - 1];
+            if (
+              lastElement.type === "result" &&
+              "cost_usd" in lastElement &&
+              "duration_ms" in lastElement
+            ) {
+              executionDetails = {
+                cost_usd: lastElement.cost_usd,
+                duration_ms: lastElement.duration_ms,
+                duration_api_ms: lastElement.duration_api_ms,
+              };
+            }
           }
         }
-      }
 
-      // Check if the action failed by looking at the exit code or error marker
-      const claudeSuccess = process.env.CLAUDE_SUCCESS !== "false";
-      actionFailed = !claudeSuccess;
-    } catch (error) {
-      console.error("Error reading output file:", error);
-      // If we can't read the file, check for any failure markers
-      actionFailed = process.env.CLAUDE_SUCCESS === "false";
+        // Check if the Claude action failed
+        const claudeSuccess = process.env.CLAUDE_SUCCESS !== "false";
+        actionFailed = !claudeSuccess;
+      } catch (error) {
+        console.error("Error reading output file:", error);
+        // If we can't read the file, check for any failure markers
+        actionFailed = process.env.CLAUDE_SUCCESS === "false";
+      }
     }
 
     // Prepare input for updateCommentBody function
@@ -189,27 +200,19 @@ async function run() {
       prLink,
       branchName: shouldDeleteBranch ? undefined : claudeBranch,
       triggerUsername,
+      errorDetails,
     };
 
     const updatedBody = updateCommentBody(commentInput);
 
-    // Update the comment using the appropriate API
     try {
-      if (isPRReviewComment) {
-        await octokit.rest.pulls.updateReviewComment({
-          owner,
-          repo,
-          comment_id: commentId,
-          body: updatedBody,
-        });
-      } else {
-        await octokit.rest.issues.updateComment({
-          owner,
-          repo,
-          comment_id: commentId,
-          body: updatedBody,
-        });
-      }
+      await updateClaudeComment(octokit.rest, {
+        owner,
+        repo,
+        commentId,
+        body: updatedBody,
+        isPullRequestReviewComment: isPRReviewComment,
+      });
       console.log(
         `✅ Updated ${isPRReviewComment ? "PR review" : "issue"} comment ${commentId} with job link`,
       );

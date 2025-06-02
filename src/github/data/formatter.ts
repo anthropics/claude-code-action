@@ -6,6 +6,7 @@ import type {
   GitHubReview,
 } from "../types";
 import type { GitHubFileWithSHA } from "./fetcher";
+import { sanitizeContent } from "../utils/sanitizer";
 
 export function formatContext(
   contextData: GitHubPullRequest | GitHubIssue,
@@ -35,10 +36,11 @@ export function formatBody(
 ): string {
   let processedBody = body;
 
-  // Replace image URLs with local paths
   for (const [originalUrl, localPath] of imageUrlMap) {
     processedBody = processedBody.replaceAll(originalUrl, localPath);
   }
+
+  processedBody = sanitizeContent(processedBody);
 
   return processedBody;
 }
@@ -51,12 +53,13 @@ export function formatComments(
     .map((comment) => {
       let body = comment.body;
 
-      // Replace image URLs with local paths if we have a mapping
       if (imageUrlMap && body) {
         for (const [originalUrl, localPath] of imageUrlMap) {
           body = body.replaceAll(originalUrl, localPath);
         }
       }
+
+      body = sanitizeContent(body);
 
       return `[${comment.author.login} at ${comment.createdAt}]: ${body}`;
     })
@@ -74,6 +77,19 @@ export function formatReviewComments(
   const formattedReviews = reviewData.nodes.map((review) => {
     let reviewOutput = `[Review by ${review.author.login} at ${review.submittedAt}]: ${review.state}`;
 
+    if (review.body && review.body.trim()) {
+      let body = review.body;
+
+      if (imageUrlMap) {
+        for (const [originalUrl, localPath] of imageUrlMap) {
+          body = body.replaceAll(originalUrl, localPath);
+        }
+      }
+
+      const sanitizedBody = sanitizeContent(body);
+      reviewOutput += `\n${sanitizedBody}`;
+    }
+
     if (
       review.comments &&
       review.comments.nodes &&
@@ -83,12 +99,13 @@ export function formatReviewComments(
         .map((comment) => {
           let body = comment.body;
 
-          // Replace image URLs with local paths if we have a mapping
           if (imageUrlMap) {
             for (const [originalUrl, localPath] of imageUrlMap) {
               body = body.replaceAll(originalUrl, localPath);
             }
           }
+
+          body = sanitizeContent(body);
 
           return `  [Comment on ${comment.path}:${comment.line || "?"}]: ${body}`;
         })

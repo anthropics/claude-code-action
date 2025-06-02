@@ -6,7 +6,7 @@ export async function checkAndDeleteEmptyBranch(
   owner: string,
   repo: string,
   claudeBranch: string | undefined,
-  defaultBranch: string,
+  baseBranch: string,
 ): Promise<{ shouldDeleteBranch: boolean; branchLink: string }> {
   let branchLink = "";
   let shouldDeleteBranch = false;
@@ -18,7 +18,7 @@ export async function checkAndDeleteEmptyBranch(
         await octokit.rest.repos.compareCommitsWithBasehead({
           owner,
           repo,
-          basehead: `${defaultBranch}...${claudeBranch}`,
+          basehead: `${baseBranch}...${claudeBranch}`,
         });
 
       // If there are no commits, mark branch for deletion

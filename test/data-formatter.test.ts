@@ -98,9 +98,9 @@ Some more text.`;
 
     const result = formatBody(body, imageUrlMap);
     expect(result)
-      .toBe(`Here is some text with an image: ![screenshot](/tmp/github-images/image-1234-0.png)
+      .toBe(`Here is some text with an image: ![](/tmp/github-images/image-1234-0.png)
     
-And another one: ![another](/tmp/github-images/image-1234-1.jpg)
+And another one: ![](/tmp/github-images/image-1234-1.jpg)
 
 Some more text.`);
   });
@@ -123,7 +123,7 @@ Some more text.`);
     ]);
 
     const result = formatBody(body, imageUrlMap);
-    expect(result).toBe("![image](https://example.com/image.png)");
+    expect(result).toBe("![](https://example.com/image.png)");
   });
 
   test("handles multiple occurrences of same image", () => {
@@ -138,8 +138,8 @@ Second: ![img](https://github.com/user-attachments/assets/test.png)`;
     ]);
 
     const result = formatBody(body, imageUrlMap);
-    expect(result).toBe(`First: ![img](/tmp/github-images/image-1234-0.png)
-Second: ![img](/tmp/github-images/image-1234-0.png)`);
+    expect(result).toBe(`First: ![](/tmp/github-images/image-1234-0.png)
+Second: ![](/tmp/github-images/image-1234-0.png)`);
   });
 });
 
@@ -204,7 +204,7 @@ describe("formatComments", () => {
 
     const result = formatComments(comments, imageUrlMap);
     expect(result).toBe(
-      `[user1 at 2023-01-01T00:00:00Z]: Check out this screenshot: ![screenshot](/tmp/github-images/image-1234-0.png)\n\n[user2 at 2023-01-02T00:00:00Z]: Here's another image: ![bug](/tmp/github-images/image-1234-1.jpg)`,
+      `[user1 at 2023-01-01T00:00:00Z]: Check out this screenshot: ![](/tmp/github-images/image-1234-0.png)\n\n[user2 at 2023-01-02T00:00:00Z]: Here's another image: ![](/tmp/github-images/image-1234-1.jpg)`,
     );
   });
 
@@ -232,7 +232,7 @@ describe("formatComments", () => {
 
     const result = formatComments(comments, imageUrlMap);
     expect(result).toBe(
-      `[user1 at 2023-01-01T00:00:00Z]: Two images: ![first](/tmp/github-images/image-1234-0.png) and ![second](/tmp/github-images/image-1234-1.png)`,
+      `[user1 at 2023-01-01T00:00:00Z]: Two images: ![](/tmp/github-images/image-1234-0.png) and ![](/tmp/github-images/image-1234-1.png)`,
     );
   });
 
@@ -249,7 +249,7 @@ describe("formatComments", () => {
 
     const result = formatComments(comments);
     expect(result).toBe(
-      `[user1 at 2023-01-01T00:00:00Z]: Image: ![test](https://github.com/user-attachments/assets/test.png)`,
+      `[user1 at 2023-01-01T00:00:00Z]: Image: ![](https://github.com/user-attachments/assets/test.png)`,
     );
   });
 });
@@ -293,7 +293,7 @@ describe("formatReviewComments", () => {
 
     const result = formatReviewComments(reviewData);
     expect(result).toBe(
-      `[Review by reviewer1 at 2023-01-01T00:00:00Z]: APPROVED\n  [Comment on src/index.ts:42]: Nice implementation\n  [Comment on src/utils.ts:?]: Consider adding error handling`,
+      `[Review by reviewer1 at 2023-01-01T00:00:00Z]: APPROVED\nThis is a great PR! LGTM.\n  [Comment on src/index.ts:42]: Nice implementation\n  [Comment on src/utils.ts:?]: Consider adding error handling`,
     );
   });
 
@@ -316,7 +316,7 @@ describe("formatReviewComments", () => {
 
     const result = formatReviewComments(reviewData);
     expect(result).toBe(
-      `[Review by reviewer1 at 2023-01-01T00:00:00Z]: APPROVED`,
+      `[Review by reviewer1 at 2023-01-01T00:00:00Z]: APPROVED\nLooks good to me!`,
     );
   });
 
@@ -383,7 +383,7 @@ describe("formatReviewComments", () => {
 
     const result = formatReviewComments(reviewData);
     expect(result).toBe(
-      `[Review by reviewer1 at 2023-01-01T00:00:00Z]: CHANGES_REQUESTED\n\n[Review by reviewer2 at 2023-01-02T00:00:00Z]: APPROVED`,
+      `[Review by reviewer1 at 2023-01-01T00:00:00Z]: CHANGES_REQUESTED\nNeeds changes\n\n[Review by reviewer2 at 2023-01-02T00:00:00Z]: APPROVED\nLGTM`,
     );
   });
 
@@ -437,7 +437,7 @@ describe("formatReviewComments", () => {
 
     const result = formatReviewComments(reviewData, imageUrlMap);
     expect(result).toBe(
-      `[Review by reviewer1 at 2023-01-01T00:00:00Z]: APPROVED\n  [Comment on src/index.ts:42]: Comment with image: ![comment-img](/tmp/github-images/image-1234-1.png)`,
+      `[Review by reviewer1 at 2023-01-01T00:00:00Z]: APPROVED\nReview with image: ![](/tmp/github-images/image-1234-0.png)\n  [Comment on src/index.ts:42]: Comment with image: ![](/tmp/github-images/image-1234-1.png)`,
     );
   });
 
@@ -481,7 +481,7 @@ describe("formatReviewComments", () => {
 
     const result = formatReviewComments(reviewData, imageUrlMap);
     expect(result).toBe(
-      `[Review by reviewer1 at 2023-01-01T00:00:00Z]: APPROVED\n  [Comment on src/main.ts:15]: Two issues: ![issue1](/tmp/github-images/image-1234-0.png) and ![issue2](/tmp/github-images/image-1234-1.png)`,
+      `[Review by reviewer1 at 2023-01-01T00:00:00Z]: APPROVED\nGood work\n  [Comment on src/main.ts:15]: Two issues: ![](/tmp/github-images/image-1234-0.png) and ![](/tmp/github-images/image-1234-1.png)`,
     );
   });
 
@@ -514,7 +514,7 @@ describe("formatReviewComments", () => {
 
     const result = formatReviewComments(reviewData);
     expect(result).toBe(
-      `[Review by reviewer1 at 2023-01-01T00:00:00Z]: APPROVED\n  [Comment on src/index.ts:42]: Image: ![test](https://github.com/user-attachments/assets/test.png)`,
+      `[Review by reviewer1 at 2023-01-01T00:00:00Z]: APPROVED\nReview body\n  [Comment on src/index.ts:42]: Image: ![](https://github.com/user-attachments/assets/test.png)`,
     );
   });
 });

@@ -34,7 +34,7 @@ describe("parseEnvVarsWithContext", () => {
       beforeEach(() => {
         process.env = {
           ...BASE_ENV,
-          DEFAULT_BRANCH: "main",
+          BASE_BRANCH: "main",
           CLAUDE_BRANCH: "claude/issue-67890-20240101_120000",
         };
       });
@@ -62,7 +62,7 @@ describe("parseEnvVarsWithContext", () => {
           expect(result.eventData.claudeBranch).toBe(
             "claude/issue-67890-20240101_120000",
           );
-          expect(result.eventData.defaultBranch).toBe("main");
+          expect(result.eventData.baseBranch).toBe("main");
           expect(result.eventData.commentBody).toBe(
             "@claude can you help explain how to configure the logging system?",
           );
@@ -75,7 +75,7 @@ describe("parseEnvVarsWithContext", () => {
         ).toThrow("CLAUDE_BRANCH is required for issue_comment event");
       });
 
-      test("should throw error when DEFAULT_BRANCH is missing", () => {
+      test("should throw error when BASE_BRANCH is missing", () => {
         expect(() =>
           prepareContext(
             mockIssueCommentContext,
@@ -83,7 +83,7 @@ describe("parseEnvVarsWithContext", () => {
             undefined,
             "claude/issue-67890-20240101_120000",
           ),
-        ).toThrow("DEFAULT_BRANCH is required for issue_comment event");
+        ).toThrow("BASE_BRANCH is required for issue_comment event");
       });
     });
 
@@ -151,7 +151,7 @@ describe("parseEnvVarsWithContext", () => {
     beforeEach(() => {
       process.env = {
         ...BASE_ENV,
-        DEFAULT_BRANCH: "main",
+        BASE_BRANCH: "main",
         CLAUDE_BRANCH: "claude/issue-42-20240101_120000",
       };
     });
@@ -172,7 +172,7 @@ describe("parseEnvVarsWithContext", () => {
         result.eventData.eventAction === "opened"
       ) {
         expect(result.eventData.issueNumber).toBe("42");
-        expect(result.eventData.defaultBranch).toBe("main");
+        expect(result.eventData.baseBranch).toBe("main");
         expect(result.eventData.claudeBranch).toBe(
           "claude/issue-42-20240101_120000",
         );
@@ -195,7 +195,7 @@ describe("parseEnvVarsWithContext", () => {
         result.eventData.eventAction === "assigned"
       ) {
         expect(result.eventData.issueNumber).toBe("123");
-        expect(result.eventData.defaultBranch).toBe("main");
+        expect(result.eventData.baseBranch).toBe("main");
         expect(result.eventData.claudeBranch).toBe(
           "claude/issue-123-20240101_120000",
         );
@@ -209,7 +209,7 @@ describe("parseEnvVarsWithContext", () => {
       ).toThrow("CLAUDE_BRANCH is required for issues event");
     });
 
-    test("should throw error when DEFAULT_BRANCH is missing for issues", () => {
+    test("should throw error when BASE_BRANCH is missing for issues", () => {
       expect(() =>
         prepareContext(
           mockIssueOpenedContext,
@@ -217,7 +217,7 @@ describe("parseEnvVarsWithContext", () => {
           undefined,
           "claude/issue-42-20240101_120000",
         ),
-      ).toThrow("DEFAULT_BRANCH is required for issues event");
+      ).toThrow("BASE_BRANCH is required for issues event");
     });
   });
 

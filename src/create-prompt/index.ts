@@ -10,6 +10,7 @@ import {
   formatReviewComments,
   formatChangedFilesWithSHA,
 } from "../github/data/formatter";
+import { sanitizeContent } from "../github/utils/sanitizer";
 import {
   isIssuesEvent,
   isIssueCommentEvent,
@@ -30,23 +31,12 @@ const BASE_ALLOWED_TOOLS = [
   "Write",
   "mcp__github_file_ops__commit_files",
   "mcp__github_file_ops__delete_files",
+  "mcp__github_file_ops__update_claude_comment",
 ];
 const DISALLOWED_TOOLS = ["WebSearch", "WebFetch"];
 
-export function buildAllowedToolsString(
-  eventData: EventData,
-  customAllowedTools?: string,
-): string {
+export function buildAllowedToolsString(customAllowedTools?: string): string {
   let baseTools = [...BASE_ALLOWED_TOOLS];
-
-  // Add the appropriate comment tool based on event type
-  if (eventData.eventName === "pull_request_review_comment") {
-    // For inline PR review comments, only use PR comment tool
-    baseTools.push("mcp__github__update_pull_request_comment");
-  } else {
-    // For all other events (issue comments, PR reviews, issues), use issue comment tool
-    baseTools.push("mcp__github__update_issue_comment");
-  }
 
   let allAllowedTools = baseTools.join(",");
   if (customAllowedTools) {
@@ -57,10 +47,27 @@ export function buildAllowedToolsString(
 
 export function buildDisallowedToolsString(
   customDisallowedTools?: string,
+  allowedTools?: string,
 ): string {
-  let allDisallowedTools = DISALLOWED_TOOLS.join(",");
+  let disallowedTools = [...DISALLOWED_TOOLS];
+
+  // If user has explicitly allowed some hardcoded disallowed tools, remove them from disallowed list
+  if (allowedTools) {
+    const allowedToolsArray = allowedTools
+      .split(",")
+      .map((tool) => tool.trim());
+    disallowedTools = disallowedTools.filter(
+      (tool) => !allowedToolsArray.includes(tool),
+    );
+  }
+
+  let allDisallowedTools = disallowedTools.join(",");
   if (customDisallowedTools) {
-    allDisallowedTools = `${allDisallowedTools},${customDisallowedTools}`;
+    if (allDisallowedTools) {
+      allDisallowedTools = `${allDisallowedTools},${customDisallowedTools}`;
+    } else {
+      allDisallowedTools = customDisallowedTools;
+    }
   }
   return allDisallowedTools;
 }
@@ -68,7 +75,7 @@ export function buildDisallowedToolsString(
 export function prepareContext(
   context: ParsedGitHubContext,
   claudeCommentId: string,
-  defaultBranch?: string,
+  baseBranch?: string,
   claudeBranch?: string,
 ): PreparedContext {
   const repository = context.repository.full_name;
@@ -146,7 +153,7 @@ export function prepareContext(
         ...(commentId && { commentId }),
         commentBody,
         ...(claudeBranch && { claudeBranch }),
-        ...(defaultBranch && { defaultBranch }),
+        ...(baseBranch && { baseBranch }),
       };
       break;
 
@@ -168,7 +175,7 @@ export function prepareContext(
         prNumber,
         commentBody,
         ...(claudeBranch && { claudeBranch }),
-        ...(defaultBranch && { defaultBranch }),
+        ...(baseBranch && { baseBranch }),
       };
       break;
 
@@ -193,13 +200,13 @@ export function prepareContext(
           prNumber,
           commentBody,
           ...(claudeBranch && { claudeBranch }),
-          ...(defaultBranch && { defaultBranch }),
+          ...(baseBranch && { baseBranch }),
         };
         break;
       } else if (!claudeBranch) {
         throw new Error("CLAUDE_BRANCH is required for issue_comment event");
-      } else if (!defaultBranch) {
-        throw new Error("DEFAULT_BRANCH is required for issue_comment event");
+      } else if (!baseBranch) {
+        throw new Error("BASE_BRANCH is required for issue_comment event");
       } else if (!issueNumber) {
         throw new Error(
           "ISSUE_NUMBER is required for issue_comment event for issues",
@@ -211,7 +218,7 @@ export function prepareContext(
         commentId,
         isPR: false,
         claudeBranch: claudeBranch,
-        defaultBranch,
+        baseBranch,
         issueNumber,
         commentBody,
       };
@@ -227,8 +234,8 @@ export function prepareContext(
       if (isPR) {
         throw new Error("IS_PR must be false for issues event");
       }
-      if (!defaultBranch) {
-        throw new Error("DEFAULT_BRANCH is required for issues event");
+      if (!baseBranch) {
+        throw new Error("BASE_BRANCH is required for issues event");
       }
       if (!claudeBranch) {
         throw new Error("CLAUDE_BRANCH is required for issues event");
@@ -245,7 +252,7 @@ export function prepareContext(
           eventAction: "assigned",
           isPR: false,
           issueNumber,
-          defaultBranch,
+          baseBranch,
           claudeBranch,
           assigneeTrigger,
         };
@@ -255,7 +262,7 @@ export function prepareContext(
           eventAction: "opened",
           isPR: false,
           issueNumber,
-          defaultBranch,
+          baseBranch,
           claudeBranch,
         };
       } else {
@@ -276,7 +283,7 @@ export function prepareContext(
         isPR: true,
         prNumber,
         ...(claudeBranch && { claudeBranch }),
-        ...(defaultBranch && { defaultBranch }),
+        ...(baseBranch && { baseBranch }),
       };
       break;
 
@@ -418,26 +425,26 @@ ${
     eventData.eventName === "pull_request_review") &&
   eventData.commentBody
     ? `<trigger_comment>
-${eventData.commentBody}
+${sanitizeContent(eventData.commentBody)}
 </trigger_comment>`
     : ""
 }
 ${
   context.directPrompt
     ? `<direct_prompt>
-${context.directPrompt}
+${sanitizeContent(context.directPrompt)}
 </direct_prompt>`
     : ""
 }
-${
-  eventData.eventName === "pull_request_review_comment"
-    ? `<comment_tool_info>
-IMPORTANT: For this inline PR review comment, you have been provided with ONLY the mcp__github__update_pull_request_comment tool to update this specific review comment.
-</comment_tool_info>`
-    : `<comment_tool_info>
-IMPORTANT: For this event type, you have been provided with ONLY the mcp__github__update_issue_comment tool to update comments.
-</comment_tool_info>`
+${`<comment_tool_info>
+IMPORTANT: You have been provided with the mcp__github_file_ops__update_claude_comment tool to update your comment. This tool automatically handles both issue and PR comments.
+
+Tool usage example for mcp__github_file_ops__update_claude_comment:
+{
+  "body": "Your comment text here"
 }
+Only the body parameter is required - the tool automatically knows which comment to update.
+</comment_tool_info>`}
 
 Your task is to analyze the context, understand the request, and provide helpful responses and/or implement code changes as needed.
 
@@ -451,7 +458,7 @@ Follow these steps:
 1. Create a Todo List:
    - Use your GitHub comment to maintain a detailed task list based on the request.
    - Format todos as a checklist (- [ ] for incomplete, - [x] for complete).
-   - Update the comment using ${eventData.eventName === "pull_request_review_comment" ? "mcp__github__update_pull_request_comment" : "mcp__github__update_issue_comment"} with each task completion.
+   - Update the comment using mcp__github_file_ops__update_claude_comment with each task completion.
 
 2. Gather Context:
    - Analyze the pre-fetched data provided above.
@@ -481,11 +488,11 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
         - Look for bugs, security issues, performance problems, and other issues
         - Suggest improvements for readability and maintainability
         - Check for best practices and coding standards
-        - Reference specific code sections with file paths and line numbers${eventData.isPR ? "\n      - AFTER reading files and analyzing code, you MUST call mcp__github__update_issue_comment to post your review" : ""}
+        - Reference specific code sections with file paths and line numbers${eventData.isPR ? "\n      - AFTER reading files and analyzing code, you MUST call mcp__github_file_ops__update_claude_comment to post your review" : ""}
       - Formulate a concise, technical, and helpful response based on the context.
       - Reference specific code with inline formatting or code blocks.
       - Include relevant file paths and line numbers when applicable.
-      - ${eventData.isPR ? "IMPORTANT: Submit your review feedback by updating the Claude comment. This will be displayed as your PR review." : "Remember that this feedback must be posted to the GitHub comment."}
+      - ${eventData.isPR ? "IMPORTANT: Submit your review feedback by updating the Claude comment using mcp__github_file_ops__update_claude_comment. This will be displayed as your PR review." : "Remember that this feedback must be posted to the GitHub comment using mcp__github_file_ops__update_claude_comment."}
 
    B. For Straightforward Changes:
       - Use file system tools to make the change locally.
@@ -505,13 +512,13 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
       ${
         eventData.claudeBranch
           ? `- Provide a URL to create a PR manually in this format:
-        [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.defaultBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
+        [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
         - IMPORTANT: Use THREE dots (...) between branch names, not two (..)
           Example: ${GITHUB_SERVER_URL}/${context.repository}/compare/main...feature-branch (correct)
           NOT: ${GITHUB_SERVER_URL}/${context.repository}/compare/main..feature-branch (incorrect)
         - IMPORTANT: Ensure all URL parameters are properly encoded - spaces should be encoded as %20, not left as spaces
           Example: Instead of "fix: update welcome message", use "fix%3A%20update%20welcome%20message"
-        - The target-branch should be '${eventData.defaultBranch}'.
+        - The target-branch should be '${eventData.baseBranch}'.
         - The branch-name is the current branch: ${eventData.claudeBranch}
         - The body should include:
           - A clear description of the changes
@@ -540,12 +547,15 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
 
 Important Notes:
 - All communication must happen through GitHub PR comments.
-- Never create new comments. Only update the existing comment using ${eventData.eventName === "pull_request_review_comment" ? "mcp__github__update_pull_request_comment" : "mcp__github__update_issue_comment"} with comment_id: ${context.claudeCommentId}.
-- This includes ALL responses: code reviews, answers to questions, progress updates, and final results.${eventData.isPR ? "\n- PR CRITICAL: After reading files and forming your response, you MUST post it by calling mcp__github__update_issue_comment. Do NOT just respond with a normal response, the user will not see it." : ""}
+- Never create new comments. Only update the existing comment using mcp__github_file_ops__update_claude_comment.
+- This includes ALL responses: code reviews, answers to questions, progress updates, and final results.${eventData.isPR ? "\n- PR CRITICAL: After reading files and forming your response, you MUST post it by calling mcp__github_file_ops__update_claude_comment. Do NOT just respond with a normal response, the user will not see it." : ""}
 - You communicate exclusively by editing your single comment - not through any other means.
 - Use this spinner HTML when work is in progress: <img src="https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f" width="14px" height="14px" style="vertical-align: middle; margin-left: 4px;" />
 ${eventData.isPR && !eventData.claudeBranch ? `- Always push to the existing branch when triggered on a PR.` : `- IMPORTANT: You are already on the correct branch (${eventData.claudeBranch || "the created branch"}). Never create new branches when triggered on issues or closed/merged PRs.`}
 - Use mcp__github_file_ops__commit_files for making commits (works for both new and existing files, single or multiple). Use mcp__github_file_ops__delete_files for deleting files (supports deleting single or multiple files atomically), or mcp__github__delete_file for deleting a single file. Edit files locally, and the tool will read the content from the same path on disk.
+  Tool usage examples:
+  - mcp__github_file_ops__commit_files: {"files": ["path/to/file1.js", "path/to/file2.py"], "message": "feat: add new feature"}
+  - mcp__github_file_ops__delete_files: {"files": ["path/to/old.js"], "message": "chore: remove deprecated file"}
 - Display the todo list as a checklist in the GitHub comment and mark things off as you go.
 - REPOSITORY SETUP INSTRUCTIONS: The repository's CLAUDE.md file(s) contain critical repo-specific setup instructions, development guidelines, and preferences. Always read and follow these files, particularly the root CLAUDE.md, as they provide essential context for working with the codebase effectively.
 - Use h3 headers (###) for section titles in your comments, not h1 headers (#).
@@ -572,6 +582,11 @@ What You CANNOT Do:
 - Execute commands outside the repository context
 - Run arbitrary Bash commands (unless explicitly allowed via allowed_tools configuration)
 - Perform branch operations (cannot merge branches, rebase, or perform other git operations beyond pushing commits)
+- Modify files in the .github/workflows directory (GitHub App permissions do not allow workflow modifications)
+- View CI/CD results or workflow run outputs (cannot access GitHub Actions logs or test results)
+
+When users ask you to perform actions you cannot do, politely explain the limitation and, when applicable, direct them to the FAQ for more information and workarounds:
+"I'm unable to [specific action] due to [reason]. You can find more information and potential workarounds in the [FAQ](https://github.com/anthropics/claude-code-action/blob/main/FAQ.md)."
 
 If a user asks for something outside these capabilities (and you have no other tools provided), politely explain that you cannot perform that action and suggest an alternative approach if possible.
 
@@ -593,7 +608,7 @@ f. If you are unable to complete certain steps, such as running a linter or test
 
 export async function createPrompt(
   claudeCommentId: number,
-  defaultBranch: string | undefined,
+  baseBranch: string | undefined,
   claudeBranch: string | undefined,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
@@ -602,7 +617,7 @@ export async function createPrompt(
     const preparedContext = prepareContext(
       context,
       claudeCommentId.toString(),
-      defaultBranch,
+      baseBranch,
       claudeBranch,
     );
 
@@ -621,11 +636,11 @@ export async function createPrompt(
 
     // Set allowed tools
     const allAllowedTools = buildAllowedToolsString(
-      preparedContext.eventData,
       preparedContext.allowedTools,
     );
     const allDisallowedTools = buildDisallowedToolsString(
       preparedContext.disallowedTools,
+      preparedContext.allowedTools,
     );
 
     core.exportVariable("ALLOWED_TOOLS", allAllowedTools);

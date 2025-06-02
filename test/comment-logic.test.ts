@@ -39,6 +39,25 @@ describe("updateCommentBody", () => {
       expect(result).toContain("**Claude encountered an error after 45s**");
     });
 
+    it("includes error details when provided", () => {
+      const input = {
+        ...baseInput,
+        currentBody: "Claude Code is working...",
+        actionFailed: true,
+        executionDetails: { duration_ms: 45000 },
+        errorDetails: "Failed to fetch issue data",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).toContain("**Claude encountered an error after 45s**");
+      expect(result).toContain("[View job]");
+      expect(result).toContain("```\nFailed to fetch issue data\n```");
+      // Ensure error details come after the header/links
+      const errorIndex = result.indexOf("```");
+      const headerIndex = result.indexOf("**Claude encountered an error");
+      expect(errorIndex).toBeGreaterThan(headerIndex);
+    });
+
     it("handles username extraction from content when not provided", () => {
       const input = {
         ...baseInput,

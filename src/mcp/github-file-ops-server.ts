@@ -4,8 +4,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { readFile } from "fs/promises";
+import { join } from "path";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
+import { Octokit } from "@octokit/rest";
+import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 
 type GitHubRef = {
   object: {
@@ -36,6 +39,7 @@ type GitHubNewCommit = {
 const REPO_OWNER = process.env.REPO_OWNER;
 const REPO_NAME = process.env.REPO_NAME;
 const BRANCH_NAME = process.env.BRANCH_NAME;
+const REPO_DIR = process.env.REPO_DIR || process.cwd();
 
 if (!REPO_OWNER || !REPO_NAME || !BRANCH_NAME) {
   console.error(
@@ -71,18 +75,9 @@ server.tool(
         throw new Error("GITHUB_TOKEN environment variable is required");
       }
 
-      // Convert absolute paths to relative if they match CWD
-      const cwd = process.cwd();
       const processedFiles = files.map((filePath) => {
         if (filePath.startsWith("/")) {
-          if (filePath.startsWith(cwd)) {
-            // Strip CWD from absolute path
-            return filePath.slice(cwd.length + 1);
-          } else {
-            throw new Error(
-              `Path '${filePath}' must be relative to repository root or within current working directory`,
-            );
-          }
+          return filePath.slice(1);
         }
         return filePath;
       });
@@ -126,7 +121,11 @@ server.tool(
       // 3. Create tree entries for all files
       const treeEntries = await Promise.all(
         processedFiles.map(async (filePath) => {
-          const content = await readFile(filePath, "utf-8");
+          const fullPath = filePath.startsWith("/")
+            ? filePath
+            : join(REPO_DIR, filePath);
+
+          const content = await readFile(fullPath, "utf-8");
           return {
             path: filePath,
             mode: "100644",
@@ -232,13 +231,16 @@ server.tool(
         ],
       };
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         content: [
           {
             type: "text",
-            text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+            text: `Error: ${errorMessage}`,
           },
         ],
+        error: errorMessage,
         isError: true,
       };
     }
@@ -423,13 +425,79 @@ server.tool(
         ],
       };
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         content: [
           {
             type: "text",
-            text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+            text: `Error: ${errorMessage}`,
           },
         ],
+        error: errorMessage,
+        isError: true,
+      };
+    }
+  },
+);
+
+server.tool(
+  "update_claude_comment",
+  "Update the Claude comment with progress and results (automatically handles both issue and PR comments)",
+  {
+    body: z.string().describe("The updated comment content"),
+  },
+  async ({ body }) => {
+    try {
+      const githubToken = process.env.GITHUB_TOKEN;
+      const claudeCommentId = process.env.CLAUDE_COMMENT_ID;
+      const eventName = process.env.GITHUB_EVENT_NAME;
+
+      if (!githubToken) {
+        throw new Error("GITHUB_TOKEN environment variable is required");
+      }
+      if (!claudeCommentId) {
+        throw new Error("CLAUDE_COMMENT_ID environment variable is required");
+      }
+
+      const owner = REPO_OWNER;
+      const repo = REPO_NAME;
+      const commentId = parseInt(claudeCommentId, 10);
+
+      const octokit = new Octokit({
+        auth: githubToken,
+      });
+
+      const isPullRequestReviewComment =
+        eventName === "pull_request_review_comment";
+
+      const result = await updateClaudeComment(octokit, {
+        owner,
+        repo,
+        commentId,
+        body,
+        isPullRequestReviewComment,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error: ${errorMessage}`,
+          },
+        ],
+        error: errorMessage,
         isError: true,
       };
     }

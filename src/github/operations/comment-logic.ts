@@ -15,6 +15,7 @@ export type CommentUpdateInput = {
   prLink?: string;
   branchName?: string;
   triggerUsername?: string;
+  errorDetails?: string;
 };
 
 export function ensureProperlyEncodedUrl(url: string): string | null {
@@ -75,6 +76,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     actionFailed,
     branchName,
     triggerUsername,
+    errorDetails,
   } = input;
 
   // Extract content from the original comment body
@@ -177,7 +179,14 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   }
 
   // Build the new body with blank line between header and separator
-  let newBody = `${header}${links}\n\n---\n`;
+  let newBody = `${header}${links}`;
+
+  // Add error details if available
+  if (actionFailed && errorDetails) {
+    newBody += `\n\n\`\`\`\n${errorDetails}\n\`\`\``;
+  }
+
+  newBody += `\n\n---\n`;
 
   // Clean up the body content
   // Remove any existing View job run, branch links from the bottom
