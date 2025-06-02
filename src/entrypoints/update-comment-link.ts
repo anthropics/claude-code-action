@@ -166,7 +166,7 @@ async function run() {
           if (Array.isArray(outputData) && outputData.length > 0) {
             const lastElement = outputData[outputData.length - 1];
             if (
-              lastElement.role === "system" &&
+              lastElement.type === "result" &&
               "cost_usd" in lastElement &&
               "duration_ms" in lastElement
             ) {
