@@ -48,7 +48,8 @@ async function run() {
     }
 
     // Step 5: Check if actor is human
-    await checkHumanActor(octokit.rest, context);
+    const allowedBots = process.env.ALLOWED_BOTS || "";
+    await checkHumanActor(octokit.rest, context, allowedBots);
 
     // Step 6: Create initial tracking comment
     const commentData = await createInitialComment(octokit.rest, context);
