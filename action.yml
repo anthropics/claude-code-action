@@ -15,6 +15,10 @@ inputs:
   base_branch:
     description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
     required: false
+  branch_prefix:
+    description: "Prefix for branches created by Claude (e.g. 'claude-agent' creates 'claude-agent/issue-123')"
+    required: false
+    default: "claude"
 
   # Claude Code configuration
   model:
@@ -95,6 +99,7 @@ runs:
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
         BASE_BRANCH: ${{ inputs.base_branch }}
+        BRANCH_PREFIX: ${{ inputs.branch_prefix }}
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}
         DIRECT_PROMPT: ${{ inputs.direct_prompt }}

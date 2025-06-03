@@ -26,7 +26,7 @@ export async function setupBranch(
 ): Promise<BranchInfo> {
   const { owner, repo } = context.repository;
   const entityNumber = context.entityNumber;
-  const { baseBranch } = context.inputs;
+  const { baseBranch, branchPrefix } = context.inputs;
   const isPR = context.isPR;
 
   if (isPR) {
@@ -90,7 +90,7 @@ export async function setupBranch(
     .split("T")
     .join("_");
 
-  const newBranch = `claude/${entityType}-${entityNumber}-${timestamp}`;
+  const newBranch = `${branchPrefix}/${entityType}-${entityNumber}-${timestamp}`;
 
   try {
     // Get the SHA of the source branch
@@ -128,8 +128,29 @@ export async function setupBranch(
       claudeBranch: newBranch,
       currentBranch: newBranch,
     };
-  } catch (error) {
-    console.error("Error creating branch:", error);
+  } catch (error: any) {
+    // Properly serialize the error for debugging
+    console.error("Error creating branch:");
+    console.error(JSON.stringify(error, null, 2));
+    
+    // Check if this is a 422 error which often indicates a branch naming conflict
+    if (error.status === 422 && error.response?.data?.message) {
+      const errorMessage = error.response.data.message;
+      
+      // Check for the specific Git limitation error
+      if (errorMessage.includes("cannot lock ref") || errorMessage.includes("reference already exists")) {
+        console.error("\n❌ Branch creation failed due to a Git naming conflict!");
+        console.error(`\nTried to create branch: ${newBranch}`);
+        console.error("\nThis error typically occurs when:");
+        console.error(`1. A branch named '${branchPrefix}' already exists, preventing branches like '${branchPrefix}/...'`);
+        console.error("2. Another branch with a conflicting name pattern exists");
+        console.error("\nSolutions:");
+        console.error(`1. Delete the existing '${branchPrefix}' branch if it's no longer needed`);
+        console.error("2. Configure a different branch prefix using the 'branch_prefix' input parameter");
+        console.error("   Example: branch_prefix: 'claude-agent'");
+      }
+    }
+    
     process.exit(1);
   }
 }
