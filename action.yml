@@ -124,6 +124,7 @@ runs:
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
+        ACTIONS_TOKEN: ${{ github.token }}
 
     - name: Run Claude Code
       id: claude-code
