@@ -17,6 +17,7 @@ export type BranchInfo = {
   baseBranch: string;
   claudeBranch?: string;
   currentBranch: string;
+  isReusedBranch?: boolean;
 };
 
 export async function setupBranch(
@@ -79,57 +80,127 @@ export async function setupBranch(
 
   // Creating a new branch for either an issue or closed/merged PR
   const entityType = isPR ? "pr" : "issue";
-  console.log(
-    `Creating new branch for ${entityType} #${entityNumber} from source branch: ${sourceBranch}...`,
-  );
-
-  const timestamp = new Date()
-    .toISOString()
-    .replace(/[:-]/g, "")
-    .replace(/\.\d{3}Z/, "")
-    .split("T")
-    .join("_");
-
-  const newBranch = `claude/${entityType}-${entityNumber}-${timestamp}`;
-
-  try {
-    // Get the SHA of the source branch
-    const sourceBranchRef = await octokits.rest.git.getRef({
-      owner,
-      repo,
-      ref: `heads/${sourceBranch}`,
-    });
-
-    const currentSHA = sourceBranchRef.data.object.sha;
-
-    console.log(`Current SHA: ${currentSHA}`);
-
-    // Create branch using GitHub API
-    await octokits.rest.git.createRef({
-      owner,
-      repo,
-      ref: `refs/heads/${newBranch}`,
-      sha: currentSHA,
-    });
-
-    // Checkout the new branch (shallow fetch for performance)
-    await $`git fetch origin --depth=1 ${newBranch}`;
-    await $`git checkout ${newBranch}`;
-
+  
+  // For issues, check if a Claude branch already exists
+  let branchToUse: string | null = null;
+  let isReusedBranch = false;
+  
+  if (!isPR) {
+    // Check for existing Claude branches for this issue
+    try {
+      // Use GraphQL to efficiently search for branches with a specific prefix
+      const query = `
+        query($owner: String!, $repo: String!, $prefix: String!) {
+          repository(owner: $owner, name: $repo) {
+            refs(refPrefix: "refs/heads/", query: $prefix, first: 100) {
+              nodes {
+                name
+              }
+            }
+          }
+        }
+      `;
+      
+      const response = await octokits.graphql<{
+        repository: {
+          refs: {
+            nodes: Array<{ name: string }>;
+          };
+        };
+      }>(query, {
+        owner,
+        repo,
+        prefix: `claude/issue-${entityNumber}-`,
+      });
+      
+      const branches = response.repository.refs.nodes;
+      
+      if (branches.length > 0) {
+        // Use the first matching branch (could be sorted by date in future)
+        branchToUse = branches[0].name;
+        isReusedBranch = true;
+        console.log(`Found existing Claude branch for issue #${entityNumber}: ${branchToUse}`);
+      }
+    } catch (error) {
+      console.error("Error checking for existing branches:", error);
+      // Continue with new branch creation if check fails
+    }
+  }
+  
+  // If no existing branch found or this is a PR, create a new branch
+  if (!branchToUse) {
     console.log(
-      `Successfully created and checked out new branch: ${newBranch}`,
+      `Creating new branch for ${entityType} #${entityNumber} from source branch: ${sourceBranch}...`,
     );
 
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[:-]/g, "")
+      .replace(/\.\d{3}Z/, "")
+      .split("T")
+      .join("_");
+
+    branchToUse = `claude/${entityType}-${entityNumber}-${timestamp}`;
+  }
+
+  try {
+    if (isReusedBranch) {
+      // For existing branches, just checkout
+      console.log(`Checking out existing branch: ${branchToUse}`);
+      
+      // Fetch the branch with more depth to allow for context
+      await $`git fetch origin --depth=20 ${branchToUse}`;
+      await $`git checkout ${branchToUse}`;
+      
+      console.log(
+        `Successfully checked out existing branch: ${branchToUse}`,
+      );
+      console.log(
+        `Note: This is a reused branch from a previous Claude invocation on issue #${entityNumber}`,
+      );
+    } else {
+      // Get the SHA of the source branch
+      const sourceBranchRef = await octokits.rest.git.getRef({
+        owner,
+        repo,
+        ref: `heads/${sourceBranch}`,
+      });
+
+      const currentSHA = sourceBranchRef.data.object.sha;
+
+      console.log(`Current SHA: ${currentSHA}`);
+
+      // Create branch using GitHub API
+      await octokits.rest.git.createRef({
+        owner,
+        repo,
+        ref: `refs/heads/${branchToUse}`,
+        sha: currentSHA,
+      });
+
+      // Checkout the new branch (shallow fetch for performance)
+      await $`git fetch origin --depth=1 ${branchToUse}`;
+      await $`git checkout ${branchToUse}`;
+
+      console.log(
+        `Successfully created and checked out new branch: ${branchToUse}`,
+      );
+    }
+
     // Set outputs for GitHub Actions
-    core.setOutput("CLAUDE_BRANCH", newBranch);
+    core.setOutput("CLAUDE_BRANCH", branchToUse);
     core.setOutput("BASE_BRANCH", sourceBranch);
+    if (isReusedBranch) {
+      core.setOutput("IS_REUSED_BRANCH", "true");
+    }
     return {
       baseBranch: sourceBranch,
-      claudeBranch: newBranch,
-      currentBranch: newBranch,
+      claudeBranch: branchToUse,
+      currentBranch: branchToUse,
+      isReusedBranch,
     };
   } catch (error) {
-    console.error("Error creating branch:", error);
+    console.error("Error setting up branch:", error);
     process.exit(1);
   }
 }
