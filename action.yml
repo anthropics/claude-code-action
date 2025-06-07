@@ -15,6 +15,10 @@ inputs:
   base_branch:
     description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
     required: false
+  allow_bot_users:
+    description: "Allow bot users (users ending with [bot]) to trigger the action. Default is false for security reasons."
+    required: false
+    default: "false"
 
   # Claude Code configuration
   model:
@@ -100,6 +104,7 @@ runs:
         DIRECT_PROMPT: ${{ inputs.direct_prompt }}
         MCP_CONFIG: ${{ inputs.mcp_config }}
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
+        ALLOW_BOT_USERS: ${{ inputs.allow_bot_users }}
         GITHUB_RUN_ID: ${{ github.run_id }}
 
     - name: Run Claude Code
