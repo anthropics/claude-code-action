@@ -17,7 +17,6 @@
     "@octokit/rest": "^21.1.1",
     "@octokit/webhooks-types": "^7.6.1",
     "node-fetch": "^3.3.2",
-    "yaml": "^2.3.4",
     "zod": "^3.24.4"
   },
   "devDependencies": {
