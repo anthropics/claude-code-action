@@ -63,7 +63,7 @@ inputs:
     default: "false"
 
   max_turns:
-    description: "Maximum number of conversation turns Claude can take (limits back-and-forth exchanges)"
+    description: "Maximum number of conversation turns"
     required: false
     default: ""
   timeout_minutes:
