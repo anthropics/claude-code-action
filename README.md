@@ -317,6 +317,7 @@ The `claude_env` input accepts YAML format where each line defines a key-value p
 ### Limiting Conversation Turns
 
 You can use the `max_turns` parameter to limit the number of back-and-forth exchanges Claude can have during task execution. This is useful for:
+
 - Controlling costs by preventing runaway conversations
 - Setting time boundaries for automated workflows
 - Ensuring predictable behavior in CI/CD pipelines
@@ -325,7 +326,7 @@ You can use the `max_turns` parameter to limit the number of back-and-forth exch
 - uses: anthropics/claude-code-action@beta
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    max_turns: "5"  # Limit to 5 conversation turns
+    max_turns: "5" # Limit to 5 conversation turns
     # ... other inputs
 ```
 
