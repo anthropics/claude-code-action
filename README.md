@@ -70,6 +70,8 @@ jobs:
           #   NODE_ENV: test
           #   DEBUG: true
           #   API_URL: https://api.example.com
+          # Optional: limit the number of conversation turns
+          # max_turns: "5"
 ```
 
 ## Inputs
@@ -78,6 +80,7 @@ jobs:
 | --------------------- | -------------------------------------------------------------------------------------------------------------------- | -------- | --------- |
 | `anthropic_api_key`   | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                           | No\*     | -         |
 | `direct_prompt`       | Direct prompt for Claude to execute automatically without needing a trigger (for automated workflows)                | No       | -         |
+| `max_turns`           | Maximum number of conversation turns Claude can take (limits back-and-forth exchanges)                               | No       | -         |
 | `timeout_minutes`     | Timeout in minutes for execution                                                                                     | No       | `30`      |
 | `github_token`        | GitHub token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!** | No       | -         |
 | `model`               | Model to use (provider-specific format required for Bedrock/Vertex)                                                  | No       | -         |
@@ -310,6 +313,23 @@ You can pass custom environment variables to Claude Code execution using the `cl
 ```
 
 The `claude_env` input accepts YAML format where each line defines a key-value pair. These environment variables will be available to Claude Code during execution, allowing it to run tests, build processes, or other commands that depend on specific environment configurations.
+
+### Limiting Conversation Turns
+
+You can use the `max_turns` parameter to limit the number of back-and-forth exchanges Claude can have during task execution. This is useful for:
+- Controlling costs by preventing runaway conversations
+- Setting time boundaries for automated workflows
+- Ensuring predictable behavior in CI/CD pipelines
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    max_turns: "5"  # Limit to 5 conversation turns
+    # ... other inputs
+```
+
+When the turn limit is reached, Claude will stop execution gracefully. Choose a value that gives Claude enough turns to complete typical tasks while preventing excessive usage.
 
 ### Custom Tools
 

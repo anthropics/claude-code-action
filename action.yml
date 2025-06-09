@@ -62,6 +62,10 @@ inputs:
     required: false
     default: "false"
 
+  max_turns:
+    description: "Maximum number of conversation turns Claude can take (limits back-and-forth exchanges)"
+    required: false
+    default: ""
   timeout_minutes:
     description: "Timeout in minutes for execution"
     required: false
@@ -111,6 +115,7 @@ runs:
         allowed_tools: ${{ env.ALLOWED_TOOLS }}
         disallowed_tools: ${{ env.DISALLOWED_TOOLS }}
         timeout_minutes: ${{ inputs.timeout_minutes }}
+        max_turns: ${{ inputs.max_turns }}
         model: ${{ inputs.model || inputs.anthropic_model }}
         mcp_config: ${{ steps.prepare.outputs.mcp_config }}
         use_bedrock: ${{ inputs.use_bedrock }}
