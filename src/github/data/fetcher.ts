@@ -1,17 +1,17 @@
 import { execSync } from "child_process";
+import type { Octokits } from "../api/client";
+import { ISSUE_QUERY, PR_QUERY } from "../api/queries/github";
 import type {
-  GitHubPullRequest,
-  GitHubIssue,
   GitHubComment,
   GitHubFile,
+  GitHubIssue,
+  GitHubPullRequest,
   GitHubReview,
-  PullRequestQueryResponse,
   IssueQueryResponse,
+  PullRequestQueryResponse,
 } from "../types";
-import { PR_QUERY, ISSUE_QUERY } from "../api/queries/github";
-import type { Octokits } from "../api/client";
-import { downloadCommentImages } from "../utils/image-downloader";
 import type { CommentWithImages } from "../utils/image-downloader";
+import { downloadCommentImages } from "../utils/image-downloader";
 
 type FetchDataParams = {
   octokits: Octokits;
@@ -101,6 +101,14 @@ export async function fetchGitHubData({
   let changedFilesWithSHA: GitHubFileWithSHA[] = [];
   if (isPR && changedFiles.length > 0) {
     changedFilesWithSHA = changedFiles.map((file) => {
+      // Don't compute SHA for deleted files
+      if (file.changeType === "DELETED") {
+        return {
+          ...file,
+          sha: "deleted",
+        };
+      }
+
       try {
         // Use git hash-object to compute the SHA for the current file content
         const sha = execSync(`git hash-object "${file.path}"`, {

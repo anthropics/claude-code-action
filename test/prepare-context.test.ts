@@ -242,7 +242,7 @@ describe("parseEnvVarsWithContext", () => {
         ...mockPullRequestCommentContext,
         inputs: {
           ...mockPullRequestCommentContext.inputs,
-          allowedTools: "Tool1,Tool2",
+          allowedTools: ["Tool1", "Tool2"],
         },
       });
       const result = prepareContext(contextWithAllowedTools, "12345");

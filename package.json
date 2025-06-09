@@ -1,5 +1,5 @@
 {
-  "name": "claude-pr-action",
+  "name": "@anthropic-ai/claude-code-action",
   "version": "1.0.0",
   "private": true,
   "scripts": {

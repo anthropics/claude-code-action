@@ -8,7 +8,6 @@ import {
   buildDisallowedToolsString,
 } from "../src/create-prompt";
 import type { PreparedContext } from "../src/create-prompt";
-import type { EventData } from "../src/create-prompt/types";
 
 describe("generatePrompt", () => {
   const mockGitHubData = {
@@ -619,15 +618,7 @@ describe("getEventTypeAndContext", () => {
 
 describe("buildAllowedToolsString", () => {
   test("should return issue comment tool for regular events", () => {
-    const mockEventData: EventData = {
-      eventName: "issue_comment",
-      commentId: "123",
-      isPR: true,
-      prNumber: "456",
-      commentBody: "Test comment",
-    };
-
-    const result = buildAllowedToolsString(mockEventData);
+    const result = buildAllowedToolsString();
 
     // The base tools should be in the result
     expect(result).toContain("Edit");
@@ -636,22 +627,15 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("LS");
     expect(result).toContain("Read");
     expect(result).toContain("Write");
-    expect(result).toContain("mcp__github__update_issue_comment");
+    expect(result).toContain("mcp__github_file_ops__update_claude_comment");
+    expect(result).not.toContain("mcp__github__update_issue_comment");
     expect(result).not.toContain("mcp__github__update_pull_request_comment");
     expect(result).toContain("mcp__github_file_ops__commit_files");
     expect(result).toContain("mcp__github_file_ops__delete_files");
   });
 
   test("should return PR comment tool for inline review comments", () => {
-    const mockEventData: EventData = {
-      eventName: "pull_request_review_comment",
-      isPR: true,
-      prNumber: "456",
-      commentBody: "Test review comment",
-      commentId: "789",
-    };
-
-    const result = buildAllowedToolsString(mockEventData);
+    const result = buildAllowedToolsString();
 
     // The base tools should be in the result
     expect(result).toContain("Edit");
@@ -660,23 +644,16 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("LS");
     expect(result).toContain("Read");
     expect(result).toContain("Write");
+    expect(result).toContain("mcp__github_file_ops__update_claude_comment");
     expect(result).not.toContain("mcp__github__update_issue_comment");
-    expect(result).toContain("mcp__github__update_pull_request_comment");
+    expect(result).not.toContain("mcp__github__update_pull_request_comment");
     expect(result).toContain("mcp__github_file_ops__commit_files");
     expect(result).toContain("mcp__github_file_ops__delete_files");
   });
 
   test("should append custom tools when provided", () => {
-    const mockEventData: EventData = {
-      eventName: "issue_comment",
-      commentId: "123",
-      isPR: true,
-      prNumber: "456",
-      commentBody: "Test comment",
-    };
-
-    const customTools = "Tool1,Tool2,Tool3";
-    const result = buildAllowedToolsString(mockEventData, customTools);
+    const customTools = ["Tool1", "Tool2", "Tool3"];
+    const result = buildAllowedToolsString(customTools);
 
     // Base tools should be present
     expect(result).toContain("Edit");
@@ -706,7 +683,7 @@ describe("buildDisallowedToolsString", () => {
   });
 
   test("should append custom disallowed tools when provided", () => {
-    const customDisallowedTools = "BadTool1,BadTool2";
+    const customDisallowedTools = ["BadTool1", "BadTool2"];
     const result = buildDisallowedToolsString(customDisallowedTools);
 
     // Base disallowed tools should be present
@@ -724,8 +701,8 @@ describe("buildDisallowedToolsString", () => {
   });
 
   test("should remove hardcoded disallowed tools if they are in allowed tools", () => {
-    const customDisallowedTools = "BadTool1,BadTool2";
-    const allowedTools = "WebSearch,SomeOtherTool";
+    const customDisallowedTools = ["BadTool1", "BadTool2"];
+    const allowedTools = ["WebSearch", "SomeOtherTool"];
     const result = buildDisallowedToolsString(
       customDisallowedTools,
       allowedTools,
@@ -743,7 +720,7 @@ describe("buildDisallowedToolsString", () => {
   });
 
   test("should remove all hardcoded disallowed tools if they are all in allowed tools", () => {
-    const allowedTools = "WebSearch,WebFetch,SomeOtherTool";
+    const allowedTools = ["WebSearch", "WebFetch", "SomeOtherTool"];
     const result = buildDisallowedToolsString(undefined, allowedTools);
 
     // Both hardcoded disallowed tools should be removed
@@ -755,8 +732,8 @@ describe("buildDisallowedToolsString", () => {
   });
 
   test("should handle custom disallowed tools when all hardcoded tools are overridden", () => {
-    const customDisallowedTools = "BadTool1,BadTool2";
-    const allowedTools = "WebSearch,WebFetch";
+    const customDisallowedTools = ["BadTool1", "BadTool2"];
+    const allowedTools = ["WebSearch", "WebFetch"];
     const result = buildDisallowedToolsString(
       customDisallowedTools,
       allowedTools,

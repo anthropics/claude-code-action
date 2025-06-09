@@ -12,6 +12,7 @@ import {
 } from "../github/context";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import { checkAndDeleteEmptyBranch } from "../github/operations/branch-cleanup";
+import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 
 async function run() {
   try {
@@ -204,23 +205,14 @@ async function run() {
 
     const updatedBody = updateCommentBody(commentInput);
 
-    // Update the comment using the appropriate API
     try {
-      if (isPRReviewComment) {
-        await octokit.rest.pulls.updateReviewComment({
-          owner,
-          repo,
-          comment_id: commentId,
-          body: updatedBody,
-        });
-      } else {
-        await octokit.rest.issues.updateComment({
-          owner,
-          repo,
-          comment_id: commentId,
-          body: updatedBody,
-        });
-      }
+      await updateClaudeComment(octokit.rest, {
+        owner,
+        repo,
+        commentId,
+        body: updatedBody,
+        isPullRequestReviewComment: isPRReviewComment,
+      });
       console.log(
         `✅ Updated ${isPRReviewComment ? "PR review" : "issue"} comment ${commentId} with job link`,
       );

@@ -39,6 +39,12 @@ inputs:
     description: "Direct instruction for Claude (bypasses normal trigger detection)"
     required: false
     default: ""
+  mcp_config:
+    description: "Additional MCP configuration (JSON string) that merges with the built-in GitHub MCP servers"
+  claude_env:
+    description: "Custom environment variables to pass to Claude Code execution (YAML format)"
+    required: false
+    default: ""
 
   # Auth configuration
   anthropic_api_key:
@@ -77,14 +83,14 @@ runs:
     - name: Install Dependencies
       shell: bash
       run: |
-        cd ${{ github.action_path }}
+        cd ${GITHUB_ACTION_PATH}
         bun install
 
     - name: Prepare action
       id: prepare
       shell: bash
       run: |
-        bun run ${{ github.action_path }}/src/entrypoints/prepare.ts
+        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/prepare.ts
       env:
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
@@ -92,6 +98,7 @@ runs:
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}
         DIRECT_PROMPT: ${{ inputs.direct_prompt }}
+        MCP_CONFIG: ${{ inputs.mcp_config }}
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_RUN_ID: ${{ github.run_id }}
 
@@ -100,7 +107,7 @@ runs:
       if: steps.prepare.outputs.contains_trigger == 'true'
       uses: starup-ai-pj/claude-code-base-action@main
       with:
-        prompt_file: /tmp/claude-prompts/claude-prompt.txt
+        prompt_file: ${{ runner.temp }}/claude-prompts/claude-prompt.txt
         allowed_tools: ${{ env.ALLOWED_TOOLS }}
         disallowed_tools: ${{ env.DISALLOWED_TOOLS }}
         timeout_minutes: ${{ inputs.timeout_minutes }}
@@ -109,6 +116,7 @@ runs:
         use_bedrock: ${{ inputs.use_bedrock }}
         use_vertex: ${{ inputs.use_vertex }}
         anthropic_api_key: ${{ inputs.anthropic_api_key }}
+        claude_env: ${{ inputs.claude_env }}
       env:
         # Model configuration
         ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
@@ -139,7 +147,7 @@ runs:
       if: steps.prepare.outputs.contains_trigger == 'true' && steps.prepare.outputs.claude_comment_id && always()
       shell: bash
       run: |
-        bun run ${{ github.action_path }}/src/entrypoints/update-comment-link.ts
+        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/update-comment-link.ts
       env:
         REPOSITORY: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
