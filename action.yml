@@ -100,6 +100,7 @@ runs:
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
         BASE_BRANCH: ${{ inputs.base_branch }}
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
+        DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
         CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}
         DIRECT_PROMPT: ${{ inputs.direct_prompt }}
         MCP_CONFIG: ${{ inputs.mcp_config }}
