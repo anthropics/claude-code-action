@@ -5,6 +5,7 @@ import type {
   PullRequestEvent,
   PullRequestReviewEvent,
   PullRequestReviewCommentEvent,
+  RepositoryDispatchEvent,
 } from "@octokit/webhooks-types";
 
 export type ParsedGitHubContext = {
@@ -144,4 +145,10 @@ export function isPullRequestReviewCommentEvent(
   context: ParsedGitHubContext,
 ): context is ParsedGitHubContext & { payload: PullRequestReviewCommentEvent } {
   return context.eventName === "pull_request_review_comment";
+}
+
+export function isRepositoryDispatchEvent(
+  context: ParsedGitHubContext,
+): context is ParsedGitHubContext & { payload: PullRequestReviewCommentEvent } {
+  return context.eventName === "repository_dispatch";
 }

@@ -7,8 +7,10 @@ import {
   isPullRequestEvent,
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
+  isRepositoryDispatchEvent,
 } from "../context";
 import type { ParsedGitHubContext } from "../context";
+import { RepositoryDispatchEventType } from "../enums";
 
 export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   const {
@@ -18,6 +20,12 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   // If direct prompt is provided, always trigger
   if (directPrompt) {
     console.log(`Direct prompt provided, triggering action`);
+    return true;
+  }
+
+  // Check for repository_dispatch event
+  if (isRepositoryDispatchEvent(context) && context.eventAction === RepositoryDispatchEventType.CodeInstrumentationPr) {
+    console.log(`Repository dispatch event triggered action`);
     return true;
   }
 

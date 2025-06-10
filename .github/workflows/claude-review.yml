@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 1
 
       - name: Auto review PR
-        uses: anthropics/claude-code-action@main
+        uses: observeinc/o11y-ai-code-instrumentation-gh-action@main
         with:
           direct_prompt: |
             Please review this PR. Look at the changes and provide thoughtful feedback on:
