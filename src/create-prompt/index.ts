@@ -24,6 +24,7 @@ export type { CommonFields, PreparedContext } from "./types";
 
 const BASE_ALLOWED_TOOLS = [
   "Edit",
+  "MultiEdit",
   "Glob",
   "Grep",
   "LS",
