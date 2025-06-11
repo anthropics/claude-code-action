@@ -6,6 +6,7 @@ import { z } from "zod";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import fetch from "node-fetch";
+import { GITHUB_API_URL } from "../github/api/config";
 import { Octokit } from "@octokit/rest";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 
@@ -39,7 +40,6 @@ const REPO_OWNER = process.env.REPO_OWNER;
 const REPO_NAME = process.env.REPO_NAME;
 const BRANCH_NAME = process.env.BRANCH_NAME;
 const REPO_DIR = process.env.REPO_DIR || process.cwd();
-const GITHUB_API_URL = process.env.GITHUB_API_URL || "https://api.github.com";
 
 if (!REPO_OWNER || !REPO_NAME || !BRANCH_NAME) {
   console.error(
