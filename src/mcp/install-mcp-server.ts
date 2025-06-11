@@ -46,6 +46,7 @@ export async function prepareMcpConfig(
             ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
             GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
             IS_PR: process.env.IS_PR || "false",
+            GITHUB_API_URL: process.env.GITHUB_API_URL || "https://api.github.com",
           },
         },
       },
