@@ -1,6 +1,6 @@
 import { execSync } from "child_process";
 import type { Octokits } from "../api/client";
-import { ISSUE_QUERY, PR_QUERY } from "../api/queries/github";
+import { ISSUE_QUERY, PR_QUERY, USER_QUERY } from "../api/queries/github";
 import type {
   GitHubComment,
   GitHubFile,
@@ -18,6 +18,7 @@ type FetchDataParams = {
   repository: string;
   prNumber: string;
   isPR: boolean;
+  triggerUsername?: string;
 };
 
 export type GitHubFileWithSHA = GitHubFile & {
@@ -31,6 +32,7 @@ export type FetchDataResult = {
   changedFilesWithSHA: GitHubFileWithSHA[];
   reviewData: { nodes: GitHubReview[] } | null;
   imageUrlMap: Map<string, string>;
+  triggerDisplayName?: string | null;
 };
 
 export async function fetchGitHubData({
@@ -38,6 +40,7 @@ export async function fetchGitHubData({
   repository,
   prNumber,
   isPR,
+  triggerUsername,
 }: FetchDataParams): Promise<FetchDataResult> {
   const [owner, repo] = repository.split("/");
   if (!owner || !repo) {
@@ -191,6 +194,12 @@ export async function fetchGitHubData({
     allComments,
   );
 
+  // Fetch trigger user display name if username is provided
+  let triggerDisplayName: string | null | undefined;
+  if (triggerUsername) {
+    triggerDisplayName = await fetchUserDisplayName(octokits, triggerUsername);
+  }
+
   return {
     contextData,
     comments,
@@ -198,5 +207,27 @@ export async function fetchGitHubData({
     changedFilesWithSHA,
     reviewData,
     imageUrlMap,
+    triggerDisplayName,
   };
+}
+
+export type UserQueryResponse = {
+  user: {
+    name: string | null;
+  };
+};
+
+export async function fetchUserDisplayName(
+  octokits: Octokits,
+  login: string,
+): Promise<string | null> {
+  try {
+    const result = await octokits.graphql<UserQueryResponse>(USER_QUERY, {
+      login,
+    });
+    return result.user.name;
+  } catch (error) {
+    console.warn(`Failed to fetch user display name for ${login}:`, error);
+    return null;
+  }
 }

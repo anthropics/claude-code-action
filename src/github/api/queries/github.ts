@@ -8,9 +8,6 @@ export const PR_QUERY = `
         body
         author {
           login
-          ... on User {
-            name
-          }
         }
         baseRefName
         headRefName
@@ -89,9 +86,6 @@ export const ISSUE_QUERY = `
         body
         author {
           login
-          ... on User {
-            name
-          }
         }
         createdAt
         state
@@ -107,6 +101,14 @@ export const ISSUE_QUERY = `
           }
         }
       }
+    }
+  }
+`;
+
+export const USER_QUERY = `
+  query($login: String!) {
+    user(login: $login) {
+      name
     }
   }
 `;

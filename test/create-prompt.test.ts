@@ -316,7 +316,7 @@ describe("generatePrompt", () => {
 
     expect(prompt).toContain("<trigger_username>johndoe</trigger_username>");
     expect(prompt).toContain(
-      "Co-authored-by: johndoe <johndoe@users.noreply.github.com>",
+      'Use: "Co-authored-by: johndoe <johndoe@users.noreply.github.com>"',
     );
   });
 
