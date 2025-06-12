@@ -1,0 +1,38 @@
+name: Debug PATH
+on:
+  workflow_dispatch:
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude:
+    runs-on: [self-hosted, foo]
+    if: contains(github.event.comment.body, '@claude')
+    container:
+      image: golang:1.24-bullseye
+
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+      id-token: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Print container PATH
+        run: echo "$PATH"
+
+      - name: Print Go version
+        run: go version
+
+      - name: Run Claude Code debug
+        uses: anthropics/claude-code-action@main
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            echo "$PATH"
+            go version
+          allowed_tools: "Bash,Read,Edit,Write,Grep,Task,Replace"
+        continue-on-error: true
