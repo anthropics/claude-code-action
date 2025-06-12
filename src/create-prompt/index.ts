@@ -122,7 +122,7 @@ export function prepareContext(
     // Check in comments
     if (!triggerDisplayName) {
       const matchingComment = githubData.comments.find(
-        comment => comment.author.login === triggerUsername
+        (comment) => comment.author.login === triggerUsername,
       );
       if (matchingComment) {
         triggerDisplayName = matchingComment.author.name;
@@ -131,7 +131,7 @@ export function prepareContext(
     // Check in reviews (for PRs)
     if (!triggerDisplayName && githubData.reviewData) {
       const matchingReview = githubData.reviewData.nodes.find(
-        review => review.author.login === triggerUsername
+        (review) => review.author.login === triggerUsername,
       );
       if (matchingReview) {
         triggerDisplayName = matchingReview.author.name;
