@@ -104,3 +104,11 @@ export const ISSUE_QUERY = `
     }
   }
 `;
+
+export const USER_QUERY = `
+  query($login: String!) {
+    user(login: $login) {
+      name
+    }
+  }
+`;

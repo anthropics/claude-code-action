@@ -59,6 +59,7 @@ async function run() {
       repository: `${context.repository.owner}/${context.repository.repo}`,
       prNumber: context.entityNumber.toString(),
       isPR: context.isPR,
+      triggerUsername: context.actor,
     });
 
     // Step 8: Setup branch

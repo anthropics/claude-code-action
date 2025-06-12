@@ -1,6 +1,7 @@
 // Types for GitHub GraphQL query responses
 export type GitHubAuthor = {
   login: string;
+  name?: string;
 };
 
 export type GitHubComment = {
