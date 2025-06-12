@@ -125,13 +125,30 @@ server.tool(
             ? filePath
             : join(REPO_DIR, filePath);
 
-          const content = await readFile(fullPath, "utf-8");
-          return {
-            path: filePath,
-            mode: "100644",
-            type: "blob",
-            content: content,
-          };
+          // Check if file is binary (images, etc.)
+          const isBinaryFile = /\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|tar|gz|exe|bin|woff|woff2|ttf|eot)$/i.test(filePath);
+          
+          if (isBinaryFile) {
+            // Read binary files as base64
+            const binaryContent = await readFile(fullPath);
+            return {
+              path: filePath,
+              mode: "100644",
+              type: "blob",
+              content: binaryContent.toString('base64'),
+              encoding: "base64",
+            };
+          } else {
+            // Read text files as UTF-8
+            const content = await readFile(fullPath, "utf-8");
+            return {
+              path: filePath,
+              mode: "100644",
+              type: "blob",
+              content: content,
+            };
+          }
+          
         }),
       );
 
