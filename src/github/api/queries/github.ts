@@ -8,6 +8,7 @@ export const PR_QUERY = `
         body
         author {
           login
+          name
         }
         baseRefName
         headRefName
@@ -86,6 +87,7 @@ export const ISSUE_QUERY = `
         body
         author {
           login
+          name
         }
         createdAt
         state

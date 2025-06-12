@@ -75,6 +75,7 @@ export function prepareContext(
   claudeCommentId: string,
   baseBranch?: string,
   claudeBranch?: string,
+  githubData?: FetchDataResult,
 ): PreparedContext {
   const repository = context.repository.full_name;
   const eventName = context.eventName;
@@ -111,12 +112,40 @@ export function prepareContext(
     triggerUsername = context.payload.issue.user.login;
   }
 
+  // Extract display name from fetched GitHub data
+  let triggerDisplayName: string | undefined;
+  if (triggerUsername && githubData) {
+    // Check in issue/PR author
+    if (githubData.contextData.author.login === triggerUsername) {
+      triggerDisplayName = githubData.contextData.author.name;
+    }
+    // Check in comments
+    if (!triggerDisplayName) {
+      const matchingComment = githubData.comments.find(
+        comment => comment.author.login === triggerUsername
+      );
+      if (matchingComment) {
+        triggerDisplayName = matchingComment.author.name;
+      }
+    }
+    // Check in reviews (for PRs)
+    if (!triggerDisplayName && githubData.reviewData) {
+      const matchingReview = githubData.reviewData.nodes.find(
+        review => review.author.login === triggerUsername
+      );
+      if (matchingReview) {
+        triggerDisplayName = matchingReview.author.name;
+      }
+    }
+  }
+
   // Create infrastructure fields object
   const commonFields: CommonFields = {
     repository,
     claudeCommentId,
     triggerPhrase,
     ...(triggerUsername && { triggerUsername }),
+    ...(triggerDisplayName && { triggerDisplayName }),
     ...(customInstructions && { customInstructions }),
     ...(allowedTools.length > 0 && { allowedTools: allowedTools.join(",") }),
     ...(disallowedTools.length > 0 && {
@@ -418,6 +447,7 @@ ${
 }
 <claude_comment_id>${context.claudeCommentId}</claude_comment_id>
 <trigger_username>${context.triggerUsername ?? "Unknown"}</trigger_username>
+<trigger_display_name>${context.triggerDisplayName ?? context.triggerUsername ?? "Unknown"}</trigger_display_name>
 <trigger_phrase>${context.triggerPhrase}</trigger_phrase>
 ${
   (eventData.eventName === "issue_comment" ||
@@ -503,12 +533,12 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
           ? `
       - Push directly using mcp__github_file_ops__commit_files to the existing branch (works for both new and existing files).
       - Use mcp__github_file_ops__commit_files to commit files atomically in a single commit (supports single or multiple files).
-      - When pushing changes with this tool and TRIGGER_USERNAME is not "Unknown", include a "Co-authored-by: ${context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>" line in the commit message.`
+      - When pushing changes with this tool and TRIGGER_USERNAME is not "Unknown", include a "Co-authored-by: ${context.triggerDisplayName ?? context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>" line in the commit message.`
           : `
       - You are already on the correct branch (${eventData.claudeBranch || "the PR branch"}). Do not create a new branch.
       - Push changes directly to the current branch using mcp__github_file_ops__commit_files (works for both new and existing files)
       - Use mcp__github_file_ops__commit_files to commit files atomically in a single commit (supports single or multiple files).
-      - When pushing changes and TRIGGER_USERNAME is not "Unknown", include a "Co-authored-by: ${context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>" line in the commit message.
+      - When pushing changes and TRIGGER_USERNAME is not "Unknown", include a "Co-authored-by: ${context.triggerDisplayName ?? context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>" line in the commit message.
       ${
         eventData.claudeBranch
           ? `- Provide a URL to create a PR manually in this format:
@@ -619,6 +649,7 @@ export async function createPrompt(
       claudeCommentId.toString(),
       baseBranch,
       claudeBranch,
+      githubData,
     );
 
     await mkdir(`${process.env.RUNNER_TEMP}/claude-prompts`, {

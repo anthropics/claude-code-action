@@ -3,6 +3,7 @@ export type CommonFields = {
   claudeCommentId: string;
   triggerPhrase: string;
   triggerUsername?: string;
+  triggerDisplayName?: string;
   customInstructions?: string;
   allowedTools?: string;
   disallowedTools?: string;
