@@ -347,8 +347,15 @@ Claude does **not** have access to execute arbitrary Bash commands by default. I
 ```yaml
 - uses: anthropics/claude-code-action@beta
   with:
-    allowed_tools: "Bash(npm install),Bash(npm run test),Edit,Replace,NotebookEditCell"
-    disallowed_tools: "TaskOutput,KillTask"
+    allowed_tools: |
+      Bash(npm install)
+      Bash(npm run test)
+      Edit
+      Replace
+      NotebookEditCell
+    disallowed_tools: |
+      TaskOutput
+      KillTask
     # ... other inputs
 ```
 

@@ -52,14 +52,8 @@ export function parseGitHubContext(): ParsedGitHubContext {
     inputs: {
       triggerPhrase: process.env.TRIGGER_PHRASE ?? "@claude",
       assigneeTrigger: process.env.ASSIGNEE_TRIGGER ?? "",
-      allowedTools: (process.env.ALLOWED_TOOLS ?? "")
-        .split(",")
-        .map((tool) => tool.trim())
-        .filter((tool) => tool.length > 0),
-      disallowedTools: (process.env.DISALLOWED_TOOLS ?? "")
-        .split(",")
-        .map((tool) => tool.trim())
-        .filter((tool) => tool.length > 0),
+      allowedTools: parseMultilineInput(process.env.ALLOWED_TOOLS ?? ""),
+      disallowedTools: parseMultilineInput(process.env.DISALLOWED_TOOLS ?? ""),
       customInstructions: process.env.CUSTOM_INSTRUCTIONS ?? "",
       directPrompt: process.env.DIRECT_PROMPT ?? "",
       baseBranch: process.env.BASE_BRANCH,
@@ -114,6 +108,14 @@ export function parseGitHubContext(): ParsedGitHubContext {
     default:
       throw new Error(`Unsupported event type: ${context.eventName}`);
   }
+}
+
+export function parseMultilineInput(s: string): string[] {
+  return s
+    .split(/,|[\n\r]+/)
+    .map((tool) => tool.replace(/#.+$/, ""))
+    .map((tool) => tool.trim())
+    .filter((tool) => tool.length > 0);
 }
 
 export function isIssuesEvent(
