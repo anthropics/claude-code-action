@@ -149,6 +149,40 @@ For MCP servers that require sensitive information like API keys or tokens, use 
     # ... other inputs
 ```
 
+#### Using Python MCP Servers with uv
+
+For Python-based MCP servers managed with `uv`, you need to specify the directory containing your server:
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    mcp_config: |
+      {
+        "mcpServers": {
+          "my-python-server": {
+            "type": "stdio",
+            "command": "uv",
+            "args": [
+              "--directory",
+              "${{ github.workspace }}/path/to/server/",
+              "run",
+              "server_file.py"
+            ]
+          }
+        }
+      }
+    allowed_tools: "my-python-server__<tool_name>" # Replace <tool_name> with your server's tool names
+    # ... other inputs
+```
+
+For example, if your Python MCP server is at `mcp_servers/weather.py`, you would use:
+
+```yaml
+"args":
+  ["--directory", "${{ github.workspace }}/mcp_servers/", "run", "weather.py"]
+```
+
 **Important**:
 
 - Always use GitHub Secrets (`${{ secrets.SECRET_NAME }}`) for sensitive values like API keys, tokens, or passwords. Never hardcode secrets directly in the workflow file.
