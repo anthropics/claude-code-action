@@ -45,9 +45,16 @@ export async function setupBranch(
 
       const branchName = prData.headRefName;
 
-      // Execute git commands to checkout PR branch (shallow fetch for performance)
-      // Fetch the branch with a depth of 20 to avoid fetching too much history, while still allowing for some context
-      await $`git fetch origin --depth=20 ${branchName}`;
+      // Determine optimal fetch depth based on PR commit count, with a minimum of 20
+      const commitCount = prData.commits.totalCount;
+      const fetchDepth = Math.max(commitCount, 20);
+
+      console.log(
+        `PR #${entityNumber}: ${commitCount} commits, using fetch depth ${fetchDepth}`,
+      );
+
+      // Execute git commands to checkout PR branch (dynamic depth based on PR size)
+      await $`git fetch origin --depth=${fetchDepth} ${branchName}`;
       await $`git checkout ${branchName}`;
 
       console.log(`Successfully checked out PR branch for PR #${entityNumber}`);
