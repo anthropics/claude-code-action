@@ -119,6 +119,16 @@ describe("checkWritePermissions", () => {
     );
   });
 
+  test("should return true for bot user", async () => {
+    const mockOctokit = createMockOctokit("none");
+    const context = createContext();
+    context.actor = "test-bot[bot]";
+
+    const result = await checkWritePermissions(mockOctokit, context);
+
+    expect(result).toBe(true);
+  });
+
   test("should throw error when permission check fails", async () => {
     const error = new Error("API error");
     const mockOctokit = {
