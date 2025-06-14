@@ -147,6 +147,7 @@ async function run() {
     } | null = null;
     let actionFailed = false;
     let errorDetails: string | undefined;
+    let errorSubtype: string | undefined;
 
     // First check if prepare step failed
     const prepareSuccess = process.env.PREPARE_SUCCESS !== "false";
@@ -166,23 +167,37 @@ async function run() {
           // Output file is an array, get the last element which contains execution details
           if (Array.isArray(outputData) && outputData.length > 0) {
             const lastElement = outputData[outputData.length - 1];
-            if (
-              lastElement.type === "result" &&
-              "cost_usd" in lastElement &&
-              "duration_ms" in lastElement
-            ) {
+            if (lastElement.type === "result") {
+              // Extract execution details
               executionDetails = {
-                cost_usd: lastElement.cost_usd,
+                cost_usd: lastElement.total_cost_usd,
                 duration_ms: lastElement.duration_ms,
                 duration_api_ms: lastElement.duration_api_ms,
               };
+
+              // Check if this is an error result based on subtype
+              if (lastElement.subtype === "error_during_execution") {
+                errorSubtype = "Error during execution";
+                // Override the actionFailed flag based on the result
+                actionFailed = true;
+              } else if (lastElement.subtype === "error_max_turns") {
+                errorSubtype = "Maximum turns exceeded";
+                actionFailed = true;
+              }
             }
           }
         }
 
-        // Check if the Claude action failed
-        const claudeSuccess = process.env.CLAUDE_SUCCESS !== "false";
-        actionFailed = !claudeSuccess;
+        // Check if the Claude action failed (only if not already determined from result)
+        if (!actionFailed) {
+          const claudeSuccess = process.env.CLAUDE_SUCCESS !== "false";
+          actionFailed = !claudeSuccess;
+        }
+
+        // Use errorSubtype as errorDetails if no other error details are available
+        if (actionFailed && !errorDetails && errorSubtype) {
+          errorDetails = errorSubtype;
+        }
       } catch (error) {
         console.error("Error reading output file:", error);
         // If we can't read the file, check for any failure markers

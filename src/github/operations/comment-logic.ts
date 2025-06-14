@@ -114,6 +114,16 @@ export function updateCommentBody(input: CommentUpdateInput): string {
 
   if (actionFailed) {
     header = "**Claude encountered an error";
+
+    // Add error type to header if available
+    if (errorDetails) {
+      if (errorDetails === "Error during execution") {
+        header = "**Claude encountered an error during execution";
+      } else if (errorDetails === "Maximum turns exceeded") {
+        header = "**Claude exceeded the maximum number of turns";
+      }
+    }
+
     if (durationStr) {
       header += ` after ${durationStr}`;
     }
@@ -181,8 +191,13 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   // Build the new body with blank line between header and separator
   let newBody = `${header}${links}`;
 
-  // Add error details if available
-  if (actionFailed && errorDetails) {
+  // Add error details if available (but not if it's just the error type we already showed in header)
+  if (
+    actionFailed &&
+    errorDetails &&
+    errorDetails !== "Error during execution" &&
+    errorDetails !== "Maximum turns exceeded"
+  ) {
     newBody += `\n\n\`\`\`\n${errorDetails}\n\`\`\``;
   }
 
