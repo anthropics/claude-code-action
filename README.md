@@ -93,6 +93,7 @@ jobs:
 | `mcp_config`          | Additional MCP configuration (JSON string) that merges with the built-in GitHub MCP servers                          | No       | ""        |
 | `assignee_trigger`    | The assignee username that triggers the action (e.g. @claude). Only used for issue assignment                        | No       | -         |
 | `trigger_phrase`      | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                        | No       | `@claude` |
+| `add_claude_coauthor` | Add Claude as a co-author to commits                                                                                 | No       | `false`   |
 | `claude_env`          | Custom environment variables to pass to Claude Code execution (YAML format)                                          | No       | ""        |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
