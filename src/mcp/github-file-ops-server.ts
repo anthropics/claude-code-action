@@ -69,6 +69,13 @@ server.tool(
     const owner = REPO_OWNER;
     const repo = REPO_NAME;
     const branch = BRANCH_NAME;
+
+    // Check if we should add Claude as a co-author
+    const addClaudeCoauthor = process.env.ADD_CLAUDE_COAUTHOR === "true";
+    const commitMessage = addClaudeCoauthor
+      ? `${message}\n\nCo-Authored-By: Claude <noreply@anthropic.com>`
+      : message;
+
     try {
       const githubToken = process.env.GITHUB_TOKEN;
       if (!githubToken) {
@@ -171,7 +178,7 @@ server.tool(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message: message,
+          message: commitMessage,
           tree: treeData.sha,
           parents: [baseSha],
         }),
@@ -263,6 +270,13 @@ server.tool(
     const owner = REPO_OWNER;
     const repo = REPO_NAME;
     const branch = BRANCH_NAME;
+
+    // Check if we should add Claude as a co-author
+    const addClaudeCoauthor = process.env.ADD_CLAUDE_COAUTHOR === "true";
+    const commitMessage = addClaudeCoauthor
+      ? `${message}\n\nCo-Authored-By: Claude <noreply@anthropic.com>`
+      : message;
+
     try {
       const githubToken = process.env.GITHUB_TOKEN;
       if (!githubToken) {
@@ -365,7 +379,7 @@ server.tool(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message: message,
+          message: commitMessage,
           tree: treeData.sha,
           parents: [baseSha],
         }),
