@@ -50,20 +50,6 @@ Thank you for your interest in contributing to Claude Code Action! This document
    bun test
    ```
 
-2. **Integration Tests** (using GitHub Actions locally):
-
-   ```bash
-   ./test-local.sh
-   ```
-
-   This script:
-
-   - Installs `act` if not present (requires Homebrew on macOS)
-   - Runs the GitHub Action workflow locally using Docker
-   - Requires your `ANTHROPIC_API_KEY` to be set
-
-   On Apple Silicon Macs, the script automatically adds the `--container-architecture linux/amd64` flag to avoid compatibility issues.
-
 ## Pull Request Process
 
 1. Create a new branch from `main`:
@@ -103,13 +89,7 @@ Thank you for your interest in contributing to Claude Code Action! This document
 
 When modifying the action:
 
-1. Test locally with the test script:
-
-   ```bash
-   ./test-local.sh
-   ```
-
-2. Test in a real GitHub Actions workflow by:
+1. Test in a real GitHub Actions workflow by:
    - Creating a test repository
    - Using your branch as the action source:
      ```yaml
