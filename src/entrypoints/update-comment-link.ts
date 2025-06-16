@@ -176,13 +176,16 @@ async function run() {
               };
 
               // Check if this is an error result based on subtype
-              if (lastElement.subtype === "error_during_execution") {
-                errorSubtype = "Error during execution";
-                // Override the actionFailed flag based on the result
-                actionFailed = true;
-              } else if (lastElement.subtype === "error_max_turns") {
-                errorSubtype = "Maximum turns exceeded";
-                actionFailed = true;
+              switch (lastElement.subtype) {
+                case "error_during_execution":
+                  errorSubtype = "Error during execution";
+                  // Override the actionFailed flag based on the result
+                  actionFailed = true;
+                  break;
+                case "error_max_turns":
+                  errorSubtype = "Maximum turns exceeded";
+                  actionFailed = true;
+                  break;
               }
             }
           }
