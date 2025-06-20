@@ -11,6 +11,7 @@ import type { ParsedGitHubContext } from "../context";
 export async function checkHumanActor(
   octokit: Octokit,
   githubContext: ParsedGitHubContext,
+  allowBotUsers: boolean,
 ) {
   // Fetch user information from GitHub API
   const { data: userData } = await octokit.users.getByUsername({
@@ -21,9 +22,17 @@ export async function checkHumanActor(
 
   console.log(`Actor type: ${actorType}`);
 
+  // Skip check if bot users are allowed
+  if (allowBotUsers && actorType === "Bot") {
+    console.log(
+      `Bot users are allowed, skipping human actor check for: ${githubContext.actor}`,
+    );
+    return;
+  }
+
   if (actorType !== "User") {
     throw new Error(
-      `Workflow initiated by non-human actor: ${githubContext.actor} (type: ${actorType}).`,
+      `Workflow initiated by non-human actor: ${githubContext.actor} (type: ${actorType}). Set allow_bot_users: true to enable bot users.`,
     );
   }
 

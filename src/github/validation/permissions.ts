@@ -17,6 +17,12 @@ export async function checkWritePermissions(
   try {
     core.info(`Checking permissions for actor: ${actor}`);
 
+    // Check if the actor is a GitHub App (bot user)
+    if (actor.endsWith("[bot]")) {
+      core.info(`Actor is a GitHub App: ${actor}`);
+      return true;
+    }
+
     // Check permissions directly using the permission endpoint
     const response = await octokit.repos.getCollaboratorPermissionLevel({
       owner: repository.owner,
