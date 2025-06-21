@@ -70,6 +70,10 @@ inputs:
     description: "Timeout in minutes for execution"
     required: false
     default: "30"
+  add_claude_coauthor:
+    description: "Add Claude as a co-author to commits"
+    required: false
+    default: "false"
 
 outputs:
   execution_file:
@@ -99,6 +103,7 @@ runs:
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
         BASE_BRANCH: ${{ inputs.base_branch }}
+        ADD_CLAUDE_COAUTHOR: ${{ inputs.add_claude_coauthor }}
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
         CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}
@@ -148,6 +153,9 @@ runs:
         VERTEX_REGION_CLAUDE_3_5_HAIKU: ${{ env.VERTEX_REGION_CLAUDE_3_5_HAIKU }}
         VERTEX_REGION_CLAUDE_3_5_SONNET: ${{ env.VERTEX_REGION_CLAUDE_3_5_SONNET }}
         VERTEX_REGION_CLAUDE_3_7_SONNET: ${{ env.VERTEX_REGION_CLAUDE_3_7_SONNET }}
+
+        # Co-author settings
+        ADD_CLAUDE_COAUTHOR: ${{ inputs.add_claude_coauthor }}
 
     - name: Update comment with job link
       if: steps.prepare.outputs.contains_trigger == 'true' && steps.prepare.outputs.claude_comment_id && always()
