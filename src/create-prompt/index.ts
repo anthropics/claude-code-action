@@ -242,7 +242,7 @@ export function prepareContext(
       }
 
       if (eventAction === "assigned") {
-        if (!assigneeTrigger) {
+        if (!assigneeTrigger && !directPrompt) {
           throw new Error(
             "ASSIGNEE_TRIGGER is required for issue assigned event",
           );
@@ -254,7 +254,7 @@ export function prepareContext(
           issueNumber,
           baseBranch,
           claudeBranch,
-          assigneeTrigger,
+          ...(assigneeTrigger && { assigneeTrigger }),
         };
       } else if (eventAction === "opened") {
         eventData = {
@@ -331,7 +331,9 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
       }
       return {
         eventType: "ISSUE_ASSIGNED",
-        triggerContext: `issue assigned to '${eventData.assigneeTrigger}'`,
+        triggerContext: eventData.assigneeTrigger
+          ? `issue assigned to '${eventData.assigneeTrigger}'`
+          : `issue assigned event`,
       };
 
     case "pull_request":

@@ -614,6 +614,29 @@ describe("getEventTypeAndContext", () => {
     expect(result.eventType).toBe("ISSUE_ASSIGNED");
     expect(result.triggerContext).toBe("issue assigned to 'claude-bot'");
   });
+
+  test("should return correct type and context for issue assigned without assigneeTrigger", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      directPrompt: "Please assess this issue",
+      eventData: {
+        eventName: "issues",
+        eventAction: "assigned",
+        isPR: false,
+        issueNumber: "999",
+        baseBranch: "main",
+        claudeBranch: "claude/issue-999-20240101_120000",
+        // No assigneeTrigger when using directPrompt
+      },
+    };
+
+    const result = getEventTypeAndContext(envVars);
+
+    expect(result.eventType).toBe("ISSUE_ASSIGNED");
+    expect(result.triggerContext).toBe("issue assigned event");
+  });
 });
 
 describe("buildAllowedToolsString", () => {
