@@ -33,6 +33,7 @@ describe("checkContainsTrigger", () => {
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
+          autoCreatePr: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -59,6 +60,7 @@ describe("checkContainsTrigger", () => {
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
+          autoCreatePr: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(false);
@@ -231,6 +233,7 @@ describe("checkContainsTrigger", () => {
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
+          autoCreatePr: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -258,6 +261,7 @@ describe("checkContainsTrigger", () => {
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
+          autoCreatePr: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -285,6 +289,7 @@ describe("checkContainsTrigger", () => {
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
+          autoCreatePr: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(false);

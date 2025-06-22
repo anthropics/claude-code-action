@@ -22,9 +22,13 @@ describe("Auto PR Creation Feature", () => {
 
     expect(result.title).toBe("Fix: Login bug");
     expect(result.body).toContain("## Summary");
-    expect(result.body).toContain('This PR addresses the issue: "Fix login bug"');
+    expect(result.body).toContain(
+      'This PR addresses the issue: "Fix login bug"',
+    );
     expect(result.body).toContain("## Changes");
-    expect(result.body).toContain("Users cannot log in with special characters");
+    expect(result.body).toContain(
+      "Users cannot log in with special characters",
+    );
     expect(result.body).toContain("Fixes #123");
   });
 
@@ -58,7 +62,8 @@ describe("Auto PR Creation Feature", () => {
   });
 
   test("should handle long issue titles by truncating", () => {
-    mockIssueData.title = "This is a very long issue title that should be truncated because it exceeds the reasonable length limit for PR titles and would make them hard to read";
+    mockIssueData.title =
+      "This is a very long issue title that should be truncated because it exceeds the reasonable length limit for PR titles and would make them hard to read";
 
     const result = generatePRContent(mockIssueData, "123");
 
@@ -69,7 +74,8 @@ describe("Auto PR Creation Feature", () => {
   });
 
   test("should clean HTML comments from issue body", () => {
-    mockIssueData.body = "<!-- This is a comment -->Add form validation<!-- Another comment -->";
+    mockIssueData.body =
+      "<!-- This is a comment -->Add form validation<!-- Another comment -->";
 
     const result = generatePRContent(mockIssueData, "123");
 
@@ -84,11 +90,17 @@ describe("Auto PR Creation Feature", () => {
 
     // Verify PR body structure
     expect(result.body).toContain("## Summary");
-    expect(result.body).toContain('This PR addresses the issue: "Fix login bug"');
+    expect(result.body).toContain(
+      'This PR addresses the issue: "Fix login bug"',
+    );
     expect(result.body).toContain("## Changes");
-    expect(result.body).toContain("Users cannot log in with special characters");
+    expect(result.body).toContain(
+      "Users cannot log in with special characters",
+    );
     expect(result.body).toContain("Fixes #123");
-    expect(result.body).toContain("automatically created by Claude Code Action");
+    expect(result.body).toContain(
+      "automatically created by Claude Code Action",
+    );
   });
 
   test("should remove common issue prefixes from title", () => {
@@ -104,8 +116,14 @@ describe("Auto PR Creation Feature", () => {
       { input: "Fix bug in login", expected: "Fix: Bug in login" },
       { input: "Add new feature", expected: "Add: New feature" },
       { input: "Update documentation", expected: "Update: Documentation" },
-      { input: "Delete deprecated code", expected: "Remove: Delete deprecated code" },
-      { input: "Restructure user module", expected: "Refactor: Restructure user module" },
+      {
+        input: "Delete deprecated code",
+        expected: "Remove: Delete deprecated code",
+      },
+      {
+        input: "Restructure user module",
+        expected: "Refactor: Restructure user module",
+      },
       { input: "Some random task", expected: "Fix: Some random task" }, // default case
     ];
 
@@ -120,6 +138,8 @@ describe("Auto PR Creation Feature", () => {
     const result = generatePRContent(mockIssueData, "999");
 
     expect(result.body).toContain("Fixes #999");
-    expect(result.body).toContain("automatically created by Claude Code Action");
+    expect(result.body).toContain(
+      "automatically created by Claude Code Action",
+    );
   });
 });
