@@ -9,14 +9,16 @@
 import { $ } from "bun";
 import * as core from "@actions/core";
 import type { ParsedGitHubContext } from "../context";
-import type { GitHubPullRequest } from "../types";
+import type { GitHubPullRequest, GitHubIssue } from "../types";
 import type { Octokits } from "../api/client";
 import type { FetchDataResult } from "../data/fetcher";
+import { generatePRContent } from "./pr-generator";
 
 export type BranchInfo = {
   baseBranch: string;
   claudeBranch?: string;
   currentBranch: string;
+  prUrl?: string;
 };
 
 export async function setupBranch(
@@ -130,10 +132,43 @@ export async function setupBranch(
     // Set outputs for GitHub Actions
     core.setOutput("CLAUDE_BRANCH", newBranch);
     core.setOutput("BASE_BRANCH", sourceBranch);
+
+    // Create PR automatically if the option is enabled and this is an issue
+    let prUrl: string | undefined;
+    if (!isPR && context.inputs.autoCreatePr) {
+      console.log("Creating pull request automatically...");
+      try {
+        const issueData = githubData.contextData as GitHubIssue;
+        const { title, body } = generatePRContent(
+          issueData,
+          entityNumber.toString(),
+        );
+        console.log(`Creating PR with title: "${title}"`);
+
+        const prResponse = await octokits.rest.pulls.create({
+          owner,
+          repo,
+          title,
+          head: newBranch,
+          base: sourceBranch,
+          body,
+          draft: false,
+        });
+
+        prUrl = prResponse.data.html_url;
+        console.log(`Successfully created PR: ${prUrl}`);
+        core.setOutput("PR_URL", prUrl);
+      } catch (error) {
+        console.error("Error creating pull request:", error);
+        // Don't fail the action if PR creation fails
+      }
+    }
+
     return {
       baseBranch: sourceBranch,
       claudeBranch: newBranch,
       currentBranch: newBranch,
+      prUrl,
     };
   } catch (error) {
     console.error("Error creating branch:", error);

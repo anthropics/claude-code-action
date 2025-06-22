@@ -36,6 +36,7 @@ type IssueCommentEvent = {
   baseBranch: string;
   claudeBranch: string;
   commentBody: string;
+  prUrl?: string;
 };
 
 // Not actually a real github event, since issue comments and PR coments are both sent as issue_comment
@@ -56,6 +57,7 @@ type IssueOpenedEvent = {
   issueNumber: string;
   baseBranch: string;
   claudeBranch: string;
+  prUrl?: string;
 };
 
 type IssueAssignedEvent = {
@@ -66,6 +68,7 @@ type IssueAssignedEvent = {
   baseBranch: string;
   claudeBranch: string;
   assigneeTrigger: string;
+  prUrl?: string;
 };
 
 type PullRequestEvent = {

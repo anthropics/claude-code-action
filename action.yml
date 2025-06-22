@@ -15,6 +15,10 @@ inputs:
   base_branch:
     description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
     required: false
+  auto_create_pr:
+    description: "Automatically create a pull request when working on issues (defaults to false)"
+    required: false
+    default: "false"
 
   # Claude Code configuration
   model:
@@ -99,6 +103,7 @@ runs:
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
         BASE_BRANCH: ${{ inputs.base_branch }}
+        AUTO_CREATE_PR: ${{ inputs.auto_create_pr }}
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
         CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}
