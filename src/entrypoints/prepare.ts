@@ -1,14 +1,12 @@
 #!/usr/bin/env bun
 
 /**
- * Prepare the Claude action by checking trigger conditions, verifying human actor,
- * and creating the initial tracking comment
+ * Prepare the Claude action by checking trigger conditions and creating the initial tracking comment
  */
 
 import * as core from "@actions/core";
 import { setupGitHubToken } from "../github/token";
 import { checkTriggerAction } from "../github/validation/trigger";
-import { checkHumanActor } from "../github/validation/actor";
 import { checkWritePermissions } from "../github/validation/permissions";
 import { createInitialComment } from "../github/operations/comments/create-initial";
 import { setupBranch } from "../github/operations/branch";
@@ -47,13 +45,10 @@ async function run() {
       return;
     }
 
-    // Step 5: Check if actor is human
-    await checkHumanActor(octokit.rest, context);
-
-    // Step 6: Create initial tracking comment
+    // Step 5: Create initial tracking comment
     const commentId = await createInitialComment(octokit.rest, context);
 
-    // Step 7: Fetch GitHub data (once for both branch setup and prompt creation)
+    // Step 6: Fetch GitHub data (once for both branch setup and prompt creation)
     const githubData = await fetchGitHubData({
       octokits: octokit,
       repository: `${context.repository.owner}/${context.repository.repo}`,
@@ -62,10 +57,10 @@ async function run() {
       triggerUsername: context.actor,
     });
 
-    // Step 8: Setup branch
+    // Step 7: Setup branch
     const branchInfo = await setupBranch(octokit, githubData, context);
 
-    // Step 9: Update initial comment with branch link (only for issues that created a new branch)
+    // Step 8: Update initial comment with branch link (only for issues that created a new branch)
     if (branchInfo.claudeBranch) {
       await updateTrackingComment(
         octokit,
@@ -75,7 +70,7 @@ async function run() {
       );
     }
 
-    // Step 10: Create prompt file
+    // Step 9: Create prompt file
     await createPrompt(
       commentId,
       branchInfo.baseBranch,
@@ -84,7 +79,7 @@ async function run() {
       context,
     );
 
-    // Step 11: Get MCP configuration
+    // Step 10: Get MCP configuration
     const additionalMcpConfig = process.env.MCP_CONFIG || "";
     const mcpConfig = await prepareMcpConfig({
       githubToken,

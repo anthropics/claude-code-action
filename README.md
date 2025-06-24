@@ -298,7 +298,7 @@ Perfect for automatically reviewing PRs from new team members, external contribu
 
 ## How It Works
 
-1. **Trigger Detection**: Listens for comments containing the trigger phrase (default: `@claude`) or issue assignment to a specific user
+1. **Trigger Detection**: Listens for comments containing the trigger phrase (default: `@claude`) or issue assignment to a specific user (supports both human and bot users)
 2. **Context Gathering**: Analyzes the PR/issue, comments, code changes
 3. **Smart Responses**: Either answers questions or implements changes
 4. **Branch Management**: Creates new PRs for human authors, pushes directly for Claude's own PRs
@@ -507,7 +507,7 @@ Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
 ### Access Control
 
 - **Repository Access**: The action can only be triggered by users with write access to the repository
-- **No Bot Triggers**: GitHub Apps and bots cannot trigger this action
+- **Bot User Support**: Bot accounts (e.g., dependabot, renovate, github-actions) can trigger this action
 - **Token Permissions**: The GitHub app receives only a short-lived token scoped specifically to the repository it's operating in
 - **No Cross-Repository Access**: Each action invocation is limited to the repository where it was triggered
 - **Limited Scope**: The token cannot access other repositories or perform actions beyond the configured permissions
