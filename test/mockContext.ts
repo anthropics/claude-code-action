@@ -18,6 +18,7 @@ const defaultInputs = {
   useBedrock: false,
   useVertex: false,
   timeoutMinutes: 30,
+  branchPrefix: "claude/",
 };
 
 const defaultRepository = {

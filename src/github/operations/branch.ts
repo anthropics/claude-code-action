@@ -26,7 +26,7 @@ export async function setupBranch(
 ): Promise<BranchInfo> {
   const { owner, repo } = context.repository;
   const entityNumber = context.entityNumber;
-  const { baseBranch } = context.inputs;
+  const { baseBranch, branchPrefix } = context.inputs;
   const isPR = context.isPR;
 
   if (isPR) {
@@ -97,7 +97,7 @@ export async function setupBranch(
     .split("T")
     .join("_");
 
-  const newBranch = `claude/${entityType}-${entityNumber}-${timestamp}`;
+  const newBranch = `${branchPrefix}${entityType}-${entityNumber}-${timestamp}`;
 
   try {
     // Get the SHA of the source branch

@@ -66,6 +66,7 @@ describe("checkWritePermissions", () => {
       disallowedTools: [],
       customInstructions: "",
       directPrompt: "",
+      branchPrefix: "claude/",
     },
   });
 
