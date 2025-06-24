@@ -92,6 +92,12 @@ export const mockIssueAssignedContext: ParsedGitHubContext = {
   actor: "admin-user",
   payload: {
     action: "assigned",
+    assignee: {
+      login: "claude-bot",
+      id: 11111,
+      avatar_url: "https://avatars.githubusercontent.com/u/11111",
+      html_url: "https://github.com/claude-bot",
+    },
     issue: {
       number: 123,
       title: "Feature: Add dark mode support",

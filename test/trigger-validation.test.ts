@@ -89,6 +89,11 @@ describe("checkContainsTrigger", () => {
         ...mockIssueAssignedContext,
         payload: {
           ...mockIssueAssignedContext.payload,
+          assignee: {
+            ...(mockIssueAssignedContext.payload as IssuesAssignedEvent)
+              .assignee,
+            login: "otherUser",
+          },
           issue: {
             ...(mockIssueAssignedContext.payload as IssuesAssignedEvent).issue,
             assignee: {

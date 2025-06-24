@@ -1,6 +1,7 @@
 import * as github from "@actions/github";
 import type {
   IssuesEvent,
+  IssuesAssignedEvent,
   IssueCommentEvent,
   PullRequestEvent,
   PullRequestReviewEvent,
@@ -148,4 +149,10 @@ export function isPullRequestReviewCommentEvent(
   context: ParsedGitHubContext,
 ): context is ParsedGitHubContext & { payload: PullRequestReviewCommentEvent } {
   return context.eventName === "pull_request_review_comment";
+}
+
+export function isIssuesAssignedEvent(
+  context: ParsedGitHubContext,
+): context is ParsedGitHubContext & { payload: IssuesAssignedEvent } {
+  return isIssuesEvent(context) && context.eventAction === "assigned";
 }

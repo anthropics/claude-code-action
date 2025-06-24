@@ -219,6 +219,55 @@ describe("parseEnvVarsWithContext", () => {
         ),
       ).toThrow("BASE_BRANCH is required for issues event");
     });
+
+    test("should allow issue assigned event with direct_prompt and no assigneeTrigger", () => {
+      const contextWithDirectPrompt = createMockContext({
+        ...mockIssueAssignedContext,
+        inputs: {
+          ...mockIssueAssignedContext.inputs,
+          assigneeTrigger: "", // No assignee trigger
+          directPrompt: "Please assess this issue", // But direct prompt is provided
+        },
+      });
+
+      const result = prepareContext(
+        contextWithDirectPrompt,
+        "12345",
+        "main",
+        "claude/issue-123-20240101_120000",
+      );
+
+      expect(result.eventData.eventName).toBe("issues");
+      expect(result.eventData.isPR).toBe(false);
+      expect(result.directPrompt).toBe("Please assess this issue");
+      if (
+        result.eventData.eventName === "issues" &&
+        result.eventData.eventAction === "assigned"
+      ) {
+        expect(result.eventData.issueNumber).toBe("123");
+        expect(result.eventData.assigneeTrigger).toBeUndefined();
+      }
+    });
+
+    test("should throw error when neither assigneeTrigger nor directPrompt provided for issue assigned event", () => {
+      const contextWithoutTriggers = createMockContext({
+        ...mockIssueAssignedContext,
+        inputs: {
+          ...mockIssueAssignedContext.inputs,
+          assigneeTrigger: "", // No assignee trigger
+          directPrompt: "", // No direct prompt
+        },
+      });
+
+      expect(() =>
+        prepareContext(
+          contextWithoutTriggers,
+          "12345",
+          "main",
+          "claude/issue-123-20240101_120000",
+        ),
+      ).toThrow("ASSIGNEE_TRIGGER is required for issue assigned event");
+    });
   });
 
   describe("optional fields", () => {
