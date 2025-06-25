@@ -82,6 +82,7 @@ jobs:
 | --------------------- | -------------------------------------------------------------------------------------------------------------------- | -------- | --------- |
 | `anthropic_api_key`   | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                           | No\*     | -         |
 | `direct_prompt`       | Direct prompt for Claude to execute automatically without needing a trigger (for automated workflows)                | No       | -         |
+| `base_branch`         | The base branch to use for creating new branches (e.g., 'main', 'develop')                                           | No       | -         |
 | `max_turns`           | Maximum number of conversation turns Claude can take (limits back-and-forth exchanges)                               | No       | -         |
 | `timeout_minutes`     | Timeout in minutes for execution                                                                                     | No       | `30`      |
 | `github_token`        | GitHub token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!** | No       | -         |
