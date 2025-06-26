@@ -32,7 +32,8 @@ export async function createInitialComment(
         issue_number: context.entityNumber,
       });
       const existingComment = comments.data.find(
-        (comment) => comment.user?.login.indexOf("claude") !== -1,
+        (comment) => comment.user?.login.indexOf("claude") !== -1
+        || comment.body === initialBody,
       );
       if (existingComment) {
         response = await octokit.rest.issues.updateComment({
