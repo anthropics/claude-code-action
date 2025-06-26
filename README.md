@@ -85,6 +85,7 @@ jobs:
 | `base_branch`         | The base branch to use for creating new branches (e.g., 'main', 'develop')                                           | No       | -         |
 | `max_turns`           | Maximum number of conversation turns Claude can take (limits back-and-forth exchanges)                               | No       | -         |
 | `timeout_minutes`     | Timeout in minutes for execution                                                                                     | No       | `30`      |
+| `silent`              | Use just one comment to deliver issue/PR comments                                                                    | No       | `false`   |
 | `github_token`        | GitHub token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!** | No       | -         |
 | `model`               | Model to use (provider-specific format required for Bedrock/Vertex)                                                  | No       | -         |
 | `anthropic_model`     | **DEPRECATED**: Use `model` instead. Kept for backward compatibility.                                                | No       | -         |

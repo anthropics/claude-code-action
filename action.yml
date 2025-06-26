@@ -78,6 +78,10 @@ inputs:
     description: "Timeout in minutes for execution"
     required: false
     default: "30"
+  silent:
+    description: "Use just one comment to deliver issue/PR comments"
+    required: false
+    default: "false"
 
 outputs:
   execution_file:

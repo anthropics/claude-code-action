@@ -25,7 +25,7 @@ export async function createInitialComment(
   try {
     let response;
 
-    if (context.isPR && !isPullRequestReviewCommentEvent(context)) {
+    if (context.inputs.silent && context.isPR && !isPullRequestReviewCommentEvent(context)) {
       const comments = await octokit.rest.issues.listComments({
         owner,
         repo,
