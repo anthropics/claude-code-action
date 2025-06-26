@@ -25,8 +25,25 @@ export async function createInitialComment(
   try {
     let response;
 
-    // Only use createReplyForReviewComment if it's a PR review comment AND we have a comment_id
-    if (isPullRequestReviewCommentEvent(context)) {
+    if (context.isPR && !isPullRequestReviewCommentEvent(context)) {
+      const comments = await octokit.rest.issues.listComments({
+        owner,
+        repo,
+        issue_number: context.entityNumber,
+      });
+      const existingComment = comments.data.find(
+        (comment) => comment.user?.login.indexOf("claude") !== -1,
+      );
+      if (existingComment) {
+        response = await octokit.rest.issues.updateComment({
+          owner,
+          repo,
+          comment_id: existingComment.id,
+          body: initialBody,
+        });
+      }
+    } else if (isPullRequestReviewCommentEvent(context)) {
+      // Only use createReplyForReviewComment if it's a PR review comment AND we have a comment_id
       response = await octokit.rest.pulls.createReplyForReviewComment({
         owner,
         repo,
