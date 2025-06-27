@@ -25,7 +25,7 @@ export async function createInitialComment(
   try {
     let response;
 
-    if (context.inputs.silent && context.isPR && !isPullRequestReviewCommentEvent(context)) {
+    if (context.inputs.stickyComment && context.isPR && !isPullRequestReviewCommentEvent(context)) {
       const comments = await octokit.rest.issues.listComments({
         owner,
         repo,
@@ -40,6 +40,14 @@ export async function createInitialComment(
           owner,
           repo,
           comment_id: existingComment.id,
+          body: initialBody,
+        });
+      } else {
+        // Create new comment if no existing one found
+        response = await octokit.rest.issues.createComment({
+          owner,
+          repo,
+          issue_number: context.entityNumber,
           body: initialBody,
         });
       }
