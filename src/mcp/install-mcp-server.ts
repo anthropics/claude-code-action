@@ -7,7 +7,7 @@ type PrepareConfigParams = {
   repo: string;
   branch: string;
   additionalMcpConfig?: string;
-  claudeCommentId?: string;
+  geminiCommentId?: string;
   allowedTools: string[];
 };
 
@@ -20,7 +20,7 @@ export async function prepareMcpConfig(
     repo,
     branch,
     additionalMcpConfig,
-    claudeCommentId,
+    geminiCommentId,
     allowedTools,
   } = params;
   try {
@@ -44,7 +44,7 @@ export async function prepareMcpConfig(
             REPO_NAME: repo,
             BRANCH_NAME: branch,
             REPO_DIR: process.env.GITHUB_WORKSPACE || process.cwd(),
-            ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
+            ...(geminiCommentId && { GEMINI_COMMENT_ID: geminiCommentId }),
             GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
             IS_PR: process.env.IS_PR || "false",
             GITHUB_API_URL: GITHUB_API_URL,

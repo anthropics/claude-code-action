@@ -1,4 +1,4 @@
-name: Claude Review - Path Specific
+name: Gemini Review - Path Specific
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ on:
       # You can add more specific patterns as needed
 
 jobs:
-  claude-review-paths:
+  gemini-review-paths:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -23,10 +23,10 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Claude Code Review
-        uses: anthropics/claude-code-action@beta
+      - name: Gemini Code Review
+        uses: masahif/gemini-cli-action@main
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           timeout_minutes: "60"
           direct_prompt: |
             Please review this pull request focusing on the changed files.

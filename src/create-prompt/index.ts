@@ -32,7 +32,7 @@ const BASE_ALLOWED_TOOLS = [
   "Write",
   "mcp__github_file_ops__commit_files",
   "mcp__github_file_ops__delete_files",
-  "mcp__github_file_ops__update_claude_comment",
+  "mcp__github_file_ops__update_gemini_comment",
 ];
 const DISALLOWED_TOOLS = ["WebSearch", "WebFetch"];
 
@@ -72,14 +72,14 @@ export function buildDisallowedToolsString(
 
 export function prepareContext(
   context: ParsedGitHubContext,
-  claudeCommentId: string,
+  geminiCommentId: string,
   baseBranch?: string,
-  claudeBranch?: string,
+  geminiBranch?: string,
 ): PreparedContext {
   const repository = context.repository.full_name;
   const eventName = context.eventName;
   const eventAction = context.eventAction;
-  const triggerPhrase = context.inputs.triggerPhrase || "@claude";
+  const triggerPhrase = context.inputs.triggerPhrase || "@gemini";
   const assigneeTrigger = context.inputs.assigneeTrigger;
   const labelTrigger = context.inputs.labelTrigger;
   const customInstructions = context.inputs.customInstructions;
@@ -115,7 +115,7 @@ export function prepareContext(
   // Create infrastructure fields object
   const commonFields: CommonFields = {
     repository,
-    claudeCommentId,
+    geminiCommentId,
     triggerPhrase,
     ...(triggerUsername && { triggerUsername }),
     ...(customInstructions && { customInstructions }),
@@ -124,7 +124,7 @@ export function prepareContext(
       disallowedTools: disallowedTools.join(","),
     }),
     ...(directPrompt && { directPrompt }),
-    ...(claudeBranch && { claudeBranch }),
+    ...(geminiBranch && { geminiBranch }),
   };
 
   // Parse event-specific data based on event type
@@ -153,7 +153,7 @@ export function prepareContext(
         prNumber,
         ...(commentId && { commentId }),
         commentBody,
-        ...(claudeBranch && { claudeBranch }),
+        ...(geminiBranch && { geminiBranch }),
         ...(baseBranch && { baseBranch }),
       };
       break;
@@ -175,7 +175,7 @@ export function prepareContext(
         isPR: true,
         prNumber,
         commentBody,
-        ...(claudeBranch && { claudeBranch }),
+        ...(geminiBranch && { geminiBranch }),
         ...(baseBranch && { baseBranch }),
       };
       break;
@@ -200,12 +200,12 @@ export function prepareContext(
           isPR: true,
           prNumber,
           commentBody,
-          ...(claudeBranch && { claudeBranch }),
+          ...(geminiBranch && { geminiBranch }),
           ...(baseBranch && { baseBranch }),
         };
         break;
-      } else if (!claudeBranch) {
-        throw new Error("CLAUDE_BRANCH is required for issue_comment event");
+      } else if (!geminiBranch) {
+        throw new Error("GEMINI_BRANCH is required for issue_comment event");
       } else if (!baseBranch) {
         throw new Error("BASE_BRANCH is required for issue_comment event");
       } else if (!issueNumber) {
@@ -218,7 +218,7 @@ export function prepareContext(
         eventName: "issue_comment",
         commentId,
         isPR: false,
-        claudeBranch: claudeBranch,
+        geminiBranch: geminiBranch,
         baseBranch,
         issueNumber,
         commentBody,
@@ -238,8 +238,8 @@ export function prepareContext(
       if (!baseBranch) {
         throw new Error("BASE_BRANCH is required for issues event");
       }
-      if (!claudeBranch) {
-        throw new Error("CLAUDE_BRANCH is required for issues event");
+      if (!geminiBranch) {
+        throw new Error("GEMINI_BRANCH is required for issues event");
       }
 
       if (eventAction === "assigned") {
@@ -254,7 +254,7 @@ export function prepareContext(
           isPR: false,
           issueNumber,
           baseBranch,
-          claudeBranch,
+          geminiBranch,
           ...(assigneeTrigger && { assigneeTrigger }),
         };
       } else if (eventAction === "labeled") {
@@ -267,7 +267,7 @@ export function prepareContext(
           isPR: false,
           issueNumber,
           baseBranch,
-          claudeBranch,
+          geminiBranch,
           labelTrigger,
         };
       } else if (eventAction === "opened") {
@@ -277,7 +277,7 @@ export function prepareContext(
           isPR: false,
           issueNumber,
           baseBranch,
-          claudeBranch,
+          geminiBranch,
         };
       } else {
         throw new Error(`Unsupported issue action: ${eventAction}`);
@@ -296,7 +296,7 @@ export function prepareContext(
         eventAction: eventAction,
         isPR: true,
         prNumber,
-        ...(claudeBranch && { claudeBranch }),
+        ...(geminiBranch && { geminiBranch }),
         ...(baseBranch && { baseBranch }),
       };
       break;
@@ -406,7 +406,7 @@ Images have been downloaded from GitHub comments and saved to disk. Their file p
     ? formatBody(contextData.body, imageUrlMap)
     : "No description provided";
 
-  let promptContent = `You are Claude, an AI assistant designed to help with GitHub issues and pull requests. Think carefully as you analyze the context and respond appropriately. Here's the context for your current task:
+  let promptContent = `You are Gemini, an AI assistant designed to help with GitHub issues and pull requests. Think carefully as you analyze the context and respond appropriately. Here's the context for your current task:
 
 <formatted_context>
 ${formattedContext}
@@ -437,7 +437,7 @@ ${
     ? `<pr_number>${eventData.prNumber}</pr_number>`
     : `<issue_number>${eventData.issueNumber ?? ""}</issue_number>`
 }
-<claude_comment_id>${context.claudeCommentId}</claude_comment_id>
+<gemini_comment_id>${context.geminiCommentId}</gemini_comment_id>
 <trigger_username>${context.triggerUsername ?? "Unknown"}</trigger_username>
 <trigger_display_name>${githubData.triggerDisplayName ?? context.triggerUsername ?? "Unknown"}</trigger_display_name>
 <trigger_phrase>${context.triggerPhrase}</trigger_phrase>
@@ -459,9 +459,9 @@ ${sanitizeContent(context.directPrompt)}
     : ""
 }
 ${`<comment_tool_info>
-IMPORTANT: You have been provided with the mcp__github_file_ops__update_claude_comment tool to update your comment. This tool automatically handles both issue and PR comments.
+IMPORTANT: You have been provided with the mcp__github_file_ops__update_gemini_comment tool to update your comment. This tool automatically handles both issue and PR comments.
 
-Tool usage example for mcp__github_file_ops__update_claude_comment:
+Tool usage example for mcp__github_file_ops__update_gemini_comment:
 {
   "body": "Your comment text here"
 }
@@ -480,7 +480,7 @@ Follow these steps:
 1. Create a Todo List:
    - Use your GitHub comment to maintain a detailed task list based on the request.
    - Format todos as a checklist (- [ ] for incomplete, - [x] for complete).
-   - Update the comment using mcp__github_file_ops__update_claude_comment with each task completion.
+   - Update the comment using mcp__github_file_ops__update_gemini_comment with each task completion.
 
 2. Gather Context:
    - Analyze the pre-fetched data provided above.
@@ -511,31 +511,31 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
         - Look for bugs, security issues, performance problems, and other issues
         - Suggest improvements for readability and maintainability
         - Check for best practices and coding standards
-        - Reference specific code sections with file paths and line numbers${eventData.isPR ? "\n      - AFTER reading files and analyzing code, you MUST call mcp__github_file_ops__update_claude_comment to post your review" : ""}
+        - Reference specific code sections with file paths and line numbers${eventData.isPR ? "\n      - AFTER reading files and analyzing code, you MUST call mcp__github_file_ops__update_gemini_comment to post your review" : ""}
       - Formulate a concise, technical, and helpful response based on the context.
       - Reference specific code with inline formatting or code blocks.
       - Include relevant file paths and line numbers when applicable.
-      - ${eventData.isPR ? "IMPORTANT: Submit your review feedback by updating the Claude comment using mcp__github_file_ops__update_claude_comment. This will be displayed as your PR review." : "Remember that this feedback must be posted to the GitHub comment using mcp__github_file_ops__update_claude_comment."}
+      - ${eventData.isPR ? "IMPORTANT: Submit your review feedback by updating the Gemini comment using mcp__github_file_ops__update_gemini_comment. This will be displayed as your PR review." : "Remember that this feedback must be posted to the GitHub comment using mcp__github_file_ops__update_gemini_comment."}
 
    B. For Straightforward Changes:
       - Use file system tools to make the change locally.
       - If you discover related tasks (e.g., updating tests), add them to the todo list.
       - Mark each subtask as completed as you progress.
       ${
-        eventData.isPR && !eventData.claudeBranch
+        eventData.isPR && !eventData.geminiBranch
           ? `
       - Push directly using mcp__github_file_ops__commit_files to the existing branch (works for both new and existing files).
       - Use mcp__github_file_ops__commit_files to commit files atomically in a single commit (supports single or multiple files).
       - When pushing changes with this tool and the trigger user is not "Unknown", include a Co-authored-by trailer in the commit message.
       - Use: "Co-authored-by: ${githubData.triggerDisplayName ?? context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>"`
           : `
-      - You are already on the correct branch (${eventData.claudeBranch || "the PR branch"}). Do not create a new branch.
+      - You are already on the correct branch (${eventData.geminiBranch || "the PR branch"}). Do not create a new branch.
       - Push changes directly to the current branch using mcp__github_file_ops__commit_files (works for both new and existing files)
       - Use mcp__github_file_ops__commit_files to commit files atomically in a single commit (supports single or multiple files).
       - When pushing changes and the trigger user is not "Unknown", include a Co-authored-by trailer in the commit message.
       - Use: "Co-authored-by: ${githubData.triggerDisplayName ?? context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>"
       ${
-        eventData.claudeBranch
+        eventData.geminiBranch
           ? `- Provide a URL to create a PR manually in this format:
         [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
         - IMPORTANT: Use THREE dots (...) between branch names, not two (..)
@@ -544,11 +544,11 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
         - IMPORTANT: Ensure all URL parameters are properly encoded - spaces should be encoded as %20, not left as spaces
           Example: Instead of "fix: update welcome message", use "fix%3A%20update%20welcome%20message"
         - The target-branch should be '${eventData.baseBranch}'.
-        - The branch-name is the current branch: ${eventData.claudeBranch}
+        - The branch-name is the current branch: ${eventData.geminiBranch}
         - The body should include:
           - A clear description of the changes
           - Reference to the original ${eventData.isPR ? "PR" : "issue"}
-          - The signature: "Generated with [Claude Code](https://claude.ai/code)"
+          - The signature: "Generated with [Gemini CLI](https://github.com/google-gemini/gemini-cli)"
         - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"`
           : ""
       }`
@@ -566,17 +566,17 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
 5. Final Update:
    - Always update the GitHub comment to reflect the current todo state.
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
-   - Note: If you see previous Claude comments with headers like "**Claude finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
+   - Note: If you see previous Gemini comments with headers like "**Gemini finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
    - If you changed any files locally, you must update them in the remote branch via mcp__github_file_ops__commit_files before saying that you're done.
-   ${eventData.claudeBranch ? `- If you created anything in your branch, your comment must include the PR URL with prefilled title and body mentioned above.` : ""}
+   ${eventData.geminiBranch ? `- If you created anything in your branch, your comment must include the PR URL with prefilled title and body mentioned above.` : ""}
 
 Important Notes:
 - All communication must happen through GitHub PR comments.
-- Never create new comments. Only update the existing comment using mcp__github_file_ops__update_claude_comment.
-- This includes ALL responses: code reviews, answers to questions, progress updates, and final results.${eventData.isPR ? "\n- PR CRITICAL: After reading files and forming your response, you MUST post it by calling mcp__github_file_ops__update_claude_comment. Do NOT just respond with a normal response, the user will not see it." : ""}
+- Never create new comments. Only update the existing comment using mcp__github_file_ops__update_gemini_comment.
+- This includes ALL responses: code reviews, answers to questions, progress updates, and final results.${eventData.isPR ? "\n- PR CRITICAL: After reading files and forming your response, you MUST post it by calling mcp__github_file_ops__update_gemini_comment. Do NOT just respond with a normal response, the user will not see it." : ""}
 - You communicate exclusively by editing your single comment - not through any other means.
 - Use this spinner HTML when work is in progress: <img src="https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f" width="14px" height="14px" style="vertical-align: middle; margin-left: 4px;" />
-${eventData.isPR && !eventData.claudeBranch ? `- Always push to the existing branch when triggered on a PR.` : `- IMPORTANT: You are already on the correct branch (${eventData.claudeBranch || "the created branch"}). Never create new branches when triggered on issues or closed/merged PRs.`}
+${eventData.isPR && !eventData.geminiBranch ? `- Always push to the existing branch when triggered on a PR.` : `- IMPORTANT: You are already on the correct branch (${eventData.geminiBranch || "the created branch"}). Never create new branches when triggered on issues or closed/merged PRs.`}
 - Use mcp__github_file_ops__commit_files for making commits (works for both new and existing files, single or multiple). Use mcp__github_file_ops__delete_files for deleting files (supports deleting single or multiple files atomically), or mcp__github__delete_file for deleting a single file. Edit files locally, and the tool will read the content from the same path on disk.
   Tool usage examples:
   - mcp__github_file_ops__commit_files: {"files": ["path/to/file1.js", "path/to/file2.py"], "message": "feat: add new feature"}
@@ -611,7 +611,7 @@ What You CANNOT Do:
 - View CI/CD results or workflow run outputs (cannot access GitHub Actions logs or test results)
 
 When users ask you to perform actions you cannot do, politely explain the limitation and, when applicable, direct them to the FAQ for more information and workarounds:
-"I'm unable to [specific action] due to [reason]. You can find more information and potential workarounds in the [FAQ](https://github.com/anthropics/claude-code-action/blob/main/FAQ.md)."
+"I'm unable to [specific action] due to [reason]. You can find more information and potential workarounds in the documentation."
 
 If a user asks for something outside these capabilities (and you have no other tools provided), politely explain that you cannot perform that action and suggest an alternative approach if possible.
 
@@ -632,21 +632,21 @@ f. If you are unable to complete certain steps, such as running a linter or test
 }
 
 export async function createPrompt(
-  claudeCommentId: number,
+  geminiCommentId: number,
   baseBranch: string | undefined,
-  claudeBranch: string | undefined,
+  geminiBranch: string | undefined,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
 ) {
   try {
     const preparedContext = prepareContext(
       context,
-      claudeCommentId.toString(),
+      geminiCommentId.toString(),
       baseBranch,
-      claudeBranch,
+      geminiBranch,
     );
 
-    await mkdir(`${process.env.RUNNER_TEMP}/claude-prompts`, {
+    await mkdir(`${process.env.RUNNER_TEMP}/gemini-prompts`, {
       recursive: true,
     });
 
@@ -660,7 +660,7 @@ export async function createPrompt(
 
     // Write the prompt file
     await writeFile(
-      `${process.env.RUNNER_TEMP}/claude-prompts/claude-prompt.txt`,
+      `${process.env.RUNNER_TEMP}/gemini-prompts/gemini-prompt.txt`,
       promptContent,
     );
 

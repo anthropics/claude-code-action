@@ -1,6 +1,6 @@
 export type CommonFields = {
   repository: string;
-  claudeCommentId: string;
+  geminiCommentId: string;
   triggerPhrase: string;
   triggerUsername?: string;
   customInstructions?: string;
@@ -15,7 +15,7 @@ type PullRequestReviewCommentEvent = {
   prNumber: string;
   commentId?: string; // May be present for review comments
   commentBody: string;
-  claudeBranch?: string;
+  geminiBranch?: string;
   baseBranch?: string;
 };
 
@@ -24,7 +24,7 @@ type PullRequestReviewEvent = {
   isPR: true;
   prNumber: string;
   commentBody: string;
-  claudeBranch?: string;
+  geminiBranch?: string;
   baseBranch?: string;
 };
 
@@ -34,7 +34,7 @@ type IssueCommentEvent = {
   issueNumber: string;
   isPR: false;
   baseBranch: string;
-  claudeBranch: string;
+  geminiBranch: string;
   commentBody: string;
 };
 
@@ -45,7 +45,7 @@ type PullRequestCommentEvent = {
   prNumber: string;
   isPR: true;
   commentBody: string;
-  claudeBranch?: string;
+  geminiBranch?: string;
   baseBranch?: string;
 };
 
@@ -55,7 +55,7 @@ type IssueOpenedEvent = {
   isPR: false;
   issueNumber: string;
   baseBranch: string;
-  claudeBranch: string;
+  geminiBranch: string;
 };
 
 type IssueAssignedEvent = {
@@ -64,7 +64,7 @@ type IssueAssignedEvent = {
   isPR: false;
   issueNumber: string;
   baseBranch: string;
-  claudeBranch: string;
+  geminiBranch: string;
   assigneeTrigger?: string;
 };
 
@@ -74,7 +74,7 @@ type IssueLabeledEvent = {
   isPR: false;
   issueNumber: string;
   baseBranch: string;
-  claudeBranch: string;
+  geminiBranch: string;
   labelTrigger: string;
 };
 
@@ -83,7 +83,7 @@ type PullRequestEvent = {
   eventAction?: string; // opened, synchronize, etc.
   isPR: true;
   prNumber: string;
-  claudeBranch?: string;
+  geminiBranch?: string;
   baseBranch?: string;
 };
 

@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 1
 
       - name: Auto review PR
-        uses: anthropics/claude-code-action@main
+        uses: masahif/gemini-cli-action@main
         with:
           direct_prompt: |
             Please review this PR. Look at the changes and provide thoughtful feedback on:
@@ -28,5 +28,4 @@ jobs:
             - Overall architecture and design decisions
 
             Be constructive and specific in your feedback. Give inline comments where applicable.
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          allowed_tools: "mcp__github__create_pending_pull_request_review,mcp__github__add_pull_request_review_comment_to_pending_review,mcp__github__submit_pending_pull_request_review,mcp__github__get_pull_request_diff"
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}

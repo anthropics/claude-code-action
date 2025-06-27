@@ -8,7 +8,7 @@ import { join } from "path";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
 import { Octokit } from "@octokit/rest";
-import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
+import { updateGeminiComment } from "../github/operations/comments/update-gemini-comment";
 
 type GitHubRef = {
   object: {
@@ -442,27 +442,27 @@ server.tool(
 );
 
 server.tool(
-  "update_claude_comment",
-  "Update the Claude comment with progress and results (automatically handles both issue and PR comments)",
+  "update_gemini_comment",
+  "Update the Gemini comment with progress and results (automatically handles both issue and PR comments)",
   {
     body: z.string().describe("The updated comment content"),
   },
   async ({ body }) => {
     try {
       const githubToken = process.env.GITHUB_TOKEN;
-      const claudeCommentId = process.env.CLAUDE_COMMENT_ID;
+      const geminiCommentId = process.env.GEMINI_COMMENT_ID;
       const eventName = process.env.GITHUB_EVENT_NAME;
 
       if (!githubToken) {
         throw new Error("GITHUB_TOKEN environment variable is required");
       }
-      if (!claudeCommentId) {
-        throw new Error("CLAUDE_COMMENT_ID environment variable is required");
+      if (!geminiCommentId) {
+        throw new Error("GEMINI_COMMENT_ID environment variable is required");
       }
 
       const owner = REPO_OWNER;
       const repo = REPO_NAME;
-      const commentId = parseInt(claudeCommentId, 10);
+      const commentId = parseInt(geminiCommentId, 10);
 
       const octokit = new Octokit({
         auth: githubToken,
@@ -472,7 +472,7 @@ server.tool(
       const isPullRequestReviewComment =
         eventName === "pull_request_review_comment";
 
-      const result = await updateClaudeComment(octokit, {
+      const result = await updateGeminiComment(octokit, {
         owner,
         repo,
         commentId,

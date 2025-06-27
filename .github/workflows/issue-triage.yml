@@ -96,11 +96,11 @@ jobs:
           - It's okay to not add any labels if none are clearly applicable
           EOF
 
-      - name: Run Claude Code for Issue Triage
-        uses: anthropics/claude-code-base-action@beta
+      - name: Run Gemini CLI for Issue Triage
+        uses: masahif/gemini-cli-action@main
         with:
           prompt_file: /tmp/claude-prompts/triage-prompt.txt
           allowed_tools: "Bash(gh label list),mcp__github__get_issue,mcp__github__get_issue_comments,mcp__github__update_issue,mcp__github__search_issues,mcp__github__list_issues"
           mcp_config: /tmp/mcp-config/mcp-servers.json
           timeout_minutes: "5"
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}

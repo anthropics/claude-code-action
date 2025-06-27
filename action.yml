@@ -1,5 +1,5 @@
-name: "Claude Code Action Official"
-description: "General-purpose Claude agent for GitHub PRs and issues. Can answer questions and implement code changes."
+name: "Gemini CLI Action"
+description: "General-purpose Gemini agent for GitHub PRs and issues. Can answer questions and implement code changes."
 branding:
   icon: "at-sign"
   color: "orange"
@@ -8,65 +8,59 @@ inputs:
   trigger_phrase:
     description: "The trigger phrase to look for in comments or issue body"
     required: false
-    default: "@claude"
+    default: "@gemini"
   assignee_trigger:
-    description: "The assignee username that triggers the action (e.g. @claude)"
+    description: "The assignee username that triggers the action (e.g. @gemini)"
     required: false
   label_trigger:
-    description: "The label that triggers the action (e.g. claude)"
+    description: "The label that triggers the action (e.g. gemini)"
     required: false
-    default: "claude"
+    default: "gemini"
   base_branch:
     description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
     required: false
   branch_prefix:
-    description: "The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)"
+    description: "The prefix to use for Gemini branches (defaults to 'gemini/', use 'gemini-' for dash format)"
     required: false
-    default: "claude/"
+    default: "gemini/"
 
-  # Claude Code configuration
+  # Gemini CLI configuration
   model:
-    description: "Model to use (provider-specific format required for Bedrock/Vertex)"
+    description: "Gemini model to use (e.g. gemini-2.0-flash-exp, gemini-1.5-pro)"
     required: false
-  anthropic_model:
-    description: "DEPRECATED: Use 'model' instead. Model to use (provider-specific format required for Bedrock/Vertex)"
-    required: false
+    default: "gemini-2.5-pro"
   allowed_tools:
-    description: "Additional tools for Claude to use (the base GitHub tools will always be included)"
+    description: "Additional tools for Gemini to use (the base GitHub tools will always be included)"
     required: false
     default: ""
   disallowed_tools:
-    description: "Tools that Claude should never use"
+    description: "Tools that Gemini should never use"
     required: false
     default: ""
   custom_instructions:
-    description: "Additional custom instructions to include in the prompt for Claude"
+    description: "Additional custom instructions to include in the prompt for Gemini"
     required: false
     default: ""
   direct_prompt:
-    description: "Direct instruction for Claude (bypasses normal trigger detection)"
+    description: "Direct instruction for Gemini (bypasses normal trigger detection)"
     required: false
     default: ""
   mcp_config:
     description: "Additional MCP configuration (JSON string) that merges with the built-in GitHub MCP servers"
-  claude_env:
-    description: "Custom environment variables to pass to Claude Code execution (YAML format)"
+  gemini_env:
+    description: "Custom environment variables to pass to Gemini CLI execution (YAML format)"
     required: false
     default: ""
 
   # Auth configuration
-  anthropic_api_key:
-    description: "Anthropic API key (required for direct API, not needed for Bedrock/Vertex)"
+  gemini_api_key:
+    description: "Gemini API key (required for direct API, not needed for Vertex)"
     required: false
   github_token:
     description: "GitHub token with repo and pull request permissions (optional if using GitHub App)"
     required: false
-  use_bedrock:
-    description: "Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API"
-    required: false
-    default: "false"
   use_vertex:
-    description: "Use Google Vertex AI with OIDC authentication instead of direct Anthropic API"
+    description: "Use Google Vertex AI with OIDC authentication instead of direct Gemini API"
     required: false
     default: "false"
 
@@ -81,8 +75,8 @@ inputs:
 
 outputs:
   execution_file:
-    description: "Path to the Claude Code execution output file"
-    value: ${{ steps.claude-code.outputs.execution_file }}
+    description: "Path to the Gemini CLI execution output file"
+    value: ${{ steps.gemini-cli.outputs.execution_file }}
 
 runs:
   using: "composite"
@@ -116,77 +110,78 @@ runs:
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_RUN_ID: ${{ github.run_id }}
 
-    - name: Run Claude Code
-      id: claude-code
+    - name: Install Gemini CLI
       if: steps.prepare.outputs.contains_trigger == 'true'
-      uses: anthropics/claude-code-base-action@b4eb3d828032960a809c894c4177fe412c91d498 # v0.0.27
-      with:
-        prompt_file: ${{ runner.temp }}/claude-prompts/claude-prompt.txt
-        allowed_tools: ${{ env.ALLOWED_TOOLS }}
-        disallowed_tools: ${{ env.DISALLOWED_TOOLS }}
-        timeout_minutes: ${{ inputs.timeout_minutes }}
-        max_turns: ${{ inputs.max_turns }}
-        model: ${{ inputs.model || inputs.anthropic_model }}
-        mcp_config: ${{ steps.prepare.outputs.mcp_config }}
-        use_bedrock: ${{ inputs.use_bedrock }}
-        use_vertex: ${{ inputs.use_vertex }}
-        anthropic_api_key: ${{ inputs.anthropic_api_key }}
-        claude_env: ${{ inputs.claude_env }}
+      shell: bash
+      run: |
+        # Check if gemini CLI is already available
+        if ! command -v gemini &> /dev/null; then
+          echo "Installing Gemini CLI..."
+          npm install -g @google/gemini-cli
+          echo "Gemini CLI installed successfully"
+        else
+          echo "Gemini CLI already available"
+        fi
+
+    - name: Run Gemini CLI
+      id: gemini-cli
+      if: steps.prepare.outputs.contains_trigger == 'true'
+      shell: bash
+      run: |
+        # Execute Gemini CLI directly
+        gemini --yolo --prompt-file "${{ env.PROMPT_FILE }}" \
+          --model "${{ inputs.model }}" \
+          --timeout "${{ inputs.timeout_minutes }}m"
       env:
         # Model configuration
-        ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
+        GEMINI_MODEL: ${{ inputs.model }}
         GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
+        GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
+        
+        # Gemini CLI configuration
+        PROMPT_FILE: ${{ runner.temp }}/gemini-prompts/gemini-prompt.txt
+        ALLOWED_TOOLS: ${{ env.ALLOWED_TOOLS }}
+        DISALLOWED_TOOLS: ${{ env.DISALLOWED_TOOLS }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
+        MAX_TURNS: ${{ inputs.max_turns }}
+        MCP_CONFIG: ${{ steps.prepare.outputs.mcp_config }}
+        GEMINI_ENV: ${{ inputs.gemini_env }}
 
-        # Provider configuration
-        ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
-
-        # AWS configuration
-        AWS_REGION: ${{ env.AWS_REGION }}
-        AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
-        AWS_SESSION_TOKEN: ${{ env.AWS_SESSION_TOKEN }}
-        ANTHROPIC_BEDROCK_BASE_URL: ${{ env.ANTHROPIC_BEDROCK_BASE_URL }}
-
-        # GCP configuration
-        ANTHROPIC_VERTEX_PROJECT_ID: ${{ env.ANTHROPIC_VERTEX_PROJECT_ID }}
-        CLOUD_ML_REGION: ${{ env.CLOUD_ML_REGION }}
+        # GCP configuration for Vertex AI
+        USE_VERTEX: ${{ inputs.use_vertex }}
+        GOOGLE_CLOUD_PROJECT: ${{ env.GOOGLE_CLOUD_PROJECT }}
+        GOOGLE_CLOUD_LOCATION: ${{ env.GOOGLE_CLOUD_LOCATION }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-        ANTHROPIC_VERTEX_BASE_URL: ${{ env.ANTHROPIC_VERTEX_BASE_URL }}
-
-        # Model-specific regions for Vertex
-        VERTEX_REGION_CLAUDE_3_5_HAIKU: ${{ env.VERTEX_REGION_CLAUDE_3_5_HAIKU }}
-        VERTEX_REGION_CLAUDE_3_5_SONNET: ${{ env.VERTEX_REGION_CLAUDE_3_5_SONNET }}
-        VERTEX_REGION_CLAUDE_3_7_SONNET: ${{ env.VERTEX_REGION_CLAUDE_3_7_SONNET }}
 
     - name: Update comment with job link
-      if: steps.prepare.outputs.contains_trigger == 'true' && steps.prepare.outputs.claude_comment_id && always()
+      if: steps.prepare.outputs.contains_trigger == 'true' && steps.prepare.outputs.gemini_comment_id && always()
       shell: bash
       run: |
         bun run ${GITHUB_ACTION_PATH}/src/entrypoints/update-comment-link.ts
       env:
         REPOSITORY: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
-        CLAUDE_COMMENT_ID: ${{ steps.prepare.outputs.claude_comment_id }}
+        GEMINI_COMMENT_ID: ${{ steps.prepare.outputs.gemini_comment_id }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
         GITHUB_EVENT_NAME: ${{ github.event_name }}
         TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
-        CLAUDE_BRANCH: ${{ steps.prepare.outputs.CLAUDE_BRANCH }}
+        GEMINI_BRANCH: ${{ steps.prepare.outputs.GEMINI_BRANCH }}
         IS_PR: ${{ github.event.issue.pull_request != null || github.event_name == 'pull_request_review_comment' }}
         BASE_BRANCH: ${{ steps.prepare.outputs.BASE_BRANCH }}
-        CLAUDE_SUCCESS: ${{ steps.claude-code.outputs.conclusion == 'success' }}
-        OUTPUT_FILE: ${{ steps.claude-code.outputs.execution_file || '' }}
+        GEMINI_SUCCESS: ${{ steps.gemini-cli.outputs.conclusion == 'success' }}
+        OUTPUT_FILE: ${{ steps.gemini-cli.outputs.execution_file || '' }}
         TRIGGER_USERNAME: ${{ github.event.comment.user.login || github.event.issue.user.login || github.event.pull_request.user.login || github.event.sender.login || github.triggering_actor || github.actor || '' }}
         PREPARE_SUCCESS: ${{ steps.prepare.outcome == 'success' }}
         PREPARE_ERROR: ${{ steps.prepare.outputs.prepare_error || '' }}
 
-    - name: Display Claude Code Report
-      if: steps.prepare.outputs.contains_trigger == 'true' && steps.claude-code.outputs.execution_file != ''
+    - name: Display Gemini CLI Report
+      if: steps.prepare.outputs.contains_trigger == 'true' && steps.gemini-cli.outputs.execution_file != ''
       shell: bash
       run: |
-        echo "## Claude Code Report" >> $GITHUB_STEP_SUMMARY
+        echo "## Gemini CLI Report" >> $GITHUB_STEP_SUMMARY
         echo '```json' >> $GITHUB_STEP_SUMMARY
-        cat "${{ steps.claude-code.outputs.execution_file }}" >> $GITHUB_STEP_SUMMARY
+        cat "${{ steps.gemini-cli.outputs.execution_file }}" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
 
     - name: Revoke app token

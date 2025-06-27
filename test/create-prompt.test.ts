@@ -120,14 +120,14 @@ describe("generatePrompt", () => {
   test("should generate prompt for issue_comment event", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "issue_comment",
         commentId: "67890",
         isPR: false,
         baseBranch: "main",
-        claudeBranch: "claude/issue-67890-20240101_120000",
+        geminiBranch: "claude/issue-67890-20240101_120000",
         issueNumber: "67890",
         commentBody: "@claude please fix this",
       },
@@ -135,14 +135,14 @@ describe("generatePrompt", () => {
 
     const prompt = generatePrompt(envVars, mockGitHubData);
 
-    expect(prompt).toContain("You are Claude, an AI assistant");
+    expect(prompt).toContain("You are Gemini, an AI assistant");
     expect(prompt).toContain("<event_type>GENERAL_COMMENT</event_type>");
     expect(prompt).toContain("<is_pr>false</is_pr>");
     expect(prompt).toContain(
       "<trigger_context>issue comment with '@claude'</trigger_context>",
     );
     expect(prompt).toContain("<repository>owner/repo</repository>");
-    expect(prompt).toContain("<claude_comment_id>12345</claude_comment_id>");
+    expect(prompt).toContain("<gemini_comment_id>12345</gemini_comment_id>");
     expect(prompt).toContain("<trigger_username>Unknown</trigger_username>");
     expect(prompt).toContain("[user1 at 2023-01-01T01:00:00Z]: First comment"); // from formatted comments
     expect(prompt).not.toContain("filename\tstatus\tadditions\tdeletions\tsha"); // since it's not a PR
@@ -151,7 +151,7 @@ describe("generatePrompt", () => {
   test("should generate prompt for pull_request_review event", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "pull_request_review",
@@ -175,7 +175,7 @@ describe("generatePrompt", () => {
   test("should generate prompt for issue opened event", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "issues",
@@ -183,7 +183,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "789",
         baseBranch: "main",
-        claudeBranch: "claude/issue-789-20240101_120000",
+        geminiBranch: "claude/issue-789-20240101_120000",
       },
     };
 
@@ -202,7 +202,7 @@ describe("generatePrompt", () => {
   test("should generate prompt for issue assigned event", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "issues",
@@ -210,7 +210,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "999",
         baseBranch: "develop",
-        claudeBranch: "claude/issue-999-20240101_120000",
+        geminiBranch: "claude/issue-999-20240101_120000",
         assigneeTrigger: "claude-bot",
       },
     };
@@ -229,7 +229,7 @@ describe("generatePrompt", () => {
   test("should generate prompt for issue labeled event", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "issues",
@@ -237,7 +237,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "888",
         baseBranch: "main",
-        claudeBranch: "claude/issue-888-20240101_120000",
+        geminiBranch: "claude/issue-888-20240101_120000",
         labelTrigger: "claude-task",
       },
     };
@@ -256,7 +256,7 @@ describe("generatePrompt", () => {
   test("should include direct prompt when provided", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       directPrompt: "Fix the bug in the login form",
       eventData: {
@@ -265,7 +265,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "789",
         baseBranch: "main",
-        claudeBranch: "claude/issue-789-20240101_120000",
+        geminiBranch: "claude/issue-789-20240101_120000",
       },
     };
 
@@ -282,7 +282,7 @@ describe("generatePrompt", () => {
   test("should generate prompt for pull_request event", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "pull_request",
@@ -303,7 +303,7 @@ describe("generatePrompt", () => {
   test("should include custom instructions when provided", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       customInstructions: "Always use TypeScript",
       eventData: {
@@ -312,7 +312,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "123",
         baseBranch: "main",
-        claudeBranch: "claude/issue-67890-20240101_120000",
+        geminiBranch: "claude/issue-67890-20240101_120000",
         commentBody: "@claude please fix this",
       },
     };
@@ -325,7 +325,7 @@ describe("generatePrompt", () => {
   test("should include trigger username when provided", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       triggerUsername: "johndoe",
       eventData: {
@@ -334,7 +334,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "123",
         baseBranch: "main",
-        claudeBranch: "claude/issue-67890-20240101_120000",
+        geminiBranch: "claude/issue-67890-20240101_120000",
         commentBody: "@claude please fix this",
       },
     };
@@ -350,7 +350,7 @@ describe("generatePrompt", () => {
   test("should include PR-specific instructions only for PR events", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "pull_request_review",
@@ -381,7 +381,7 @@ describe("generatePrompt", () => {
   test("should include Issue-specific instructions only for Issue events", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "issues",
@@ -389,7 +389,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "789",
         baseBranch: "main",
-        claudeBranch: "claude/issue-789-20240101_120000",
+        geminiBranch: "claude/issue-789-20240101_120000",
       },
     };
 
@@ -419,7 +419,7 @@ describe("generatePrompt", () => {
   test("should use actual branch name for issue comments", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "issue_comment",
@@ -427,7 +427,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "123",
         baseBranch: "main",
-        claudeBranch: "claude/issue-123-20240101_120000",
+        geminiBranch: "claude/issue-123-20240101_120000",
         commentBody: "@claude please fix this",
       },
     };
@@ -449,7 +449,7 @@ describe("generatePrompt", () => {
   test("should handle closed PR with new branch", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "issue_comment",
@@ -457,7 +457,7 @@ describe("generatePrompt", () => {
         isPR: true,
         prNumber: "456",
         commentBody: "@claude please fix this",
-        claudeBranch: "claude/pr-456-20240101_120000",
+        geminiBranch: "claude/pr-456-20240101_120000",
         baseBranch: "main",
       },
     };
@@ -488,7 +488,7 @@ describe("generatePrompt", () => {
   test("should handle open PR without new branch", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "issue_comment",
@@ -496,7 +496,7 @@ describe("generatePrompt", () => {
         isPR: true,
         prNumber: "456",
         commentBody: "@claude please fix this",
-        // No claudeBranch or baseBranch for open PRs
+        // No geminiBranch or baseBranch for open PRs
       },
     };
 
@@ -521,14 +521,14 @@ describe("generatePrompt", () => {
   test("should handle PR review on closed PR with new branch", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "pull_request_review",
         isPR: true,
         prNumber: "789",
         commentBody: "@claude please update this",
-        claudeBranch: "claude/pr-789-20240101_123000",
+        geminiBranch: "claude/pr-789-20240101_123000",
         baseBranch: "develop",
       },
     };
@@ -548,7 +548,7 @@ describe("generatePrompt", () => {
   test("should handle PR review comment on closed PR with new branch", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "pull_request_review_comment",
@@ -556,7 +556,7 @@ describe("generatePrompt", () => {
         prNumber: "999",
         commentId: "review-comment-123",
         commentBody: "@claude fix this issue",
-        claudeBranch: "claude/pr-999-20240101_140000",
+        geminiBranch: "claude/pr-999-20240101_140000",
         baseBranch: "main",
       },
     };
@@ -577,14 +577,14 @@ describe("generatePrompt", () => {
   test("should handle pull_request event on closed PR with new branch", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "pull_request",
         eventAction: "closed",
         isPR: true,
         prNumber: "555",
-        claudeBranch: "claude/pr-555-20240101_150000",
+        geminiBranch: "claude/pr-555-20240101_150000",
         baseBranch: "main",
       },
     };
@@ -604,7 +604,7 @@ describe("getEventTypeAndContext", () => {
   test("should return correct type and context for pull_request_review_comment", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "pull_request_review_comment",
@@ -623,7 +623,7 @@ describe("getEventTypeAndContext", () => {
   test("should return correct type and context for issue assigned", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "issues",
@@ -631,7 +631,7 @@ describe("getEventTypeAndContext", () => {
         isPR: false,
         issueNumber: "999",
         baseBranch: "main",
-        claudeBranch: "claude/issue-999-20240101_120000",
+        geminiBranch: "claude/issue-999-20240101_120000",
         assigneeTrigger: "claude-bot",
       },
     };
@@ -645,7 +645,7 @@ describe("getEventTypeAndContext", () => {
   test("should return correct type and context for issue labeled", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       eventData: {
         eventName: "issues",
@@ -653,7 +653,7 @@ describe("getEventTypeAndContext", () => {
         isPR: false,
         issueNumber: "888",
         baseBranch: "main",
-        claudeBranch: "claude/issue-888-20240101_120000",
+        geminiBranch: "claude/issue-888-20240101_120000",
         labelTrigger: "claude-task",
       },
     };
@@ -667,7 +667,7 @@ describe("getEventTypeAndContext", () => {
   test("should return correct type and context for issue assigned without assigneeTrigger", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
-      claudeCommentId: "12345",
+      geminiCommentId: "12345",
       triggerPhrase: "@claude",
       directPrompt: "Please assess this issue",
       eventData: {
@@ -676,7 +676,7 @@ describe("getEventTypeAndContext", () => {
         isPR: false,
         issueNumber: "999",
         baseBranch: "main",
-        claudeBranch: "claude/issue-999-20240101_120000",
+        geminiBranch: "claude/issue-999-20240101_120000",
         // No assigneeTrigger when using directPrompt
       },
     };
@@ -699,7 +699,7 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("LS");
     expect(result).toContain("Read");
     expect(result).toContain("Write");
-    expect(result).toContain("mcp__github_file_ops__update_claude_comment");
+    expect(result).toContain("mcp__github_file_ops__update_gemini_comment");
     expect(result).not.toContain("mcp__github__update_issue_comment");
     expect(result).not.toContain("mcp__github__update_pull_request_comment");
     expect(result).toContain("mcp__github_file_ops__commit_files");
@@ -716,7 +716,7 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("LS");
     expect(result).toContain("Read");
     expect(result).toContain("Write");
-    expect(result).toContain("mcp__github_file_ops__update_claude_comment");
+    expect(result).toContain("mcp__github_file_ops__update_gemini_comment");
     expect(result).not.toContain("mcp__github__update_issue_comment");
     expect(result).not.toContain("mcp__github__update_pull_request_comment");
     expect(result).toContain("mcp__github_file_ops__commit_files");

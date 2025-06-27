@@ -1,7 +1,8 @@
 {
-  "name": "@anthropic-ai/claude-code-action",
+  "name": "masahif/gemini-cli-action",
   "version": "1.0.0",
   "private": true,
+  "description": "General-purpose Gemini agent for GitHub PRs and issues. Can answer questions and implement code changes.",
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",

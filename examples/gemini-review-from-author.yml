@@ -1,4 +1,4 @@
-name: Claude Review - Specific Authors
+name: Gemini Review - Specific Authors
 
 on:
   pull_request:
@@ -23,9 +23,9 @@ jobs:
           fetch-depth: 1
 
       - name: Review PR from Specific Author
-        uses: anthropics/claude-code-action@beta
+        uses: masahif/gemini-cli-action@main
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           timeout_minutes: "60"
           direct_prompt: |
             Please provide a thorough review of this pull request.

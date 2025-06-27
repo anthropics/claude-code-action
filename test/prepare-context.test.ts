@@ -35,7 +35,7 @@ describe("parseEnvVarsWithContext", () => {
         process.env = {
           ...BASE_ENV,
           BASE_BRANCH: "main",
-          CLAUDE_BRANCH: "claude/issue-67890-20240101_120000",
+          GEMINI_BRANCH: "claude/issue-67890-20240101_120000",
         };
       });
 
@@ -48,7 +48,7 @@ describe("parseEnvVarsWithContext", () => {
         );
 
         expect(result.repository).toBe("test-owner/test-repo");
-        expect(result.claudeCommentId).toBe("12345");
+        expect(result.geminiCommentId).toBe("12345");
         expect(result.triggerPhrase).toBe("@claude");
         expect(result.triggerUsername).toBe("contributor-user");
         expect(result.eventData.eventName).toBe("issue_comment");
@@ -59,7 +59,7 @@ describe("parseEnvVarsWithContext", () => {
         ) {
           expect(result.eventData.issueNumber).toBe("55");
           expect(result.eventData.commentId).toBe("12345678");
-          expect(result.eventData.claudeBranch).toBe(
+          expect(result.eventData.geminiBranch).toBe(
             "claude/issue-67890-20240101_120000",
           );
           expect(result.eventData.baseBranch).toBe("main");
@@ -69,10 +69,10 @@ describe("parseEnvVarsWithContext", () => {
         }
       });
 
-      test("should throw error when CLAUDE_BRANCH is missing", () => {
+      test("should throw error when GEMINI_BRANCH is missing", () => {
         expect(() =>
           prepareContext(mockIssueCommentContext, "12345", "main"),
-        ).toThrow("CLAUDE_BRANCH is required for issue_comment event");
+        ).toThrow("GEMINI_BRANCH is required for issue_comment event");
       });
 
       test("should throw error when BASE_BRANCH is missing", () => {
@@ -152,7 +152,7 @@ describe("parseEnvVarsWithContext", () => {
       process.env = {
         ...BASE_ENV,
         BASE_BRANCH: "main",
-        CLAUDE_BRANCH: "claude/issue-42-20240101_120000",
+        GEMINI_BRANCH: "claude/issue-42-20240101_120000",
       };
     });
 
@@ -173,7 +173,7 @@ describe("parseEnvVarsWithContext", () => {
       ) {
         expect(result.eventData.issueNumber).toBe("42");
         expect(result.eventData.baseBranch).toBe("main");
-        expect(result.eventData.claudeBranch).toBe(
+        expect(result.eventData.geminiBranch).toBe(
           "claude/issue-42-20240101_120000",
         );
       }
@@ -196,17 +196,17 @@ describe("parseEnvVarsWithContext", () => {
       ) {
         expect(result.eventData.issueNumber).toBe("123");
         expect(result.eventData.baseBranch).toBe("main");
-        expect(result.eventData.claudeBranch).toBe(
+        expect(result.eventData.geminiBranch).toBe(
           "claude/issue-123-20240101_120000",
         );
         expect(result.eventData.assigneeTrigger).toBe("@claude-bot");
       }
     });
 
-    test("should throw error when CLAUDE_BRANCH is missing for issues", () => {
+    test("should throw error when GEMINI_BRANCH is missing for issues", () => {
       expect(() =>
         prepareContext(mockIssueOpenedContext, "12345", "main"),
-      ).toThrow("CLAUDE_BRANCH is required for issues event");
+      ).toThrow("GEMINI_BRANCH is required for issues event");
     });
 
     test("should throw error when BASE_BRANCH is missing for issues", () => {

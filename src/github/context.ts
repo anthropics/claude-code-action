@@ -53,7 +53,7 @@ export function parseGitHubContext(): ParsedGitHubContext {
     },
     actor: context.actor,
     inputs: {
-      triggerPhrase: process.env.TRIGGER_PHRASE ?? "@claude",
+      triggerPhrase: process.env.TRIGGER_PHRASE ?? "@gemini",
       assigneeTrigger: process.env.ASSIGNEE_TRIGGER ?? "",
       labelTrigger: process.env.LABEL_TRIGGER ?? "",
       allowedTools: parseMultilineInput(process.env.ALLOWED_TOOLS ?? ""),
@@ -61,7 +61,7 @@ export function parseGitHubContext(): ParsedGitHubContext {
       customInstructions: process.env.CUSTOM_INSTRUCTIONS ?? "",
       directPrompt: process.env.DIRECT_PROMPT ?? "",
       baseBranch: process.env.BASE_BRANCH,
-      branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
+      branchPrefix: process.env.BRANCH_PREFIX ?? "gemini/",
     },
   };
 

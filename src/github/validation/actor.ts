@@ -2,7 +2,7 @@
 
 /**
  * Check if the action trigger is from a human actor
- * Prevents automated tools or bots from triggering Claude
+ * Prevents automated tools or bots from triggering Gemini
  */
 
 import type { Octokit } from "@octokit/rest";

@@ -76,7 +76,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       allowedTools: [
         "mcp__github_file_ops__commit_files",
-        "mcp__github_file_ops__update_claude_comment",
+        "mcp__github_file_ops__update_gemini_comment",
       ],
     });
 
