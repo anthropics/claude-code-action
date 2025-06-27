@@ -128,10 +128,25 @@ runs:
       if: steps.prepare.outputs.contains_trigger == 'true'
       shell: bash
       run: |
-        # Execute Gemini CLI directly
-        gemini --yolo --prompt-file "${{ env.PROMPT_FILE }}" \
-          --model "${{ inputs.model }}" \
-          --timeout "${{ inputs.timeout_minutes }}m"
+        # Read prompt from file and execute Gemini CLI
+        PROMPT_CONTENT=$(cat "$PROMPT_FILE")
+        
+        # Build Gemini CLI command
+        GEMINI_ARGS="--yolo"
+        
+        # Add model if specified
+        if [ -n "$GEMINI_MODEL" ]; then
+          GEMINI_ARGS="$GEMINI_ARGS --model $GEMINI_MODEL"
+        fi
+        
+        # Add debug mode if enabled
+        if [ "$DEBUG_MODE" = "true" ]; then
+          GEMINI_ARGS="$GEMINI_ARGS --debug"
+        fi
+        
+        # Execute Gemini CLI with prompt
+        echo "Executing: gemini $GEMINI_ARGS --prompt \"\$PROMPT_CONTENT\""
+        gemini $GEMINI_ARGS --prompt "$PROMPT_CONTENT"
       env:
         # Model configuration
         GEMINI_MODEL: ${{ inputs.model }}
