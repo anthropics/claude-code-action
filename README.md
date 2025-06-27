@@ -489,7 +489,7 @@ permissions:
 #### For GCP Vertex AI with OIDC
 
 **secrets:**
-- VERTEX_PROJECT_ID: Your Google Cloud project ID where Vertex AI and Claude access are configured.
+- `ANTHROPIC_VERTEX_PROJECT_ID`: Your Google Cloud project ID where Vertex AI and Claude access are configured.
 - `CLOUD_ML_REGION`: The default region for Vertex AI model execution (e.g. `us-east5`).
 
 ```yaml
@@ -508,7 +508,7 @@ permissions:
 
 - uses: anthropics/claude-code-action@beta
   env:
-    ANTHROPIC_VERTEX_PROJECT_ID: ${{ secrets.VERTEX_PROJECT_ID }}
+    ANTHROPIC_VERTEX_PROJECT_ID: ${{ secrets.ANTHROPIC_VERTEX_PROJECT_ID }}
     CLOUD_ML_REGION: ${{ secrets.CLOUD_ML_REGION }}
 
   with:
