@@ -512,7 +512,7 @@ permissions:
     CLOUD_ML_REGION: ${{ secrets.CLOUD_ML_REGION }}
 
   with:
-    anthropic_model: "claude-3-7-sonnet"
+    anthropic_model: "claude-3-7-sonnet@20250219"
     use_vertex: "true"
     github_token: ${{ steps.app-token.outputs.token }}
     # ... other inputs
