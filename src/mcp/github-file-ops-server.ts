@@ -466,6 +466,7 @@ server.tool(
 
       const octokit = new Octokit({
         auth: githubToken,
+        baseUrl: GITHUB_API_URL,
       });
 
       const isPullRequestReviewComment =

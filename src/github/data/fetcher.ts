@@ -1,23 +1,24 @@
 import { execSync } from "child_process";
+import type { Octokits } from "../api/client";
+import { ISSUE_QUERY, PR_QUERY, USER_QUERY } from "../api/queries/github";
 import type {
-  GitHubPullRequest,
-  GitHubIssue,
   GitHubComment,
   GitHubFile,
+  GitHubIssue,
+  GitHubPullRequest,
   GitHubReview,
-  PullRequestQueryResponse,
   IssueQueryResponse,
+  PullRequestQueryResponse,
 } from "../types";
-import { PR_QUERY, ISSUE_QUERY } from "../api/queries/github";
-import type { Octokits } from "../api/client";
-import { downloadCommentImages } from "../utils/image-downloader";
 import type { CommentWithImages } from "../utils/image-downloader";
+import { downloadCommentImages } from "../utils/image-downloader";
 
 type FetchDataParams = {
   octokits: Octokits;
   repository: string;
   prNumber: string;
   isPR: boolean;
+  triggerUsername?: string;
 };
 
 export type GitHubFileWithSHA = GitHubFile & {
@@ -31,6 +32,7 @@ export type FetchDataResult = {
   changedFilesWithSHA: GitHubFileWithSHA[];
   reviewData: { nodes: GitHubReview[] } | null;
   imageUrlMap: Map<string, string>;
+  triggerDisplayName?: string | null;
 };
 
 export async function fetchGitHubData({
@@ -38,6 +40,7 @@ export async function fetchGitHubData({
   repository,
   prNumber,
   isPR,
+  triggerUsername,
 }: FetchDataParams): Promise<FetchDataResult> {
   const [owner, repo] = repository.split("/");
   if (!owner || !repo) {
@@ -101,6 +104,14 @@ export async function fetchGitHubData({
   let changedFilesWithSHA: GitHubFileWithSHA[] = [];
   if (isPR && changedFiles.length > 0) {
     changedFilesWithSHA = changedFiles.map((file) => {
+      // Don't compute SHA for deleted files
+      if (file.changeType === "DELETED") {
+        return {
+          ...file,
+          sha: "deleted",
+        };
+      }
+
       try {
         // Use git hash-object to compute the SHA for the current file content
         const sha = execSync(`git hash-object "${file.path}"`, {
@@ -183,6 +194,12 @@ export async function fetchGitHubData({
     allComments,
   );
 
+  // Fetch trigger user display name if username is provided
+  let triggerDisplayName: string | null | undefined;
+  if (triggerUsername) {
+    triggerDisplayName = await fetchUserDisplayName(octokits, triggerUsername);
+  }
+
   return {
     contextData,
     comments,
@@ -190,5 +207,27 @@ export async function fetchGitHubData({
     changedFilesWithSHA,
     reviewData,
     imageUrlMap,
+    triggerDisplayName,
   };
+}
+
+export type UserQueryResponse = {
+  user: {
+    name: string | null;
+  };
+};
+
+export async function fetchUserDisplayName(
+  octokits: Octokits,
+  login: string,
+): Promise<string | null> {
+  try {
+    const result = await octokits.graphql<UserQueryResponse>(USER_QUERY, {
+      login,
+    });
+    return result.user.name;
+  } catch (error) {
+    console.warn(`Failed to fetch user display name for ${login}:`, error);
+    return null;
+  }
 }

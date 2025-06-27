@@ -12,9 +12,17 @@ inputs:
   assignee_trigger:
     description: "The assignee username that triggers the action (e.g. @claude)"
     required: false
+  label_trigger:
+    description: "The label that triggers the action (e.g. claude)"
+    required: false
+    default: "claude"
   base_branch:
     description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
     required: false
+  branch_prefix:
+    description: "The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)"
+    required: false
+    default: "claude/"
 
   # Claude Code configuration
   model:
@@ -41,6 +49,8 @@ inputs:
     default: ""
   mcp_config:
     description: "Additional MCP configuration (JSON string) that merges with the built-in GitHub MCP servers"
+  claude_env:
+    description: "Custom environment variables to pass to Claude Code execution (YAML format)"
     required: false
     default: ""
 
@@ -60,6 +70,10 @@ inputs:
     required: false
     default: "false"
 
+  max_turns:
+    description: "Maximum number of conversation turns"
+    required: false
+    default: ""
   timeout_minutes:
     description: "Timeout in minutes for execution"
     required: false
@@ -81,19 +95,22 @@ runs:
     - name: Install Dependencies
       shell: bash
       run: |
-        cd ${{ github.action_path }}
+        cd ${GITHUB_ACTION_PATH}
         bun install
 
     - name: Prepare action
       id: prepare
       shell: bash
       run: |
-        bun run ${{ github.action_path }}/src/entrypoints/prepare.ts
+        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/prepare.ts
       env:
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
+        LABEL_TRIGGER: ${{ inputs.label_trigger }}
         BASE_BRANCH: ${{ inputs.base_branch }}
+        BRANCH_PREFIX: ${{ inputs.branch_prefix }}
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
+        DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
         CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}
         DIRECT_PROMPT: ${{ inputs.direct_prompt }}
         MCP_CONFIG: ${{ inputs.mcp_config }}
@@ -103,17 +120,19 @@ runs:
     - name: Run Claude Code
       id: claude-code
       if: steps.prepare.outputs.contains_trigger == 'true'
-      uses: anthropics/claude-code-base-action@c8e31bd52d9a149b3f8309d7978c6edaa282688d # v0.0.8
+      uses: anthropics/claude-code-base-action@b4eb3d828032960a809c894c4177fe412c91d498 # v0.0.27
       with:
-        prompt_file: /tmp/claude-prompts/claude-prompt.txt
+        prompt_file: ${{ runner.temp }}/claude-prompts/claude-prompt.txt
         allowed_tools: ${{ env.ALLOWED_TOOLS }}
         disallowed_tools: ${{ env.DISALLOWED_TOOLS }}
         timeout_minutes: ${{ inputs.timeout_minutes }}
+        max_turns: ${{ inputs.max_turns }}
         model: ${{ inputs.model || inputs.anthropic_model }}
         mcp_config: ${{ steps.prepare.outputs.mcp_config }}
         use_bedrock: ${{ inputs.use_bedrock }}
         use_vertex: ${{ inputs.use_vertex }}
         anthropic_api_key: ${{ inputs.anthropic_api_key }}
+        claude_env: ${{ inputs.claude_env }}
       env:
         # Model configuration
         ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
@@ -144,7 +163,7 @@ runs:
       if: steps.prepare.outputs.contains_trigger == 'true' && steps.prepare.outputs.claude_comment_id && always()
       shell: bash
       run: |
-        bun run ${{ github.action_path }}/src/entrypoints/update-comment-link.ts
+        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/update-comment-link.ts
       env:
         REPOSITORY: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}

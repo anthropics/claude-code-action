@@ -59,6 +59,7 @@ async function run() {
       repository: `${context.repository.owner}/${context.repository.repo}`,
       prNumber: context.entityNumber.toString(),
       isPR: context.isPR,
+      triggerUsername: context.actor,
     });
 
     // Step 8: Setup branch
@@ -92,6 +93,7 @@ async function run() {
       branch: branchInfo.currentBranch,
       additionalMcpConfig,
       claudeCommentId: commentId.toString(),
+      allowedTools: context.inputs.allowedTools,
     });
     core.setOutput("mcp_config", mcpConfig);
   } catch (error) {

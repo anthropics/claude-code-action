@@ -1,4 +1,5 @@
 import * as core from "@actions/core";
+import { GITHUB_API_URL } from "../github/api/config";
 
 type PrepareConfigParams = {
   githubToken: string;
@@ -7,6 +8,7 @@ type PrepareConfigParams = {
   branch: string;
   additionalMcpConfig?: string;
   claudeCommentId?: string;
+  allowedTools: string[];
 };
 
 export async function prepareMcpConfig(
@@ -19,24 +21,17 @@ export async function prepareMcpConfig(
     branch,
     additionalMcpConfig,
     claudeCommentId,
+    allowedTools,
   } = params;
   try {
-    const baseMcpConfig = {
+    const allowedToolsList = allowedTools || [];
+
+    const hasGitHubMcpTools = allowedToolsList.some((tool) =>
+      tool.startsWith("mcp__github__"),
+    );
+
+    const baseMcpConfig: { mcpServers: Record<string, unknown> } = {
       mcpServers: {
-        github: {
-          command: "docker",
-          args: [
-            "run",
-            "-i",
-            "--rm",
-            "-e",
-            "GITHUB_PERSONAL_ACCESS_TOKEN",
-            "ghcr.io/anthropics/github-mcp-server:sha-7382253",
-          ],
-          env: {
-            GITHUB_PERSONAL_ACCESS_TOKEN: githubToken,
-          },
-        },
         github_file_ops: {
           command: "bun",
           args: [
@@ -52,10 +47,28 @@ export async function prepareMcpConfig(
             ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
             GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
             IS_PR: process.env.IS_PR || "false",
+            GITHUB_API_URL: GITHUB_API_URL,
           },
         },
       },
     };
+
+    if (hasGitHubMcpTools) {
+      baseMcpConfig.mcpServers.github = {
+        command: "docker",
+        args: [
+          "run",
+          "-i",
+          "--rm",
+          "-e",
+          "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "ghcr.io/github/github-mcp-server:sha-6d69797", // https://github.com/github/github-mcp-server/releases/tag/v0.5.0
+        ],
+        env: {
+          GITHUB_PERSONAL_ACCESS_TOKEN: githubToken,
+        },
+      };
+    }
 
     // Merge with additional MCP config if provided
     if (additionalMcpConfig && additionalMcpConfig.trim()) {

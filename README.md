@@ -49,7 +49,7 @@ on:
   pull_request_review_comment:
     types: [created]
   issues:
-    types: [opened, assigned]
+    types: [opened, assigned, labeled]
   pull_request_review:
     types: [submitted]
 
@@ -65,6 +65,15 @@ jobs:
           # trigger_phrase: "/claude"
           # Optional: add assignee trigger for issues
           # assignee_trigger: "claude"
+          # Optional: add label trigger for issues
+          # label_trigger: "claude"
+          # Optional: add custom environment variables (YAML format)
+          # claude_env: |
+          #   NODE_ENV: test
+          #   DEBUG: true
+          #   API_URL: https://api.example.com
+          # Optional: limit the number of conversation turns
+          # max_turns: "5"
 ```
 
 ## Inputs
@@ -73,6 +82,8 @@ jobs:
 | --------------------- | -------------------------------------------------------------------------------------------------------------------- | -------- | --------- |
 | `anthropic_api_key`   | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                           | No\*     | -         |
 | `direct_prompt`       | Direct prompt for Claude to execute automatically without needing a trigger (for automated workflows)                | No       | -         |
+| `base_branch`         | The base branch to use for creating new branches (e.g., 'main', 'develop')                                           | No       | -         |
+| `max_turns`           | Maximum number of conversation turns Claude can take (limits back-and-forth exchanges)                               | No       | -         |
 | `timeout_minutes`     | Timeout in minutes for execution                                                                                     | No       | `30`      |
 | `github_token`        | GitHub token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!** | No       | -         |
 | `model`               | Model to use (provider-specific format required for Bedrock/Vertex)                                                  | No       | -         |
@@ -84,7 +95,10 @@ jobs:
 | `custom_instructions` | Additional custom instructions to include in the prompt for Claude                                                   | No       | ""        |
 | `mcp_config`          | Additional MCP configuration (JSON string) that merges with the built-in GitHub MCP servers                          | No       | ""        |
 | `assignee_trigger`    | The assignee username that triggers the action (e.g. @claude). Only used for issue assignment                        | No       | -         |
+| `label_trigger`       | The label name that triggers the action when applied to an issue (e.g. "claude")                                     | No       | -         |
 | `trigger_phrase`      | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                        | No       | `@claude` |
+| `branch_prefix`       | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                         | No       | `claude/` |
+| `claude_env`          | Custom environment variables to pass to Claude Code execution (YAML format)                                          | No       | ""        |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 
@@ -138,6 +152,40 @@ For MCP servers that require sensitive information like API keys or tokens, use 
         }
       }
     # ... other inputs
+```
+
+#### Using Python MCP Servers with uv
+
+For Python-based MCP servers managed with `uv`, you need to specify the directory containing your server:
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    mcp_config: |
+      {
+        "mcpServers": {
+          "my-python-server": {
+            "type": "stdio",
+            "command": "uv",
+            "args": [
+              "--directory",
+              "${{ github.workspace }}/path/to/server/",
+              "run",
+              "server_file.py"
+            ]
+          }
+        }
+      }
+    allowed_tools: "my-python-server__<tool_name>" # Replace <tool_name> with your server's tool names
+    # ... other inputs
+```
+
+For example, if your Python MCP server is at `mcp_servers/weather.py`, you would use:
+
+```yaml
+"args":
+  ["--directory", "${{ github.workspace }}/mcp_servers/", "run", "weather.py"]
 ```
 
 **Important**:
@@ -289,6 +337,40 @@ This action is built on top of [`anthropics/claude-code-base-action`](https://gi
 
 ## Advanced Configuration
 
+### Custom Environment Variables
+
+You can pass custom environment variables to Claude Code execution using the `claude_env` input. This is useful for CI/test setups that require specific environment variables:
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    claude_env: |
+      NODE_ENV: test
+      CI: true
+      DATABASE_URL: postgres://test:test@localhost:5432/test_db
+    # ... other inputs
+```
+
+The `claude_env` input accepts YAML format where each line defines a key-value pair. These environment variables will be available to Claude Code during execution, allowing it to run tests, build processes, or other commands that depend on specific environment configurations.
+
+### Limiting Conversation Turns
+
+You can use the `max_turns` parameter to limit the number of back-and-forth exchanges Claude can have during task execution. This is useful for:
+
+- Controlling costs by preventing runaway conversations
+- Setting time boundaries for automated workflows
+- Ensuring predictable behavior in CI/CD pipelines
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    max_turns: "5" # Limit to 5 conversation turns
+    # ... other inputs
+```
+
+When the turn limit is reached, Claude will stop execution gracefully. Choose a value that gives Claude enough turns to complete typical tasks while preventing excessive usage.
+
 ### Custom Tools
 
 By default, Claude only has access to:
@@ -304,8 +386,15 @@ Claude does **not** have access to execute arbitrary Bash commands by default. I
 ```yaml
 - uses: anthropics/claude-code-action@beta
   with:
-    allowed_tools: "Bash(npm install),Bash(npm run test),Edit,Replace,NotebookEditCell"
-    disallowed_tools: "TaskOutput,KillTask"
+    allowed_tools: |
+      Bash(npm install)
+      Bash(npm run test)
+      Edit
+      Replace
+      NotebookEditCell
+    disallowed_tools: |
+      TaskOutput
+      KillTask
     # ... other inputs
 ```
 

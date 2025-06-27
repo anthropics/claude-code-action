@@ -3,6 +3,7 @@
 import * as core from "@actions/core";
 import {
   isIssuesEvent,
+  isIssuesAssignedEvent,
   isIssueCommentEvent,
   isPullRequestEvent,
   isPullRequestReviewEvent,
@@ -12,7 +13,7 @@ import type { ParsedGitHubContext } from "../context";
 
 export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   const {
-    inputs: { assigneeTrigger, triggerPhrase, directPrompt },
+    inputs: { assigneeTrigger, labelTrigger, triggerPhrase, directPrompt },
   } = context;
 
   // If direct prompt is provided, always trigger
@@ -22,13 +23,23 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   }
 
   // Check for assignee trigger
-  if (isIssuesEvent(context) && context.eventAction === "assigned") {
+  if (isIssuesAssignedEvent(context)) {
     // Remove @ symbol from assignee_trigger if present
     let triggerUser = assigneeTrigger.replace(/^@/, "");
-    const assigneeUsername = context.payload.issue.assignee?.login || "";
+    const assigneeUsername = context.payload.assignee?.login || "";
 
     if (triggerUser && assigneeUsername === triggerUser) {
       console.log(`Issue assigned to trigger user '${triggerUser}'`);
+      return true;
+    }
+  }
+
+  // Check for label trigger
+  if (isIssuesEvent(context) && context.eventAction === "labeled") {
+    const labelName = (context.payload as any).label?.name || "";
+
+    if (labelTrigger && labelName === labelTrigger) {
+      console.log(`Issue labeled with trigger label '${labelTrigger}'`);
       return true;
     }
   }

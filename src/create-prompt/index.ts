@@ -24,6 +24,7 @@ export type { CommonFields, PreparedContext } from "./types";
 
 const BASE_ALLOWED_TOOLS = [
   "Edit",
+  "MultiEdit",
   "Glob",
   "Grep",
   "LS",
@@ -35,38 +36,35 @@ const BASE_ALLOWED_TOOLS = [
 ];
 const DISALLOWED_TOOLS = ["WebSearch", "WebFetch"];
 
-export function buildAllowedToolsString(customAllowedTools?: string): string {
+export function buildAllowedToolsString(customAllowedTools?: string[]): string {
   let baseTools = [...BASE_ALLOWED_TOOLS];
 
   let allAllowedTools = baseTools.join(",");
-  if (customAllowedTools) {
-    allAllowedTools = `${allAllowedTools},${customAllowedTools}`;
+  if (customAllowedTools && customAllowedTools.length > 0) {
+    allAllowedTools = `${allAllowedTools},${customAllowedTools.join(",")}`;
   }
   return allAllowedTools;
 }
 
 export function buildDisallowedToolsString(
-  customDisallowedTools?: string,
-  allowedTools?: string,
+  customDisallowedTools?: string[],
+  allowedTools?: string[],
 ): string {
   let disallowedTools = [...DISALLOWED_TOOLS];
 
   // If user has explicitly allowed some hardcoded disallowed tools, remove them from disallowed list
-  if (allowedTools) {
-    const allowedToolsArray = allowedTools
-      .split(",")
-      .map((tool) => tool.trim());
+  if (allowedTools && allowedTools.length > 0) {
     disallowedTools = disallowedTools.filter(
-      (tool) => !allowedToolsArray.includes(tool),
+      (tool) => !allowedTools.includes(tool),
     );
   }
 
   let allDisallowedTools = disallowedTools.join(",");
-  if (customDisallowedTools) {
+  if (customDisallowedTools && customDisallowedTools.length > 0) {
     if (allDisallowedTools) {
-      allDisallowedTools = `${allDisallowedTools},${customDisallowedTools}`;
+      allDisallowedTools = `${allDisallowedTools},${customDisallowedTools.join(",")}`;
     } else {
-      allDisallowedTools = customDisallowedTools;
+      allDisallowedTools = customDisallowedTools.join(",");
     }
   }
   return allDisallowedTools;
@@ -83,6 +81,7 @@ export function prepareContext(
   const eventAction = context.eventAction;
   const triggerPhrase = context.inputs.triggerPhrase || "@claude";
   const assigneeTrigger = context.inputs.assigneeTrigger;
+  const labelTrigger = context.inputs.labelTrigger;
   const customInstructions = context.inputs.customInstructions;
   const allowedTools = context.inputs.allowedTools;
   const disallowedTools = context.inputs.disallowedTools;
@@ -120,8 +119,10 @@ export function prepareContext(
     triggerPhrase,
     ...(triggerUsername && { triggerUsername }),
     ...(customInstructions && { customInstructions }),
-    ...(allowedTools && { allowedTools }),
-    ...(disallowedTools && { disallowedTools }),
+    ...(allowedTools.length > 0 && { allowedTools: allowedTools.join(",") }),
+    ...(disallowedTools.length > 0 && {
+      disallowedTools: disallowedTools.join(","),
+    }),
     ...(directPrompt && { directPrompt }),
     ...(claudeBranch && { claudeBranch }),
   };
@@ -242,7 +243,7 @@ export function prepareContext(
       }
 
       if (eventAction === "assigned") {
-        if (!assigneeTrigger) {
+        if (!assigneeTrigger && !directPrompt) {
           throw new Error(
             "ASSIGNEE_TRIGGER is required for issue assigned event",
           );
@@ -254,7 +255,20 @@ export function prepareContext(
           issueNumber,
           baseBranch,
           claudeBranch,
-          assigneeTrigger,
+          ...(assigneeTrigger && { assigneeTrigger }),
+        };
+      } else if (eventAction === "labeled") {
+        if (!labelTrigger) {
+          throw new Error("LABEL_TRIGGER is required for issue labeled event");
+        }
+        eventData = {
+          eventName: "issues",
+          eventAction: "labeled",
+          isPR: false,
+          issueNumber,
+          baseBranch,
+          claudeBranch,
+          labelTrigger,
         };
       } else if (eventAction === "opened") {
         eventData = {
@@ -328,10 +342,17 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
           eventType: "ISSUE_CREATED",
           triggerContext: `new issue with '${envVars.triggerPhrase}' in body`,
         };
+      } else if (eventData.eventAction === "labeled") {
+        return {
+          eventType: "ISSUE_LABELED",
+          triggerContext: `issue labeled with '${eventData.labelTrigger}'`,
+        };
       }
       return {
         eventType: "ISSUE_ASSIGNED",
-        triggerContext: `issue assigned to '${eventData.assigneeTrigger}'`,
+        triggerContext: eventData.assigneeTrigger
+          ? `issue assigned to '${eventData.assigneeTrigger}'`
+          : `issue assigned event`,
       };
 
     case "pull_request":
@@ -418,6 +439,7 @@ ${
 }
 <claude_comment_id>${context.claudeCommentId}</claude_comment_id>
 <trigger_username>${context.triggerUsername ?? "Unknown"}</trigger_username>
+<trigger_display_name>${githubData.triggerDisplayName ?? context.triggerUsername ?? "Unknown"}</trigger_display_name>
 <trigger_phrase>${context.triggerPhrase}</trigger_phrase>
 ${
   (eventData.eventName === "issue_comment" ||
@@ -464,6 +486,7 @@ Follow these steps:
    - Analyze the pre-fetched data provided above.
    - For ISSUE_CREATED: Read the issue body to find the request after the trigger phrase.
    - For ISSUE_ASSIGNED: Read the entire issue body to understand the task.
+   - For ISSUE_LABELED: Read the entire issue body to understand the task.
 ${eventData.eventName === "issue_comment" || eventData.eventName === "pull_request_review_comment" || eventData.eventName === "pull_request_review" ? `   - For comment/review events: Your instructions are in the <trigger_comment> tag above.` : ""}
 ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was provided and is shown in the <direct_prompt> tag above. This is not from any GitHub comment but a direct instruction to execute.` : ""}
    - IMPORTANT: Only the comment/issue containing '${context.triggerPhrase}' has your instructions.
@@ -503,12 +526,14 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
           ? `
       - Push directly using mcp__github_file_ops__commit_files to the existing branch (works for both new and existing files).
       - Use mcp__github_file_ops__commit_files to commit files atomically in a single commit (supports single or multiple files).
-      - When pushing changes with this tool and TRIGGER_USERNAME is not "Unknown", include a "Co-authored-by: ${context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>" line in the commit message.`
+      - When pushing changes with this tool and the trigger user is not "Unknown", include a Co-authored-by trailer in the commit message.
+      - Use: "Co-authored-by: ${githubData.triggerDisplayName ?? context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>"`
           : `
       - You are already on the correct branch (${eventData.claudeBranch || "the PR branch"}). Do not create a new branch.
       - Push changes directly to the current branch using mcp__github_file_ops__commit_files (works for both new and existing files)
       - Use mcp__github_file_ops__commit_files to commit files atomically in a single commit (supports single or multiple files).
-      - When pushing changes and TRIGGER_USERNAME is not "Unknown", include a "Co-authored-by: ${context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>" line in the commit message.
+      - When pushing changes and the trigger user is not "Unknown", include a Co-authored-by trailer in the commit message.
+      - Use: "Co-authored-by: ${githubData.triggerDisplayName ?? context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>"
       ${
         eventData.claudeBranch
           ? `- Provide a URL to create a PR manually in this format:
@@ -621,7 +646,9 @@ export async function createPrompt(
       claudeBranch,
     );
 
-    await mkdir("/tmp/claude-prompts", { recursive: true });
+    await mkdir(`${process.env.RUNNER_TEMP}/claude-prompts`, {
+      recursive: true,
+    });
 
     // Generate the prompt
     const promptContent = generatePrompt(preparedContext, githubData);
@@ -632,15 +659,18 @@ export async function createPrompt(
     console.log("=======================");
 
     // Write the prompt file
-    await writeFile("/tmp/claude-prompts/claude-prompt.txt", promptContent);
+    await writeFile(
+      `${process.env.RUNNER_TEMP}/claude-prompts/claude-prompt.txt`,
+      promptContent,
+    );
 
     // Set allowed tools
     const allAllowedTools = buildAllowedToolsString(
-      preparedContext.allowedTools,
+      context.inputs.allowedTools,
     );
     const allDisallowedTools = buildDisallowedToolsString(
-      preparedContext.disallowedTools,
-      preparedContext.allowedTools,
+      context.inputs.disallowedTools,
+      context.inputs.allowedTools,
     );
 
     core.exportVariable("ALLOWED_TOOLS", allAllowedTools);

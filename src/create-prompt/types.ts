@@ -65,7 +65,17 @@ type IssueAssignedEvent = {
   issueNumber: string;
   baseBranch: string;
   claudeBranch: string;
-  assigneeTrigger: string;
+  assigneeTrigger?: string;
+};
+
+type IssueLabeledEvent = {
+  eventName: "issues";
+  eventAction: "labeled";
+  isPR: false;
+  issueNumber: string;
+  baseBranch: string;
+  claudeBranch: string;
+  labelTrigger: string;
 };
 
 type PullRequestEvent = {
@@ -85,6 +95,7 @@ export type EventData =
   | IssueCommentEvent
   | IssueOpenedEvent
   | IssueAssignedEvent
+  | IssueLabeledEvent
   | PullRequestEvent;
 
 // Combined type with separate eventData field
