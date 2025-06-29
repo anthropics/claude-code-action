@@ -20,6 +20,7 @@ const defaultInputs = {
   useVertex: false,
   timeoutMinutes: 30,
   branchPrefix: "claude/",
+  autoCreatePr: false,
 };
 
 const defaultRepository = {

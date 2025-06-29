@@ -36,6 +36,7 @@ export type ParsedGitHubContext = {
     directPrompt: string;
     baseBranch?: string;
     branchPrefix: string;
+    autoCreatePr: boolean;
   };
 };
 
@@ -62,6 +63,7 @@ export function parseGitHubContext(): ParsedGitHubContext {
       directPrompt: process.env.DIRECT_PROMPT ?? "",
       baseBranch: process.env.BASE_BRANCH,
       branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
+      autoCreatePr: process.env.AUTO_CREATE_PR === "true",
     },
   };
 

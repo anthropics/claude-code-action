@@ -68,6 +68,7 @@ describe("checkWritePermissions", () => {
       customInstructions: "",
       directPrompt: "",
       branchPrefix: "claude/",
+      autoCreatePr: false,
     },
   });
 

@@ -23,6 +23,10 @@ inputs:
     description: "The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)"
     required: false
     default: "claude/"
+  auto_create_pr:
+    description: "Automatically create a pull request when working on issues (defaults to false)"
+    required: false
+    default: "false"
 
   # Claude Code configuration
   model:
@@ -109,6 +113,7 @@ runs:
         LABEL_TRIGGER: ${{ inputs.label_trigger }}
         BASE_BRANCH: ${{ inputs.base_branch }}
         BRANCH_PREFIX: ${{ inputs.branch_prefix }}
+        AUTO_CREATE_PR: ${{ inputs.auto_create_pr }}
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
         CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}

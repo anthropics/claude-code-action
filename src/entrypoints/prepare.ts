@@ -82,6 +82,7 @@ async function run() {
       branchInfo.claudeBranch,
       githubData,
       context,
+      branchInfo.prUrl,
     );
 
     // Step 11: Get MCP configuration
