@@ -226,6 +226,33 @@ describe("generatePrompt", () => {
     );
   });
 
+  test("should generate prompt for issue labeled event", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issues",
+        eventAction: "labeled",
+        isPR: false,
+        issueNumber: "888",
+        baseBranch: "main",
+        claudeBranch: "claude/issue-888-20240101_120000",
+        labelTrigger: "claude-task",
+      },
+    };
+
+    const prompt = generatePrompt(envVars, mockGitHubData);
+
+    expect(prompt).toContain("<event_type>ISSUE_LABELED</event_type>");
+    expect(prompt).toContain(
+      "<trigger_context>issue labeled with 'claude-task'</trigger_context>",
+    );
+    expect(prompt).toContain(
+      "[Create a PR](https://github.com/owner/repo/compare/main",
+    );
+  });
+
   test("should include direct prompt when provided", () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
@@ -613,6 +640,28 @@ describe("getEventTypeAndContext", () => {
 
     expect(result.eventType).toBe("ISSUE_ASSIGNED");
     expect(result.triggerContext).toBe("issue assigned to 'claude-bot'");
+  });
+
+  test("should return correct type and context for issue labeled", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issues",
+        eventAction: "labeled",
+        isPR: false,
+        issueNumber: "888",
+        baseBranch: "main",
+        claudeBranch: "claude/issue-888-20240101_120000",
+        labelTrigger: "claude-task",
+      },
+    };
+
+    const result = getEventTypeAndContext(envVars);
+
+    expect(result.eventType).toBe("ISSUE_LABELED");
+    expect(result.triggerContext).toBe("issue labeled with 'claude-task'");
   });
 
   test("should return correct type and context for issue assigned without assigneeTrigger", () => {

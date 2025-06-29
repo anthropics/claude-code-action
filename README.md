@@ -49,7 +49,7 @@ on:
   pull_request_review_comment:
     types: [created]
   issues:
-    types: [opened, assigned]
+    types: [opened, assigned, labeled]
   pull_request_review:
     types: [submitted]
 
@@ -65,6 +65,8 @@ jobs:
           # trigger_phrase: "/claude"
           # Optional: add assignee trigger for issues
           # assignee_trigger: "claude"
+          # Optional: add label trigger for issues
+          # label_trigger: "claude"
           # Optional: automatically create PRs when working on issues
           # auto_create_pr: true
           # Optional: add custom environment variables (YAML format)
@@ -82,6 +84,7 @@ jobs:
 | --------------------- | -------------------------------------------------------------------------------------------------------------------- | -------- | --------- |
 | `anthropic_api_key`   | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                           | No\*     | -         |
 | `direct_prompt`       | Direct prompt for Claude to execute automatically without needing a trigger (for automated workflows)                | No       | -         |
+| `base_branch`         | The base branch to use for creating new branches (e.g., 'main', 'develop')                                           | No       | -         |
 | `max_turns`           | Maximum number of conversation turns Claude can take (limits back-and-forth exchanges)                               | No       | -         |
 | `timeout_minutes`     | Timeout in minutes for execution                                                                                     | No       | `30`      |
 | `github_token`        | GitHub token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!** | No       | -         |
@@ -94,7 +97,9 @@ jobs:
 | `custom_instructions` | Additional custom instructions to include in the prompt for Claude                                                   | No       | ""        |
 | `mcp_config`          | Additional MCP configuration (JSON string) that merges with the built-in GitHub MCP servers                          | No       | ""        |
 | `assignee_trigger`    | The assignee username that triggers the action (e.g. @claude). Only used for issue assignment                        | No       | -         |
+| `label_trigger`       | The label name that triggers the action when applied to an issue (e.g. "claude")                                     | No       | -         |
 | `trigger_phrase`      | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                        | No       | `@claude` |
+| `branch_prefix`       | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                         | No       | `claude/` |
 | `claude_env`          | Custom environment variables to pass to Claude Code execution (YAML format)                                          | No       | ""        |
 | `base_branch`         | The branch to use as the base/source when creating new branches (defaults to repository default branch)              | No       | -         |
 | `auto_create_pr`      | Automatically create a pull request when working on issues                                                           | No       | `false`   |

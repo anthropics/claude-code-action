@@ -12,9 +12,17 @@ inputs:
   assignee_trigger:
     description: "The assignee username that triggers the action (e.g. @claude)"
     required: false
+  label_trigger:
+    description: "The label that triggers the action (e.g. claude)"
+    required: false
+    default: "claude"
   base_branch:
     description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
     required: false
+  branch_prefix:
+    description: "The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)"
+    required: false
+    default: "claude/"
   auto_create_pr:
     description: "Automatically create a pull request when working on issues (defaults to false)"
     required: false
@@ -102,7 +110,9 @@ runs:
       env:
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
+        LABEL_TRIGGER: ${{ inputs.label_trigger }}
         BASE_BRANCH: ${{ inputs.base_branch }}
+        BRANCH_PREFIX: ${{ inputs.branch_prefix }}
         AUTO_CREATE_PR: ${{ inputs.auto_create_pr }}
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
@@ -115,7 +125,7 @@ runs:
     - name: Run Claude Code
       id: claude-code
       if: steps.prepare.outputs.contains_trigger == 'true'
-      uses: anthropics/claude-code-base-action@ce5cfd683932f58cb459e749f20b06d2fb30c265 # v0.0.25
+      uses: anthropics/claude-code-base-action@b4eb3d828032960a809c894c4177fe412c91d498 # v0.0.27
       with:
         prompt_file: ${{ runner.temp }}/claude-prompts/claude-prompt.txt
         allowed_tools: ${{ env.ALLOWED_TOOLS }}

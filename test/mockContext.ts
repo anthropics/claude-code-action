@@ -10,6 +10,7 @@ import type {
 const defaultInputs = {
   triggerPhrase: "/claude",
   assigneeTrigger: "",
+  labelTrigger: "",
   anthropicModel: "claude-3-7-sonnet-20250219",
   allowedTools: [] as string[],
   disallowedTools: [] as string[],
@@ -18,6 +19,7 @@ const defaultInputs = {
   useBedrock: false,
   useVertex: false,
   timeoutMinutes: 30,
+  branchPrefix: "claude/",
   autoCreatePr: false,
 };
 
@@ -127,6 +129,46 @@ export const mockIssueAssignedContext: ParsedGitHubContext = {
   entityNumber: 123,
   isPR: false,
   inputs: { ...defaultInputs, assigneeTrigger: "@claude-bot" },
+};
+
+export const mockIssueLabeledContext: ParsedGitHubContext = {
+  runId: "1234567890",
+  eventName: "issues",
+  eventAction: "labeled",
+  repository: defaultRepository,
+  actor: "admin-user",
+  payload: {
+    action: "labeled",
+    issue: {
+      number: 1234,
+      title: "Enhancement: Improve search functionality",
+      body: "The current search is too slow and needs optimization",
+      user: {
+        login: "alice-wonder",
+        id: 54321,
+        avatar_url: "https://avatars.githubusercontent.com/u/54321",
+        html_url: "https://github.com/alice-wonder",
+      },
+      assignee: null,
+    },
+    label: {
+      id: 987654321,
+      name: "claude-task",
+      color: "f29513",
+      description: "Label for Claude AI interactions",
+    },
+    repository: {
+      name: "test-repo",
+      full_name: "test-owner/test-repo",
+      private: false,
+      owner: {
+        login: "test-owner",
+      },
+    },
+  } as IssuesEvent,
+  entityNumber: 1234,
+  isPR: false,
+  inputs: { ...defaultInputs, labelTrigger: "claude-task" },
 };
 
 // Issue comment on issue event
