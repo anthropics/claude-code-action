@@ -99,6 +99,10 @@ jobs:
 | `trigger_phrase`      | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                        | No       | `@claude` |
 | `branch_prefix`       | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                         | No       | `claude/` |
 | `claude_env`          | Custom environment variables to pass to Claude Code execution (YAML format)                                          | No       | ""        |
+| `max_files`           | Maximum number of files to fetch per PR (0 = unlimited)                                                              | No       | `100`     |
+| `max_commits`         | Maximum number of commits to fetch per PR (0 = unlimited)                                                            | No       | `100`     |
+| `max_comments`        | Maximum number of comments to fetch (0 = unlimited)                                                                  | No       | `100`     |
+| `max_reviews`         | Maximum number of reviews to fetch per PR (0 = unlimited)                                                            | No       | `100`     |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 

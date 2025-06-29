@@ -30,15 +30,19 @@ describe("formatContext", () => {
       state: "OPEN",
       commits: {
         totalCount: 3,
+        pageInfo: { hasNextPage: false, endCursor: null },
         nodes: [],
       },
       files: {
+        pageInfo: { hasNextPage: false, endCursor: null },
         nodes: [{} as GitHubFile, {} as GitHubFile],
       },
       comments: {
+        pageInfo: { hasNextPage: false, endCursor: null },
         nodes: [],
       },
       reviews: {
+        pageInfo: { hasNextPage: false, endCursor: null },
         nodes: [],
       },
     };
@@ -64,6 +68,7 @@ Changed Files: 2 files`,
       createdAt: "2023-01-01T00:00:00Z",
       state: "OPEN",
       comments: {
+        pageInfo: { hasNextPage: false, endCursor: null },
         nodes: [],
       },
     };
@@ -257,6 +262,7 @@ describe("formatComments", () => {
 describe("formatReviewComments", () => {
   test("formats review with body and comments correctly", () => {
     const reviewData = {
+      pageInfo: { hasNextPage: false, endCursor: null },
       nodes: [
         {
           id: "review1",
@@ -266,6 +272,7 @@ describe("formatReviewComments", () => {
           state: "APPROVED",
           submittedAt: "2023-01-01T00:00:00Z",
           comments: {
+            pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [
               {
                 id: "comment1",
@@ -299,6 +306,7 @@ describe("formatReviewComments", () => {
 
   test("formats review with only body (no comments) correctly", () => {
     const reviewData = {
+      pageInfo: { hasNextPage: false, endCursor: null },
       nodes: [
         {
           id: "review1",
@@ -308,6 +316,7 @@ describe("formatReviewComments", () => {
           state: "APPROVED",
           submittedAt: "2023-01-01T00:00:00Z",
           comments: {
+            pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [],
           },
         },
@@ -322,6 +331,7 @@ describe("formatReviewComments", () => {
 
   test("formats review without body correctly", () => {
     const reviewData = {
+      pageInfo: { hasNextPage: false, endCursor: null },
       nodes: [
         {
           id: "review1",
@@ -331,6 +341,7 @@ describe("formatReviewComments", () => {
           state: "COMMENTED",
           submittedAt: "2023-01-01T00:00:00Z",
           comments: {
+            pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [
               {
                 id: "comment1",
@@ -355,6 +366,7 @@ describe("formatReviewComments", () => {
 
   test("formats multiple reviews correctly", () => {
     const reviewData = {
+      pageInfo: { hasNextPage: false, endCursor: null },
       nodes: [
         {
           id: "review1",
@@ -364,6 +376,7 @@ describe("formatReviewComments", () => {
           state: "CHANGES_REQUESTED",
           submittedAt: "2023-01-01T00:00:00Z",
           comments: {
+            pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [],
           },
         },
@@ -375,6 +388,7 @@ describe("formatReviewComments", () => {
           state: "APPROVED",
           submittedAt: "2023-01-02T00:00:00Z",
           comments: {
+            pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [],
           },
         },
@@ -393,12 +407,16 @@ describe("formatReviewComments", () => {
   });
 
   test("returns empty string for empty reviewData", () => {
-    const result = formatReviewComments({ nodes: [] });
+    const result = formatReviewComments({
+      pageInfo: { hasNextPage: false, endCursor: null },
+      nodes: [],
+    });
     expect(result).toBe("");
   });
 
   test("replaces image URLs in review comments", () => {
     const reviewData = {
+      pageInfo: { hasNextPage: false, endCursor: null },
       nodes: [
         {
           id: "review1",
@@ -408,6 +426,7 @@ describe("formatReviewComments", () => {
           state: "APPROVED",
           submittedAt: "2023-01-01T00:00:00Z",
           comments: {
+            pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [
               {
                 id: "comment1",
@@ -443,6 +462,7 @@ describe("formatReviewComments", () => {
 
   test("handles multiple images in review comments", () => {
     const reviewData = {
+      pageInfo: { hasNextPage: false, endCursor: null },
       nodes: [
         {
           id: "review1",
@@ -452,6 +472,7 @@ describe("formatReviewComments", () => {
           state: "APPROVED",
           submittedAt: "2023-01-01T00:00:00Z",
           comments: {
+            pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [
               {
                 id: "comment1",
@@ -487,6 +508,7 @@ describe("formatReviewComments", () => {
 
   test("preserves review comments when imageUrlMap is undefined", () => {
     const reviewData = {
+      pageInfo: { hasNextPage: false, endCursor: null },
       nodes: [
         {
           id: "review1",
@@ -496,6 +518,7 @@ describe("formatReviewComments", () => {
           state: "APPROVED",
           submittedAt: "2023-01-01T00:00:00Z",
           comments: {
+            pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [
               {
                 id: "comment1",

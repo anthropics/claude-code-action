@@ -16,7 +16,10 @@ import { updateTrackingComment } from "../github/operations/comments/update-with
 import { prepareMcpConfig } from "../mcp/install-mcp-server";
 import { createPrompt } from "../create-prompt";
 import { createOctokit } from "../github/api/client";
-import { fetchGitHubData } from "../github/data/fetcher";
+import {
+  fetchGitHubData,
+  getPaginationConfigFromEnv,
+} from "../github/data/fetcher";
 import { parseGitHubContext } from "../github/context";
 
 async function run() {
@@ -54,12 +57,14 @@ async function run() {
     const commentId = await createInitialComment(octokit.rest, context);
 
     // Step 7: Fetch GitHub data (once for both branch setup and prompt creation)
+    const paginationConfig = getPaginationConfigFromEnv();
     const githubData = await fetchGitHubData({
       octokits: octokit,
       repository: `${context.repository.owner}/${context.repository.repo}`,
       prNumber: context.entityNumber.toString(),
       isPR: context.isPR,
       triggerUsername: context.actor,
+      paginationConfig,
     });
 
     // Step 8: Setup branch
