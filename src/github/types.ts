@@ -4,6 +4,11 @@ export type GitHubAuthor = {
   name?: string;
 };
 
+export type PageInfo = {
+  hasNextPage: boolean;
+  endCursor: string | null;
+};
+
 export type GitHubComment = {
   id: string;
   databaseId: string;
@@ -41,6 +46,7 @@ export type GitHubReview = {
   state: string;
   submittedAt: string;
   comments: {
+    pageInfo: PageInfo;
     nodes: GitHubReviewComment[];
   };
 };
@@ -58,17 +64,21 @@ export type GitHubPullRequest = {
   state: string;
   commits: {
     totalCount: number;
+    pageInfo: PageInfo;
     nodes: Array<{
       commit: GitHubCommit;
     }>;
   };
   files: {
+    pageInfo: PageInfo;
     nodes: GitHubFile[];
   };
   comments: {
+    pageInfo: PageInfo;
     nodes: GitHubComment[];
   };
   reviews: {
+    pageInfo: PageInfo;
     nodes: GitHubReview[];
   };
 };
@@ -80,6 +90,7 @@ export type GitHubIssue = {
   createdAt: string;
   state: string;
   comments: {
+    pageInfo: PageInfo;
     nodes: GitHubComment[];
   };
 };

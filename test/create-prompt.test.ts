@@ -24,6 +24,7 @@ describe("generatePrompt", () => {
       headRefOid: "abc123",
       commits: {
         totalCount: 2,
+        pageInfo: { hasNextPage: false, endCursor: null },
         nodes: [
           {
             commit: {
@@ -38,6 +39,7 @@ describe("generatePrompt", () => {
         ],
       },
       files: {
+        pageInfo: { hasNextPage: false, endCursor: null },
         nodes: [
           {
             path: "src/file1.ts",
@@ -48,6 +50,7 @@ describe("generatePrompt", () => {
         ],
       },
       comments: {
+        pageInfo: { hasNextPage: false, endCursor: null },
         nodes: [
           {
             id: "comment1",
@@ -59,6 +62,7 @@ describe("generatePrompt", () => {
         ],
       },
       reviews: {
+        pageInfo: { hasNextPage: false, endCursor: null },
         nodes: [
           {
             id: "review1",
@@ -67,6 +71,7 @@ describe("generatePrompt", () => {
             state: "APPROVED",
             submittedAt: "2023-01-01T02:00:00Z",
             comments: {
+              pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [],
             },
           },
@@ -100,6 +105,7 @@ describe("generatePrompt", () => {
       },
     ],
     reviewData: {
+      pageInfo: { hasNextPage: false, endCursor: null },
       nodes: [
         {
           id: "review1",
@@ -109,6 +115,7 @@ describe("generatePrompt", () => {
           state: "APPROVED",
           submittedAt: "2023-01-01T02:00:00Z",
           comments: {
+            pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [],
           },
         },
