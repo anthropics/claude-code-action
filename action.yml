@@ -54,6 +54,12 @@ inputs:
     required: false
     default: ""
 
+  # Build configuration
+  skip_bun_install:
+    description: "Skip Bun installation (useful for NixOS or custom environments)"
+    required: false
+    default: "false"
+
   # Auth configuration
   anthropic_api_key:
     description: "Anthropic API key (required for direct API, not needed for Bedrock/Vertex)"
@@ -88,6 +94,7 @@ runs:
   using: "composite"
   steps:
     - name: Install Bun
+      if: inputs.skip_bun_install != 'true'
       uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # https://github.com/oven-sh/setup-bun/releases/tag/v2.0.2
       with:
         bun-version: 1.2.11
