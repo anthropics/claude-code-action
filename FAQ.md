@@ -12,6 +12,10 @@ The `github-actions` user cannot trigger subsequent GitHub Actions workflows. Th
 
 Only users with **write permissions** to the repository can trigger Claude. This is a security feature to prevent unauthorized use. Make sure the user commenting has at least write access to the repository.
 
+### Why can't I assign @claude to an issue on my repository?
+
+If you're in a public repository, you should be able to assign to Claude without issue. If it's a private organization repository, you can only assign to users in your own organization, which Claude isn't. In this case, you'll need to make a custom user in that case.
+
 ### Why am I getting OIDC authentication errors?
 
 If you're using the default GitHub App authentication, you must add the `id-token: write` permission to your workflow:
