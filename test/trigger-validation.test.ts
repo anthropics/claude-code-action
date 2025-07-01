@@ -36,6 +36,7 @@ describe("checkContainsTrigger", () => {
           disallowedTools: [],
           customInstructions: "",
           branchPrefix: "claude/",
+          useStickyComment: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -64,6 +65,7 @@ describe("checkContainsTrigger", () => {
           disallowedTools: [],
           customInstructions: "",
           branchPrefix: "claude/",
+          useStickyComment: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(false);
@@ -261,22 +263,23 @@ describe("checkContainsTrigger", () => {
           action: "opened",
           pull_request: {
             number: 123,
-            title: "Test PR",
-            body: "@claude can you review this?",
-            created_at: "2023-01-01T00:00:00Z",
-            user: { login: "testuser" },
-          },
-        } as PullRequestEvent,
-        inputs: {
-          triggerPhrase: "@claude",
-          assigneeTrigger: "",
-          labelTrigger: "",
-          directPrompt: "",
-          allowedTools: [],
-          disallowedTools: [],
-          customInstructions: "",
-          branchPrefix: "claude/",
+                      title: "Test PR",
+          body: "@claude can you review this?",
+          created_at: "2023-01-01T00:00:00Z",
+          user: { login: "testuser" },
         },
+      } as PullRequestEvent,
+      inputs: {
+        triggerPhrase: "@claude",
+        assigneeTrigger: "",
+        labelTrigger: "",
+        directPrompt: "",
+        allowedTools: [],
+        disallowedTools: [],
+        customInstructions: "",
+        branchPrefix: "claude/",
+        useStickyComment: false,
+      },
       });
       expect(checkContainsTrigger(context)).toBe(true);
     });
@@ -305,6 +308,7 @@ describe("checkContainsTrigger", () => {
           disallowedTools: [],
           customInstructions: "",
           branchPrefix: "claude/",
+          useStickyComment: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -334,6 +338,7 @@ describe("checkContainsTrigger", () => {
           disallowedTools: [],
           customInstructions: "",
           branchPrefix: "claude/",
+          useStickyComment: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(false);

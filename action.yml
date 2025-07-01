@@ -78,7 +78,7 @@ inputs:
     description: "Timeout in minutes for execution"
     required: false
     default: "30"
-  sticky_comment:
+  use_sticky_comment:
     description: "Use just one comment to deliver issue/PR comments"
     required: false
     default: "false"
@@ -119,7 +119,7 @@ runs:
         MCP_CONFIG: ${{ inputs.mcp_config }}
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_RUN_ID: ${{ github.run_id }}
-        STICKY_COMMENT: ${{ inputs.sticky_comment }}
+        USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
 
     - name: Run Claude Code
       id: claude-code
@@ -184,7 +184,7 @@ runs:
         TRIGGER_USERNAME: ${{ github.event.comment.user.login || github.event.issue.user.login || github.event.pull_request.user.login || github.event.sender.login || github.triggering_actor || github.actor || '' }}
         PREPARE_SUCCESS: ${{ steps.prepare.outcome == 'success' }}
         PREPARE_ERROR: ${{ steps.prepare.outputs.prepare_error || '' }}
-        STICKY_COMMENT: ${{ inputs.sticky_comment }}
+        USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
 
     - name: Display Claude Code Report
       if: steps.prepare.outputs.contains_trigger == 'true' && steps.claude-code.outputs.execution_file != ''

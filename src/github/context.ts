@@ -36,7 +36,7 @@ export type ParsedGitHubContext = {
     directPrompt: string;
     baseBranch?: string;
     branchPrefix: string;
-    stickyComment: boolean;
+    useStickyComment: boolean;
   };
 };
 
@@ -63,7 +63,7 @@ export function parseGitHubContext(): ParsedGitHubContext {
       directPrompt: process.env.DIRECT_PROMPT ?? "",
       baseBranch: process.env.BASE_BRANCH,
       branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
-      stickyComment: process.env.STICKY_COMMENT === "true",
+      useStickyComment: process.env.STICKY_COMMENT === "true",
     },
   };
 
