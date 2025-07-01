@@ -26,15 +26,20 @@ export async function createInitialComment(
   try {
     let response;
 
-    if (context.inputs.useStickyComment && context.isPR && !isPullRequestEvent(context)) {
+    if (
+      context.inputs.useStickyComment &&
+      context.isPR &&
+      !isPullRequestEvent(context)
+    ) {
       const comments = await octokit.rest.issues.listComments({
         owner,
         repo,
         issue_number: context.entityNumber,
       });
       const existingComment = comments.data.find(
-        (comment) => comment.user?.login.indexOf("claude[bot]") !== -1
-        || comment.body === initialBody,
+        (comment) =>
+          comment.user?.login.indexOf("claude[bot]") !== -1 ||
+          comment.body === initialBody,
       );
       if (existingComment) {
         response = await octokit.rest.issues.updateComment({
