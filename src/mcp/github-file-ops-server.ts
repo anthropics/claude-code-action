@@ -126,12 +126,15 @@ server.tool(
             : join(REPO_DIR, filePath);
 
           // Check if file is binary (images, etc.)
-          const isBinaryFile = /\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|tar|gz|exe|bin|woff|woff2|ttf|eot)$/i.test(filePath);
-          
+          const isBinaryFile =
+            /\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|tar|gz|exe|bin|woff|woff2|ttf|eot)$/i.test(
+              filePath,
+            );
+
           if (isBinaryFile) {
             // For binary files, create a blob first using the Blobs API
             const binaryContent = await readFile(fullPath);
-            
+
             // Create blob using Blobs API (supports encoding parameter)
             const blobUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs`;
             const blobResponse = await fetch(blobUrl, {
@@ -143,18 +146,20 @@ server.tool(
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                content: binaryContent.toString('base64'),
+                content: binaryContent.toString("base64"),
                 encoding: "base64",
               }),
             });
 
             if (!blobResponse.ok) {
               const errorText = await blobResponse.text();
-              throw new Error(`Failed to create blob for ${filePath}: ${blobResponse.status} - ${errorText}`);
+              throw new Error(
+                `Failed to create blob for ${filePath}: ${blobResponse.status} - ${errorText}`,
+              );
             }
 
-            const blobData = await blobResponse.json();
-            
+            const blobData = (await blobResponse.json()) as { sha: string };
+
             // Return tree entry with blob SHA
             return {
               path: filePath,
