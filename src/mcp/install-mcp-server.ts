@@ -1,6 +1,7 @@
 import * as core from "@actions/core";
 import { GITHUB_API_URL } from "../github/api/config";
 import type { ParsedGitHubContext } from "../github/context";
+import { Octokit } from "@octokit/rest";
 
 type PrepareConfigParams = {
   githubToken: string;
@@ -12,6 +13,38 @@ type PrepareConfigParams = {
   allowedTools: string[];
   context: ParsedGitHubContext;
 };
+
+async function checkActionsReadPermission(
+  token: string,
+  owner: string,
+  repo: string,
+): Promise<boolean> {
+  try {
+    const client = new Octokit({ auth: token });
+
+    // Try to list workflow runs - this requires actions:read
+    // We use per_page=1 to minimize the response size
+    await client.actions.listWorkflowRunsForRepo({
+      owner,
+      repo,
+      per_page: 1,
+    });
+
+    return true;
+  } catch (error: any) {
+    // Check if it's a permission error
+    if (
+      error.status === 403 &&
+      error.message?.includes("Resource not accessible")
+    ) {
+      return false;
+    }
+
+    // For other errors (network issues, etc), log but don't fail
+    core.debug(`Failed to check actions permission: ${error.message}`);
+    return false;
+  }
+}
 
 export async function prepareMcpConfig(
   params: PrepareConfigParams,
@@ -56,7 +89,10 @@ export async function prepareMcpConfig(
       },
     };
 
-    if (context.isPR) {
+    // Only add CI server if enabled and we're in a PR context
+    const viewActionsResults = process.env.VIEW_ACTIONS_RESULTS !== "false";
+
+    if (context.isPR && viewActionsResults) {
       baseMcpConfig.mcpServers.github_ci = {
         command: "bun",
         args: [

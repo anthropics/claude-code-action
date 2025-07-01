@@ -503,4 +503,50 @@ describe("prepareMcpConfig", () => {
     expect(parsed.mcpServers.github_ci).not.toBeDefined();
     expect(parsed.mcpServers.github_file_ops).toBeDefined();
   });
+
+  test("should not include github_ci server when VIEW_ACTIONS_RESULTS is false", async () => {
+    const oldTokenEnv = process.env.ACTIONS_TOKEN;
+    const oldViewEnv = process.env.VIEW_ACTIONS_RESULTS;
+    process.env.ACTIONS_TOKEN = "workflow-token";
+    process.env.VIEW_ACTIONS_RESULTS = "false";
+
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      allowedTools: [],
+      context: mockPRContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_ci).not.toBeDefined();
+    expect(parsed.mcpServers.github_file_ops).toBeDefined();
+
+    process.env.ACTIONS_TOKEN = oldTokenEnv;
+    process.env.VIEW_ACTIONS_RESULTS = oldViewEnv;
+  });
+
+  test("should include github_ci server when VIEW_ACTIONS_RESULTS is true", async () => {
+    const oldTokenEnv = process.env.ACTIONS_TOKEN;
+    const oldViewEnv = process.env.VIEW_ACTIONS_RESULTS;
+    process.env.ACTIONS_TOKEN = "workflow-token";
+    process.env.VIEW_ACTIONS_RESULTS = "true";
+
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      allowedTools: [],
+      context: mockPRContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_ci).toBeDefined();
+    expect(parsed.mcpServers.github_ci.env.GITHUB_TOKEN).toBe("workflow-token");
+
+    process.env.ACTIONS_TOKEN = oldTokenEnv;
+    process.env.VIEW_ACTIONS_RESULTS = oldViewEnv;
+  });
 });
