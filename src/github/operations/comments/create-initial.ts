@@ -9,6 +9,7 @@ import { appendFileSync } from "fs";
 import { createJobRunLink, createCommentBody } from "./common";
 import {
   isPullRequestReviewCommentEvent,
+  isPullRequestEvent,
   type ParsedGitHubContext,
 } from "../../context";
 import type { Octokit } from "@octokit/rest";
@@ -25,14 +26,14 @@ export async function createInitialComment(
   try {
     let response;
 
-    if (context.inputs.stickyComment && context.isPR && !isPullRequestReviewCommentEvent(context)) {
+    if (context.inputs.stickyComment && context.isPR && !isPullRequestEvent(context)) {
       const comments = await octokit.rest.issues.listComments({
         owner,
         repo,
         issue_number: context.entityNumber,
       });
       const existingComment = comments.data.find(
-        (comment) => comment.user?.login.indexOf("claude") !== -1
+        (comment) => comment.user?.login.indexOf("claude[bot]") !== -1
         || comment.body === initialBody,
       );
       if (existingComment) {
