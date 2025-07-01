@@ -4,6 +4,7 @@ import type {
   GitHubComment,
   GitHubFile,
   GitHubReview,
+  PageInfo,
 } from "../types";
 import type { GitHubFileWithSHA } from "./fetcher";
 import { sanitizeContent } from "../utils/sanitizer";
@@ -67,7 +68,7 @@ export function formatComments(
 }
 
 export function formatReviewComments(
-  reviewData: { nodes: GitHubReview[] } | null,
+  reviewData: { pageInfo: PageInfo; nodes: GitHubReview[] } | null,
   imageUrlMap?: Map<string, string>,
 ): string {
   if (!reviewData || !reviewData.nodes) {

@@ -54,6 +54,24 @@ inputs:
     required: false
     default: ""
 
+  # GitHub API pagination configuration
+  max_files:
+    description: "Maximum number of files to fetch per PR (default: 100, set to 0 for unlimited)"
+    required: false
+    default: "100"
+  max_commits:
+    description: "Maximum number of commits to fetch per PR (default: 100, set to 0 for unlimited)"
+    required: false
+    default: "100"
+  max_comments:
+    description: "Maximum number of comments to fetch (default: 100, set to 0 for unlimited)"
+    required: false
+    default: "100"
+  max_reviews:
+    description: "Maximum number of reviews to fetch per PR (default: 100, set to 0 for unlimited)"
+    required: false
+    default: "100"
+
   # Auth configuration
   anthropic_api_key:
     description: "Anthropic API key (required for direct API, not needed for Bedrock/Vertex)"
@@ -116,6 +134,10 @@ runs:
         MCP_CONFIG: ${{ inputs.mcp_config }}
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_RUN_ID: ${{ github.run_id }}
+        MAX_FILES: ${{ inputs.max_files }}
+        MAX_COMMITS: ${{ inputs.max_commits }}
+        MAX_COMMENTS: ${{ inputs.max_comments }}
+        MAX_REVIEWS: ${{ inputs.max_reviews }}
 
     - name: Run Claude Code
       id: claude-code
