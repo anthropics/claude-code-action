@@ -75,6 +75,7 @@ export function prepareContext(
   claudeCommentId: string,
   baseBranch?: string,
   claudeBranch?: string,
+  prUrl?: string,
 ): PreparedContext {
   const repository = context.repository.full_name;
   const eventName = context.eventName;
@@ -222,6 +223,7 @@ export function prepareContext(
         baseBranch,
         issueNumber,
         commentBody,
+        ...(prUrl && { prUrl }),
       };
       break;
 
@@ -256,6 +258,7 @@ export function prepareContext(
           baseBranch,
           claudeBranch,
           ...(assigneeTrigger && { assigneeTrigger }),
+          ...(prUrl && { prUrl }),
         };
       } else if (eventAction === "labeled") {
         if (!labelTrigger) {
@@ -278,6 +281,7 @@ export function prepareContext(
           issueNumber,
           baseBranch,
           claudeBranch,
+          ...(prUrl && { prUrl }),
         };
       } else {
         throw new Error(`Unsupported issue action: ${eventAction}`);
@@ -369,7 +373,7 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
 }
 
 export function generatePrompt(
-  context: PreparedContext,
+  context: PreparedContext & { inputs?: { autoCreatePr?: boolean } },
   githubData: FetchDataResult,
 ): string {
   const {
@@ -435,7 +439,7 @@ ${eventData.isPR ? formattedChangedFiles || "No files changed" : ""}
 ${
   eventData.isPR
     ? `<pr_number>${eventData.prNumber}</pr_number>`
-    : `<issue_number>${eventData.issueNumber ?? ""}</issue_number>`
+    : `<issue_number>${"issueNumber" in eventData ? eventData.issueNumber : ""}</issue_number>`
 }
 <claude_comment_id>${context.claudeCommentId}</claude_comment_id>
 <trigger_username>${context.triggerUsername ?? "Unknown"}</trigger_username>
@@ -535,7 +539,7 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
       - When pushing changes and the trigger user is not "Unknown", include a Co-authored-by trailer in the commit message.
       - Use: "Co-authored-by: ${githubData.triggerDisplayName ?? context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>"
       ${
-        eventData.claudeBranch
+        eventData.claudeBranch && !context.inputs?.autoCreatePr
           ? `- Provide a URL to create a PR manually in this format:
         [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
         - IMPORTANT: Use THREE dots (...) between branch names, not two (..)
@@ -550,6 +554,15 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
           - Reference to the original ${eventData.isPR ? "PR" : "issue"}
           - The signature: "Generated with [Claude Code](https://claude.ai/code)"
         - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"`
+          : ""
+      }
+      ${
+        eventData.claudeBranch &&
+        context.inputs?.autoCreatePr &&
+        !eventData.isPR &&
+        "prUrl" in eventData &&
+        eventData.prUrl
+          ? `- A pull request has been automatically created: ${eventData.prUrl}`
           : ""
       }`
       }
@@ -568,7 +581,8 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
    - Note: If you see previous Claude comments with headers like "**Claude finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
    - If you changed any files locally, you must update them in the remote branch via mcp__github_file_ops__commit_files before saying that you're done.
-   ${eventData.claudeBranch ? `- If you created anything in your branch, your comment must include the PR URL with prefilled title and body mentioned above.` : ""}
+   ${eventData.claudeBranch && !context.inputs?.autoCreatePr ? `- If you created anything in your branch, your comment must include the PR URL with prefilled title and body mentioned above.` : ""}
+   ${eventData.claudeBranch && context.inputs?.autoCreatePr && !eventData.isPR && "prUrl" in eventData && eventData.prUrl ? `- A pull request has been automatically created for your changes.` : ""}
 
 Important Notes:
 - All communication must happen through GitHub PR comments.
@@ -637,6 +651,7 @@ export async function createPrompt(
   claudeBranch: string | undefined,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
+  prUrl?: string,
 ) {
   try {
     const preparedContext = prepareContext(
@@ -644,14 +659,21 @@ export async function createPrompt(
       claudeCommentId.toString(),
       baseBranch,
       claudeBranch,
+      prUrl,
     );
 
     await mkdir(`${process.env.RUNNER_TEMP}/claude-prompts`, {
       recursive: true,
     });
 
-    // Generate the prompt
-    const promptContent = generatePrompt(preparedContext, githubData);
+    // Generate the prompt with inputs
+    const contextWithInputs = {
+      ...preparedContext,
+      inputs: {
+        autoCreatePr: context.inputs.autoCreatePr,
+      },
+    };
+    const promptContent = generatePrompt(contextWithInputs, githubData);
 
     // Log the final prompt to console
     console.log("===== FINAL PROMPT =====");

@@ -67,6 +67,8 @@ jobs:
           # assignee_trigger: "claude"
           # Optional: add label trigger for issues
           # label_trigger: "claude"
+          # Optional: automatically create PRs when working on issues
+          # auto_create_pr: true
           # Optional: add custom environment variables (YAML format)
           # claude_env: |
           #   NODE_ENV: test
@@ -99,6 +101,8 @@ jobs:
 | `trigger_phrase`      | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                        | No       | `@claude` |
 | `branch_prefix`       | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                         | No       | `claude/` |
 | `claude_env`          | Custom environment variables to pass to Claude Code execution (YAML format)                                          | No       | ""        |
+| `base_branch`         | The branch to use as the base/source when creating new branches (defaults to repository default branch)              | No       | -         |
+| `auto_create_pr`      | Automatically create a pull request when working on issues                                                           | No       | `false`   |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 
@@ -322,6 +326,7 @@ This action is built on top of [`anthropics/claude-code-base-action`](https://gi
 - **Perform Code Reviews**: Analyze PR changes and provide detailed feedback
 - **Smart Branch Handling**:
   - When triggered on an **issue**: Always creates a new branch for the work
+    - With `auto_create_pr: true`: Automatically creates a pull request from the new branch
   - When triggered on an **open PR**: Always pushes directly to the existing PR branch
   - When triggered on a **closed PR**: Creates a new branch since the original is no longer active
 

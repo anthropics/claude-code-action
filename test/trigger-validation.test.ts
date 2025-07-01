@@ -36,6 +36,7 @@ describe("checkContainsTrigger", () => {
           disallowedTools: [],
           customInstructions: "",
           branchPrefix: "claude/",
+          autoCreatePr: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -64,6 +65,7 @@ describe("checkContainsTrigger", () => {
           disallowedTools: [],
           customInstructions: "",
           branchPrefix: "claude/",
+          autoCreatePr: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(false);
@@ -276,6 +278,7 @@ describe("checkContainsTrigger", () => {
           disallowedTools: [],
           customInstructions: "",
           branchPrefix: "claude/",
+          autoCreatePr: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -305,6 +308,7 @@ describe("checkContainsTrigger", () => {
           disallowedTools: [],
           customInstructions: "",
           branchPrefix: "claude/",
+          autoCreatePr: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -334,6 +338,7 @@ describe("checkContainsTrigger", () => {
           disallowedTools: [],
           customInstructions: "",
           branchPrefix: "claude/",
+          autoCreatePr: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(false);
