@@ -32,6 +32,7 @@ describe("prepareMcpConfig", () => {
       customInstructions: "",
       directPrompt: "",
       branchPrefix: "",
+      useStickyComment: false,
       additionalPermissions: new Map(),
     },
   };
