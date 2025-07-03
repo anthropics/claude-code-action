@@ -29,7 +29,7 @@ export async function createInitialComment(
     if (
       context.inputs.useStickyComment &&
       context.isPR &&
-      !isPullRequestEvent(context)
+      isPullRequestEvent(context)
     ) {
       const comments = await octokit.rest.issues.listComments({
         owner,
