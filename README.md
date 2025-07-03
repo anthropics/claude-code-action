@@ -88,6 +88,7 @@ jobs:
 | `use_sticky_comment`  | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                          | No       | `false`   |
 | `github_token`        | GitHub token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!** | No       | -         |
 | `model`               | Model to use (provider-specific format required for Bedrock/Vertex)                                                  | No       | -         |
+| `fallback_model`      | Enable automatic fallback to specified model when primary model is unavailable                                       | No       | -         |
 | `anthropic_model`     | **DEPRECATED**: Use `model` instead. Kept for backward compatibility.                                                | No       | -         |
 | `use_bedrock`         | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                                          | No       | `false`   |
 | `use_vertex`          | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API                                        | No       | `false`   |

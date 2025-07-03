@@ -31,6 +31,9 @@ inputs:
   anthropic_model:
     description: "DEPRECATED: Use 'model' instead. Model to use (provider-specific format required for Bedrock/Vertex)"
     required: false
+  fallback_model:
+    description: "Enable automatic fallback to specified model when primary model is unavailable"
+    required: false
   allowed_tools:
     description: "Additional tools for Claude to use (the base GitHub tools will always be included)"
     required: false
@@ -133,6 +136,7 @@ runs:
         timeout_minutes: ${{ inputs.timeout_minutes }}
         max_turns: ${{ inputs.max_turns }}
         model: ${{ inputs.model || inputs.anthropic_model }}
+        fallback_model: ${{ inputs.fallback_model }}
         mcp_config: ${{ steps.prepare.outputs.mcp_config }}
         use_bedrock: ${{ inputs.use_bedrock }}
         use_vertex: ${{ inputs.use_vertex }}
