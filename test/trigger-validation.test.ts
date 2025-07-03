@@ -37,6 +37,7 @@ describe("checkContainsTrigger", () => {
           customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          additionalPermissions: new Map(),
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -66,6 +67,7 @@ describe("checkContainsTrigger", () => {
           customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          additionalPermissions: new Map(),
         },
       });
       expect(checkContainsTrigger(context)).toBe(false);
@@ -279,6 +281,7 @@ describe("checkContainsTrigger", () => {
           customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          additionalPermissions: new Map(),
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -309,6 +312,7 @@ describe("checkContainsTrigger", () => {
           customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          additionalPermissions: new Map(),
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -339,6 +343,7 @@ describe("checkContainsTrigger", () => {
           customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          additionalPermissions: new Map(),
         },
       });
       expect(checkContainsTrigger(context)).toBe(false);

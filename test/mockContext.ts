@@ -21,6 +21,7 @@ const defaultInputs = {
   timeoutMinutes: 30,
   branchPrefix: "claude/",
   useStickyComment: false,
+  additionalPermissions: new Map<string, string>(),
 };
 
 const defaultRepository = {

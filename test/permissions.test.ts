@@ -69,6 +69,7 @@ describe("checkWritePermissions", () => {
       directPrompt: "",
       branchPrefix: "claude/",
       useStickyComment: false,
+      additionalPermissions: new Map(),
     },
   });
 

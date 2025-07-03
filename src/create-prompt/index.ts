@@ -649,7 +649,6 @@ export async function createPrompt(
   claudeBranch: string | undefined,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
-  hasActionsReadPermission: boolean = false,
 ) {
   try {
     const preparedContext = prepareContext(
@@ -678,6 +677,9 @@ export async function createPrompt(
     );
 
     // Set allowed tools
+    const hasActionsReadPermission =
+      context.inputs.additionalPermissions.get("actions") === "read" &&
+      context.isPR;
     const allAllowedTools = buildAllowedToolsString(
       context.inputs.allowedTools,
       hasActionsReadPermission,

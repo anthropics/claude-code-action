@@ -75,22 +75,16 @@ async function run() {
       );
     }
 
-    // Step 10: Check if actions:read permission is granted and we're in a PR context
-    const hasActionsReadPermission =
-      context.inputs.additionalPermissions.get("actions") === "read" &&
-      context.isPR;
-
-    // Step 11: Create prompt file with appropriate tools
+    // Step 10: Create prompt file
     await createPrompt(
       commentId,
       branchInfo.baseBranch,
       branchInfo.claudeBranch,
       githubData,
       context,
-      hasActionsReadPermission,
     );
 
-    // Step 12: Get MCP configuration
+    // Step 11: Get MCP configuration
     const additionalMcpConfig = process.env.MCP_CONFIG || "";
     const mcpConfig = await prepareMcpConfig({
       githubToken,
