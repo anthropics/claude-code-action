@@ -32,6 +32,7 @@ describe("prepareMcpConfig", () => {
       customInstructions: "",
       directPrompt: "",
       branchPrefix: "",
+      additionalPermissions: new Map(),
     },
   };
 
@@ -471,14 +472,21 @@ describe("prepareMcpConfig", () => {
     const oldEnv = process.env.ACTIONS_TOKEN;
     process.env.ACTIONS_TOKEN = "workflow-token";
 
+    const contextWithPermissions = {
+      ...mockPRContext,
+      inputs: {
+        ...mockPRContext.inputs,
+        additionalPermissions: new Map([["actions", "read"]]),
+      },
+    };
+
     const result = await prepareMcpConfig({
       githubToken: "test-token",
       owner: "test-owner",
       repo: "test-repo",
       branch: "test-branch",
       allowedTools: [],
-      context: mockPRContext,
-      additionalPermissions: "actions: read",
+      context: contextWithPermissions,
     });
 
     const parsed = JSON.parse(result);
@@ -516,7 +524,6 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       allowedTools: [],
       context: mockPRContext,
-      additionalPermissions: "",
     });
 
     const parsed = JSON.parse(result);
@@ -530,14 +537,24 @@ describe("prepareMcpConfig", () => {
     const oldTokenEnv = process.env.ACTIONS_TOKEN;
     process.env.ACTIONS_TOKEN = "workflow-token";
 
+    const contextWithPermissions = {
+      ...mockPRContext,
+      inputs: {
+        ...mockPRContext.inputs,
+        additionalPermissions: new Map([
+          ["actions", "read"],
+          ["future", "permission"],
+        ]),
+      },
+    };
+
     const result = await prepareMcpConfig({
       githubToken: "test-token",
       owner: "test-owner",
       repo: "test-repo",
       branch: "test-branch",
       allowedTools: [],
-      context: mockPRContext,
-      additionalPermissions: "actions: read\nfuture: permission",
+      context: contextWithPermissions,
     });
 
     const parsed = JSON.parse(result);
@@ -551,14 +568,21 @@ describe("prepareMcpConfig", () => {
     const oldTokenEnv = process.env.ACTIONS_TOKEN;
     process.env.ACTIONS_TOKEN = "invalid-token";
 
+    const contextWithPermissions = {
+      ...mockPRContext,
+      inputs: {
+        ...mockPRContext.inputs,
+        additionalPermissions: new Map([["actions", "read"]]),
+      },
+    };
+
     const result = await prepareMcpConfig({
       githubToken: "test-token",
       owner: "test-owner",
       repo: "test-repo",
       branch: "test-branch",
       allowedTools: [],
-      context: mockPRContext,
-      additionalPermissions: "actions: read",
+      context: contextWithPermissions,
     });
 
     const parsed = JSON.parse(result);

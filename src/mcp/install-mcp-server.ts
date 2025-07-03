@@ -12,7 +12,6 @@ type PrepareConfigParams = {
   claudeCommentId?: string;
   allowedTools: string[];
   context: ParsedGitHubContext;
-  additionalPermissions?: string;
 };
 
 async function checkActionsReadPermission(
@@ -59,7 +58,6 @@ export async function prepareMcpConfig(
     claudeCommentId,
     allowedTools,
     context,
-    additionalPermissions,
   } = params;
   try {
     const allowedToolsList = allowedTools || [];
@@ -91,23 +89,9 @@ export async function prepareMcpConfig(
       },
     };
 
-    // Parse additional permissions
-    const permissions = new Map<string, string>();
-    if (additionalPermissions && additionalPermissions.trim()) {
-      const lines = additionalPermissions.trim().split("\n");
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (trimmedLine) {
-          const [key, value] = trimmedLine.split(":").map((s) => s.trim());
-          if (key && value) {
-            permissions.set(key, value);
-          }
-        }
-      }
-    }
-
     // Only add CI server if we have actions:read permission and we're in a PR context
-    const hasActionsReadPermission = permissions.get("actions") === "read";
+    const hasActionsReadPermission =
+      context.inputs.additionalPermissions.get("actions") === "read";
 
     if (context.isPR && hasActionsReadPermission) {
       // Verify the token actually has actions:read permission

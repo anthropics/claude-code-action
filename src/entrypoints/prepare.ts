@@ -75,11 +75,10 @@ async function run() {
       );
     }
 
-    // Step 10: Get additional permissions
-    const additionalPermissions = process.env.ADDITIONAL_PERMISSIONS || "";
-    
-    // Check if actions:read permission is granted and we're in a PR context
-    const hasActionsReadPermission = additionalPermissions.includes('actions: read') && context.isPR;
+    // Step 10: Check if actions:read permission is granted and we're in a PR context
+    const hasActionsReadPermission =
+      context.inputs.additionalPermissions.get("actions") === "read" &&
+      context.isPR;
 
     // Step 11: Create prompt file with appropriate tools
     await createPrompt(
@@ -102,7 +101,6 @@ async function run() {
       claudeCommentId: commentId.toString(),
       allowedTools: context.inputs.allowedTools,
       context,
-      additionalPermissions,
     });
     core.setOutput("mcp_config", mcpConfig);
   } catch (error) {

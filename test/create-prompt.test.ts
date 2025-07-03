@@ -763,11 +763,11 @@ describe("buildAllowedToolsString", () => {
 
     // Base tools should be present
     expect(result).toContain("Edit");
-    
+
     // Custom tools should be included
     expect(result).toContain("Tool1");
     expect(result).toContain("Tool2");
-    
+
     // GitHub Actions tools should be included
     expect(result).toContain("mcp__github_ci__get_ci_status");
     expect(result).toContain("mcp__github_ci__get_workflow_run_details");
