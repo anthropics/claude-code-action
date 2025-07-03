@@ -38,7 +38,7 @@ export async function createInitialComment(
       });
       const existingComment = comments.data.find(
         (comment) =>
-          comment.user?.login.indexOf("claude[bot]") !== -1 ||
+          comment.user?.login.indexOf("claude") !== -1 ||
           comment.body === initialBody,
       );
       if (existingComment) {
