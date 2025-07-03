@@ -10,6 +10,7 @@ const REPO_OWNER = process.env.REPO_OWNER;
 const REPO_NAME = process.env.REPO_NAME;
 const PR_NUMBER = process.env.PR_NUMBER;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const RUNNER_TEMP = process.env.RUNNER_TEMP || "/tmp";
 
 if (!REPO_OWNER || !REPO_NAME || !PR_NUMBER || !GITHUB_TOKEN) {
   console.error(
@@ -28,8 +29,28 @@ console.error("[GitHub CI Server] MCP Server instance created");
 server.tool(
   "get_ci_status",
   "Get CI status summary for this PR",
-  {},
-  async () => {
+  {
+    status: z
+      .enum([
+        "completed",
+        "action_required",
+        "cancelled",
+        "failure",
+        "neutral",
+        "skipped",
+        "stale",
+        "success",
+        "timed_out",
+        "in_progress",
+        "queued",
+        "requested",
+        "waiting",
+        "pending",
+      ])
+      .optional()
+      .describe("Filter workflow runs by status"),
+  },
+  async ({ status }) => {
     try {
       const client = new Octokit({
         auth: GITHUB_TOKEN,
@@ -47,6 +68,7 @@ server.tool(
         owner: REPO_OWNER!,
         repo: REPO_NAME!,
         head_sha: headSha,
+        ...(status && { status }),
       });
 
       // Process runs to create summary
@@ -197,7 +219,7 @@ server.tool(
 
       const logsText = response.data as unknown as string;
 
-      const logsDir = "/tmp/github-ci-logs";
+      const logsDir = `${RUNNER_TEMP}/github-ci-logs`;
       await mkdir(logsDir, { recursive: true });
 
       const logPath = `${logsDir}/job-${job_id}.log`;
