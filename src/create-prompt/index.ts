@@ -36,8 +36,20 @@ const BASE_ALLOWED_TOOLS = [
 ];
 const DISALLOWED_TOOLS = ["WebSearch", "WebFetch"];
 
-export function buildAllowedToolsString(customAllowedTools?: string[]): string {
+export function buildAllowedToolsString(
+  customAllowedTools?: string[],
+  includeActionsTools: boolean = false,
+): string {
   let baseTools = [...BASE_ALLOWED_TOOLS];
+
+  // Add GitHub Actions MCP tools if enabled
+  if (includeActionsTools) {
+    baseTools.push(
+      "mcp__github_ci__get_ci_status",
+      "mcp__github_ci__get_workflow_run_details",
+      "mcp__github_ci__download_job_log",
+    );
+  }
 
   let allAllowedTools = baseTools.join(",");
   if (customAllowedTools && customAllowedTools.length > 0) {
@@ -637,6 +649,7 @@ export async function createPrompt(
   claudeBranch: string | undefined,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
+  hasActionsReadPermission: boolean = false,
 ) {
   try {
     const preparedContext = prepareContext(
@@ -667,6 +680,7 @@ export async function createPrompt(
     // Set allowed tools
     const allAllowedTools = buildAllowedToolsString(
       context.inputs.allowedTools,
+      hasActionsReadPermission,
     );
     const allDisallowedTools = buildDisallowedToolsString(
       context.inputs.disallowedTools,

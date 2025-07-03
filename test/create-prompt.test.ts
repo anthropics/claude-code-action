@@ -743,6 +743,36 @@ describe("buildAllowedToolsString", () => {
     expect(basePlusCustom).toContain("Tool2");
     expect(basePlusCustom).toContain("Tool3");
   });
+
+  test("should include GitHub Actions tools when includeActionsTools is true", () => {
+    const result = buildAllowedToolsString([], true);
+
+    // Base tools should be present
+    expect(result).toContain("Edit");
+    expect(result).toContain("Glob");
+
+    // GitHub Actions tools should be included
+    expect(result).toContain("mcp__github_ci__get_ci_status");
+    expect(result).toContain("mcp__github_ci__get_workflow_run_details");
+    expect(result).toContain("mcp__github_ci__download_job_log");
+  });
+
+  test("should include both custom and Actions tools when both provided", () => {
+    const customTools = ["Tool1", "Tool2"];
+    const result = buildAllowedToolsString(customTools, true);
+
+    // Base tools should be present
+    expect(result).toContain("Edit");
+    
+    // Custom tools should be included
+    expect(result).toContain("Tool1");
+    expect(result).toContain("Tool2");
+    
+    // GitHub Actions tools should be included
+    expect(result).toContain("mcp__github_ci__get_ci_status");
+    expect(result).toContain("mcp__github_ci__get_workflow_run_details");
+    expect(result).toContain("mcp__github_ci__download_job_log");
+  });
 });
 
 describe("buildDisallowedToolsString", () => {
