@@ -52,10 +52,10 @@ inputs:
     default: ""
   mcp_config:
     description: "Additional MCP configuration (JSON string) that merges with the built-in GitHub MCP servers"
-  view_actions_results:
-    description: "Enable tools to view GitHub Actions workflow results (requires 'actions: read' permission)"
+  additional_permissions:
+    description: "Additional permissions to enable. Currently supports 'actions: read' for viewing workflow results"
     required: false
-    default: "true"
+    default: ""
   claude_env:
     description: "Custom environment variables to pass to Claude Code execution (YAML format)"
     required: false
@@ -129,7 +129,7 @@ runs:
         GITHUB_RUN_ID: ${{ github.run_id }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
         ACTIONS_TOKEN: ${{ github.token }}
-        VIEW_ACTIONS_RESULTS: ${{ inputs.view_actions_results }}
+        ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
 
     - name: Run Claude Code
       id: claude-code

@@ -12,6 +12,7 @@ type PrepareConfigParams = {
   claudeCommentId?: string;
   allowedTools: string[];
   context: ParsedGitHubContext;
+  additionalPermissions?: string;
 };
 
 async function checkActionsReadPermission(
@@ -58,6 +59,7 @@ export async function prepareMcpConfig(
     claudeCommentId,
     allowedTools,
     context,
+    additionalPermissions,
   } = params;
   try {
     const allowedToolsList = allowedTools || [];
@@ -89,10 +91,39 @@ export async function prepareMcpConfig(
       },
     };
 
-    // Only add CI server if enabled and we're in a PR context
-    const viewActionsResults = process.env.VIEW_ACTIONS_RESULTS !== "false";
+    // Parse additional permissions
+    const permissions = new Map<string, string>();
+    if (additionalPermissions && additionalPermissions.trim()) {
+      const lines = additionalPermissions.trim().split("\n");
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (trimmedLine) {
+          const [key, value] = trimmedLine.split(":").map((s) => s.trim());
+          if (key && value) {
+            permissions.set(key, value);
+          }
+        }
+      }
+    }
 
-    if (context.isPR && viewActionsResults) {
+    // Only add CI server if we have actions:read permission and we're in a PR context
+    const hasActionsReadPermission = permissions.get("actions") === "read";
+
+    if (context.isPR && hasActionsReadPermission) {
+      // Verify the token actually has actions:read permission
+      const actuallyHasPermission = await checkActionsReadPermission(
+        process.env.ACTIONS_TOKEN || "",
+        owner,
+        repo,
+      );
+
+      if (!actuallyHasPermission) {
+        core.warning(
+          "The github_ci MCP server requires 'actions: read' permission. " +
+            "Please ensure your GitHub token has this permission. " +
+            "See: https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token",
+        );
+      }
       baseMcpConfig.mcpServers.github_ci = {
         command: "bun",
         args: [

@@ -86,6 +86,7 @@ async function run() {
 
     // Step 11: Get MCP configuration
     const additionalMcpConfig = process.env.MCP_CONFIG || "";
+    const additionalPermissions = process.env.ADDITIONAL_PERMISSIONS || "";
     const mcpConfig = await prepareMcpConfig({
       githubToken,
       owner: context.repository.owner,
@@ -95,6 +96,7 @@ async function run() {
       claudeCommentId: commentId.toString(),
       allowedTools: context.inputs.allowedTools,
       context,
+      additionalPermissions,
     });
     core.setOutput("mcp_config", mcpConfig);
   } catch (error) {
