@@ -36,11 +36,15 @@ export async function createInitialComment(
         repo,
         issue_number: context.entityNumber,
       });
-      const existingComment = comments.data.find(
-        (comment) =>
-          comment.user?.login.indexOf("claude") !== -1 ||
-          comment.body === initialBody,
-      );
+      const existingComment = comments.data.find((comment) => {
+        const idMatch = comment.user?.id === 209825114;
+        const botNameMatch =
+          comment.user?.type === "Bot" &&
+          comment.user?.login.toLowerCase().includes("claude");
+        const bodyMatch = comment.body === initialBody;
+
+        return idMatch || botNameMatch || bodyMatch;
+      });
       if (existingComment) {
         response = await octokit.rest.issues.updateComment({
           owner,
