@@ -30,7 +30,9 @@ This command will guide you through setting up the GitHub app and required secre
 **Requirements**: You must be a repository admin to complete these steps.
 
 1. Install the Claude GitHub app to your repository: https://github.com/apps/claude
-2. Add `ANTHROPIC_API_KEY` to your repository secrets ([Learn how to use secrets in GitHub Actions](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions))
+2. Add authentication to your repository secrets ([Learn how to use secrets in GitHub Actions](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions)):
+   - Either `ANTHROPIC_API_KEY` for API key authentication
+   - Or `CLAUDE_CODE_OAUTH_TOKEN` for OAuth token authentication
 3. Copy the workflow file from [`examples/claude.yml`](./examples/claude.yml) into your repository's `.github/workflows/`
 
 ## 📚 FAQ
@@ -60,6 +62,8 @@ jobs:
       - uses: anthropics/claude-code-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Or use OAuth token instead:
+          # claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # Optional: add custom trigger phrase (default: @claude)
           # trigger_phrase: "/claude"
@@ -84,6 +88,7 @@ jobs:
 | Input                    | Description                                                                                                          | Required | Default   |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------- | -------- | --------- |
 | `anthropic_api_key`      | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                           | No\*     | -         |
+| `claude_code_oauth_token`| Claude Code OAuth token (alternative to anthropic_api_key)                                                           | No\*     | -         |
 | `direct_prompt`          | Direct prompt for Claude to execute automatically without needing a trigger (for automated workflows)                | No       | -         |
 | `base_branch`            | The base branch to use for creating new branches (e.g., 'main', 'develop')                                           | No       | -         |
 | `max_turns`              | Maximum number of conversation turns Claude can take (limits back-and-forth exchanges)                               | No       | -         |
@@ -604,18 +609,21 @@ The [Claude Code GitHub app](https://github.com/apps/claude) requires these perm
 
 All commits made by Claude through this action are automatically signed with commit signatures. This ensures the authenticity and integrity of commits, providing a verifiable trail of changes made by the action.
 
-### ⚠️ ANTHROPIC_API_KEY Protection
+### ⚠️ Authentication Protection
 
-**CRITICAL: Never hardcode your Anthropic API key in workflow files!**
+**CRITICAL: Never hardcode your Anthropic API key or OAuth token in workflow files!**
 
-Your ANTHROPIC_API_KEY must always be stored in GitHub secrets to prevent unauthorized access:
+Your authentication credentials must always be stored in GitHub secrets to prevent unauthorized access:
 
 ```yaml
 # CORRECT ✅
 anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+# OR
+claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
 # NEVER DO THIS ❌
 anthropic_api_key: "sk-ant-api03-..." # Exposed and vulnerable!
+claude_code_oauth_token: "oauth_token_..." # Exposed and vulnerable!
 ```
 
 ### Setting Up GitHub Secrets
@@ -623,17 +631,18 @@ anthropic_api_key: "sk-ant-api03-..." # Exposed and vulnerable!
 1. Go to your repository's Settings
 2. Click on "Secrets and variables" → "Actions"
 3. Click "New repository secret"
-4. Name: `ANTHROPIC_API_KEY`
-5. Value: Your Anthropic API key (starting with `sk-ant-`)
-6. Click "Add secret"
+4. For authentication, choose one:
+   - API Key: Name: `ANTHROPIC_API_KEY`, Value: Your Anthropic API key (starting with `sk-ant-`)
+   - OAuth Token: Name: `CLAUDE_CODE_OAUTH_TOKEN`, Value: Your Claude Code OAuth token
+5. Click "Add secret"
 
-### Best Practices for ANTHROPIC_API_KEY
+### Best Practices for Authentication
 
-1. ✅ Always use `${{ secrets.ANTHROPIC_API_KEY }}` in workflows
-2. ✅ Never commit API keys to version control
-3. ✅ Regularly rotate your API keys
+1. ✅ Always use `${{ secrets.ANTHROPIC_API_KEY }}` or `${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}` in workflows
+2. ✅ Never commit API keys or tokens to version control
+3. ✅ Regularly rotate your API keys and tokens
 4. ✅ Use environment secrets for organization-wide access
-5. ❌ Never share API keys in pull requests or issues
+5. ❌ Never share API keys or tokens in pull requests or issues
 6. ❌ Avoid logging workflow variables that might contain keys
 
 ## Security Best Practices

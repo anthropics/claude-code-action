@@ -65,6 +65,9 @@ inputs:
   anthropic_api_key:
     description: "Anthropic API key (required for direct API, not needed for Bedrock/Vertex)"
     required: false
+  claude_code_oauth_token:
+    description: "Claude Code OAuth token (alternative to anthropic_api_key)"
+    required: false
   github_token:
     description: "GitHub token with repo and pull request permissions (optional if using GitHub App)"
     required: false
@@ -147,6 +150,7 @@ runs:
         use_bedrock: ${{ inputs.use_bedrock }}
         use_vertex: ${{ inputs.use_vertex }}
         anthropic_api_key: ${{ inputs.anthropic_api_key }}
+        claude_code_oauth_token: ${{ inputs.claude_code_oauth_token }}
         claude_env: ${{ inputs.claude_env }}
       env:
         # Model configuration
