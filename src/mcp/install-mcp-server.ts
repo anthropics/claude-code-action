@@ -134,7 +134,7 @@ export async function prepareMcpConfig(
           "--rm",
           "-e",
           "GITHUB_PERSONAL_ACCESS_TOKEN",
-          "ghcr.io/github/github-mcp-server:sha-6d69797", // https://github.com/github/github-mcp-server/releases/tag/v0.5.0
+          "ghcr.io/github/github-mcp-server:sha-721fd3e", // https://github.com/github/github-mcp-server/releases/tag/v0.6.0
         ],
         env: {
           GITHUB_PERSONAL_ACCESS_TOKEN: githubToken,
