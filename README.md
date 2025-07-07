@@ -32,7 +32,7 @@ This command will guide you through setting up the GitHub app and required secre
 1. Install the Claude GitHub app to your repository: https://github.com/apps/claude
 2. Add authentication to your repository secrets ([Learn how to use secrets in GitHub Actions](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions)):
    - Either `ANTHROPIC_API_KEY` for API key authentication
-   - Or `CLAUDE_CODE_OAUTH_TOKEN` for OAuth token authentication
+   - Or `CLAUDE_CODE_OAUTH_TOKEN` for OAuth token authentication (Pro and Max users can generate this by running `claude setup-token` locally)
 3. Copy the workflow file from [`examples/claude.yml`](./examples/claude.yml) into your repository's `.github/workflows/`
 
 ## 📚 FAQ
@@ -633,7 +633,7 @@ claude_code_oauth_token: "oauth_token_..." # Exposed and vulnerable!
 3. Click "New repository secret"
 4. For authentication, choose one:
    - API Key: Name: `ANTHROPIC_API_KEY`, Value: Your Anthropic API key (starting with `sk-ant-`)
-   - OAuth Token: Name: `CLAUDE_CODE_OAUTH_TOKEN`, Value: Your Claude Code OAuth token
+   - OAuth Token: Name: `CLAUDE_CODE_OAUTH_TOKEN`, Value: Your Claude Code OAuth token (Pro and Max users can generate this by running `claude setup-token` locally)
 5. Click "Add secret"
 
 ### Best Practices for Authentication
