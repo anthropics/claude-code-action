@@ -335,6 +335,7 @@ This action is built on top of [`anthropics/claude-code-base-action`](https://gi
   - When triggered on an **issue**: Always creates a new branch for the work
   - When triggered on an **open PR**: Always pushes directly to the existing PR branch
   - When triggered on a **closed PR**: Creates a new branch since the original is no longer active
+- **View GitHub Actions Results**: Can access workflow runs, job logs, and test results on the PR where it's tagged when `actions: read` permission is configured (see [Additional Permissions for CI/CD Integration](#additional-permissions-for-cicd-integration))
 
 ### What Claude Cannot Do
 
@@ -343,7 +344,6 @@ This action is built on top of [`anthropics/claude-code-base-action`](https://gi
 - **Post Multiple Comments**: Claude only acts by updating its initial comment
 - **Execute Commands Outside Its Context**: Claude only has access to the repository and PR/issue context it's triggered in
 - **Run Arbitrary Bash Commands**: By default, Claude cannot execute Bash commands unless explicitly allowed using the `allowed_tools` configuration
-- **View CI/CD Results**: Cannot access CI systems, test results, or build logs unless an additional tool or MCP server is configured
 - **Perform Branch Operations**: Cannot merge branches, rebase, or perform other git operations beyond pushing commits
 
 ## Advanced Configuration
