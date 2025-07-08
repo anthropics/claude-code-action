@@ -97,7 +97,10 @@ outputs:
   execution_file:
     description: "Path to the Claude Code execution output file"
     value: ${{ steps.claude-code.outputs.execution_file }}
-
+  branch_name:
+    description: "The branch created by Claude Code for this execution"
+    value: ${{ steps.prepare.outputs.CLAUDE_BRANCH }}
+    
 runs:
   using: "composite"
   steps:
