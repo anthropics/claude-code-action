@@ -133,7 +133,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("You are Claude, an AI assistant");
     expect(prompt).toContain("<event_type>GENERAL_COMMENT</event_type>");
@@ -161,7 +161,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("<event_type>PR_REVIEW</event_type>");
     expect(prompt).toContain("<is_pr>true</is_pr>");
@@ -187,7 +187,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("<event_type>ISSUE_CREATED</event_type>");
     expect(prompt).toContain(
@@ -215,7 +215,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("<event_type>ISSUE_ASSIGNED</event_type>");
     expect(prompt).toContain(
@@ -242,7 +242,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("<event_type>ISSUE_LABELED</event_type>");
     expect(prompt).toContain(
@@ -269,7 +269,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("<direct_prompt>");
     expect(prompt).toContain("Fix the bug in the login form");
@@ -292,7 +292,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("<event_type>PULL_REQUEST</event_type>");
     expect(prompt).toContain("<is_pr>true</is_pr>");
@@ -317,7 +317,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("CUSTOM INSTRUCTIONS:\nAlways use TypeScript");
   });
@@ -339,11 +339,12 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("<trigger_username>johndoe</trigger_username>");
+    // With commit signing disabled, co-author info appears in git commit instructions
     expect(prompt).toContain(
-      'Use: "Co-authored-by: johndoe <johndoe@users.noreply.github.com>"',
+      "Co-authored-by: johndoe <johndoe@users.noreply.github.com>",
     );
   });
 
@@ -360,12 +361,10 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
-    // Should contain PR-specific instructions
-    expect(prompt).toContain(
-      "Push directly using mcp__github_file_ops__commit_files to the existing branch",
-    );
+    // Should contain PR-specific instructions (git commands when not using signing)
+    expect(prompt).toContain("git push");
     expect(prompt).toContain(
       "Always push to the existing branch when triggered on a PR",
     );
@@ -393,7 +392,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     // Should contain Issue-specific instructions
     expect(prompt).toContain(
@@ -432,7 +431,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     // Should contain the actual branch name with timestamp
     expect(prompt).toContain(
@@ -462,7 +461,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     // Should contain branch-specific instructions like issues
     expect(prompt).toContain(
@@ -500,12 +499,10 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
-    // Should contain open PR instructions
-    expect(prompt).toContain(
-      "Push directly using mcp__github_file_ops__commit_files to the existing branch",
-    );
+    // Should contain open PR instructions (git commands when not using signing)
+    expect(prompt).toContain("git push");
     expect(prompt).toContain(
       "Always push to the existing branch when triggered on a PR",
     );
@@ -533,7 +530,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     // Should contain new branch instructions
     expect(prompt).toContain(
@@ -561,7 +558,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     // Should contain new branch instructions
     expect(prompt).toContain(
@@ -589,7 +586,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     // Should contain new branch instructions
     expect(prompt).toContain(
@@ -597,6 +594,61 @@ describe("generatePrompt", () => {
     );
     expect(prompt).toContain("Create a PR](https://github.com/");
     expect(prompt).toContain("Reference to the original PR");
+  });
+
+  test("should include git commands when useCommitSigning is false", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issue_comment",
+        commentId: "67890",
+        isPR: true,
+        prNumber: "123",
+        commentBody: "@claude fix the bug",
+      },
+    };
+
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
+
+    // Should have git command instructions
+    expect(prompt).toContain("Use git commands via the Bash tool");
+    expect(prompt).toContain("git add");
+    expect(prompt).toContain("git commit");
+    expect(prompt).toContain("git push");
+
+    // Should use the minimal comment tool
+    expect(prompt).toContain("mcp__github_comment__update_claude_comment");
+
+    // Should not have commit signing tool references
+    expect(prompt).not.toContain("mcp__github_file_ops__commit_files");
+  });
+
+  test("should include commit signing tools when useCommitSigning is true", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issue_comment",
+        commentId: "67890",
+        isPR: true,
+        prNumber: "123",
+        commentBody: "@claude fix the bug",
+      },
+    };
+
+    const prompt = generatePrompt(envVars, mockGitHubData, true);
+
+    // Should have commit signing tool instructions
+    expect(prompt).toContain("mcp__github_file_ops__commit_files");
+    expect(prompt).toContain("mcp__github_file_ops__delete_files");
+    // Comment tool should always be from comment server, not file ops
+    expect(prompt).toContain("mcp__github_comment__update_claude_comment");
+
+    // Should not have git command instructions
+    expect(prompt).not.toContain("Use git commands via the Bash tool");
   });
 });
 
@@ -689,7 +741,7 @@ describe("getEventTypeAndContext", () => {
 });
 
 describe("buildAllowedToolsString", () => {
-  test("should return issue comment tool for regular events", () => {
+  test("should return correct tools for regular events (default no signing)", () => {
     const result = buildAllowedToolsString();
 
     // The base tools should be in the result
@@ -699,15 +751,20 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("LS");
     expect(result).toContain("Read");
     expect(result).toContain("Write");
-    expect(result).toContain("mcp__github_file_ops__update_claude_comment");
-    expect(result).not.toContain("mcp__github__update_issue_comment");
-    expect(result).not.toContain("mcp__github__update_pull_request_comment");
-    expect(result).toContain("mcp__github_file_ops__commit_files");
-    expect(result).toContain("mcp__github_file_ops__delete_files");
+
+    // Default is no commit signing, so should have specific Bash git commands
+    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("Bash(git push:*)");
+    expect(result).toContain("mcp__github_comment__update_claude_comment");
+
+    // Should not have commit signing tools
+    expect(result).not.toContain("mcp__github_file_ops__commit_files");
+    expect(result).not.toContain("mcp__github_file_ops__delete_files");
   });
 
-  test("should return PR comment tool for inline review comments", () => {
-    const result = buildAllowedToolsString();
+  test("should return correct tools with default parameters", () => {
+    const result = buildAllowedToolsString([], false, false);
 
     // The base tools should be in the result
     expect(result).toContain("Edit");
@@ -716,11 +773,15 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("LS");
     expect(result).toContain("Read");
     expect(result).toContain("Write");
-    expect(result).toContain("mcp__github_file_ops__update_claude_comment");
-    expect(result).not.toContain("mcp__github__update_issue_comment");
-    expect(result).not.toContain("mcp__github__update_pull_request_comment");
-    expect(result).toContain("mcp__github_file_ops__commit_files");
-    expect(result).toContain("mcp__github_file_ops__delete_files");
+
+    // Should have specific Bash git commands for non-signing mode
+    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("mcp__github_comment__update_claude_comment");
+
+    // Should not have commit signing tools
+    expect(result).not.toContain("mcp__github_file_ops__commit_files");
+    expect(result).not.toContain("mcp__github_file_ops__delete_files");
   });
 
   test("should append custom tools when provided", () => {
@@ -772,6 +833,79 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("mcp__github_ci__get_ci_status");
     expect(result).toContain("mcp__github_ci__get_workflow_run_details");
     expect(result).toContain("mcp__github_ci__download_job_log");
+  });
+
+  test("should include commit signing tools when useCommitSigning is true", () => {
+    const result = buildAllowedToolsString([], false, true);
+
+    // Base tools should be present
+    expect(result).toContain("Edit");
+    expect(result).toContain("Glob");
+    expect(result).toContain("Grep");
+    expect(result).toContain("LS");
+    expect(result).toContain("Read");
+    expect(result).toContain("Write");
+
+    // Commit signing tools should be included
+    expect(result).toContain("mcp__github_file_ops__commit_files");
+    expect(result).toContain("mcp__github_file_ops__delete_files");
+    // Comment tool should always be from github_comment server
+    expect(result).toContain("mcp__github_comment__update_claude_comment");
+
+    // Bash should NOT be included when using commit signing (except in comment tool name)
+    expect(result).not.toContain("Bash(");
+  });
+
+  test("should include specific Bash git commands when useCommitSigning is false", () => {
+    const result = buildAllowedToolsString([], false, false);
+
+    // Base tools should be present
+    expect(result).toContain("Edit");
+    expect(result).toContain("Glob");
+    expect(result).toContain("Grep");
+    expect(result).toContain("LS");
+    expect(result).toContain("Read");
+    expect(result).toContain("Write");
+
+    // Specific Bash git commands should be included
+    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("Bash(git push:*)");
+    expect(result).toContain("Bash(git status:*)");
+    expect(result).toContain("Bash(git diff:*)");
+    expect(result).toContain("Bash(git log:*)");
+    expect(result).toContain("Bash(git rm:*)");
+    expect(result).toContain("Bash(git config user.name:*)");
+    expect(result).toContain("Bash(git config user.email:*)");
+
+    // Comment tool from minimal server should be included
+    expect(result).toContain("mcp__github_comment__update_claude_comment");
+
+    // Commit signing tools should NOT be included
+    expect(result).not.toContain("mcp__github_file_ops__commit_files");
+    expect(result).not.toContain("mcp__github_file_ops__delete_files");
+  });
+
+  test("should handle all combinations of options", () => {
+    const customTools = ["CustomTool1", "CustomTool2"];
+    const result = buildAllowedToolsString(customTools, true, false);
+
+    // Base tools should be present
+    expect(result).toContain("Edit");
+    expect(result).toContain("Bash(git add:*)");
+
+    // Custom tools should be included
+    expect(result).toContain("CustomTool1");
+    expect(result).toContain("CustomTool2");
+
+    // GitHub Actions tools should be included
+    expect(result).toContain("mcp__github_ci__get_ci_status");
+
+    // Comment tool from minimal server should be included
+    expect(result).toContain("mcp__github_comment__update_claude_comment");
+
+    // Commit signing tools should NOT be included
+    expect(result).not.toContain("mcp__github_file_ops__commit_files");
   });
 });
 

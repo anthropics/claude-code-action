@@ -34,6 +34,7 @@ describe("prepareMcpConfig", () => {
       branchPrefix: "",
       useStickyComment: false,
       additionalPermissions: new Map(),
+      useCommitSigning: false,
     },
   };
 
@@ -42,6 +43,22 @@ describe("prepareMcpConfig", () => {
     eventName: "pull_request",
     isPR: true,
     entityNumber: 456,
+  };
+
+  const mockContextWithSigning: ParsedGitHubContext = {
+    ...mockContext,
+    inputs: {
+      ...mockContext.inputs,
+      useCommitSigning: true,
+    },
+  };
+
+  const mockPRContextWithSigning: ParsedGitHubContext = {
+    ...mockPRContext,
+    inputs: {
+      ...mockPRContext.inputs,
+      useCommitSigning: true,
+    },
   };
 
   beforeEach(() => {
@@ -65,7 +82,7 @@ describe("prepareMcpConfig", () => {
     processExitSpy.mockRestore();
   });
 
-  test("should return base config when no additional config is provided and no allowed_tools", async () => {
+  test("should return comment server when commit signing is disabled", async () => {
     const result = await prepareMcpConfig({
       githubToken: "test-token",
       owner: "test-owner",
@@ -78,6 +95,37 @@ describe("prepareMcpConfig", () => {
     const parsed = JSON.parse(result);
     expect(parsed.mcpServers).toBeDefined();
     expect(parsed.mcpServers.github).not.toBeDefined();
+    expect(parsed.mcpServers.github_file_ops).not.toBeDefined();
+    expect(parsed.mcpServers.github_comment).toBeDefined();
+    expect(parsed.mcpServers.github_comment.env.GITHUB_TOKEN).toBe(
+      "test-token",
+    );
+    expect(parsed.mcpServers.github_comment.env.REPO_OWNER).toBe("test-owner");
+    expect(parsed.mcpServers.github_comment.env.REPO_NAME).toBe("test-repo");
+  });
+
+  test("should return file ops server when commit signing is enabled", async () => {
+    const contextWithSigning = {
+      ...mockContext,
+      inputs: {
+        ...mockContext.inputs,
+        useCommitSigning: true,
+      },
+    };
+
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      allowedTools: [],
+      context: contextWithSigning,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers).toBeDefined();
+    expect(parsed.mcpServers.github).not.toBeDefined();
+    expect(parsed.mcpServers.github_comment).toBeDefined();
     expect(parsed.mcpServers.github_file_ops).toBeDefined();
     expect(parsed.mcpServers.github_file_ops.env.GITHUB_TOKEN).toBe(
       "test-token",
@@ -105,13 +153,22 @@ describe("prepareMcpConfig", () => {
     const parsed = JSON.parse(result);
     expect(parsed.mcpServers).toBeDefined();
     expect(parsed.mcpServers.github).toBeDefined();
-    expect(parsed.mcpServers.github_file_ops).toBeDefined();
+    expect(parsed.mcpServers.github_comment).toBeDefined();
+    expect(parsed.mcpServers.github_file_ops).not.toBeDefined();
     expect(parsed.mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN).toBe(
       "test-token",
     );
   });
 
   test("should not include github MCP server when only file_ops tools are allowed", async () => {
+    const contextWithSigning = {
+      ...mockContext,
+      inputs: {
+        ...mockContext.inputs,
+        useCommitSigning: true,
+      },
+    };
+
     const result = await prepareMcpConfig({
       githubToken: "test-token",
       owner: "test-owner",
@@ -121,7 +178,7 @@ describe("prepareMcpConfig", () => {
         "mcp__github_file_ops__commit_files",
         "mcp__github_file_ops__update_claude_comment",
       ],
-      context: mockContext,
+      context: contextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -130,7 +187,7 @@ describe("prepareMcpConfig", () => {
     expect(parsed.mcpServers.github_file_ops).toBeDefined();
   });
 
-  test("should include file_ops server even when no GitHub tools are allowed", async () => {
+  test("should include comment server when no GitHub tools are allowed and signing disabled", async () => {
     const result = await prepareMcpConfig({
       githubToken: "test-token",
       owner: "test-owner",
@@ -143,7 +200,8 @@ describe("prepareMcpConfig", () => {
     const parsed = JSON.parse(result);
     expect(parsed.mcpServers).toBeDefined();
     expect(parsed.mcpServers.github).not.toBeDefined();
-    expect(parsed.mcpServers.github_file_ops).toBeDefined();
+    expect(parsed.mcpServers.github_file_ops).not.toBeDefined();
+    expect(parsed.mcpServers.github_comment).toBeDefined();
   });
 
   test("should return base config when additional config is empty string", async () => {
@@ -160,7 +218,7 @@ describe("prepareMcpConfig", () => {
     const parsed = JSON.parse(result);
     expect(parsed.mcpServers).toBeDefined();
     expect(parsed.mcpServers.github).not.toBeDefined();
-    expect(parsed.mcpServers.github_file_ops).toBeDefined();
+    expect(parsed.mcpServers.github_comment).toBeDefined();
     expect(consoleWarningSpy).not.toHaveBeenCalled();
   });
 
@@ -178,7 +236,7 @@ describe("prepareMcpConfig", () => {
     const parsed = JSON.parse(result);
     expect(parsed.mcpServers).toBeDefined();
     expect(parsed.mcpServers.github).not.toBeDefined();
-    expect(parsed.mcpServers.github_file_ops).toBeDefined();
+    expect(parsed.mcpServers.github_comment).toBeDefined();
     expect(consoleWarningSpy).not.toHaveBeenCalled();
   });
 
@@ -205,7 +263,7 @@ describe("prepareMcpConfig", () => {
         "mcp__github__create_issue",
         "mcp__github_file_ops__commit_files",
       ],
-      context: mockContext,
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -243,7 +301,7 @@ describe("prepareMcpConfig", () => {
         "mcp__github__create_issue",
         "mcp__github_file_ops__commit_files",
       ],
-      context: mockContext,
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -281,7 +339,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       additionalMcpConfig: additionalConfig,
       allowedTools: [],
-      context: mockContext,
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -301,7 +359,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       additionalMcpConfig: invalidJson,
       allowedTools: [],
-      context: mockContext,
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -322,7 +380,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       additionalMcpConfig: nonObjectJson,
       allowedTools: [],
-      context: mockContext,
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -346,7 +404,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       additionalMcpConfig: nullJson,
       allowedTools: [],
-      context: mockContext,
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -370,7 +428,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       additionalMcpConfig: arrayJson,
       allowedTools: [],
-      context: mockContext,
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -417,7 +475,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       additionalMcpConfig: additionalConfig,
       allowedTools: [],
-      context: mockContext,
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -439,7 +497,7 @@ describe("prepareMcpConfig", () => {
       repo: "test-repo",
       branch: "test-branch",
       allowedTools: [],
-      context: mockContext,
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -460,7 +518,7 @@ describe("prepareMcpConfig", () => {
       repo: "test-repo",
       branch: "test-branch",
       allowedTools: [],
-      context: mockContext,
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -478,6 +536,7 @@ describe("prepareMcpConfig", () => {
       inputs: {
         ...mockPRContext.inputs,
         additionalPermissions: new Map([["actions", "read"]]),
+        useCommitSigning: true,
       },
     };
 
@@ -506,7 +565,7 @@ describe("prepareMcpConfig", () => {
       repo: "test-repo",
       branch: "test-branch",
       allowedTools: [],
-      context: mockContext,
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -524,7 +583,7 @@ describe("prepareMcpConfig", () => {
       repo: "test-repo",
       branch: "test-branch",
       allowedTools: [],
-      context: mockPRContext,
+      context: mockPRContextWithSigning,
     });
 
     const parsed = JSON.parse(result);

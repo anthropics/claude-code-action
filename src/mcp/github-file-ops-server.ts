@@ -7,8 +7,6 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
-import { Octokit } from "@octokit/rest";
-import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 import { retryWithBackoff } from "../utils/retry";
 
 type GitHubRef = {
@@ -515,70 +513,6 @@ server.tool(
           {
             type: "text",
             text: JSON.stringify(simplifiedResult, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: ${errorMessage}`,
-          },
-        ],
-        error: errorMessage,
-        isError: true,
-      };
-    }
-  },
-);
-
-server.tool(
-  "update_claude_comment",
-  "Update the Claude comment with progress and results (automatically handles both issue and PR comments)",
-  {
-    body: z.string().describe("The updated comment content"),
-  },
-  async ({ body }) => {
-    try {
-      const githubToken = process.env.GITHUB_TOKEN;
-      const claudeCommentId = process.env.CLAUDE_COMMENT_ID;
-      const eventName = process.env.GITHUB_EVENT_NAME;
-
-      if (!githubToken) {
-        throw new Error("GITHUB_TOKEN environment variable is required");
-      }
-      if (!claudeCommentId) {
-        throw new Error("CLAUDE_COMMENT_ID environment variable is required");
-      }
-
-      const owner = REPO_OWNER;
-      const repo = REPO_NAME;
-      const commentId = parseInt(claudeCommentId, 10);
-
-      const octokit = new Octokit({
-        auth: githubToken,
-        baseUrl: GITHUB_API_URL,
-      });
-
-      const isPullRequestReviewComment =
-        eventName === "pull_request_review_comment";
-
-      const result = await updateClaudeComment(octokit, {
-        owner,
-        repo,
-        commentId,
-        body,
-        isPullRequestReviewComment,
-      });
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2),
           },
         ],
       };

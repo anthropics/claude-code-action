@@ -92,6 +92,10 @@ inputs:
     description: "Use just one comment to deliver issue/PR comments"
     required: false
     default: "false"
+  use_commit_signing:
+    description: "Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands"
+    required: false
+    default: "false"
 
 outputs:
   execution_file:
@@ -133,6 +137,7 @@ runs:
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
         ACTIONS_TOKEN: ${{ github.token }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
+        USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
 
     - name: Run Claude Code
       id: claude-code

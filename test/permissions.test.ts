@@ -70,6 +70,7 @@ describe("checkWritePermissions", () => {
       branchPrefix: "claude/",
       useStickyComment: false,
       additionalPermissions: new Map(),
+      useCommitSigning: false,
     },
   });
 

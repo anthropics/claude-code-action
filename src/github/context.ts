@@ -38,6 +38,7 @@ export type ParsedGitHubContext = {
     branchPrefix: string;
     useStickyComment: boolean;
     additionalPermissions: Map<string, string>;
+    useCommitSigning: boolean;
   };
 };
 
@@ -68,6 +69,7 @@ export function parseGitHubContext(): ParsedGitHubContext {
       additionalPermissions: parseAdditionalPermissions(
         process.env.ADDITIONAL_PERMISSIONS ?? "",
       ),
+      useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
     },
   };
 

@@ -13,6 +13,7 @@ import { checkWritePermissions } from "../github/validation/permissions";
 import { createInitialComment } from "../github/operations/comments/create-initial";
 import { setupBranch } from "../github/operations/branch";
 import { updateTrackingComment } from "../github/operations/comments/update-with-branch";
+import { configureGitAuth } from "../github/operations/git-config";
 import { prepareMcpConfig } from "../mcp/install-mcp-server";
 import { createPrompt } from "../create-prompt";
 import { createOctokit } from "../github/api/client";
@@ -51,7 +52,8 @@ async function run() {
     await checkHumanActor(octokit.rest, context);
 
     // Step 6: Create initial tracking comment
-    const commentId = await createInitialComment(octokit.rest, context);
+    const commentData = await createInitialComment(octokit.rest, context);
+    const commentId = commentData.id;
 
     // Step 7: Fetch GitHub data (once for both branch setup and prompt creation)
     const githubData = await fetchGitHubData({
@@ -75,7 +77,17 @@ async function run() {
       );
     }
 
-    // Step 10: Create prompt file
+    // Step 10: Configure git authentication if not using commit signing
+    if (!context.inputs.useCommitSigning) {
+      try {
+        await configureGitAuth(githubToken, context, commentData.user);
+      } catch (error) {
+        console.error("Failed to configure git authentication:", error);
+        throw error;
+      }
+    }
+
+    // Step 11: Create prompt file
     await createPrompt(
       commentId,
       branchInfo.baseBranch,
@@ -84,7 +96,7 @@ async function run() {
       context,
     );
 
-    // Step 11: Get MCP configuration
+    // Step 12: Get MCP configuration
     const additionalMcpConfig = process.env.MCP_CONFIG || "";
     const mcpConfig = await prepareMcpConfig({
       githubToken,

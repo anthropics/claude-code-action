@@ -22,6 +22,7 @@ const defaultInputs = {
   branchPrefix: "claude/",
   useStickyComment: false,
   additionalPermissions: new Map<string, string>(),
+  useCommitSigning: false,
 };
 
 const defaultRepository = {

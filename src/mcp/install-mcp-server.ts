@@ -67,27 +67,46 @@ export async function prepareMcpConfig(
     );
 
     const baseMcpConfig: { mcpServers: Record<string, unknown> } = {
-      mcpServers: {
-        github_file_ops: {
-          command: "bun",
-          args: [
-            "run",
-            `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-file-ops-server.ts`,
-          ],
-          env: {
-            GITHUB_TOKEN: githubToken,
-            REPO_OWNER: owner,
-            REPO_NAME: repo,
-            BRANCH_NAME: branch,
-            REPO_DIR: process.env.GITHUB_WORKSPACE || process.cwd(),
-            ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
-            GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
-            IS_PR: process.env.IS_PR || "false",
-            GITHUB_API_URL: GITHUB_API_URL,
-          },
-        },
+      mcpServers: {},
+    };
+
+    // Always include comment server for updating Claude comments
+    baseMcpConfig.mcpServers.github_comment = {
+      command: "bun",
+      args: [
+        "run",
+        `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-comment-server.ts`,
+      ],
+      env: {
+        GITHUB_TOKEN: githubToken,
+        REPO_OWNER: owner,
+        REPO_NAME: repo,
+        ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
+        GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
+        GITHUB_API_URL: GITHUB_API_URL,
       },
     };
+
+    // Include file ops server when commit signing is enabled
+    if (context.inputs.useCommitSigning) {
+      baseMcpConfig.mcpServers.github_file_ops = {
+        command: "bun",
+        args: [
+          "run",
+          `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-file-ops-server.ts`,
+        ],
+        env: {
+          GITHUB_TOKEN: githubToken,
+          REPO_OWNER: owner,
+          REPO_NAME: repo,
+          BRANCH_NAME: branch,
+          REPO_DIR: process.env.GITHUB_WORKSPACE || process.cwd(),
+          GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
+          IS_PR: process.env.IS_PR || "false",
+          GITHUB_API_URL: GITHUB_API_URL,
+        },
+      };
+    }
 
     // Only add CI server if we have actions:read permission and we're in a PR context
     const hasActionsReadPermission =

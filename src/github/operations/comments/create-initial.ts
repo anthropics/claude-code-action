@@ -86,7 +86,7 @@ export async function createInitialComment(
     const githubOutput = process.env.GITHUB_OUTPUT!;
     appendFileSync(githubOutput, `claude_comment_id=${response.data.id}\n`);
     console.log(`✅ Created initial comment with ID: ${response.data.id}`);
-    return response.data.id;
+    return response.data;
   } catch (error) {
     console.error("Error in initial comment:", error);
 
@@ -102,7 +102,7 @@ export async function createInitialComment(
       const githubOutput = process.env.GITHUB_OUTPUT!;
       appendFileSync(githubOutput, `claude_comment_id=${response.data.id}\n`);
       console.log(`✅ Created fallback comment with ID: ${response.data.id}`);
-      return response.data.id;
+      return response.data;
     } catch (fallbackError) {
       console.error("Error creating fallback comment:", fallbackError);
       throw fallbackError;
