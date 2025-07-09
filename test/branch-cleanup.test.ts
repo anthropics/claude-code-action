@@ -1,9 +1,9 @@
 import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
-import { checkAndDeleteEmptyBranch } from "../src/github/operations/branch-cleanup";
+import { checkAndCommitOrDeleteBranch } from "../src/github/operations/branch-cleanup";
 import type { Octokits } from "../src/github/api/client";
 import { GITHUB_SERVER_URL } from "../src/github/api/config";
 
-describe("checkAndDeleteEmptyBranch", () => {
+describe("checkAndCommitOrDeleteBranch", () => {
   let consoleLogSpy: any;
   let consoleErrorSpy: any;
 
@@ -43,12 +43,13 @@ describe("checkAndDeleteEmptyBranch", () => {
 
   test("should return no branch link and not delete when branch is undefined", async () => {
     const mockOctokit = createMockOctokit();
-    const result = await checkAndDeleteEmptyBranch(
+    const result = await checkAndCommitOrDeleteBranch(
       mockOctokit,
       "owner",
       "repo",
       undefined,
       "main",
+      false,
     );
 
     expect(result.shouldDeleteBranch).toBe(false);
@@ -56,14 +57,15 @@ describe("checkAndDeleteEmptyBranch", () => {
     expect(consoleLogSpy).not.toHaveBeenCalled();
   });
 
-  test("should delete branch and return no link when branch has no commits", async () => {
+  test("should mark branch for deletion when commit signing is enabled and no commits", async () => {
     const mockOctokit = createMockOctokit({ total_commits: 0 });
-    const result = await checkAndDeleteEmptyBranch(
+    const result = await checkAndCommitOrDeleteBranch(
       mockOctokit,
       "owner",
       "repo",
       "claude/issue-123-20240101_123456",
       "main",
+      true, // commit signing enabled
     );
 
     expect(result.shouldDeleteBranch).toBe(true);
@@ -71,19 +73,17 @@ describe("checkAndDeleteEmptyBranch", () => {
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "Branch claude/issue-123-20240101_123456 has no commits from Claude, will delete it",
     );
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      "✅ Deleted empty branch: claude/issue-123-20240101_123456",
-    );
   });
 
   test("should not delete branch and return link when branch has commits", async () => {
     const mockOctokit = createMockOctokit({ total_commits: 3 });
-    const result = await checkAndDeleteEmptyBranch(
+    const result = await checkAndCommitOrDeleteBranch(
       mockOctokit,
       "owner",
       "repo",
       "claude/issue-123-20240101_123456",
       "main",
+      false,
     );
 
     expect(result.shouldDeleteBranch).toBe(false);
@@ -109,12 +109,13 @@ describe("checkAndDeleteEmptyBranch", () => {
       },
     } as any as Octokits;
 
-    const result = await checkAndDeleteEmptyBranch(
+    const result = await checkAndCommitOrDeleteBranch(
       mockOctokit,
       "owner",
       "repo",
       "claude/issue-123-20240101_123456",
       "main",
+      false,
     );
 
     expect(result.shouldDeleteBranch).toBe(false);
@@ -131,12 +132,13 @@ describe("checkAndDeleteEmptyBranch", () => {
     const deleteError = new Error("Delete failed");
     const mockOctokit = createMockOctokit({ total_commits: 0 }, deleteError);
 
-    const result = await checkAndDeleteEmptyBranch(
+    const result = await checkAndCommitOrDeleteBranch(
       mockOctokit,
       "owner",
       "repo",
       "claude/issue-123-20240101_123456",
       "main",
+      true, // commit signing enabled - will try to delete
     );
 
     expect(result.shouldDeleteBranch).toBe(true);

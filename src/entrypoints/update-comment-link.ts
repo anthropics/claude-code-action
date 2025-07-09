@@ -11,7 +11,7 @@ import {
   isPullRequestReviewCommentEvent,
 } from "../github/context";
 import { GITHUB_SERVER_URL } from "../github/api/config";
-import { checkAndDeleteEmptyBranch } from "../github/operations/branch-cleanup";
+import { checkAndCommitOrDeleteBranch } from "../github/operations/branch-cleanup";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 
 async function run() {
@@ -88,13 +88,16 @@ async function run() {
     const currentBody = comment.body ?? "";
 
     // Check if we need to add branch link for new branches
-    const { shouldDeleteBranch, branchLink } = await checkAndDeleteEmptyBranch(
-      octokit,
-      owner,
-      repo,
-      claudeBranch,
-      baseBranch,
-    );
+    const useCommitSigning = process.env.USE_COMMIT_SIGNING === "true";
+    const { shouldDeleteBranch, branchLink } =
+      await checkAndCommitOrDeleteBranch(
+        octokit,
+        owner,
+        repo,
+        claudeBranch,
+        baseBranch,
+        useCommitSigning,
+      );
 
     // Check if we need to add PR URL when we have a new branch
     let prLink = "";
