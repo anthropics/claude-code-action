@@ -66,10 +66,7 @@ async function run() {
     // Step 8: Setup branch
     const branchInfo = await setupBranch(octokit, githubData, context);
 
-    // Step 9: Skip branch link update - branch will be created on remote when Claude pushes
-    // The branch link will be added in the final comment update
-
-    // Step 10: Configure git authentication if not using commit signing
+    // Step 9: Configure git authentication if not using commit signing
     if (!context.inputs.useCommitSigning) {
       try {
         await configureGitAuth(githubToken, context, commentData.user);
@@ -79,7 +76,7 @@ async function run() {
       }
     }
 
-    // Step 11: Create prompt file
+    // Step 10: Create prompt file
     await createPrompt(
       commentId,
       branchInfo.baseBranch,
@@ -88,7 +85,7 @@ async function run() {
       context,
     );
 
-    // Step 12: Get MCP configuration
+    // Step 11: Get MCP configuration
     const additionalMcpConfig = process.env.MCP_CONFIG || "";
     const mcpConfig = await prepareMcpConfig({
       githubToken,
