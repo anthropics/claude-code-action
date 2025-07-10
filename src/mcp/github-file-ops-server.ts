@@ -52,6 +52,120 @@ const server = new McpServer({
   version: "0.0.1",
 });
 
+// Helper function to get or create branch reference
+async function getOrCreateBranchRef(
+  owner: string,
+  repo: string,
+  branch: string,
+  githubToken: string,
+): Promise<string> {
+  // Try to get the branch reference
+  const refUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${branch}`;
+  const refResponse = await fetch(refUrl, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${githubToken}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+
+  if (refResponse.ok) {
+    const refData = (await refResponse.json()) as GitHubRef;
+    return refData.object.sha;
+  }
+
+  if (refResponse.status !== 404) {
+    throw new Error(`Failed to get branch reference: ${refResponse.status}`);
+  }
+
+  // Branch doesn't exist, need to create it
+  console.log(`Branch ${branch} does not exist, creating it...`);
+
+  // Get base branch from environment or determine it
+  const baseBranch = process.env.BASE_BRANCH || "main";
+
+  // Get the SHA of the base branch
+  const baseRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${baseBranch}`;
+  const baseRefResponse = await fetch(baseRefUrl, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${githubToken}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+
+  let baseSha: string;
+
+  if (!baseRefResponse.ok) {
+    // If base branch doesn't exist, try default branch
+    const repoUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}`;
+    const repoResponse = await fetch(repoUrl, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${githubToken}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+
+    if (!repoResponse.ok) {
+      throw new Error(`Failed to get repository info: ${repoResponse.status}`);
+    }
+
+    const repoData = (await repoResponse.json()) as {
+      default_branch: string;
+    };
+    const defaultBranch = repoData.default_branch;
+
+    // Try default branch
+    const defaultRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${defaultBranch}`;
+    const defaultRefResponse = await fetch(defaultRefUrl, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${githubToken}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+
+    if (!defaultRefResponse.ok) {
+      throw new Error(
+        `Failed to get default branch reference: ${defaultRefResponse.status}`,
+      );
+    }
+
+    const defaultRefData = (await defaultRefResponse.json()) as GitHubRef;
+    baseSha = defaultRefData.object.sha;
+  } else {
+    const baseRefData = (await baseRefResponse.json()) as GitHubRef;
+    baseSha = baseRefData.object.sha;
+  }
+
+  // Create the new branch
+  const createRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs`;
+  const createRefResponse = await fetch(createRefUrl, {
+    method: "POST",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${githubToken}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      ref: `refs/heads/${branch}`,
+      sha: baseSha,
+    }),
+  });
+
+  if (!createRefResponse.ok) {
+    const errorText = await createRefResponse.text();
+    throw new Error(
+      `Failed to create branch: ${createRefResponse.status} - ${errorText}`,
+    );
+  }
+
+  console.log(`Successfully created branch ${branch}`);
+  return baseSha;
+}
+
 // Commit files tool
 server.tool(
   "commit_files",
@@ -81,24 +195,13 @@ server.tool(
         return filePath;
       });
 
-      // 1. Get the branch reference
-      const refUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${branch}`;
-      const refResponse = await fetch(refUrl, {
-        headers: {
-          Accept: "application/vnd.github+json",
-          Authorization: `Bearer ${githubToken}`,
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      });
-
-      if (!refResponse.ok) {
-        throw new Error(
-          `Failed to get branch reference: ${refResponse.status}`,
-        );
-      }
-
-      const refData = (await refResponse.json()) as GitHubRef;
-      const baseSha = refData.object.sha;
+      // 1. Get the branch reference (create if doesn't exist)
+      const baseSha = await getOrCreateBranchRef(
+        owner,
+        repo,
+        branch,
+        githubToken,
+      );
 
       // 2. Get the base commit
       const commitUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/commits/${baseSha}`;
@@ -260,7 +363,6 @@ server.tool(
 
             // Only retry on 403 errors - these are the intermittent failures we're targeting
             if (updateRefResponse.status === 403) {
-              console.log("Received 403 error, will retry...");
               throw error;
             }
 
@@ -353,24 +455,13 @@ server.tool(
         return filePath;
       });
 
-      // 1. Get the branch reference
-      const refUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${branch}`;
-      const refResponse = await fetch(refUrl, {
-        headers: {
-          Accept: "application/vnd.github+json",
-          Authorization: `Bearer ${githubToken}`,
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      });
-
-      if (!refResponse.ok) {
-        throw new Error(
-          `Failed to get branch reference: ${refResponse.status}`,
-        );
-      }
-
-      const refData = (await refResponse.json()) as GitHubRef;
-      const baseSha = refData.object.sha;
+      // 1. Get the branch reference (create if doesn't exist)
+      const baseSha = await getOrCreateBranchRef(
+        owner,
+        repo,
+        branch,
+        githubToken,
+      );
 
       // 2. Get the base commit
       const commitUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/commits/${baseSha}`;

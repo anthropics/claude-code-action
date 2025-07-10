@@ -12,7 +12,6 @@ import { checkHumanActor } from "../github/validation/actor";
 import { checkWritePermissions } from "../github/validation/permissions";
 import { createInitialComment } from "../github/operations/comments/create-initial";
 import { setupBranch } from "../github/operations/branch";
-import { updateTrackingComment } from "../github/operations/comments/update-with-branch";
 import { configureGitAuth } from "../github/operations/git-config";
 import { prepareMcpConfig } from "../mcp/install-mcp-server";
 import { createPrompt } from "../create-prompt";
@@ -67,15 +66,8 @@ async function run() {
     // Step 8: Setup branch
     const branchInfo = await setupBranch(octokit, githubData, context);
 
-    // Step 9: Update initial comment with branch link (only for issues that created a new branch)
-    if (branchInfo.claudeBranch) {
-      await updateTrackingComment(
-        octokit,
-        context,
-        commentId,
-        branchInfo.claudeBranch,
-      );
-    }
+    // Step 9: Skip branch link update - branch will be created on remote when Claude pushes
+    // The branch link will be added in the final comment update
 
     // Step 10: Configure git authentication if not using commit signing
     if (!context.inputs.useCommitSigning) {
