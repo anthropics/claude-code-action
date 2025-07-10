@@ -3,6 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { GITHUB_API_URL } from "../github/api/config";
 import { mkdir, writeFile } from "fs/promises";
 import { Octokit } from "@octokit/rest";
 
@@ -54,6 +55,7 @@ server.tool(
     try {
       const client = new Octokit({
         auth: GITHUB_TOKEN,
+        baseUrl: GITHUB_API_URL,
       });
 
       // Get the PR to find the head SHA
@@ -142,6 +144,7 @@ server.tool(
     try {
       const client = new Octokit({
         auth: GITHUB_TOKEN,
+        baseUrl: GITHUB_API_URL,
       });
 
       // Get jobs for this workflow run
@@ -209,6 +212,7 @@ server.tool(
     try {
       const client = new Octokit({
         auth: GITHUB_TOKEN,
+        baseUrl: GITHUB_API_URL,
       });
 
       const response = await client.actions.downloadJobLogsForWorkflowRun({

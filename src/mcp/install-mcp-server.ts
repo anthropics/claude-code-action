@@ -20,7 +20,7 @@ async function checkActionsReadPermission(
   repo: string,
 ): Promise<boolean> {
   try {
-    const client = new Octokit({ auth: token });
+    const client = new Octokit({ auth: token, baseUrl: GITHUB_API_URL });
 
     // Try to list workflow runs - this requires actions:read
     // We use per_page=1 to minimize the response size
