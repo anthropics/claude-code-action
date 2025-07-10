@@ -53,6 +53,11 @@ export async function setupBranch(
         `PR #${entityNumber}: ${commitCount} commits, using fetch depth ${fetchDepth}`,
       );
 
+      if (!process.env.GITHUB_WORKSPACE) {
+        throw new Error("GITHUB_WORKSPACE environment variable is required");
+      }
+      process.chdir(process.env.GITHUB_WORKSPACE);
+
       // Execute git commands to checkout PR branch (dynamic depth based on PR size)
       await $`git fetch origin --depth=${fetchDepth} ${branchName}`;
       await $`git checkout ${branchName}`;
