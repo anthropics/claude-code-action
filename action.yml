@@ -100,7 +100,7 @@ outputs:
   branch_name:
     description: "The branch created by Claude Code for this execution"
     value: ${{ steps.prepare.outputs.CLAUDE_BRANCH }}
-    
+
 runs:
   using: "composite"
   steps:
