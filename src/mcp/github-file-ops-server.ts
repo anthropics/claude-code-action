@@ -39,6 +39,8 @@ const REPO_OWNER = process.env.REPO_OWNER;
 const REPO_NAME = process.env.REPO_NAME;
 const BRANCH_NAME = process.env.BRANCH_NAME;
 const REPO_DIR = process.env.REPO_DIR || process.cwd();
+const IS_PR = process.env.IS_PR === "true";
+const ENTITY_NUMBER = process.env.ENTITY_NUMBER;
 
 if (!REPO_OWNER || !REPO_NAME || !BRANCH_NAME) {
   console.error(
@@ -80,6 +82,10 @@ async function getOrCreateBranchRef(
 
   // Branch doesn't exist, need to create it
   console.log(`Branch ${branch} does not exist, creating it...`);
+
+  // Check if this is an issue branch
+  const issueMatch = branch.match(/issue-(\d+)-/);
+  const isIssueBranch = !IS_PR && issueMatch && ENTITY_NUMBER;
 
   // Get base branch from environment or determine it
   const baseBranch = process.env.BASE_BRANCH || "main";
@@ -139,7 +145,97 @@ async function getOrCreateBranchRef(
     baseSha = baseRefData.object.sha;
   }
 
-  // Create the new branch
+  // If this is an issue branch, try to use createLinkedBranch GraphQL mutation
+  if (isIssueBranch) {
+    try {
+      // First, get the issue node ID
+      const issueQuery = `
+        query($owner: String!, $repo: String!, $number: Int!) {
+          repository(owner: $owner, name: $repo) {
+            issue(number: $number) {
+              id
+            }
+          }
+        }
+      `;
+
+      const issueResponse = await fetch(
+        `${GITHUB_API_URL.replace("/repos", "/graphql")}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${githubToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: issueQuery,
+            variables: {
+              owner,
+              repo,
+              number: parseInt(ENTITY_NUMBER!),
+            },
+          }),
+        },
+      );
+
+      if (issueResponse.ok) {
+        const issueData = (await issueResponse.json()) as any;
+        const issueId = issueData.data?.repository?.issue?.id;
+
+        if (issueId) {
+          // Use createLinkedBranch mutation
+          const createLinkedBranchMutation = `
+            mutation($input: CreateLinkedBranchInput!) {
+              createLinkedBranch(input: $input) {
+                linkedBranch {
+                  ref {
+                    name
+                  }
+                }
+              }
+            }
+          `;
+
+          const mutationResponse = await fetch(
+            `${GITHUB_API_URL.replace("/repos", "/graphql")}`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${githubToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                query: createLinkedBranchMutation,
+                variables: {
+                  input: {
+                    issueId: issueId,
+                    oid: baseSha,
+                    name: branch,
+                  },
+                },
+              }),
+            },
+          );
+
+          if (mutationResponse.ok) {
+            const mutationData = (await mutationResponse.json()) as any;
+            if (mutationData.data?.createLinkedBranch?.linkedBranch) {
+              console.log(
+                `Successfully created branch ${branch} linked to issue #${ENTITY_NUMBER}`,
+              );
+              return baseSha;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(
+        `Failed to create linked branch via GraphQL, falling back to REST API: ${error}`,
+      );
+    }
+  }
+
+  // Fallback to regular branch creation
   const createRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs`;
   const createRefResponse = await fetch(createRefUrl, {
     method: "POST",
