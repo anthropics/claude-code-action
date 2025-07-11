@@ -72,7 +72,7 @@ describe("checkAndCommitOrDeleteBranch", () => {
       mockOctokit,
       "owner",
       "repo",
-      "claude/issue-123-20240101_123456",
+      "claude/issue-123-20240101-1234",
       "main",
       true, // commit signing enabled
     );
@@ -80,7 +80,7 @@ describe("checkAndCommitOrDeleteBranch", () => {
     expect(result.shouldDeleteBranch).toBe(true);
     expect(result.branchLink).toBe("");
     expect(consoleLogSpy).toHaveBeenCalledWith(
-      "Branch claude/issue-123-20240101_123456 has no commits from Claude, will delete it",
+      "Branch claude/issue-123-20240101-1234 has no commits from Claude, will delete it",
     );
   });
 
@@ -90,14 +90,14 @@ describe("checkAndCommitOrDeleteBranch", () => {
       mockOctokit,
       "owner",
       "repo",
-      "claude/issue-123-20240101_123456",
+      "claude/issue-123-20240101-1234",
       "main",
       false,
     );
 
     expect(result.shouldDeleteBranch).toBe(false);
     expect(result.branchLink).toBe(
-      `\n[View branch](${GITHUB_SERVER_URL}/owner/repo/tree/claude/issue-123-20240101_123456)`,
+      `\n[View branch](${GITHUB_SERVER_URL}/owner/repo/tree/claude/issue-123-20240101-1234)`,
     );
     expect(consoleLogSpy).not.toHaveBeenCalledWith(
       expect.stringContaining("has no commits"),
@@ -123,14 +123,14 @@ describe("checkAndCommitOrDeleteBranch", () => {
       mockOctokit,
       "owner",
       "repo",
-      "claude/issue-123-20240101_123456",
+      "claude/issue-123-20240101-1234",
       "main",
       false,
     );
 
     expect(result.shouldDeleteBranch).toBe(false);
     expect(result.branchLink).toBe(
-      `\n[View branch](${GITHUB_SERVER_URL}/owner/repo/tree/claude/issue-123-20240101_123456)`,
+      `\n[View branch](${GITHUB_SERVER_URL}/owner/repo/tree/claude/issue-123-20240101-1234)`,
     );
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "Error comparing commits on Claude branch:",
@@ -146,7 +146,7 @@ describe("checkAndCommitOrDeleteBranch", () => {
       mockOctokit,
       "owner",
       "repo",
-      "claude/issue-123-20240101_123456",
+      "claude/issue-123-20240101-1234",
       "main",
       true, // commit signing enabled - will try to delete
     );
@@ -154,7 +154,7 @@ describe("checkAndCommitOrDeleteBranch", () => {
     expect(result.shouldDeleteBranch).toBe(true);
     expect(result.branchLink).toBe("");
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Failed to delete branch claude/issue-123-20240101_123456:",
+      "Failed to delete branch claude/issue-123-20240101-1234:",
       deleteError,
     );
   });
@@ -170,7 +170,7 @@ describe("checkAndCommitOrDeleteBranch", () => {
       mockOctokit,
       "owner",
       "repo",
-      "claude/issue-123-20240101_123456",
+      "claude/issue-123-20240101-1234",
       "main",
       false,
     );
@@ -178,10 +178,10 @@ describe("checkAndCommitOrDeleteBranch", () => {
     expect(result.shouldDeleteBranch).toBe(false);
     expect(result.branchLink).toBe("");
     expect(consoleLogSpy).toHaveBeenCalledWith(
-      "Branch claude/issue-123-20240101_123456 does not exist remotely",
+      "Branch claude/issue-123-20240101-1234 does not exist remotely",
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(
-      "Branch claude/issue-123-20240101_123456 does not exist remotely, no branch link will be added",
+      "Branch claude/issue-123-20240101-1234 does not exist remotely, no branch link will be added",
     );
   });
 });

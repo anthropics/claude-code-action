@@ -127,7 +127,7 @@ describe("generatePrompt", () => {
         commentId: "67890",
         isPR: false,
         baseBranch: "main",
-        claudeBranch: "claude/issue-67890-20240101_120000",
+        claudeBranch: "claude/issue-67890-20240101-1200",
         issueNumber: "67890",
         commentBody: "@claude please fix this",
       },
@@ -183,7 +183,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "789",
         baseBranch: "main",
-        claudeBranch: "claude/issue-789-20240101_120000",
+        claudeBranch: "claude/issue-789-20240101-1200",
       },
     };
 
@@ -210,7 +210,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "999",
         baseBranch: "develop",
-        claudeBranch: "claude/issue-999-20240101_120000",
+        claudeBranch: "claude/issue-999-20240101-1200",
         assigneeTrigger: "claude-bot",
       },
     };
@@ -237,7 +237,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "888",
         baseBranch: "main",
-        claudeBranch: "claude/issue-888-20240101_120000",
+        claudeBranch: "claude/issue-888-20240101-1200",
         labelTrigger: "claude-task",
       },
     };
@@ -265,7 +265,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "789",
         baseBranch: "main",
-        claudeBranch: "claude/issue-789-20240101_120000",
+        claudeBranch: "claude/issue-789-20240101-1200",
       },
     };
 
@@ -312,7 +312,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "123",
         baseBranch: "main",
-        claudeBranch: "claude/issue-67890-20240101_120000",
+        claudeBranch: "claude/issue-67890-20240101-1200",
         commentBody: "@claude please fix this",
       },
     };
@@ -334,7 +334,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "123",
         baseBranch: "main",
-        claudeBranch: "claude/issue-67890-20240101_120000",
+        claudeBranch: "claude/issue-67890-20240101-1200",
         commentBody: "@claude please fix this",
       },
     };
@@ -388,7 +388,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "789",
         baseBranch: "main",
-        claudeBranch: "claude/issue-789-20240101_120000",
+        claudeBranch: "claude/issue-789-20240101-1200",
       },
     };
 
@@ -396,10 +396,10 @@ describe("generatePrompt", () => {
 
     // Should contain Issue-specific instructions
     expect(prompt).toContain(
-      "You are already on the correct branch (claude/issue-789-20240101_120000)",
+      "You are already on the correct branch (claude/issue-789-20240101-1200)",
     );
     expect(prompt).toContain(
-      "IMPORTANT: You are already on the correct branch (claude/issue-789-20240101_120000)",
+      "IMPORTANT: You are already on the correct branch (claude/issue-789-20240101-1200)",
     );
     expect(prompt).toContain("Create a PR](https://github.com/");
     expect(prompt).toContain(
@@ -426,7 +426,7 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "123",
         baseBranch: "main",
-        claudeBranch: "claude/issue-123-20240101_120000",
+        claudeBranch: "claude/issue-123-20240101-1200",
         commentBody: "@claude please fix this",
       },
     };
@@ -435,13 +435,13 @@ describe("generatePrompt", () => {
 
     // Should contain the actual branch name with timestamp
     expect(prompt).toContain(
-      "You are already on the correct branch (claude/issue-123-20240101_120000)",
+      "You are already on the correct branch (claude/issue-123-20240101-1200)",
     );
     expect(prompt).toContain(
-      "IMPORTANT: You are already on the correct branch (claude/issue-123-20240101_120000)",
+      "IMPORTANT: You are already on the correct branch (claude/issue-123-20240101-1200)",
     );
     expect(prompt).toContain(
-      "The branch-name is the current branch: claude/issue-123-20240101_120000",
+      "The branch-name is the current branch: claude/issue-123-20240101-1200",
     );
   });
 
@@ -456,7 +456,7 @@ describe("generatePrompt", () => {
         isPR: true,
         prNumber: "456",
         commentBody: "@claude please fix this",
-        claudeBranch: "claude/pr-456-20240101_120000",
+        claudeBranch: "claude/pr-456-20240101-1200",
         baseBranch: "main",
       },
     };
@@ -465,13 +465,13 @@ describe("generatePrompt", () => {
 
     // Should contain branch-specific instructions like issues
     expect(prompt).toContain(
-      "You are already on the correct branch (claude/pr-456-20240101_120000)",
+      "You are already on the correct branch (claude/pr-456-20240101-1200)",
     );
     expect(prompt).toContain(
       "Create a PR](https://github.com/owner/repo/compare/main",
     );
     expect(prompt).toContain(
-      "The branch-name is the current branch: claude/pr-456-20240101_120000",
+      "The branch-name is the current branch: claude/pr-456-20240101-1200",
     );
     expect(prompt).toContain("Reference to the original PR");
     expect(prompt).toContain(
@@ -525,7 +525,7 @@ describe("generatePrompt", () => {
         isPR: true,
         prNumber: "789",
         commentBody: "@claude please update this",
-        claudeBranch: "claude/pr-789-20240101_123000",
+        claudeBranch: "claude/pr-789-20240101-1230",
         baseBranch: "develop",
       },
     };
@@ -534,7 +534,7 @@ describe("generatePrompt", () => {
 
     // Should contain new branch instructions
     expect(prompt).toContain(
-      "You are already on the correct branch (claude/pr-789-20240101_123000)",
+      "You are already on the correct branch (claude/pr-789-20240101-1230)",
     );
     expect(prompt).toContain(
       "Create a PR](https://github.com/owner/repo/compare/develop",
@@ -553,7 +553,7 @@ describe("generatePrompt", () => {
         prNumber: "999",
         commentId: "review-comment-123",
         commentBody: "@claude fix this issue",
-        claudeBranch: "claude/pr-999-20240101_140000",
+        claudeBranch: "claude/pr-999-20240101-1400",
         baseBranch: "main",
       },
     };
@@ -562,7 +562,7 @@ describe("generatePrompt", () => {
 
     // Should contain new branch instructions
     expect(prompt).toContain(
-      "You are already on the correct branch (claude/pr-999-20240101_140000)",
+      "You are already on the correct branch (claude/pr-999-20240101-1400)",
     );
     expect(prompt).toContain("Create a PR](https://github.com/");
     expect(prompt).toContain("Reference to the original PR");
@@ -581,7 +581,7 @@ describe("generatePrompt", () => {
         eventAction: "closed",
         isPR: true,
         prNumber: "555",
-        claudeBranch: "claude/pr-555-20240101_150000",
+        claudeBranch: "claude/pr-555-20240101-1500",
         baseBranch: "main",
       },
     };
@@ -590,7 +590,7 @@ describe("generatePrompt", () => {
 
     // Should contain new branch instructions
     expect(prompt).toContain(
-      "You are already on the correct branch (claude/pr-555-20240101_150000)",
+      "You are already on the correct branch (claude/pr-555-20240101-1500)",
     );
     expect(prompt).toContain("Create a PR](https://github.com/");
     expect(prompt).toContain("Reference to the original PR");
@@ -683,7 +683,7 @@ describe("getEventTypeAndContext", () => {
         isPR: false,
         issueNumber: "999",
         baseBranch: "main",
-        claudeBranch: "claude/issue-999-20240101_120000",
+        claudeBranch: "claude/issue-999-20240101-1200",
         assigneeTrigger: "claude-bot",
       },
     };
@@ -705,7 +705,7 @@ describe("getEventTypeAndContext", () => {
         isPR: false,
         issueNumber: "888",
         baseBranch: "main",
-        claudeBranch: "claude/issue-888-20240101_120000",
+        claudeBranch: "claude/issue-888-20240101-1200",
         labelTrigger: "claude-task",
       },
     };
@@ -728,7 +728,7 @@ describe("getEventTypeAndContext", () => {
         isPR: false,
         issueNumber: "999",
         baseBranch: "main",
-        claudeBranch: "claude/issue-999-20240101_120000",
+        claudeBranch: "claude/issue-999-20240101-1200",
         // No assigneeTrigger when using directPrompt
       },
     };
