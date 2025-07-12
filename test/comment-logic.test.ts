@@ -443,4 +443,35 @@ describe("updateCommentBody", () => {
       expect(result).not.toContain("tree/claude/issue-123");
     });
   });
+
+  describe("disable user mentions", () => {
+    it("disables @username mentions when flag is true", () => {
+      const input = {
+        ...baseInput,
+        currentBody: "Claude Code is working…",
+        executionDetails: { duration_ms: 74000 }, // 1m 14s
+        triggerUsername: "trigger-user",
+        disableUserMentions: true,
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).toContain("**Claude finished the task in 1m 14s**");
+      expect(result).not.toContain("@trigger-user's task");
+    });
+
+    it("includes @username mentions when flag is false or undefined", () => {
+      const input = {
+        ...baseInput,
+        currentBody: "Claude Code is working…",
+        executionDetails: { duration_ms: 74000 }, // 1m 14s
+        triggerUsername: "trigger-user",
+        disableUserMentions: false,
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).toContain(
+        "**Claude finished @trigger-user's task in 1m 14s**",
+      );
+    });
+  });
 });

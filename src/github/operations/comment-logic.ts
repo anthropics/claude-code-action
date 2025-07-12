@@ -16,6 +16,7 @@ export type CommentUpdateInput = {
   branchName?: string;
   triggerUsername?: string;
   errorDetails?: string;
+  disableUserMentions?: boolean;
 };
 
 export function ensureProperlyEncodedUrl(url: string): string | null {
@@ -77,6 +78,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     branchName,
     triggerUsername,
     errorDetails,
+    disableUserMentions,
   } = input;
 
   // Extract content from the original comment body
@@ -124,7 +126,9 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     const username =
       triggerUsername || (usernameMatch ? usernameMatch[1] : "user");
 
-    header = `**Claude finished @${username}'s task`;
+    header = disableUserMentions
+      ? "**Claude finished the task"
+      : `**Claude finished @${username}'s task`;
     if (durationStr) {
       header += ` in ${durationStr}`;
     }
