@@ -110,6 +110,7 @@ jobs:
 | `branch_prefix`           | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                         | No       | `claude/` |
 | `claude_env`              | Custom environment variables to pass to Claude Code execution (YAML format)                                          | No       | ""        |
 | `additional_permissions`  | Additional permissions to enable. Currently supports 'actions: read' for viewing workflow results                    | No       | ""        |
+| `disable_user_mentions`   | Disable @username mentions in Claude comment headers                                                                 | No       | `false`   |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 
