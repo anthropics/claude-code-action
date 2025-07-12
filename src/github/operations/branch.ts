@@ -86,11 +86,11 @@ export async function setupBranch(
 
   // Generate branch name for either an issue or closed/merged PR
   const entityType = isPR ? "pr" : "issue";
-  
+
   // Create Kubernetes-compatible timestamp: lowercase, hyphens only, shorter format
   const now = new Date();
-  const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-  
+  const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+
   // Ensure branch name is Kubernetes-compatible:
   // - Lowercase only
   // - Alphanumeric with hyphens
