@@ -96,6 +96,10 @@ inputs:
     description: "Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands"
     required: false
     default: "false"
+  delete_comment_on_completion:
+    description: "Delete the Claude Code comment on completion of the workflow. This may be useful when utilizing direct prompts where the results are not needed as a PR comment."
+    required: false
+    default: "false"
 
 outputs:
   execution_file:
@@ -227,6 +231,15 @@ runs:
           cat "${{ steps.claude-code.outputs.execution_file }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
         fi
+
+    - name:
+      if: always() && inputs.delete_comment_on_completion == 'true'
+      shell: bash
+      run: |
+         bun run ${GITHUB_ACTION_PATH}/src/entrypoints/delete-comment.ts
+      env:
+        CLAUDE_COMMENT_ID: ${{ steps.prepare.outputs.claude_comment_id }}
+        GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
 
     - name: Revoke app token
       if: always() && inputs.github_token == ''
