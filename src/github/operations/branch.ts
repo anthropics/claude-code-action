@@ -84,7 +84,7 @@ export async function setupBranch(
     sourceBranch = repoResponse.data.default_branch;
   }
 
-  // Generate branch name for either an issue or closed/merged PR
+  // Creating a new branch for either an issue or closed/merged PR
   const entityType = isPR ? "pr" : "issue";
 
   // Create Kubernetes-compatible timestamp: lowercase, hyphens only, shorter format
@@ -100,7 +100,7 @@ export async function setupBranch(
   const newBranch = branchName.toLowerCase().substring(0, 50);
 
   try {
-    // Get the SHA of the source branch to verify it exists
+    // Get the SHA of the source branch
     const sourceBranchRef = await octokits.rest.git.getRef({
       owner,
       repo,
@@ -108,34 +108,23 @@ export async function setupBranch(
     });
 
     const currentSHA = sourceBranchRef.data.object.sha;
-    console.log(`Source branch SHA: ${currentSHA}`);
 
-    // For commit signing, defer branch creation to the file ops server
-    if (context.inputs.useCommitSigning) {
-      console.log(
-        `Branch name generated: ${newBranch} (will be created by file ops server on first commit)`,
-      );
+    console.log(`Current SHA: ${currentSHA}`);
 
-      // Set outputs for GitHub Actions
-      core.setOutput("CLAUDE_BRANCH", newBranch);
-      core.setOutput("BASE_BRANCH", sourceBranch);
-      return {
-        baseBranch: sourceBranch,
-        claudeBranch: newBranch,
-        currentBranch: sourceBranch, // Stay on source branch for now
-      };
-    }
+    // Create branch using GitHub API
+    await octokits.rest.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${newBranch}`,
+      sha: currentSHA,
+    });
 
-    // For non-signing case, create and checkout the branch locally only
-    console.log(
-      `Creating local branch ${newBranch} for ${entityType} #${entityNumber} from source branch: ${sourceBranch}...`,
-    );
-
-    // Create and checkout the new branch locally
-    await $`git checkout -b ${newBranch}`;
+    // Checkout the new branch (shallow fetch for performance)
+    await $`git fetch origin --depth=1 ${newBranch}`;
+    await $`git checkout ${newBranch}`;
 
     console.log(
-      `Successfully created and checked out local branch: ${newBranch}`,
+      `Successfully created and checked out new branch: ${newBranch}`,
     );
 
     // Set outputs for GitHub Actions
@@ -147,7 +136,7 @@ export async function setupBranch(
       currentBranch: newBranch,
     };
   } catch (error) {
-    console.error("Error in branch setup:", error);
+    console.error("Error creating branch:", error);
     process.exit(1);
   }
 }

@@ -201,7 +201,7 @@ async function run() {
       jobUrl,
       branchLink,
       prLink,
-      branchName: shouldDeleteBranch || !branchLink ? undefined : claudeBranch,
+      branchName: shouldDeleteBranch ? undefined : claudeBranch,
       triggerUsername,
       errorDetails,
     };

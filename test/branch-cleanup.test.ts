@@ -21,7 +21,6 @@ describe("checkAndCommitOrDeleteBranch", () => {
   const createMockOctokit = (
     compareResponse?: any,
     deleteRefError?: Error,
-    branchExists: boolean = true,
   ): Octokits => {
     return {
       rest: {
@@ -29,14 +28,6 @@ describe("checkAndCommitOrDeleteBranch", () => {
           compareCommitsWithBasehead: async () => ({
             data: compareResponse || { total_commits: 0 },
           }),
-          getBranch: async () => {
-            if (!branchExists) {
-              const error: any = new Error("Not Found");
-              error.status = 404;
-              throw error;
-            }
-            return { data: {} };
-          },
         },
         git: {
           deleteRef: async () => {
@@ -111,7 +102,6 @@ describe("checkAndCommitOrDeleteBranch", () => {
           compareCommitsWithBasehead: async () => {
             throw new Error("API error");
           },
-          getBranch: async () => ({ data: {} }), // Branch exists
         },
         git: {
           deleteRef: async () => ({ data: {} }),
@@ -133,7 +123,7 @@ describe("checkAndCommitOrDeleteBranch", () => {
       `\n[View branch](${GITHUB_SERVER_URL}/owner/repo/tree/claude/issue-123-20240101-1234)`,
     );
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Error comparing commits on Claude branch:",
+      "Error checking for commits on Claude branch:",
       expect.any(Error),
     );
   });
@@ -156,32 +146,6 @@ describe("checkAndCommitOrDeleteBranch", () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "Failed to delete branch claude/issue-123-20240101-1234:",
       deleteError,
-    );
-  });
-
-  test("should return no branch link when branch doesn't exist remotely", async () => {
-    const mockOctokit = createMockOctokit(
-      { total_commits: 0 },
-      undefined,
-      false, // branch doesn't exist
-    );
-
-    const result = await checkAndCommitOrDeleteBranch(
-      mockOctokit,
-      "owner",
-      "repo",
-      "claude/issue-123-20240101-1234",
-      "main",
-      false,
-    );
-
-    expect(result.shouldDeleteBranch).toBe(false);
-    expect(result.branchLink).toBe("");
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      "Branch claude/issue-123-20240101-1234 does not exist remotely",
-    );
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      "Branch claude/issue-123-20240101-1234 does not exist remotely, no branch link will be added",
     );
   });
 });

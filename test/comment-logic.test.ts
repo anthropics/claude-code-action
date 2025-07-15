@@ -1,8 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import {
-  updateCommentBody,
-  type CommentUpdateInput,
-} from "../src/github/operations/comment-logic";
+import { updateCommentBody } from "../src/github/operations/comment-logic";
 
 describe("updateCommentBody", () => {
   const baseInput = {
@@ -419,28 +416,6 @@ describe("updateCommentBody", () => {
       expect(result).toContain(
         "• [Create PR ➔](https://github.com/owner/repo/compare/main...claude/issue-123-20240101-1200)",
       );
-    });
-
-    it("should not show branch name when branch doesn't exist remotely", () => {
-      const input: CommentUpdateInput = {
-        currentBody: "@claude can you help with this?",
-        actionFailed: false,
-        executionDetails: { duration_ms: 90000 },
-        jobUrl: "https://github.com/owner/repo/actions/runs/123",
-        branchLink: "", // Empty branch link means branch doesn't exist remotely
-        branchName: undefined, // Should be undefined when branchLink is empty
-        triggerUsername: "claude",
-        prLink: "",
-      };
-
-      const result = updateCommentBody(input);
-
-      expect(result).toContain("Claude finished @claude's task in 1m 30s");
-      expect(result).toContain(
-        "[View job](https://github.com/owner/repo/actions/runs/123)",
-      );
-      expect(result).not.toContain("claude/issue-123");
-      expect(result).not.toContain("tree/claude/issue-123");
     });
   });
 });
