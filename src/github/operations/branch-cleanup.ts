@@ -14,6 +14,31 @@ export async function checkAndCommitOrDeleteBranch(
   let shouldDeleteBranch = false;
 
   if (claudeBranch) {
+    // First check if the branch exists remotely
+    let branchExistsRemotely = false;
+    try {
+      await octokit.rest.repos.getBranch({
+        owner,
+        repo,
+        branch: claudeBranch,
+      });
+      branchExistsRemotely = true;
+    } catch (error: any) {
+      if (error.status === 404) {
+        console.log(`Branch ${claudeBranch} does not exist remotely`);
+      } else {
+        console.error("Error checking if branch exists:", error);
+      }
+    }
+
+    // Only proceed if branch exists remotely
+    if (!branchExistsRemotely) {
+      console.log(
+        `Branch ${claudeBranch} does not exist remotely, no branch link will be added`,
+      );
+      return { shouldDeleteBranch: false, branchLink: "" };
+    }
+
     // Check if Claude made any commits to the branch
     try {
       const { data: comparison } =
@@ -81,8 +106,8 @@ export async function checkAndCommitOrDeleteBranch(
         branchLink = `\n[View branch](${branchUrl})`;
       }
     } catch (error) {
-      console.error("Error checking for commits on Claude branch:", error);
-      // If we can't check, assume the branch has commits to be safe
+      console.error("Error comparing commits on Claude branch:", error);
+      // If we can't compare but the branch exists remotely, include the branch link
       const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${claudeBranch}`;
       branchLink = `\n[View branch](${branchUrl})`;
     }
