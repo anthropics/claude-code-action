@@ -132,7 +132,7 @@ export async function setupBranch(
     );
 
     // Create and checkout the new branch locally
-    await $`git checkout -b ${newBranch}`;
+    await $`git checkout -b ${newBranch} ${sourceBranch}`;
 
     console.log(
       `Successfully created and checked out local branch: ${newBranch}`,
