@@ -617,21 +617,13 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
       ${
         eventData.claudeBranch
           ? `- Provide a URL to create a PR manually in this format:
-        [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
+        [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1)
         - IMPORTANT: Use THREE dots (...) between branch names, not two (..)
           Example: ${GITHUB_SERVER_URL}/${context.repository}/compare/main...feature-branch (correct)
           NOT: ${GITHUB_SERVER_URL}/${context.repository}/compare/main..feature-branch (incorrect)
-        - IMPORTANT: Ensure all URL parameters are properly encoded - spaces should be encoded as %20, not left as spaces
-          Example: Instead of "fix: update welcome message", use "fix%3A%20update%20welcome%20message"
         - The target-branch should be '${eventData.baseBranch}'.
         - The branch-name is the current branch: ${eventData.claudeBranch}
-        - The body should include:
-          - A summary of what was implemented/fixed
-          - Bullet points listing the key changes made (e.g., "- Fixed X\n- Added Y\n- Improved Z")
-          - Any important technical details or decisions
-          - Reference to the original ${eventData.isPR ? "PR" : "issue"} (e.g., "Fixes #123" or "Addresses issue #123")
-          - The signature: "\n\n🤖 Generated with [Claude Code](https://claude.ai/code)"
-        - Make the PR description comprehensive enough that reviewers understand what changed without reading all the code
+        - DO NOT include title or body parameters in the URL - GitHub will use your latest commit message
         - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"`
           : ""
       }
