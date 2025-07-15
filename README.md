@@ -189,6 +189,7 @@ jobs:
 | `trigger_phrase`          | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                        | No       | `@claude` |
 | `branch_prefix`           | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                         | No       | `claude/` |
 | `claude_env`              | Custom environment variables to pass to Claude Code execution (YAML format)                                          | No       | ""        |
+| `settings`                | Claude Code settings as JSON string or path to settings JSON file                                                    | No       | ""        |
 | `additional_permissions`  | Additional permissions to enable. Currently supports 'actions: read' for viewing workflow results                    | No       | ""        |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
@@ -570,6 +571,65 @@ Use a specific Claude model:
     # model: "claude-3-5-sonnet-20241022"  # Optional: specify a different model
     # ... other inputs
 ```
+
+### Claude Code Settings
+
+You can provide Claude Code settings to customize behavior such as model selection, environment variables, permissions, and hooks. Settings can be provided either as a JSON string or a path to a settings file.
+
+#### Option 1: Settings File
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    settings: "path/to/settings.json"
+    # ... other inputs
+```
+
+#### Option 2: Inline Settings
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    settings: |
+      {
+        "model": "claude-opus-4-20250514",
+        "env": {
+          "DEBUG": "true",
+          "API_URL": "https://api.example.com"
+        },
+        "permissions": {
+          "allow": ["Bash", "Read"],
+          "deny": ["WebFetch"]
+        },
+        "hooks": {
+          "PreToolUse": [{
+            "matcher": "Bash",
+            "hooks": [{
+              "type": "command",
+              "command": "echo Running bash command..."
+            }]
+          }]
+        }
+      }
+    # ... other inputs
+```
+
+The settings support all Claude Code settings options including:
+
+- `model`: Override the default model
+- `env`: Environment variables for the session
+- `permissions`: Tool usage permissions
+- `hooks`: Pre/post tool execution hooks
+- And more...
+
+For a complete list of available settings and their descriptions, see the [Claude Code settings documentation](https://docs.anthropic.com/en/docs/claude-code/settings).
+
+**Notes**:
+
+- The `enableAllProjectMcpServers` setting is always set to `true` by this action to ensure MCP servers work correctly.
+- If both the `model` input parameter and a `model` in settings are provided, the `model` input parameter takes precedence.
+- The `allowed_tools` and `disallowed_tools` input parameters take precedence over `permissions` in settings.
+- In a future version, we may deprecate individual input parameters in favor of using the settings file for all configuration.
 
 ## Cloud Providers
 

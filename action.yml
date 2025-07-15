@@ -60,6 +60,10 @@ inputs:
     description: "Custom environment variables to pass to Claude Code execution (YAML format)"
     required: false
     default: ""
+  settings:
+    description: "Claude Code settings as JSON string or path to settings JSON file"
+    required: false
+    default: ""
 
   # Auth configuration
   anthropic_api_key:
@@ -160,6 +164,7 @@ runs:
         anthropic_api_key: ${{ inputs.anthropic_api_key }}
         claude_code_oauth_token: ${{ inputs.claude_code_oauth_token }}
         claude_env: ${{ inputs.claude_env }}
+        settings: ${{ inputs.settings }}
       env:
         # Model configuration
         ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
