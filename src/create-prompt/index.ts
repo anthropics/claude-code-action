@@ -623,7 +623,14 @@ ${context.directPrompt ? `   - DIRECT INSTRUCTION: A direct instruction was prov
           NOT: ${GITHUB_SERVER_URL}/${context.repository}/compare/main..feature-branch (incorrect)
         - The target-branch should be '${eventData.baseBranch}'.
         - The branch-name is the current branch: ${eventData.claudeBranch}
-        - DO NOT include title or body parameters in the URL - GitHub will use your latest commit message
+        - The system will automatically detect single vs multiple commits:
+          * Single commit: GitHub will use the commit message as PR title/description
+          * Multiple commits: PR will have title "${
+            eventData.isPR ? "PR" : "Issue"
+          } #${
+            eventData.isPR ? eventData.prNumber : eventData.issueNumber
+          }: Changes from Claude"
+        - DO NOT manually include title or body parameters in the URL
         - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"`
           : ""
       }
