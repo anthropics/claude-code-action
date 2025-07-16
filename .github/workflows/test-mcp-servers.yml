@@ -24,7 +24,7 @@ jobs:
           bun install
 
       - name: Run Claude Code with MCP test
-        uses: ./
+        uses: ./base-action
         id: claude-test
         with:
           prompt: "List all available tools"
@@ -105,7 +105,7 @@ jobs:
           ls -la $HOME/.claude/ || echo "No $HOME/.claude directory"
 
       - name: Run Claude Code with --mcp-config flag
-        uses: ./
+        uses: ./base-action
         id: claude-config-test
         with:
           prompt: "List all available tools"

@@ -15,7 +15,7 @@ jobs:
 
       - name: Test with comments in env
         id: comment-test
-        uses: ./
+        uses: ./base-action
         with:
           prompt: |
             Use the Bash tool to run: echo "VAR1: $VAR1" && echo "VAR2: $VAR2"

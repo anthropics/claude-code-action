@@ -50,3 +50,60 @@ jobs:
 
       - name: Run TypeScript type check
         run: bun run typecheck
+
+  base-action-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.12
+
+      - name: Install dependencies in base-action
+        run: |
+          cd base-action
+          bun install
+
+      - name: Run base-action tests
+        run: |
+          cd base-action
+          bun test
+
+  base-action-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.12
+
+      - name: Install dependencies in base-action
+        run: |
+          cd base-action
+          bun install
+
+      - name: Run base-action TypeScript type check
+        run: |
+          cd base-action
+          bun run typecheck
+
+  base-action-prettier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies in base-action
+        run: |
+          cd base-action
+          bun install
+
+      - name: Run base-action prettier check
+        run: |
+          cd base-action
+          bun run format:check
