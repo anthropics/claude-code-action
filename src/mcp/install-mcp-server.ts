@@ -8,6 +8,7 @@ type PrepareConfigParams = {
   owner: string;
   repo: string;
   branch: string;
+  baseBranch: string;
   additionalMcpConfig?: string;
   claudeCommentId?: string;
   allowedTools: string[];
@@ -54,6 +55,7 @@ export async function prepareMcpConfig(
     owner,
     repo,
     branch,
+    baseBranch,
     additionalMcpConfig,
     claudeCommentId,
     allowedTools,
@@ -100,7 +102,7 @@ export async function prepareMcpConfig(
           REPO_OWNER: owner,
           REPO_NAME: repo,
           BRANCH_NAME: branch,
-          BASE_BRANCH: process.env.BASE_BRANCH || "",
+          BASE_BRANCH: baseBranch,
           REPO_DIR: process.env.GITHUB_WORKSPACE || process.cwd(),
           GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
           IS_PR: process.env.IS_PR || "false",

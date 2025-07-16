@@ -78,11 +78,7 @@ async function getOrCreateBranchRef(
     throw new Error(`Failed to get branch reference: ${refResponse.status}`);
   }
 
-  // Branch doesn't exist, need to create it
-  console.log(`Branch ${branch} does not exist, creating it...`);
-
-  // Get base branch from environment or determine it
-  const baseBranch = process.env.BASE_BRANCH || "main";
+  const baseBranch = process.env.BASE_BRANCH!;
 
   // Get the SHA of the base branch
   const baseRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${baseBranch}`;
@@ -139,7 +135,7 @@ async function getOrCreateBranchRef(
     baseSha = baseRefData.object.sha;
   }
 
-  // Create the new branch
+  // Create the new branch using the same pattern as octokit
   const createRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs`;
   const createRefResponse = await fetch(createRefUrl, {
     method: "POST",
