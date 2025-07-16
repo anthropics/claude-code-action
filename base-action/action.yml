@@ -1,0 +1,166 @@
+name: "Claude Code Base Action"
+description: "Run Claude Code in GitHub Actions workflows"
+branding:
+  icon: "code"
+  color: "orange"
+
+inputs:
+  # Claude Code arguments
+  prompt:
+    description: "The prompt to send to Claude Code (mutually exclusive with prompt_file)"
+    required: false
+    default: ""
+  prompt_file:
+    description: "Path to a file containing the prompt to send to Claude Code (mutually exclusive with prompt)"
+    required: false
+    default: ""
+  allowed_tools:
+    description: "Comma-separated list of allowed tools for Claude Code to use"
+    required: false
+    default: ""
+  disallowed_tools:
+    description: "Comma-separated list of disallowed tools that Claude Code cannot use"
+    required: false
+    default: ""
+  max_turns:
+    description: "Maximum number of conversation turns (default: no limit)"
+    required: false
+    default: ""
+  mcp_config:
+    description: "MCP configuration as JSON string or path to MCP configuration JSON file"
+    required: false
+    default: ""
+  settings:
+    description: "Claude Code settings as JSON string or path to settings JSON file"
+    required: false
+    default: ""
+  system_prompt:
+    description: "Override system prompt"
+    required: false
+    default: ""
+  append_system_prompt:
+    description: "Append to system prompt"
+    required: false
+    default: ""
+  model:
+    description: "Model to use (provider-specific format required for Bedrock/Vertex)"
+    required: false
+  anthropic_model:
+    description: "DEPRECATED: Use 'model' instead. Model to use (provider-specific format required for Bedrock/Vertex)"
+    required: false
+  fallback_model:
+    description: "Enable automatic fallback to specified model when default model is unavailable"
+    required: false
+  claude_env:
+    description: "Custom environment variables to pass to Claude Code execution (YAML multiline format)"
+    required: false
+    default: ""
+
+  # Action settings
+  timeout_minutes:
+    description: "Timeout in minutes for Claude Code execution"
+    required: false
+    default: "10"
+
+  # Authentication settings
+  anthropic_api_key:
+    description: "Anthropic API key (required for direct Anthropic API)"
+    required: false
+    default: ""
+  claude_code_oauth_token:
+    description: "Claude Code OAuth token (alternative to anthropic_api_key)"
+    required: false
+    default: ""
+  use_bedrock:
+    description: "Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API"
+    required: false
+    default: "false"
+  use_vertex:
+    description: "Use Google Vertex AI with OIDC authentication instead of direct Anthropic API"
+    required: false
+    default: "false"
+
+  use_node_cache:
+    description: "Whether to use Node.js dependency caching (set to true only for Node.js projects with lock files)"
+    required: false
+    default: "false"
+
+outputs:
+  conclusion:
+    description: "Execution status of Claude Code ('success' or 'failure')"
+    value: ${{ steps.run_claude.outputs.conclusion }}
+  execution_file:
+    description: "Path to the JSON file containing Claude Code execution log"
+    value: ${{ steps.run_claude.outputs.execution_file }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # https://github.com/actions/setup-node/releases/tag/v4.4.0
+      with:
+        node-version: ${{ env.NODE_VERSION || '18.x' }}
+        cache: ${{ inputs.use_node_cache == 'true' && 'npm' || '' }}
+
+    - name: Install Bun
+      uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # https://github.com/oven-sh/setup-bun/releases/tag/v2.0.2
+      with:
+        bun-version: 1.2.11
+
+    - name: Install Dependencies
+      shell: bash
+      run: |
+        cd ${GITHUB_ACTION_PATH}
+        bun install
+
+    - name: Install Claude Code
+      shell: bash
+      run: npm install -g @anthropic-ai/claude-code@1.0.52
+
+    - name: Run Claude Code Action
+      shell: bash
+      id: run_claude
+      run: |
+        # Change to CLAUDE_WORKING_DIR if set (for running in custom directories)
+        if [ -n "$CLAUDE_WORKING_DIR" ]; then
+          echo "Changing directory to CLAUDE_WORKING_DIR: $CLAUDE_WORKING_DIR"
+          cd "$CLAUDE_WORKING_DIR"
+        fi
+        bun run ${GITHUB_ACTION_PATH}/src/index.ts
+      env:
+        # Model configuration
+        CLAUDE_CODE_ACTION: "1"
+        ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
+        INPUT_PROMPT: ${{ inputs.prompt }}
+        INPUT_PROMPT_FILE: ${{ inputs.prompt_file }}
+        INPUT_ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
+        INPUT_DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
+        INPUT_MAX_TURNS: ${{ inputs.max_turns }}
+        INPUT_MCP_CONFIG: ${{ inputs.mcp_config }}
+        INPUT_SETTINGS: ${{ inputs.settings }}
+        INPUT_SYSTEM_PROMPT: ${{ inputs.system_prompt }}
+        INPUT_APPEND_SYSTEM_PROMPT: ${{ inputs.append_system_prompt }}
+        INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
+        INPUT_CLAUDE_ENV: ${{ inputs.claude_env }}
+        INPUT_FALLBACK_MODEL: ${{ inputs.fallback_model }}
+
+        # Provider configuration
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
+        ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
+        # Only set provider flags if explicitly true, since any value (including "false") is truthy
+        CLAUDE_CODE_USE_BEDROCK: ${{ inputs.use_bedrock == 'true' && '1' || '' }}
+        CLAUDE_CODE_USE_VERTEX: ${{ inputs.use_vertex == 'true' && '1' || '' }}
+
+        # AWS configuration
+        AWS_REGION: ${{ env.AWS_REGION }}
+        AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+        AWS_SESSION_TOKEN: ${{ env.AWS_SESSION_TOKEN }}
+        ANTHROPIC_BEDROCK_BASE_URL: ${{ env.ANTHROPIC_BEDROCK_BASE_URL || (env.AWS_REGION && format('https://bedrock-runtime.{0}.amazonaws.com', env.AWS_REGION)) }}
+
+        # GCP configuration
+        ANTHROPIC_VERTEX_PROJECT_ID: ${{ env.ANTHROPIC_VERTEX_PROJECT_ID }}
+        CLOUD_ML_REGION: ${{ env.CLOUD_ML_REGION }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+        ANTHROPIC_VERTEX_BASE_URL: ${{ env.ANTHROPIC_VERTEX_BASE_URL }}

@@ -1,0 +1,47 @@
+name: Test Claude Env Feature
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-claude-env-with-comments:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Test with comments in env
+        id: comment-test
+        uses: ./
+        with:
+          prompt: |
+            Use the Bash tool to run: echo "VAR1: $VAR1" && echo "VAR2: $VAR2"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_env: |
+            # This is a comment
+            VAR1: value1
+            # Another comment
+            VAR2: value2
+
+            # Empty lines above should be ignored
+          allowed_tools: "Bash(echo:*)"
+          timeout_minutes: "2"
+
+      - name: Verify comment handling
+        run: |
+          OUTPUT_FILE="${{ steps.comment-test.outputs.execution_file }}"
+          if [ "${{ steps.comment-test.outputs.conclusion }}" = "success" ]; then
+            echo "✅ Comments in claude_env handled correctly"
+            if grep -q "value1" "$OUTPUT_FILE" && grep -q "value2" "$OUTPUT_FILE"; then
+              echo "✅ Environment variables set correctly despite comments"
+            else
+              echo "❌ Environment variables not found"
+              exit 1
+            fi
+          else
+            echo "❌ Failed with comments in claude_env"
+            exit 1
+          fi
