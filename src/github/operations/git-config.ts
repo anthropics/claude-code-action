@@ -21,6 +21,12 @@ export async function configureGitAuth(
 ) {
   console.log("Configuring git authentication for non-signing mode");
 
+  // Determine the noreply email domain based on GITHUB_SERVER_URL
+  const serverUrl = new URL(GITHUB_SERVER_URL);
+  const noreplyDomain = serverUrl.hostname === "github.com" 
+    ? "users.noreply.github.com" 
+    : `users.noreply.${serverUrl.hostname}`;
+
   // Configure git user based on the comment creator
   console.log("Configuring git user...");
   if (user) {
@@ -28,12 +34,12 @@ export async function configureGitAuth(
     const botId = user.id;
     console.log(`Setting git user as ${botName}...`);
     await $`git config user.name "${botName}"`;
-    await $`git config user.email "${botId}+${botName}@users.noreply.github.com"`;
+    await $`git config user.email "${botId}+${botName}@${noreplyDomain}"`;
     console.log(`✓ Set git user as ${botName}`);
   } else {
     console.log("No user data in comment, using default bot user");
     await $`git config user.name "github-actions[bot]"`;
-    await $`git config user.email "41898282+github-actions[bot]@users.noreply.github.com"`;
+    await $`git config user.email "41898282+github-actions[bot]@${noreplyDomain}"`;
   }
 
   // Remove the authorization header that actions/checkout sets
