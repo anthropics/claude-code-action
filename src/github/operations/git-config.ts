@@ -23,9 +23,10 @@ export async function configureGitAuth(
 
   // Determine the noreply email domain based on GITHUB_SERVER_URL
   const serverUrl = new URL(GITHUB_SERVER_URL);
-  const noreplyDomain = serverUrl.hostname === "github.com" 
-    ? "users.noreply.github.com" 
-    : `users.noreply.${serverUrl.hostname}`;
+  const noreplyDomain =
+    serverUrl.hostname === "github.com"
+      ? "users.noreply.github.com"
+      : `users.noreply.${serverUrl.hostname}`;
 
   // Configure git user based on the comment creator
   console.log("Configuring git user...");
@@ -53,7 +54,6 @@ export async function configureGitAuth(
 
   // Update the remote URL to include the token for authentication
   console.log("Updating remote URL with authentication...");
-  const serverUrl = new URL(GITHUB_SERVER_URL);
   const remoteUrl = `https://x-access-token:${githubToken}@${serverUrl.host}/${context.repository.owner}/${context.repository.repo}.git`;
   await $`git remote set-url origin ${remoteUrl}`;
   console.log("✓ Updated remote URL with authentication token");
