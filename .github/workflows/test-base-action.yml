@@ -20,7 +20,7 @@ jobs:
 
       - name: Test with inline prompt
         id: inline-test
-        uses: ./base-actionbase-action
+        uses: ./base-action
         with:
           prompt: ${{ github.event.inputs.test_prompt || 'List the files in the current directory starting with "package"' }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

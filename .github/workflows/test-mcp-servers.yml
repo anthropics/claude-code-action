@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           bun install
-          cd test/mcp-test
+          cd base-action/test/mcp-test
           bun install
 
       - name: Run Claude Code with MCP test
@@ -31,7 +31,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
         env:
           # Change to test directory so it finds .mcp.json
-          CLAUDE_WORKING_DIR: ${{ github.workspace }}/test/mcp-test
+          CLAUDE_WORKING_DIR: ${{ github.workspace }}/base-action/test/mcp-test
 
       - name: Check MCP server output
         run: |
@@ -89,7 +89,7 @@ jobs:
       - name: Install dependencies
         run: |
           bun install
-          cd test/mcp-test
+          cd base-action/test/mcp-test
           bun install
 
       - name: Debug environment paths (--mcp-config test)
@@ -113,7 +113,7 @@ jobs:
           mcp_config: '{"mcpServers":{"test-server":{"type":"stdio","command":"bun","args":["simple-mcp-server.ts"],"env":{}}}}'
         env:
           # Change to test directory so bun can find the MCP server script
-          CLAUDE_WORKING_DIR: ${{ github.workspace }}/test/mcp-test
+          CLAUDE_WORKING_DIR: ${{ github.workspace }}/base-action/test/mcp-test
 
       - name: Check MCP server output with --mcp-config
         run: |
