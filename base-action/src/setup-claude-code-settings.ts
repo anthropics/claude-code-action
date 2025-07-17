@@ -2,8 +2,11 @@ import { $ } from "bun";
 import { homedir } from "os";
 import { readFile } from "fs/promises";
 
-export async function setupClaudeCodeSettings(settingsInput?: string) {
-  const home = homedir();
+export async function setupClaudeCodeSettings(
+  settingsInput?: string,
+  homeDir?: string,
+) {
+  const home = homeDir ?? homedir();
   const settingsPath = `${home}/.claude/settings.json`;
   console.log(`Setting up Claude settings at: ${settingsPath}`);
 

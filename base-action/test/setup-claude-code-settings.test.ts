@@ -2,28 +2,33 @@
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { setupClaudeCodeSettings } from "../src/setup-claude-code-settings";
-import { homedir } from "os";
+import { tmpdir } from "os";
 import { mkdir, writeFile, readFile, rm } from "fs/promises";
 import { join } from "path";
 
-const home = homedir();
-const settingsPath = join(home, ".claude", "settings.json");
-const testSettingsDir = join(home, ".claude-test");
+const testHomeDir = join(
+  tmpdir(),
+  "claude-code-test-home",
+  Date.now().toString(),
+);
+const settingsPath = join(testHomeDir, ".claude", "settings.json");
+const testSettingsDir = join(testHomeDir, ".claude-test");
 const testSettingsPath = join(testSettingsDir, "test-settings.json");
 
 describe("setupClaudeCodeSettings", () => {
   beforeEach(async () => {
-    // Create test directory
+    // Create test home directory and test settings directory
+    await mkdir(testHomeDir, { recursive: true });
     await mkdir(testSettingsDir, { recursive: true });
   });
 
   afterEach(async () => {
-    // Clean up test directory
-    await rm(testSettingsDir, { recursive: true, force: true });
+    // Clean up test home directory
+    await rm(testHomeDir, { recursive: true, force: true });
   });
 
   test("should always set enableAllProjectMcpServers to true when no input", async () => {
-    await setupClaudeCodeSettings();
+    await setupClaudeCodeSettings(undefined, testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
@@ -37,7 +42,7 @@ describe("setupClaudeCodeSettings", () => {
       env: { API_KEY: "test-key" },
     });
 
-    await setupClaudeCodeSettings(inputSettings);
+    await setupClaudeCodeSettings(inputSettings, testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
@@ -64,7 +69,7 @@ describe("setupClaudeCodeSettings", () => {
 
     await writeFile(testSettingsPath, JSON.stringify(testSettings, null, 2));
 
-    await setupClaudeCodeSettings(testSettingsPath);
+    await setupClaudeCodeSettings(testSettingsPath, testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
@@ -80,7 +85,7 @@ describe("setupClaudeCodeSettings", () => {
       model: "test-model",
     });
 
-    await setupClaudeCodeSettings(inputSettings);
+    await setupClaudeCodeSettings(inputSettings, testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
@@ -90,15 +95,19 @@ describe("setupClaudeCodeSettings", () => {
   });
 
   test("should throw error for invalid JSON string", async () => {
-    expect(() => setupClaudeCodeSettings("{ invalid json")).toThrow();
+    expect(() =>
+      setupClaudeCodeSettings("{ invalid json", testHomeDir),
+    ).toThrow();
   });
 
   test("should throw error for non-existent file path", async () => {
-    expect(() => setupClaudeCodeSettings("/non/existent/file.json")).toThrow();
+    expect(() =>
+      setupClaudeCodeSettings("/non/existent/file.json", testHomeDir),
+    ).toThrow();
   });
 
   test("should handle empty string input", async () => {
-    await setupClaudeCodeSettings("");
+    await setupClaudeCodeSettings("", testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
@@ -107,7 +116,7 @@ describe("setupClaudeCodeSettings", () => {
   });
 
   test("should handle whitespace-only input", async () => {
-    await setupClaudeCodeSettings("   \n\t  ");
+    await setupClaudeCodeSettings("   \n\t  ", testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
@@ -119,6 +128,7 @@ describe("setupClaudeCodeSettings", () => {
     // First, create some existing settings
     await setupClaudeCodeSettings(
       JSON.stringify({ existingKey: "existingValue" }),
+      testHomeDir,
     );
 
     // Then, add new settings
@@ -127,7 +137,7 @@ describe("setupClaudeCodeSettings", () => {
       model: "claude-opus-4-20250514",
     });
 
-    await setupClaudeCodeSettings(newSettings);
+    await setupClaudeCodeSettings(newSettings, testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
