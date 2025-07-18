@@ -55,7 +55,7 @@ export async function setupBranch(
 
       // Execute git commands to checkout PR branch (dynamic depth based on PR size)
       await $`git fetch origin --depth=${fetchDepth} ${branchName}`;
-      await $`git checkout ${branchName}`;
+      await $`git checkout -- ${branchName}`;
 
       console.log(`Successfully checked out PR branch for PR #${entityNumber}`);
 
