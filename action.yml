@@ -185,30 +185,41 @@ runs:
     - name: Run Claude Code
       id: claude-code
       if: steps.prepare.outputs.contains_trigger == 'true'
-      uses: ${{ github.action_path }}/base-action
-      with:
-        prompt_file: ${{ runner.temp }}/claude-prompts/claude-prompt.txt
-        allowed_tools: ${{ env.ALLOWED_TOOLS }}
-        disallowed_tools: ${{ env.DISALLOWED_TOOLS }}
-        timeout_minutes: ${{ inputs.timeout_minutes }}
-        max_turns: ${{ inputs.max_turns }}
-        model: ${{ inputs.model || inputs.anthropic_model }}
-        fallback_model: ${{ inputs.fallback_model }}
-        mcp_config: ${{ steps.prepare.outputs.mcp_config }}
-        use_bedrock: ${{ inputs.use_bedrock }}
-        use_vertex: ${{ inputs.use_vertex }}
-        anthropic_api_key: ${{ inputs.anthropic_api_key }}
-        claude_code_oauth_token: ${{ inputs.claude_code_oauth_token }}
-        claude_env: ${{ inputs.claude_env }}
-        settings: ${{ inputs.settings }}
+      shell: bash
+      run: |
+        # Install Claude Code globally
+        npm install -g @anthropic-ai/claude-code@1.0.53
+
+        # Run the base-action
+        cd ${GITHUB_ACTION_PATH}/base-action
+        bun install
+        bun run src/index.ts
       env:
+        # Base-action inputs
+        CLAUDE_CODE_ACTION: "1"
+        INPUT_PROMPT_FILE: ${{ runner.temp }}/claude-prompts/claude-prompt.txt
+        INPUT_ALLOWED_TOOLS: ${{ env.ALLOWED_TOOLS }}
+        INPUT_DISALLOWED_TOOLS: ${{ env.DISALLOWED_TOOLS }}
+        INPUT_MAX_TURNS: ${{ inputs.max_turns }}
+        INPUT_MCP_CONFIG: ${{ steps.prepare.outputs.mcp_config }}
+        INPUT_SETTINGS: ${{ inputs.settings }}
+        INPUT_SYSTEM_PROMPT: ""
+        INPUT_APPEND_SYSTEM_PROMPT: ""
+        INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
+        INPUT_CLAUDE_ENV: ${{ inputs.claude_env }}
+        INPUT_FALLBACK_MODEL: ${{ inputs.fallback_model }}
+
         # Model configuration
         ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
         GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
         NODE_VERSION: ${{ env.NODE_VERSION }}
 
         # Provider configuration
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
         ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
+        CLAUDE_CODE_USE_BEDROCK: ${{ inputs.use_bedrock == 'true' && '1' || '' }}
+        CLAUDE_CODE_USE_VERTEX: ${{ inputs.use_vertex == 'true' && '1' || '' }}
 
         # AWS configuration
         AWS_REGION: ${{ env.AWS_REGION }}
