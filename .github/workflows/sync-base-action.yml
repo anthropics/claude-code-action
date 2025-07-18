@@ -56,6 +56,12 @@ jobs:
           # Copy all contents from base-action
           cp -r ../base-action/. .
 
+          # Prepend mirror disclaimer to README if both files exist
+          if [ -f "README.md" ] && [ -f "MIRROR_DISCLAIMER.md" ]; then
+            cat MIRROR_DISCLAIMER.md README.md > README.tmp
+            mv README.tmp README.md
+          fi
+
           # Check if there are any changes
           if git diff --quiet && git diff --staged --quiet; then
             echo "No changes to sync"
