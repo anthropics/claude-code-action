@@ -193,7 +193,8 @@ runs:
         # Run the base-action
         cd ${GITHUB_ACTION_PATH}/base-action
         bun install
-        bun run src/index.ts
+        cd -
+        bun run ${GITHUB_ACTION_PATH}/base-action/src/index.ts
       env:
         # Base-action inputs
         CLAUDE_CODE_ACTION: "1"
