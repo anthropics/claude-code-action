@@ -290,3 +290,6 @@ runs:
           -H "Authorization: Bearer ${{ steps.prepare.outputs.GITHUB_TOKEN }}" \
           -H "X-GitHub-Api-Version: 2022-11-28" \
           ${GITHUB_API_URL:-https://api.github.com}/installation/token
+
+          - name: Claude Code Action Official
+  uses: anthropics/claude-code-action@beta
