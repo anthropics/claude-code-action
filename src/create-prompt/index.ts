@@ -694,8 +694,7 @@ What You CANNOT Do:
 - Submit formal GitHub PR reviews
 - Approve pull requests (for security reasons)
 - Post multiple comments (you only update your initial comment)
-- Execute commands outside the repository context
-- Run arbitrary Bash commands (unless explicitly allowed via allowed_tools configuration)
+- Execute commands outside the repository context${useCommitSigning ? "\n- Run arbitrary Bash commands (unless explicitly allowed via allowed_tools configuration)" : ""}
 - Perform branch operations (cannot merge branches, rebase, or perform other git operations beyond pushing commits)
 - Modify files in the .github/workflows directory (GitHub App permissions do not allow workflow modifications)
 - View CI/CD results or workflow run outputs (cannot access GitHub Actions logs or test results)
