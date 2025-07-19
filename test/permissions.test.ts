@@ -67,6 +67,7 @@ describe("checkWritePermissions", () => {
       disallowedTools: [],
       customInstructions: "",
       directPrompt: "",
+      overridePrompt: "",
       branchPrefix: "claude/",
       useStickyComment: false,
       additionalPermissions: new Map(),

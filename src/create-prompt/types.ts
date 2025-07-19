@@ -7,6 +7,7 @@ export type CommonFields = {
   allowedTools?: string;
   disallowedTools?: string;
   directPrompt?: string;
+  overridePrompt?: string;
 };
 
 type PullRequestReviewCommentEvent = {

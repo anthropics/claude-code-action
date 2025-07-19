@@ -120,6 +120,7 @@ export function prepareContext(
   const allowedTools = context.inputs.allowedTools;
   const disallowedTools = context.inputs.disallowedTools;
   const directPrompt = context.inputs.directPrompt;
+  const overridePrompt = context.inputs.overridePrompt;
   const isPR = context.isPR;
 
   // Get PR/Issue number from entityNumber
@@ -158,6 +159,7 @@ export function prepareContext(
       disallowedTools: disallowedTools.join(","),
     }),
     ...(directPrompt && { directPrompt }),
+    ...(overridePrompt && { overridePrompt }),
     ...(claudeBranch && { claudeBranch }),
   };
 
@@ -460,11 +462,76 @@ function getCommitInstructions(
   }
 }
 
+function substitutePromptVariables(
+  template: string,
+  context: PreparedContext,
+  githubData: FetchDataResult,
+): string {
+  const { contextData, comments, reviewData, changedFilesWithSHA } = githubData;
+  const { eventData } = context;
+
+  const variables: Record<string, string> = {
+    REPOSITORY: context.repository,
+    PR_NUMBER:
+      eventData.isPR && "prNumber" in eventData ? eventData.prNumber : "",
+    ISSUE_NUMBER:
+      !eventData.isPR && "issueNumber" in eventData
+        ? eventData.issueNumber
+        : "",
+    PR_TITLE: eventData.isPR && contextData?.title ? contextData.title : "",
+    ISSUE_TITLE: !eventData.isPR && contextData?.title ? contextData.title : "",
+    PR_BODY: eventData.isPR && contextData?.body ? contextData.body : "",
+    ISSUE_BODY: !eventData.isPR && contextData?.body ? contextData.body : "",
+    PR_COMMENTS: eventData.isPR
+      ? formatComments(comments, githubData.imageUrlMap)
+      : "",
+    ISSUE_COMMENTS: !eventData.isPR
+      ? formatComments(comments, githubData.imageUrlMap)
+      : "",
+    REVIEW_COMMENTS: eventData.isPR
+      ? formatReviewComments(reviewData, githubData.imageUrlMap)
+      : "",
+    CHANGED_FILES: eventData.isPR
+      ? formatChangedFilesWithSHA(changedFilesWithSHA)
+      : "",
+    TRIGGER_COMMENT: "commentBody" in eventData ? eventData.commentBody : "",
+    TRIGGER_USERNAME: context.triggerUsername || "",
+    BRANCH_NAME:
+      "claudeBranch" in eventData && eventData.claudeBranch
+        ? eventData.claudeBranch
+        : "baseBranch" in eventData && eventData.baseBranch
+          ? eventData.baseBranch
+          : "",
+    BASE_BRANCH:
+      "baseBranch" in eventData && eventData.baseBranch
+        ? eventData.baseBranch
+        : "",
+    EVENT_TYPE: eventData.eventName,
+    IS_PR: eventData.isPR ? "true" : "false",
+  };
+
+  let result = template;
+  for (const [key, value] of Object.entries(variables)) {
+    const regex = new RegExp(`\\$${key}`, "g");
+    result = result.replace(regex, value);
+  }
+
+  return result;
+}
+
 export function generatePrompt(
   context: PreparedContext,
   githubData: FetchDataResult,
   useCommitSigning: boolean,
 ): string {
+  if (context.overridePrompt) {
+    return substitutePromptVariables(
+      context.overridePrompt,
+      context,
+      githubData,
+    );
+  }
+
   const {
     contextData,
     comments,

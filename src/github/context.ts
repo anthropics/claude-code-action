@@ -34,6 +34,7 @@ export type ParsedGitHubContext = {
     disallowedTools: string[];
     customInstructions: string;
     directPrompt: string;
+    overridePrompt: string;
     baseBranch?: string;
     branchPrefix: string;
     useStickyComment: boolean;
@@ -63,6 +64,7 @@ export function parseGitHubContext(): ParsedGitHubContext {
       disallowedTools: parseMultilineInput(process.env.DISALLOWED_TOOLS ?? ""),
       customInstructions: process.env.CUSTOM_INSTRUCTIONS ?? "",
       directPrompt: process.env.DIRECT_PROMPT ?? "",
+      overridePrompt: process.env.OVERRIDE_PROMPT ?? "",
       baseBranch: process.env.BASE_BRANCH,
       branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
       useStickyComment: process.env.USE_STICKY_COMMENT === "true",

@@ -170,6 +170,7 @@ jobs:
 | `anthropic_api_key`            | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                           | No\*     | -         |
 | `claude_code_oauth_token`      | Claude Code OAuth token (alternative to anthropic_api_key)                                                           | No\*     | -         |
 | `direct_prompt`                | Direct prompt for Claude to execute automatically without needing a trigger (for automated workflows)                | No       | -         |
+| `override_prompt`              | Complete replacement of Claude's prompt with custom template (supports variable substitution)                        | No       | -         |
 | `base_branch`                  | The base branch to use for creating new branches (e.g., 'main', 'develop')                                           | No       | -         |
 | `max_turns`                    | Maximum number of conversation turns Claude can take (limits back-and-forth exchanges)                               | No       | -         |
 | `timeout_minutes`              | Timeout in minutes for execution                                                                                     | No       | `30`      |
@@ -394,6 +395,36 @@ jobs:
 ```
 
 Perfect for automatically reviewing PRs from new team members, external contributors, or specific developers who need extra guidance.
+
+#### Custom Prompt Templates
+
+Use `override_prompt` for complete control over Claude's behavior with variable substitution:
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    override_prompt: |
+      Analyze PR #$PR_NUMBER in $REPOSITORY for security vulnerabilities.
+
+      Changed files:
+      $CHANGED_FILES
+
+      Focus on:
+      - SQL injection risks
+      - XSS vulnerabilities
+      - Authentication bypasses
+      - Exposed secrets or credentials
+
+      Provide severity ratings (Critical/High/Medium/Low) for any issues found.
+```
+
+The `override_prompt` feature supports these variables:
+
+- `$REPOSITORY`, `$PR_NUMBER`, `$ISSUE_NUMBER`
+- `$PR_TITLE`, `$ISSUE_TITLE`, `$PR_BODY`, `$ISSUE_BODY`
+- `$PR_COMMENTS`, `$ISSUE_COMMENTS`, `$REVIEW_COMMENTS`
+- `$CHANGED_FILES`, `$TRIGGER_COMMENT`, `$TRIGGER_USERNAME`
+- `$BRANCH_NAME`, `$BASE_BRANCH`, `$EVENT_TYPE`, `$IS_PR`
 
 ## How It Works
 

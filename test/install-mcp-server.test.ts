@@ -31,6 +31,7 @@ describe("prepareMcpConfig", () => {
       disallowedTools: [],
       customInstructions: "",
       directPrompt: "",
+      overridePrompt: "",
       branchPrefix: "",
       useStickyComment: false,
       additionalPermissions: new Map(),

@@ -16,6 +16,7 @@ const defaultInputs = {
   disallowedTools: [] as string[],
   customInstructions: "",
   directPrompt: "",
+  overridePrompt: "",
   useBedrock: false,
   useVertex: false,
   timeoutMinutes: 30,
