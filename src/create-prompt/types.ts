@@ -1,11 +1,31 @@
+/** @see {@link https://docs.anthropic.com/en/docs/claude-code/settings#tools-available-to-claude} */
+type ClaudeTool =
+  | "BASH"
+  | "EDIT"
+  | "GLOB"
+  | "GREP"
+  | "LS"
+  | "MULTIEDIT"
+  | "NOTEBOOKEDIT"
+  | "NOTEBOOKREAD"
+  | "READ"
+  | "TASK"
+  | "TODOWRITE"
+  | "WEBFETCH"
+  | "WEBSEARCH"
+  | "WRITE";
+
+/** @see {@link https://docs.anthropic.com/en/docs/claude-code/iam#tool-specific-permission-rules} */
+type ClaudeToolPermission = `${ClaudeTool}${"" | `(${string})`}`;
+
 export type CommonFields = {
   repository: string;
   claudeCommentId: string;
   triggerPhrase: string;
   triggerUsername?: string;
   customInstructions?: string;
-  allowedTools?: string;
-  disallowedTools?: string;
+  allowedTools?: ClaudeToolPermission[];
+  disallowedTools?: ClaudeToolPermission[];
   directPrompt?: string;
 };
 
