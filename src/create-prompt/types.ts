@@ -1,19 +1,19 @@
 /** @see {@link https://docs.anthropic.com/en/docs/claude-code/settings#tools-available-to-claude} */
 type Tool =
-  | "BASH"
-  | "EDIT"
-  | "GLOB"
-  | "GREP"
+  | "Bash"
+  | "Edit"
+  | "Glob"
+  | "Grep"
   | "LS"
-  | "MULTIEDIT"
-  | "NOTEBOOKEDIT"
-  | "NOTEBOOKREAD"
-  | "READ"
-  | "TASK"
-  | "TODOWRITE"
-  | "WEBFETCH"
-  | "WEBSEARCH"
-  | "WRITE";
+  | "MultiEdit"
+  | "NotebookEdit"
+  | "NotebookRead"
+  | "Read"
+  | "Task"
+  | "TodoWrite"
+  | "WebFetch"
+  | "WebSearch"
+  | "Write";
 
 /** @see {@link https://docs.anthropic.com/en/docs/claude-code/iam#tool-specific-permission-rules} */
 type ToolPermission = `${Tool}${"" | `(${string})`}`;
