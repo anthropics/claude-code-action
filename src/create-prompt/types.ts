@@ -1,5 +1,5 @@
 /** @see {@link https://docs.anthropic.com/en/docs/claude-code/settings#tools-available-to-claude} */
-type ClaudeTool =
+type Tool =
   | "BASH"
   | "EDIT"
   | "GLOB"
@@ -16,7 +16,7 @@ type ClaudeTool =
   | "WRITE";
 
 /** @see {@link https://docs.anthropic.com/en/docs/claude-code/iam#tool-specific-permission-rules} */
-type ClaudeToolPermission = `${ClaudeTool}${"" | `(${string})`}`;
+type ToolPermission = `${Tool}${"" | `(${string})`}`;
 
 export type CommonFields = {
   repository: string;
@@ -24,8 +24,8 @@ export type CommonFields = {
   triggerPhrase: string;
   triggerUsername?: string;
   customInstructions?: string;
-  allowedTools?: ClaudeToolPermission[];
-  disallowedTools?: ClaudeToolPermission[];
+  allowedTools?: ToolPermission[];
+  disallowedTools?: ToolPermission[];
   directPrompt?: string;
 };
 
