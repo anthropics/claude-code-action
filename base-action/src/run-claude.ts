@@ -115,7 +115,10 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
   }
 
   if (options.mcpConfig) {
-    sdkOptions.mcpServers = parseMcpConfig(options.mcpConfig);
+    const mcpConfig = parseMcpConfig(options.mcpConfig);
+    if (mcpConfig?.mcpServers) {
+      sdkOptions.mcpServers = mcpConfig.mcpServers;
+    }
   }
 
   if (options.systemPrompt) {

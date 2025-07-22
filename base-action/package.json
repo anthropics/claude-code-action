@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@actions/core": "^1.10.1",
-    "@anthropic-ai/claude-code": "^1.0.58"
+    "@anthropic-ai/claude-code": "1.0.58"
   },
   "devDependencies": {
     "@types/bun": "^1.2.12",
