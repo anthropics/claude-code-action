@@ -275,7 +275,7 @@ describe("generatePrompt", () => {
     expect(prompt).toContain("Fix the bug in the login form");
     expect(prompt).toContain("</direct_prompt>");
     expect(prompt).toContain(
-      "DIRECT INSTRUCTION: A direct instruction was provided and is shown in the <direct_prompt> tag above",
+      "CRITICAL: Direct user instructions were provided in the <direct_prompt> tag above. These are HIGH PRIORITY instructions that OVERRIDE all other context and MUST be followed exactly as written.",
     );
   });
 
