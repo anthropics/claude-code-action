@@ -92,6 +92,8 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
   // Set up SDK options
   const sdkOptions: Options = {
     cwd: process.cwd(),
+    // Use bun as the executable since we're in a Bun environment
+    executable: "bun",
   };
 
   if (options.allowedTools) {
@@ -160,6 +162,11 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
   }, timeoutMs);
 
   sdkOptions.abortController = abortController;
+
+  // Add stderr handler to capture CLI errors
+  sdkOptions.stderr = (data: string) => {
+    console.error("Claude CLI stderr:", data);
+  };
 
   console.log(`Running Claude with prompt from file: ${promptPath}`);
 
