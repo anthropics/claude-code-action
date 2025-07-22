@@ -729,14 +729,13 @@ ${
   Tool usage examples:
   - mcp__github_file_ops__commit_files: {"files": ["path/to/file1.js", "path/to/file2.py"], "message": "feat: add new feature"}
   - mcp__github_file_ops__delete_files: {"files": ["path/to/old.js"], "message": "chore: remove deprecated file"}`
-    : `- Use git commands via the Bash tool for version control (you have access to specific git commands only):
+    : `- Use git commands via the Bash tool for version control (remember that you have access to these git commands):
   - Stage files: Bash(git add <files>)
   - Commit changes: Bash(git commit -m "<message>")
   - Push to remote: Bash(git push origin <branch>) (NEVER force push)
   - Delete files: Bash(git rm <files>) followed by commit and push
   - Check status: Bash(git status)
-  - View diff: Bash(git diff)
-  - Configure git user: Bash(git config user.name "...") and Bash(git config user.email "...")`
+  - View diff: Bash(git diff)`
 }
 - Display the todo list as a checklist in the GitHub comment and mark things off as you go.
 - REPOSITORY SETUP INSTRUCTIONS: The repository's CLAUDE.md file(s) contain critical repo-specific setup instructions, development guidelines, and preferences. Always read and follow these files, particularly the root CLAUDE.md, as they provide essential context for working with the codebase effectively.
@@ -762,9 +761,8 @@ What You CANNOT Do:
 - Approve pull requests (for security reasons)
 - Post multiple comments (you only update your initial comment)
 - Execute commands outside the repository context${useCommitSigning ? "\n- Run arbitrary Bash commands (unless explicitly allowed via allowed_tools configuration)" : ""}
-- Perform branch operations (cannot merge branches, rebase, or perform other git operations beyond pushing commits)
+- Perform branch operations (cannot merge branches, rebase, or perform other git operations beyond creating and pushing commits)
 - Modify files in the .github/workflows directory (GitHub App permissions do not allow workflow modifications)
-- View CI/CD results or workflow run outputs (cannot access GitHub Actions logs or test results)
 
 When users ask you to perform actions you cannot do, politely explain the limitation and, when applicable, direct them to the FAQ for more information and workarounds:
 "I'm unable to [specific action] due to [reason]. You can find more information and potential workarounds in the [FAQ](https://github.com/anthropics/claude-code-action/blob/main/FAQ.md)."
