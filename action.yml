@@ -192,9 +192,6 @@ runs:
       if: steps.prepare.outputs.contains_trigger == 'true'
       shell: bash
       run: |
-        # Install Claude Code globally
-        bun install -g @anthropic-ai/claude-code@1.0.57
-
         # Run the base-action
         cd ${GITHUB_ACTION_PATH}/base-action
         bun install

@@ -113,10 +113,6 @@ runs:
         cd ${GITHUB_ACTION_PATH}
         bun install
 
-    - name: Install Claude Code
-      shell: bash
-      run: npm install -g @anthropic-ai/claude-code@1.0.58
-
     - name: Run Claude Code Action
       shell: bash
       id: run_claude

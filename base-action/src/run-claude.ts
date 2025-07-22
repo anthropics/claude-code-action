@@ -1,15 +1,12 @@
 import * as core from "@actions/core";
-import { exec } from "child_process";
-import { promisify } from "util";
-import { unlink, writeFile, stat } from "fs/promises";
-import { createWriteStream } from "fs";
-import { spawn } from "child_process";
+import { writeFile } from "fs/promises";
+import {
+  query,
+  type SDKMessage,
+  type Options,
+} from "@anthropic-ai/claude-code";
 
-const execAsync = promisify(exec);
-
-const PIPE_PATH = `${process.env.RUNNER_TEMP}/claude_prompt_pipe`;
 const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`;
-const BASE_ARGS = ["-p", "--verbose", "--output-format", "stream-json"];
 
 export type ClaudeOptions = {
   allowedTools?: string;
@@ -24,13 +21,7 @@ export type ClaudeOptions = {
   model?: string;
 };
 
-type PreparedConfig = {
-  claudeArgs: string[];
-  promptPath: string;
-  env: Record<string, string>;
-};
-
-function parseCustomEnvVars(claudeEnv?: string): Record<string, string> {
+export function parseCustomEnvVars(claudeEnv?: string): Record<string, string> {
   if (!claudeEnv || claudeEnv.trim() === "") {
     return {};
   }
@@ -62,18 +53,55 @@ function parseCustomEnvVars(claudeEnv?: string): Record<string, string> {
   return customEnv;
 }
 
-export function prepareRunConfig(
-  promptPath: string,
-  options: ClaudeOptions,
-): PreparedConfig {
-  const claudeArgs = [...BASE_ARGS];
+export function parseTools(toolsString?: string): string[] | undefined {
+  if (!toolsString || toolsString.trim() === "") {
+    return undefined;
+  }
+  return toolsString
+    .split(",")
+    .map((tool) => tool.trim())
+    .filter(Boolean);
+}
+
+export function parseMcpConfig(
+  mcpConfigString?: string,
+): Record<string, any> | undefined {
+  if (!mcpConfigString || mcpConfigString.trim() === "") {
+    return undefined;
+  }
+  try {
+    return JSON.parse(mcpConfigString);
+  } catch (e) {
+    core.warning(`Failed to parse MCP config: ${e}`);
+    return undefined;
+  }
+}
+
+export async function runClaude(promptPath: string, options: ClaudeOptions) {
+  // Read prompt from file
+  const prompt = await Bun.file(promptPath).text();
+
+  // Parse options
+  const customEnv = parseCustomEnvVars(options.claudeEnv);
+
+  // Apply custom environment variables
+  for (const [key, value] of Object.entries(customEnv)) {
+    process.env[key] = value;
+  }
+
+  // Set up SDK options
+  const sdkOptions: Options = {
+    cwd: process.cwd(),
+  };
 
   if (options.allowedTools) {
-    claudeArgs.push("--allowedTools", options.allowedTools);
+    sdkOptions.allowedTools = parseTools(options.allowedTools);
   }
+
   if (options.disallowedTools) {
-    claudeArgs.push("--disallowedTools", options.disallowedTools);
+    sdkOptions.disallowedTools = parseTools(options.disallowedTools);
   }
+
   if (options.maxTurns) {
     const maxTurnsNum = parseInt(options.maxTurns, 10);
     if (isNaN(maxTurnsNum) || maxTurnsNum <= 0) {
@@ -81,23 +109,31 @@ export function prepareRunConfig(
         `maxTurns must be a positive number, got: ${options.maxTurns}`,
       );
     }
-    claudeArgs.push("--max-turns", options.maxTurns);
+    sdkOptions.maxTurns = maxTurnsNum;
   }
+
   if (options.mcpConfig) {
-    claudeArgs.push("--mcp-config", options.mcpConfig);
+    sdkOptions.mcpServers = parseMcpConfig(options.mcpConfig);
   }
+
   if (options.systemPrompt) {
-    claudeArgs.push("--system-prompt", options.systemPrompt);
+    sdkOptions.customSystemPrompt = options.systemPrompt;
   }
+
   if (options.appendSystemPrompt) {
-    claudeArgs.push("--append-system-prompt", options.appendSystemPrompt);
+    sdkOptions.appendSystemPrompt = options.appendSystemPrompt;
   }
+
   if (options.fallbackModel) {
-    claudeArgs.push("--fallback-model", options.fallbackModel);
+    sdkOptions.fallbackModel = options.fallbackModel;
   }
+
   if (options.model) {
-    claudeArgs.push("--model", options.model);
+    sdkOptions.model = options.model;
   }
+
+  // Set up timeout
+  let timeoutMs = 10 * 60 * 1000; // Default 10 minutes
   if (options.timeoutMinutes) {
     const timeoutMinutesNum = parseInt(options.timeoutMinutes, 10);
     if (isNaN(timeoutMinutesNum) || timeoutMinutesNum <= 0) {
@@ -105,126 +141,7 @@ export function prepareRunConfig(
         `timeoutMinutes must be a positive number, got: ${options.timeoutMinutes}`,
       );
     }
-  }
-
-  // Parse custom environment variables
-  const customEnv = parseCustomEnvVars(options.claudeEnv);
-
-  return {
-    claudeArgs,
-    promptPath,
-    env: customEnv,
-  };
-}
-
-export async function runClaude(promptPath: string, options: ClaudeOptions) {
-  const config = prepareRunConfig(promptPath, options);
-
-  // Create a named pipe
-  try {
-    await unlink(PIPE_PATH);
-  } catch (e) {
-    // Ignore if file doesn't exist
-  }
-
-  // Create the named pipe
-  await execAsync(`mkfifo "${PIPE_PATH}"`);
-
-  // Log prompt file size
-  let promptSize = "unknown";
-  try {
-    const stats = await stat(config.promptPath);
-    promptSize = stats.size.toString();
-  } catch (e) {
-    // Ignore error
-  }
-
-  console.log(`Prompt file size: ${promptSize} bytes`);
-
-  // Log custom environment variables if any
-  if (Object.keys(config.env).length > 0) {
-    const envKeys = Object.keys(config.env).join(", ");
-    console.log(`Custom environment variables: ${envKeys}`);
-  }
-
-  // Output to console
-  console.log(`Running Claude with prompt from file: ${config.promptPath}`);
-
-  // Start sending prompt to pipe in background
-  const catProcess = spawn("cat", [config.promptPath], {
-    stdio: ["ignore", "pipe", "inherit"],
-  });
-  const pipeStream = createWriteStream(PIPE_PATH);
-  catProcess.stdout.pipe(pipeStream);
-
-  catProcess.on("error", (error) => {
-    console.error("Error reading prompt file:", error);
-    pipeStream.destroy();
-  });
-
-  const claudeProcess = spawn("claude", config.claudeArgs, {
-    stdio: ["pipe", "pipe", "inherit"],
-    env: {
-      ...process.env,
-      ...config.env,
-    },
-  });
-
-  // Handle Claude process errors
-  claudeProcess.on("error", (error) => {
-    console.error("Error spawning Claude process:", error);
-    pipeStream.destroy();
-  });
-
-  // Capture output for parsing execution metrics
-  let output = "";
-  claudeProcess.stdout.on("data", (data) => {
-    const text = data.toString();
-
-    // Try to parse as JSON and pretty print if it's on a single line
-    const lines = text.split("\n");
-    lines.forEach((line: string, index: number) => {
-      if (line.trim() === "") return;
-
-      try {
-        // Check if this line is a JSON object
-        const parsed = JSON.parse(line);
-        const prettyJson = JSON.stringify(parsed, null, 2);
-        process.stdout.write(prettyJson);
-        if (index < lines.length - 1 || text.endsWith("\n")) {
-          process.stdout.write("\n");
-        }
-      } catch (e) {
-        // Not a JSON object, print as is
-        process.stdout.write(line);
-        if (index < lines.length - 1 || text.endsWith("\n")) {
-          process.stdout.write("\n");
-        }
-      }
-    });
-
-    output += text;
-  });
-
-  // Handle stdout errors
-  claudeProcess.stdout.on("error", (error) => {
-    console.error("Error reading Claude stdout:", error);
-  });
-
-  // Pipe from named pipe to Claude
-  const pipeProcess = spawn("cat", [PIPE_PATH]);
-  pipeProcess.stdout.pipe(claudeProcess.stdin);
-
-  // Handle pipe process errors
-  pipeProcess.on("error", (error) => {
-    console.error("Error reading from named pipe:", error);
-    claudeProcess.kill("SIGTERM");
-  });
-
-  // Wait for Claude to finish with timeout
-  let timeoutMs = 10 * 60 * 1000; // Default 10 minutes
-  if (options.timeoutMinutes) {
-    timeoutMs = parseInt(options.timeoutMinutes, 10) * 60 * 1000;
+    timeoutMs = timeoutMinutesNum * 60 * 1000;
   } else if (process.env.INPUT_TIMEOUT_MINUTES) {
     const envTimeout = parseInt(process.env.INPUT_TIMEOUT_MINUTES, 10);
     if (isNaN(envTimeout) || envTimeout <= 0) {
@@ -234,98 +151,71 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
     }
     timeoutMs = envTimeout * 60 * 1000;
   }
-  const exitCode = await new Promise<number>((resolve) => {
-    let resolved = false;
 
-    // Set a timeout for the process
-    const timeoutId = setTimeout(() => {
-      if (!resolved) {
-        console.error(
-          `Claude process timed out after ${timeoutMs / 1000} seconds`,
-        );
-        claudeProcess.kill("SIGTERM");
-        // Give it 5 seconds to terminate gracefully, then force kill
-        setTimeout(() => {
-          try {
-            claudeProcess.kill("SIGKILL");
-          } catch (e) {
-            // Process may already be dead
-          }
-        }, 5000);
-        resolved = true;
-        resolve(124); // Standard timeout exit code
-      }
-    }, timeoutMs);
+  // Create abort controller for timeout
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.error(`Claude process timed out after ${timeoutMs / 1000} seconds`);
+    abortController.abort();
+  }, timeoutMs);
 
-    claudeProcess.on("close", (code) => {
-      if (!resolved) {
-        clearTimeout(timeoutId);
-        resolved = true;
-        resolve(code || 0);
-      }
-    });
+  sdkOptions.abortController = abortController;
 
-    claudeProcess.on("error", (error) => {
-      if (!resolved) {
-        console.error("Claude process error:", error);
-        clearTimeout(timeoutId);
-        resolved = true;
-        resolve(1);
-      }
-    });
-  });
+  console.log(`Running Claude with prompt from file: ${promptPath}`);
 
-  // Clean up processes
-  try {
-    catProcess.kill("SIGTERM");
-  } catch (e) {
-    // Process may already be dead
-  }
-  try {
-    pipeProcess.kill("SIGTERM");
-  } catch (e) {
-    // Process may already be dead
+  // Log custom environment variables if any
+  if (Object.keys(customEnv).length > 0) {
+    const envKeys = Object.keys(customEnv).join(", ");
+    console.log(`Custom environment variables: ${envKeys}`);
   }
 
-  // Clean up pipe file
+  const messages: SDKMessage[] = [];
+  let executionFailed = false;
+
   try {
-    await unlink(PIPE_PATH);
-  } catch (e) {
-    // Ignore errors during cleanup
-  }
+    // Execute the query
+    for await (const message of query({
+      prompt,
+      abortController,
+      options: sdkOptions,
+    })) {
+      messages.push(message);
 
-  // Set conclusion based on exit code
-  if (exitCode === 0) {
-    // Try to process the output and save execution metrics
-    try {
-      await writeFile("output.txt", output);
+      // Pretty print the message to stdout
+      const prettyJson = JSON.stringify(message, null, 2);
+      console.log(prettyJson);
 
-      // Process output.txt into JSON and save to execution file
-      const { stdout: jsonOutput } = await execAsync("jq -s '.' output.txt");
-      await writeFile(EXECUTION_FILE, jsonOutput);
-
-      console.log(`Log saved to ${EXECUTION_FILE}`);
-    } catch (e) {
-      core.warning(`Failed to process output for execution metrics: ${e}`);
+      // Check if execution failed
+      if (message.type === "result" && message.is_error) {
+        executionFailed = true;
+      }
     }
+  } catch (error) {
+    console.error("Error during Claude execution:", error);
+    executionFailed = true;
 
-    core.setOutput("conclusion", "success");
+    // Add error to messages if it's not an abort
+    if (error instanceof Error && error.name !== "AbortError") {
+      throw error;
+    }
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  // Save execution output
+  try {
+    await writeFile(EXECUTION_FILE, JSON.stringify(messages, null, 2));
+    console.log(`Log saved to ${EXECUTION_FILE}`);
     core.setOutput("execution_file", EXECUTION_FILE);
-  } else {
+  } catch (e) {
+    core.warning(`Failed to save execution file: ${e}`);
+  }
+
+  // Set conclusion
+  if (executionFailed) {
     core.setOutput("conclusion", "failure");
-
-    // Still try to save execution file if we have output
-    if (output) {
-      try {
-        await writeFile("output.txt", output);
-        const { stdout: jsonOutput } = await execAsync("jq -s '.' output.txt");
-        await writeFile(EXECUTION_FILE, jsonOutput);
-        core.setOutput("execution_file", EXECUTION_FILE);
-      } catch (e) {
-        // Ignore errors when processing output during failure
-      }
-    }
-
-    process.exit(exitCode);
+    process.exit(1);
+  } else {
+    core.setOutput("conclusion", "success");
   }
 }
