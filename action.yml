@@ -193,7 +193,7 @@ runs:
       shell: bash
       run: |
         # Install Claude Code globally
-        npm install -g @anthropic-ai/claude-code@1.0.57
+        bun install -g @anthropic-ai/claude-code@1.0.57
 
         # Run the base-action
         cd ${GITHUB_ACTION_PATH}/base-action
