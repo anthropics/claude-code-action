@@ -216,6 +216,7 @@ runs:
         ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
         GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
         NODE_VERSION: ${{ env.NODE_VERSION }}
+        DETAILED_PERMISSION_MESSAGES: "1"
 
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
