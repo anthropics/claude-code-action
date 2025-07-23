@@ -60,6 +60,10 @@ inputs:
     description: "Complete replacement of Claude's prompt with custom template (supports variable substitution)"
     required: false
     default: ""
+  allow_bot_actor:
+    description: "Allow bot actors to trigger the action. Default is false for security reasons."
+    required: false
+    default: "false"
   mcp_config:
     description: "Additional MCP configuration (JSON string) that merges with the built-in GitHub MCP servers"
   additional_permissions:
@@ -154,6 +158,7 @@ runs:
         CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}
         DIRECT_PROMPT: ${{ inputs.direct_prompt }}
         OVERRIDE_PROMPT: ${{ inputs.override_prompt }}
+        ALLOW_BOT_ACTOR: ${{ inputs.allow_bot_actor }}
         MCP_CONFIG: ${{ inputs.mcp_config }}
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_RUN_ID: ${{ github.run_id }}

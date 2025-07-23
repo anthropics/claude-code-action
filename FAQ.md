@@ -6,7 +6,13 @@ This FAQ addresses common questions and gotchas when using the Claude Code GitHu
 
 ### Why doesn't tagging @claude from my automated workflow work?
 
-The `github-actions` user cannot trigger subsequent GitHub Actions workflows. This is a GitHub security feature to prevent infinite loops. To make this work, you need to use a Personal Access Token (PAT) instead, which will act as a regular user, or use a separate app token of your own. When posting a comment on an issue or PR from your workflow, use your PAT instead of the `GITHUB_TOKEN` generated in your workflow.
+By default, bots cannot trigger Claude for security reasons. With `allow_bot_actor: true`, you can enable bot triggers, but there are important distinctions:
+
+1. **GitHub Apps** (recommended): Create a GitHub App, use app tokens, and set `allow_bot_actor: true`. The app needs write permissions.
+2. **Personal Access Tokens**: Use a PAT instead of `GITHUB_TOKEN` in your workflows with `allow_bot_actor: true`.
+3. **github-actions[bot]**: Can trigger Claude with `allow_bot_actor: true`, BUT due to GitHub's security, responses won't trigger subsequent workflows.
+
+**Important**: With `allow_bot_actor: true`, `github-actions[bot]` CAN trigger Claude initially. However, Claude's responses (when using `GITHUB_TOKEN`) cannot trigger subsequent workflows due to GitHub's anti-loop security feature.
 
 ### Why does Claude say I don't have permission to trigger it?
 

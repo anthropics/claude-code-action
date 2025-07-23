@@ -10,7 +10,7 @@ Thank you for trying out the beta of our GitHub Action! This document outlines o
 - **Support for workflow_dispatch and repository_dispatch events** - Dispatch Claude on events triggered via API from other workflows or from other services
 - **Ability to disable commit signing** - Option to turn off GPG signing for environments where it's not required. This will enable Claude to use normal `git` bash commands for committing. This will likely become the default behavior once added.
 - **Better code review behavior** - Support inline comments on specific lines, provide higher quality reviews with more actionable feedback
-- **Support triggering @claude from bot users** - Allow automation and bot accounts to invoke Claude
+- ~**Support triggering @claude from bot users** - Allow automation and bot accounts to invoke Claude~
 - **Customizable base prompts** - Full control over Claude's initial context with template variables like `$PR_COMMENTS`, `$PR_FILES`, etc. Users can replace our default prompt entirely while still accessing key contextual data
 
 ---
