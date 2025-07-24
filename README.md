@@ -163,6 +163,8 @@ jobs:
           # Optional: grant additional permissions (requires corresponding GitHub token permissions)
           # additional_permissions: |
           #   actions: read
+          # Optional: allow specific bots to trigger Claude
+          # allowed_bots: "dependabot,renovate"
 ```
 
 ## Inputs
@@ -197,6 +199,7 @@ jobs:
 | `additional_permissions`       | Additional permissions to enable. Currently supports 'actions: read' for viewing workflow results                    | No       | ""        |
 | `experimental_allowed_domains` | Restrict network access to these domains only (newline-separated).                                                   | No       | ""        |
 | `use_commit_signing`           | Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands    | No       | `false`   |
+| `allowed_bots`                 | Comma-separated list of allowed bot usernames, or '*' to allow all bots. Empty string (default) allows no bots       | No       | ""        |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 
@@ -833,7 +836,7 @@ Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
 ### Access Control
 
 - **Repository Access**: The action can only be triggered by users with write access to the repository
-- **No Bot Triggers**: GitHub Apps and bots cannot trigger this action
+- **Bot User Control**: By default, GitHub Apps and bots cannot trigger this action for security reasons. Use the `allowed_bots` parameter to enable specific bots or all bots
 - **Token Permissions**: The GitHub app receives only a short-lived token scoped specifically to the repository it's operating in
 - **No Cross-Repository Access**: Each action invocation is limited to the repository where it was triggered
 - **Limited Scope**: The token cannot access other repositories or perform actions beyond the configured permissions
