@@ -163,6 +163,9 @@ runs:
         cd ${GITHUB_ACTION_PATH}/base-action
         bun install
         echo "Base-action dependencies installed"
+        cd -
+        # Install Claude Code globally
+        bun install -g @anthropic-ai/claude-code@1.0.59
 
     - name: Setup Network Restrictions
       if: steps.prepare.outputs.contains_trigger == 'true' && inputs.experimental_allowed_domains != ''
@@ -269,8 +272,6 @@ runs:
       if: steps.prepare.outputs.contains_trigger == 'true'
       shell: bash
       run: |
-        # Install Claude Code globally
-        bun install -g @anthropic-ai/claude-code@1.0.59
 
         # Run the base-action
         bun run ${GITHUB_ACTION_PATH}/base-action/src/index.ts
