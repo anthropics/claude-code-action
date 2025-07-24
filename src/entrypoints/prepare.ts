@@ -43,6 +43,9 @@ async function run() {
     const mode = getMode(context.inputs.mode);
     const containsTrigger = mode.shouldTrigger(context);
 
+    // Set output for action.yml to check
+    core.setOutput("contains_trigger", containsTrigger.toString());
+
     if (!containsTrigger) {
       console.log("No trigger found, skipping remaining steps");
       return;
