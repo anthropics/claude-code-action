@@ -44,6 +44,7 @@ export type ParsedGitHubContext = {
     useStickyComment: boolean;
     additionalPermissions: Map<string, string>;
     useCommitSigning: boolean;
+    allowBotActor: boolean;
   };
 };
 
@@ -82,6 +83,7 @@ export function parseGitHubContext(): ParsedGitHubContext {
         process.env.ADDITIONAL_PERMISSIONS ?? "",
       ),
       useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
+      allowBotActor: process.env.ALLOW_BOT_ACTOR === "true",
     },
   };
 

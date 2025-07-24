@@ -51,7 +51,7 @@ async function run() {
       return;
     }
 
-    // Step 5: Check if actor is human
+    // Step 5: Check if actor is human (unless bot actors are allowed)
     await checkHumanActor(octokit.rest, context);
 
     // Step 6: Create initial tracking comment (mode-aware)

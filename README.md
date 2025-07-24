@@ -194,6 +194,7 @@ jobs:
 | `branch_prefix`                | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                         | No       | `claude/` |
 | `claude_env`                   | Custom environment variables to pass to Claude Code execution (YAML format)                                          | No       | ""        |
 | `settings`                     | Claude Code settings as JSON string or path to settings JSON file                                                    | No       | ""        |
+| `allow_bot_actor`              | Allow GitHub bots and automation accounts to trigger Claude (security: defaults to false, requires explicit opt-in)  | No       | `false`   |
 | `additional_permissions`       | Additional permissions to enable. Currently supports 'actions: read' for viewing workflow results                    | No       | ""        |
 | `experimental_allowed_domains` | Restrict network access to these domains only (newline-separated).                                                   | No       | ""        |
 | `use_commit_signing`           | Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands    | No       | `false`   |
@@ -833,7 +834,7 @@ Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
 ### Access Control
 
 - **Repository Access**: The action can only be triggered by users with write access to the repository
-- **No Bot Triggers**: GitHub Apps and bots cannot trigger this action
+- **Bot Actor Control**: GitHub Apps and bots are blocked by default for security. Use `allow_bot_actor: true` to enable automated workflows (requires explicit opt-in)
 - **Token Permissions**: The GitHub app receives only a short-lived token scoped specifically to the repository it's operating in
 - **No Cross-Repository Access**: Each action invocation is limited to the repository where it was triggered
 - **Limited Scope**: The token cannot access other repositories or perform actions beyond the configured permissions
