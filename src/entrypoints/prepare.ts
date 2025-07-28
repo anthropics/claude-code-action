@@ -7,15 +7,18 @@
 import * as core from "@actions/core";
 import { setupGitHubToken } from "../github/token";
 import { checkTriggerAction } from "../github/validation/trigger";
+import { checkHumanActor } from "../github/validation/actor";
 import { checkWritePermissions } from "../github/validation/permissions";
 import { createInitialComment } from "../github/operations/comments/create-initial";
-import { setupBranch } from "../github/operations/branch";
 import { updateTrackingComment } from "../github/operations/comments/update-with-branch";
+import { setupBranch } from "../github/operations/branch";
+import { configureGitAuth } from "../github/operations/git-config";
 import { prepareMcpConfig } from "../mcp/install-mcp-server";
-import { createPrompt } from "../create-prompt";
 import { createOctokit } from "../github/api/client";
 import { fetchGitHubData } from "../github/data/fetcher";
 import { parseGitHubContext } from "../github/context";
+import { getMode } from "../modes/registry";
+import { createPrompt } from "../create-prompt";
 
 async function run() {
   try {
@@ -37,16 +40,31 @@ async function run() {
       );
     }
 
-    // Step 4: Check trigger conditions
-    const containsTrigger = await checkTriggerAction(context);
+    // Step 4: Get mode and check trigger conditions
+    const mode = getMode(context.inputs.mode);
+    const containsTrigger = mode.shouldTrigger(context);
+
+    // Set output for action.yml to check
+    core.setOutput("contains_trigger", containsTrigger.toString());
 
     if (!containsTrigger) {
       console.log("No trigger found, skipping remaining steps");
       return;
     }
 
-    // Step 5: Create initial tracking comment
-    const commentId = await createInitialComment(octokit.rest, context);
+    // Step 5: Check if actor is human
+    await checkHumanActor(octokit.rest, context);
+
+    // Step 6: Create initial tracking comment (mode-aware)
+    // Some modes (e.g., agent mode) may not need tracking comments
+    let commentId: number | undefined;
+    let commentData:
+      | Awaited<ReturnType<typeof createInitialComment>>
+      | undefined;
+    if (mode.shouldCreateTrackingComment()) {
+      commentData = await createInitialComment(octokit.rest, context);
+      commentId = commentData.id;
+    }
 
     // Step 6: Fetch GitHub data (once for both branch setup and prompt creation)
     const githubData = await fetchGitHubData({
@@ -61,7 +79,7 @@ async function run() {
     const branchInfo = await setupBranch(octokit, githubData, context);
 
     // Step 8: Update initial comment with branch link (only for issues that created a new branch)
-    if (branchInfo.claudeBranch) {
+    if (branchInfo.claudeBranch && commentId) {
       await updateTrackingComment(
         octokit,
         context,
@@ -70,14 +88,24 @@ async function run() {
       );
     }
 
-    // Step 9: Create prompt file
-    await createPrompt(
+    // Step 9: Configure git authentication if not using commit signing
+    if (!context.inputs.useCommitSigning) {
+      try {
+        await configureGitAuth(githubToken, context, commentData?.user || null);
+      } catch (error) {
+        console.error("Failed to configure git authentication:", error);
+        throw error;
+      }
+    }
+
+    // Step 10: Create prompt file
+    const modeContext = mode.prepareContext(context, {
       commentId,
-      branchInfo.baseBranch,
-      branchInfo.claudeBranch,
-      githubData,
-      context,
-    );
+      baseBranch: branchInfo.baseBranch,
+      claudeBranch: branchInfo.claudeBranch,
+    });
+
+    await createPrompt(mode, modeContext, githubData, context);
 
     // Step 10: Get MCP configuration
     const additionalMcpConfig = process.env.MCP_CONFIG || "";
@@ -85,10 +113,12 @@ async function run() {
       githubToken,
       owner: context.repository.owner,
       repo: context.repository.repo,
-      branch: branchInfo.currentBranch,
+      branch: branchInfo.claudeBranch || branchInfo.currentBranch,
+      baseBranch: branchInfo.baseBranch,
       additionalMcpConfig,
-      claudeCommentId: commentId.toString(),
+      claudeCommentId: commentId?.toString() || "",
       allowedTools: context.inputs.allowedTools,
+      context,
     });
     core.setOutput("mcp_config", mcpConfig);
   } catch (error) {

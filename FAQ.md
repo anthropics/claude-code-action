@@ -12,6 +12,10 @@ The `github-actions` user cannot trigger subsequent GitHub Actions workflows. Th
 
 Only users with **write permissions** to the repository can trigger Claude. This is a security feature to prevent unauthorized use. Make sure the user commenting has at least write access to the repository.
 
+### Why can't I assign @claude to an issue on my repository?
+
+If you're in a public repository, you should be able to assign to Claude without issue. If it's a private organization repository, you can only assign to users in your own organization, which Claude isn't. In this case, you'll need to make a custom user in that case.
+
 ### Why am I getting OIDC authentication errors?
 
 If you're using the default GitHub App authentication, you must add the `id-token: write` permission to your workflow:
@@ -47,14 +51,29 @@ allowed_tools: "Bash(git rebase:*)" # Use with caution
 
 Claude doesn't create PRs by default. Instead, it pushes commits to a branch and provides a link to a pre-filled PR submission page. This approach ensures your repository's branch protection rules are still adhered to and gives you final control over PR creation.
 
-### Why can't Claude run my tests or see CI results?
+### Can Claude see my GitHub Actions CI results?
 
-Claude cannot access GitHub Actions logs, test results, or other CI/CD outputs by default. It only has access to the repository files. If you need Claude to see test results, you can either:
+Yes! Claude can access GitHub Actions workflow runs, job logs, and test results on the PR where it's tagged. To enable this:
 
-1. Instruct Claude to run tests before making commits
-2. Copy and paste CI results into a comment for Claude to analyze
+1. Add `actions: read` permission to your workflow:
 
-This limitation exists for security reasons but may be reconsidered in the future based on user feedback.
+   ```yaml
+   permissions:
+     contents: write
+     pull-requests: write
+     issues: write
+     actions: read
+   ```
+
+2. Configure the action with additional permissions:
+   ```yaml
+   - uses: anthropics/claude-code-action@beta
+     with:
+       additional_permissions: |
+         actions: read
+   ```
+
+Claude will then be able to analyze CI failures and help debug workflow issues. For running tests locally before commits, you can still instruct Claude to do so in your request.
 
 ### Why does Claude only update one comment instead of creating new ones?
 

@@ -33,4 +33,16 @@ jobs:
         uses: anthropics/claude-code-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Or use OAuth token instead:
+          # claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           timeout_minutes: "60"
+          # mode: tag  # Default: responds to @claude mentions
+          # Optional: Restrict network access to specific domains only
+          # experimental_allowed_domains: |
+          #   .anthropic.com
+          #   .github.com
+          #   api.github.com
+          #   .githubusercontent.com
+          #   bun.sh
+          #   registry.npmjs.org
+          #   .blob.core.windows.net

@@ -26,6 +26,7 @@ jobs:
             - Potential bugs or issues
             - Suggestions for improvements
             - Overall architecture and design decisions
+            - Documentation consistency: Verify that README.md and other documentation files are updated to reflect any code changes (especially new inputs, features, or configuration options)
 
             Be constructive and specific in your feedback. Give inline comments where applicable.
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

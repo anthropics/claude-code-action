@@ -7,6 +7,7 @@ export type CommonFields = {
   allowedTools?: string;
   disallowedTools?: string;
   directPrompt?: string;
+  overridePrompt?: string;
 };
 
 type PullRequestReviewCommentEvent = {
@@ -68,6 +69,16 @@ type IssueAssignedEvent = {
   assigneeTrigger?: string;
 };
 
+type IssueLabeledEvent = {
+  eventName: "issues";
+  eventAction: "labeled";
+  isPR: false;
+  issueNumber: string;
+  baseBranch: string;
+  claudeBranch: string;
+  labelTrigger: string;
+};
+
 type PullRequestEvent = {
   eventName: "pull_request";
   eventAction?: string; // opened, synchronize, etc.
@@ -85,6 +96,7 @@ export type EventData =
   | IssueCommentEvent
   | IssueOpenedEvent
   | IssueAssignedEvent
+  | IssueLabeledEvent
   | PullRequestEvent;
 
 // Combined type with separate eventData field

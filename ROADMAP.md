@@ -4,7 +4,7 @@ Thank you for trying out the beta of our GitHub Action! This document outlines o
 
 ## Path to 1.0
 
-- **Ability to see GitHub Action CI results** - This will enable Claude to look at CI failures and make updates to PRs to fix test failures, lint errors, and the like.
+- ~**Ability to see GitHub Action CI results** - This will enable Claude to look at CI failures and make updates to PRs to fix test failures, lint errors, and the like.~
 - **Cross-repo support** - Enable Claude to work across multiple repositories in a single session
 - **Ability to modify workflow files** - Let Claude update GitHub Actions workflows and other CI configuration files
 - **Support for workflow_dispatch and repository_dispatch events** - Dispatch Claude on events triggered via API from other workflows or from other services

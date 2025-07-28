@@ -40,7 +40,7 @@ function isBotAllowed(
 
 export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   const {
-    inputs: { assigneeTrigger, triggerPhrase, directPrompt, allowedBots },
+    inputs: { assigneeTrigger, labelTrigger, triggerPhrase, directPrompt, allowedBots },
   } = context;
 
   // If direct prompt is provided, always trigger
@@ -57,6 +57,16 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
 
     if (triggerUser && assigneeUsername === triggerUser) {
       console.log(`Issue assigned to trigger user '${triggerUser}'`);
+      return true;
+    }
+  }
+
+  // Check for label trigger
+  if (isIssuesEvent(context) && context.eventAction === "labeled") {
+    const labelName = (context.payload as any).label?.name || "";
+
+    if (labelTrigger && labelName === labelTrigger) {
+      console.log(`Issue labeled with trigger label '${labelTrigger}'`);
       return true;
     }
   }

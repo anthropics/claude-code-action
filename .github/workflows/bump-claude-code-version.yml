@@ -1,0 +1,132 @@
+name: Bump Claude Code Version
+
+on:
+  repository_dispatch:
+    types: [bump_claude_code_version]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Claude Code version to bump to"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    name: Bump Claude Code Version
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4
+        with:
+          token: ${{ secrets.RELEASE_PAT }}
+          fetch-depth: 0
+
+      - name: Get version from event payload
+        id: get_version
+        run: |
+          # Get version from either repository_dispatch or workflow_dispatch
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            NEW_VERSION="${CLIENT_PAYLOAD_VERSION}"
+          else
+            NEW_VERSION="${INPUT_VERSION}"
+          fi
+
+          # Sanitize the version to avoid issues enabled by problematic characters
+          NEW_VERSION=$(echo "$NEW_VERSION" | tr -d '`;$(){}[]|&<>' | tr -s ' ' '-')
+
+          if [ -z "$NEW_VERSION" ]; then
+            echo "Error: version not provided"
+            exit 1
+          fi
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          CLIENT_PAYLOAD_VERSION: ${{ github.event.client_payload.version }}
+
+      - name: Create branch and update base-action/action.yml
+        run: |
+          # Variables
+          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
+          BRANCH_NAME="bump-claude-code-${{ env.NEW_VERSION }}-$TIMESTAMP"
+
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+          # Get the default branch
+          DEFAULT_BRANCH=$(gh api repos/${GITHUB_REPOSITORY} --jq '.default_branch')
+          echo "DEFAULT_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
+
+          # Get the latest commit SHA from the default branch
+          BASE_SHA=$(gh api repos/${GITHUB_REPOSITORY}/git/refs/heads/$DEFAULT_BRANCH --jq '.object.sha')
+
+          # Create a new branch
+          gh api \
+            --method POST \
+            repos/${GITHUB_REPOSITORY}/git/refs \
+            -f ref="refs/heads/$BRANCH_NAME" \
+            -f sha="$BASE_SHA"
+
+          # Get the current base-action/action.yml content
+          ACTION_CONTENT=$(gh api repos/${GITHUB_REPOSITORY}/contents/base-action/action.yml?ref=$DEFAULT_BRANCH --jq '.content' | base64 -d)
+
+          # Update the Claude Code version in the npm install command
+          UPDATED_CONTENT=$(echo "$ACTION_CONTENT" | sed -E "s/(npm install -g @anthropic-ai\/claude-code@)[0-9]+\.[0-9]+\.[0-9]+/\1${{ env.NEW_VERSION }}/")
+
+          # Verify the change would be made
+          if ! echo "$UPDATED_CONTENT" | grep -q "@anthropic-ai/claude-code@${{ env.NEW_VERSION }}"; then
+            echo "Error: Failed to update Claude Code version in content"
+            exit 1
+          fi
+
+          # Get the current SHA of base-action/action.yml for the update API call
+          FILE_SHA=$(gh api repos/${GITHUB_REPOSITORY}/contents/base-action/action.yml?ref=$DEFAULT_BRANCH --jq '.sha')
+
+          # Create the updated base-action/action.yml content in base64
+          echo "$UPDATED_CONTENT" | base64 > action.yml.b64
+
+          # Commit the updated base-action/action.yml via GitHub API
+          gh api \
+            --method PUT \
+            repos/${GITHUB_REPOSITORY}/contents/base-action/action.yml \
+            -f message="chore: bump Claude Code version to ${{ env.NEW_VERSION }}" \
+            -F content=@action.yml.b64 \
+            -f sha="$FILE_SHA" \
+            -f branch="$BRANCH_NAME"
+
+          echo "Successfully created branch and updated Claude Code version to ${{ env.NEW_VERSION }}"
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Create Pull Request
+        run: |
+          # Determine trigger type for PR body
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            TRIGGER_INFO="repository dispatch event"
+          else
+            TRIGGER_INFO="manual workflow dispatch by @${GITHUB_ACTOR}"
+          fi
+
+          # Create PR body with proper YAML escape
+          printf -v PR_BODY "## Bump Claude Code to ${{ env.NEW_VERSION }}\n\nThis PR updates the Claude Code version in base-action/action.yml to ${{ env.NEW_VERSION }}.\n\n### Changes\n- Updated Claude Code version from current to \`${{ env.NEW_VERSION }}\`\n\n### Triggered by\n- $TRIGGER_INFO\n\n🤖 This PR was automatically created by the bump-claude-code-version workflow."
+
+          echo "Creating PR with gh pr create command"
+          PR_URL=$(gh pr create \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "chore: bump Claude Code version to ${{ env.NEW_VERSION }}" \
+            --body "$PR_BODY" \
+            --base "${DEFAULT_BRANCH}" \
+            --head "${BRANCH_NAME}")
+
+          echo "PR created successfully: $PR_URL"
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          DEFAULT_BRANCH: ${{ env.DEFAULT_BRANCH }}
+          BRANCH_NAME: ${{ env.BRANCH_NAME }}

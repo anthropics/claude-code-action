@@ -9,9 +9,12 @@ import { appendFileSync } from "fs";
 import { createJobRunLink, createCommentBody } from "./common";
 import {
   isPullRequestReviewCommentEvent,
+  isPullRequestEvent,
   type ParsedGitHubContext,
 } from "../../context";
 import type { Octokit } from "@octokit/rest";
+
+const CLAUDE_APP_BOT_ID = 209825114;
 
 export async function createInitialComment(
   octokit: Octokit,
@@ -25,8 +28,43 @@ export async function createInitialComment(
   try {
     let response;
 
-    // Only use createReplyForReviewComment if it's a PR review comment AND we have a comment_id
-    if (isPullRequestReviewCommentEvent(context)) {
+    if (
+      context.inputs.useStickyComment &&
+      context.isPR &&
+      isPullRequestEvent(context)
+    ) {
+      const comments = await octokit.rest.issues.listComments({
+        owner,
+        repo,
+        issue_number: context.entityNumber,
+      });
+      const existingComment = comments.data.find((comment) => {
+        const idMatch = comment.user?.id === CLAUDE_APP_BOT_ID;
+        const botNameMatch =
+          comment.user?.type === "Bot" &&
+          comment.user?.login.toLowerCase().includes("claude");
+        const bodyMatch = comment.body === initialBody;
+
+        return idMatch || botNameMatch || bodyMatch;
+      });
+      if (existingComment) {
+        response = await octokit.rest.issues.updateComment({
+          owner,
+          repo,
+          comment_id: existingComment.id,
+          body: initialBody,
+        });
+      } else {
+        // Create new comment if no existing one found
+        response = await octokit.rest.issues.createComment({
+          owner,
+          repo,
+          issue_number: context.entityNumber,
+          body: initialBody,
+        });
+      }
+    } else if (isPullRequestReviewCommentEvent(context)) {
+      // Only use createReplyForReviewComment if it's a PR review comment AND we have a comment_id
       response = await octokit.rest.pulls.createReplyForReviewComment({
         owner,
         repo,
@@ -48,7 +86,7 @@ export async function createInitialComment(
     const githubOutput = process.env.GITHUB_OUTPUT!;
     appendFileSync(githubOutput, `claude_comment_id=${response.data.id}\n`);
     console.log(`✅ Created initial comment with ID: ${response.data.id}`);
-    return response.data.id;
+    return response.data;
   } catch (error) {
     console.error("Error in initial comment:", error);
 
@@ -64,7 +102,7 @@ export async function createInitialComment(
       const githubOutput = process.env.GITHUB_OUTPUT!;
       appendFileSync(githubOutput, `claude_comment_id=${response.data.id}\n`);
       console.log(`✅ Created fallback comment with ID: ${response.data.id}`);
-      return response.data.id;
+      return response.data;
     } catch (fallbackError) {
       console.error("Error creating fallback comment:", fallbackError);
       throw fallbackError;

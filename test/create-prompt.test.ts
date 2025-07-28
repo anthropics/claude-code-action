@@ -127,13 +127,13 @@ describe("generatePrompt", () => {
         commentId: "67890",
         isPR: false,
         baseBranch: "main",
-        claudeBranch: "claude/issue-67890-20240101_120000",
+        claudeBranch: "claude/issue-67890-20240101-1200",
         issueNumber: "67890",
         commentBody: "@claude please fix this",
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("You are Claude, an AI assistant");
     expect(prompt).toContain("<event_type>GENERAL_COMMENT</event_type>");
@@ -161,7 +161,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("<event_type>PR_REVIEW</event_type>");
     expect(prompt).toContain("<is_pr>true</is_pr>");
@@ -183,11 +183,11 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "789",
         baseBranch: "main",
-        claudeBranch: "claude/issue-789-20240101_120000",
+        claudeBranch: "claude/issue-789-20240101-1200",
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("<event_type>ISSUE_CREATED</event_type>");
     expect(prompt).toContain(
@@ -210,12 +210,12 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "999",
         baseBranch: "develop",
-        claudeBranch: "claude/issue-999-20240101_120000",
+        claudeBranch: "claude/issue-999-20240101-1200",
         assigneeTrigger: "claude-bot",
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("<event_type>ISSUE_ASSIGNED</event_type>");
     expect(prompt).toContain(
@@ -223,6 +223,33 @@ describe("generatePrompt", () => {
     );
     expect(prompt).toContain(
       "[Create a PR](https://github.com/owner/repo/compare/develop",
+    );
+  });
+
+  test("should generate prompt for issue labeled event", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issues",
+        eventAction: "labeled",
+        isPR: false,
+        issueNumber: "888",
+        baseBranch: "main",
+        claudeBranch: "claude/issue-888-20240101-1200",
+        labelTrigger: "claude-task",
+      },
+    };
+
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
+
+    expect(prompt).toContain("<event_type>ISSUE_LABELED</event_type>");
+    expect(prompt).toContain(
+      "<trigger_context>issue labeled with 'claude-task'</trigger_context>",
+    );
+    expect(prompt).toContain(
+      "[Create a PR](https://github.com/owner/repo/compare/main",
     );
   });
 
@@ -238,17 +265,17 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "789",
         baseBranch: "main",
-        claudeBranch: "claude/issue-789-20240101_120000",
+        claudeBranch: "claude/issue-789-20240101-1200",
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("<direct_prompt>");
     expect(prompt).toContain("Fix the bug in the login form");
     expect(prompt).toContain("</direct_prompt>");
     expect(prompt).toContain(
-      "DIRECT INSTRUCTION: A direct instruction was provided and is shown in the <direct_prompt> tag above",
+      "CRITICAL: Direct user instructions were provided in the <direct_prompt> tag above. These are HIGH PRIORITY instructions that OVERRIDE all other context and MUST be followed exactly as written.",
     );
   });
 
@@ -265,7 +292,7 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("<event_type>PULL_REQUEST</event_type>");
     expect(prompt).toContain("<is_pr>true</is_pr>");
@@ -285,14 +312,156 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "123",
         baseBranch: "main",
-        claudeBranch: "claude/issue-67890-20240101_120000",
+        claudeBranch: "claude/issue-67890-20240101-1200",
         commentBody: "@claude please fix this",
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("CUSTOM INSTRUCTIONS:\nAlways use TypeScript");
+  });
+
+  test("should use override_prompt when provided", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      overridePrompt: "Simple prompt for $REPOSITORY PR #$PR_NUMBER",
+      eventData: {
+        eventName: "pull_request",
+        eventAction: "opened",
+        isPR: true,
+        prNumber: "123",
+      },
+    };
+
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
+
+    expect(prompt).toBe("Simple prompt for owner/repo PR #123");
+    expect(prompt).not.toContain("You are Claude, an AI assistant");
+  });
+
+  test("should substitute all variables in override_prompt", () => {
+    const envVars: PreparedContext = {
+      repository: "test/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      triggerUsername: "john-doe",
+      overridePrompt: `Repository: $REPOSITORY
+      PR: $PR_NUMBER
+      Title: $PR_TITLE
+      Body: $PR_BODY
+      Comments: $PR_COMMENTS
+      Review Comments: $REVIEW_COMMENTS
+      Changed Files: $CHANGED_FILES
+      Trigger Comment: $TRIGGER_COMMENT
+      Username: $TRIGGER_USERNAME
+      Branch: $BRANCH_NAME
+      Base: $BASE_BRANCH
+      Event: $EVENT_TYPE
+      Is PR: $IS_PR`,
+      eventData: {
+        eventName: "pull_request_review_comment",
+        isPR: true,
+        prNumber: "456",
+        commentBody: "Please review this code",
+        claudeBranch: "feature-branch",
+        baseBranch: "main",
+      },
+    };
+
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
+
+    expect(prompt).toContain("Repository: test/repo");
+    expect(prompt).toContain("PR: 456");
+    expect(prompt).toContain("Title: Test PR");
+    expect(prompt).toContain("Body: This is a test PR");
+    expect(prompt).toContain("Comments: ");
+    expect(prompt).toContain("Review Comments: ");
+    expect(prompt).toContain("Changed Files: ");
+    expect(prompt).toContain("Trigger Comment: Please review this code");
+    expect(prompt).toContain("Username: john-doe");
+    expect(prompt).toContain("Branch: feature-branch");
+    expect(prompt).toContain("Base: main");
+    expect(prompt).toContain("Event: pull_request_review_comment");
+    expect(prompt).toContain("Is PR: true");
+  });
+
+  test("should handle override_prompt for issues", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      overridePrompt: "Issue #$ISSUE_NUMBER: $ISSUE_TITLE in $REPOSITORY",
+      eventData: {
+        eventName: "issues",
+        eventAction: "opened",
+        isPR: false,
+        issueNumber: "789",
+        baseBranch: "main",
+        claudeBranch: "claude/issue-789-20240101-1200",
+      },
+    };
+
+    const issueGitHubData = {
+      ...mockGitHubData,
+      contextData: {
+        title: "Bug: Login form broken",
+        body: "The login form is not working",
+        author: { login: "testuser" },
+        state: "OPEN",
+        createdAt: "2023-01-01T00:00:00Z",
+        comments: {
+          nodes: [],
+        },
+      },
+    };
+
+    const prompt = generatePrompt(envVars, issueGitHubData, false);
+
+    expect(prompt).toBe("Issue #789: Bug: Login form broken in owner/repo");
+  });
+
+  test("should handle empty values in override_prompt substitution", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      overridePrompt:
+        "PR: $PR_NUMBER, Issue: $ISSUE_NUMBER, Comment: $TRIGGER_COMMENT",
+      eventData: {
+        eventName: "pull_request",
+        eventAction: "opened",
+        isPR: true,
+        prNumber: "123",
+      },
+    };
+
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
+
+    expect(prompt).toBe("PR: 123, Issue: , Comment: ");
+  });
+
+  test("should not substitute variables when override_prompt is not provided", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issues",
+        eventAction: "opened",
+        isPR: false,
+        issueNumber: "123",
+        baseBranch: "main",
+        claudeBranch: "claude/issue-123-20240101-1200",
+      },
+    };
+
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
+
+    expect(prompt).toContain("You are Claude, an AI assistant");
+    expect(prompt).toContain("<event_type>ISSUE_CREATED</event_type>");
   });
 
   test("should include trigger username when provided", () => {
@@ -307,16 +476,17 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "123",
         baseBranch: "main",
-        claudeBranch: "claude/issue-67890-20240101_120000",
+        claudeBranch: "claude/issue-67890-20240101-1200",
         commentBody: "@claude please fix this",
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     expect(prompt).toContain("<trigger_username>johndoe</trigger_username>");
+    // With commit signing disabled, co-author info appears in git commit instructions
     expect(prompt).toContain(
-      'Use: "Co-authored-by: johndoe <johndoe@users.noreply.github.com>"',
+      "Co-authored-by: johndoe <johndoe@users.noreply.github.com>",
     );
   });
 
@@ -333,12 +503,10 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
-    // Should contain PR-specific instructions
-    expect(prompt).toContain(
-      "Push directly using mcp__github_file_ops__commit_files to the existing branch",
-    );
+    // Should contain PR-specific instructions (git commands when not using signing)
+    expect(prompt).toContain("git push");
     expect(prompt).toContain(
       "Always push to the existing branch when triggered on a PR",
     );
@@ -362,18 +530,18 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "789",
         baseBranch: "main",
-        claudeBranch: "claude/issue-789-20240101_120000",
+        claudeBranch: "claude/issue-789-20240101-1200",
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     // Should contain Issue-specific instructions
     expect(prompt).toContain(
-      "You are already on the correct branch (claude/issue-789-20240101_120000)",
+      "You are already on the correct branch (claude/issue-789-20240101-1200)",
     );
     expect(prompt).toContain(
-      "IMPORTANT: You are already on the correct branch (claude/issue-789-20240101_120000)",
+      "IMPORTANT: You are already on the correct branch (claude/issue-789-20240101-1200)",
     );
     expect(prompt).toContain("Create a PR](https://github.com/");
     expect(prompt).toContain(
@@ -400,22 +568,22 @@ describe("generatePrompt", () => {
         isPR: false,
         issueNumber: "123",
         baseBranch: "main",
-        claudeBranch: "claude/issue-123-20240101_120000",
+        claudeBranch: "claude/issue-123-20240101-1200",
         commentBody: "@claude please fix this",
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     // Should contain the actual branch name with timestamp
     expect(prompt).toContain(
-      "You are already on the correct branch (claude/issue-123-20240101_120000)",
+      "You are already on the correct branch (claude/issue-123-20240101-1200)",
     );
     expect(prompt).toContain(
-      "IMPORTANT: You are already on the correct branch (claude/issue-123-20240101_120000)",
+      "IMPORTANT: You are already on the correct branch (claude/issue-123-20240101-1200)",
     );
     expect(prompt).toContain(
-      "The branch-name is the current branch: claude/issue-123-20240101_120000",
+      "The branch-name is the current branch: claude/issue-123-20240101-1200",
     );
   });
 
@@ -430,22 +598,22 @@ describe("generatePrompt", () => {
         isPR: true,
         prNumber: "456",
         commentBody: "@claude please fix this",
-        claudeBranch: "claude/pr-456-20240101_120000",
+        claudeBranch: "claude/pr-456-20240101-1200",
         baseBranch: "main",
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     // Should contain branch-specific instructions like issues
     expect(prompt).toContain(
-      "You are already on the correct branch (claude/pr-456-20240101_120000)",
+      "You are already on the correct branch (claude/pr-456-20240101-1200)",
     );
     expect(prompt).toContain(
       "Create a PR](https://github.com/owner/repo/compare/main",
     );
     expect(prompt).toContain(
-      "The branch-name is the current branch: claude/pr-456-20240101_120000",
+      "The branch-name is the current branch: claude/pr-456-20240101-1200",
     );
     expect(prompt).toContain("Reference to the original PR");
     expect(prompt).toContain(
@@ -473,12 +641,10 @@ describe("generatePrompt", () => {
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
-    // Should contain open PR instructions
-    expect(prompt).toContain(
-      "Push directly using mcp__github_file_ops__commit_files to the existing branch",
-    );
+    // Should contain open PR instructions (git commands when not using signing)
+    expect(prompt).toContain("git push");
     expect(prompt).toContain(
       "Always push to the existing branch when triggered on a PR",
     );
@@ -501,16 +667,16 @@ describe("generatePrompt", () => {
         isPR: true,
         prNumber: "789",
         commentBody: "@claude please update this",
-        claudeBranch: "claude/pr-789-20240101_123000",
+        claudeBranch: "claude/pr-789-20240101-1230",
         baseBranch: "develop",
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     // Should contain new branch instructions
     expect(prompt).toContain(
-      "You are already on the correct branch (claude/pr-789-20240101_123000)",
+      "You are already on the correct branch (claude/pr-789-20240101-1230)",
     );
     expect(prompt).toContain(
       "Create a PR](https://github.com/owner/repo/compare/develop",
@@ -529,16 +695,16 @@ describe("generatePrompt", () => {
         prNumber: "999",
         commentId: "review-comment-123",
         commentBody: "@claude fix this issue",
-        claudeBranch: "claude/pr-999-20240101_140000",
+        claudeBranch: "claude/pr-999-20240101-1400",
         baseBranch: "main",
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     // Should contain new branch instructions
     expect(prompt).toContain(
-      "You are already on the correct branch (claude/pr-999-20240101_140000)",
+      "You are already on the correct branch (claude/pr-999-20240101-1400)",
     );
     expect(prompt).toContain("Create a PR](https://github.com/");
     expect(prompt).toContain("Reference to the original PR");
@@ -557,19 +723,74 @@ describe("generatePrompt", () => {
         eventAction: "closed",
         isPR: true,
         prNumber: "555",
-        claudeBranch: "claude/pr-555-20240101_150000",
+        claudeBranch: "claude/pr-555-20240101-1500",
         baseBranch: "main",
       },
     };
 
-    const prompt = generatePrompt(envVars, mockGitHubData);
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
 
     // Should contain new branch instructions
     expect(prompt).toContain(
-      "You are already on the correct branch (claude/pr-555-20240101_150000)",
+      "You are already on the correct branch (claude/pr-555-20240101-1500)",
     );
     expect(prompt).toContain("Create a PR](https://github.com/");
     expect(prompt).toContain("Reference to the original PR");
+  });
+
+  test("should include git commands when useCommitSigning is false", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issue_comment",
+        commentId: "67890",
+        isPR: true,
+        prNumber: "123",
+        commentBody: "@claude fix the bug",
+      },
+    };
+
+    const prompt = generatePrompt(envVars, mockGitHubData, false);
+
+    // Should have git command instructions
+    expect(prompt).toContain("Use git commands via the Bash tool");
+    expect(prompt).toContain("git add");
+    expect(prompt).toContain("git commit");
+    expect(prompt).toContain("git push");
+
+    // Should use the minimal comment tool
+    expect(prompt).toContain("mcp__github_comment__update_claude_comment");
+
+    // Should not have commit signing tool references
+    expect(prompt).not.toContain("mcp__github_file_ops__commit_files");
+  });
+
+  test("should include commit signing tools when useCommitSigning is true", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issue_comment",
+        commentId: "67890",
+        isPR: true,
+        prNumber: "123",
+        commentBody: "@claude fix the bug",
+      },
+    };
+
+    const prompt = generatePrompt(envVars, mockGitHubData, true);
+
+    // Should have commit signing tool instructions
+    expect(prompt).toContain("mcp__github_file_ops__commit_files");
+    expect(prompt).toContain("mcp__github_file_ops__delete_files");
+    // Comment tool should always be from comment server, not file ops
+    expect(prompt).toContain("mcp__github_comment__update_claude_comment");
+
+    // Should not have git command instructions
+    expect(prompt).not.toContain("Use git commands via the Bash tool");
   });
 });
 
@@ -604,7 +825,7 @@ describe("getEventTypeAndContext", () => {
         isPR: false,
         issueNumber: "999",
         baseBranch: "main",
-        claudeBranch: "claude/issue-999-20240101_120000",
+        claudeBranch: "claude/issue-999-20240101-1200",
         assigneeTrigger: "claude-bot",
       },
     };
@@ -613,6 +834,28 @@ describe("getEventTypeAndContext", () => {
 
     expect(result.eventType).toBe("ISSUE_ASSIGNED");
     expect(result.triggerContext).toBe("issue assigned to 'claude-bot'");
+  });
+
+  test("should return correct type and context for issue labeled", () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issues",
+        eventAction: "labeled",
+        isPR: false,
+        issueNumber: "888",
+        baseBranch: "main",
+        claudeBranch: "claude/issue-888-20240101-1200",
+        labelTrigger: "claude-task",
+      },
+    };
+
+    const result = getEventTypeAndContext(envVars);
+
+    expect(result.eventType).toBe("ISSUE_LABELED");
+    expect(result.triggerContext).toBe("issue labeled with 'claude-task'");
   });
 
   test("should return correct type and context for issue assigned without assigneeTrigger", () => {
@@ -627,7 +870,7 @@ describe("getEventTypeAndContext", () => {
         isPR: false,
         issueNumber: "999",
         baseBranch: "main",
-        claudeBranch: "claude/issue-999-20240101_120000",
+        claudeBranch: "claude/issue-999-20240101-1200",
         // No assigneeTrigger when using directPrompt
       },
     };
@@ -640,7 +883,7 @@ describe("getEventTypeAndContext", () => {
 });
 
 describe("buildAllowedToolsString", () => {
-  test("should return issue comment tool for regular events", () => {
+  test("should return correct tools for regular events (default no signing)", () => {
     const result = buildAllowedToolsString();
 
     // The base tools should be in the result
@@ -650,15 +893,20 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("LS");
     expect(result).toContain("Read");
     expect(result).toContain("Write");
-    expect(result).toContain("mcp__github_file_ops__update_claude_comment");
-    expect(result).not.toContain("mcp__github__update_issue_comment");
-    expect(result).not.toContain("mcp__github__update_pull_request_comment");
-    expect(result).toContain("mcp__github_file_ops__commit_files");
-    expect(result).toContain("mcp__github_file_ops__delete_files");
+
+    // Default is no commit signing, so should have specific Bash git commands
+    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("Bash(git push:*)");
+    expect(result).toContain("mcp__github_comment__update_claude_comment");
+
+    // Should not have commit signing tools
+    expect(result).not.toContain("mcp__github_file_ops__commit_files");
+    expect(result).not.toContain("mcp__github_file_ops__delete_files");
   });
 
-  test("should return PR comment tool for inline review comments", () => {
-    const result = buildAllowedToolsString();
+  test("should return correct tools with default parameters", () => {
+    const result = buildAllowedToolsString([], false, false);
 
     // The base tools should be in the result
     expect(result).toContain("Edit");
@@ -667,11 +915,15 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("LS");
     expect(result).toContain("Read");
     expect(result).toContain("Write");
-    expect(result).toContain("mcp__github_file_ops__update_claude_comment");
-    expect(result).not.toContain("mcp__github__update_issue_comment");
-    expect(result).not.toContain("mcp__github__update_pull_request_comment");
-    expect(result).toContain("mcp__github_file_ops__commit_files");
-    expect(result).toContain("mcp__github_file_ops__delete_files");
+
+    // Should have specific Bash git commands for non-signing mode
+    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("mcp__github_comment__update_claude_comment");
+
+    // Should not have commit signing tools
+    expect(result).not.toContain("mcp__github_file_ops__commit_files");
+    expect(result).not.toContain("mcp__github_file_ops__delete_files");
   });
 
   test("should append custom tools when provided", () => {
@@ -693,6 +945,109 @@ describe("buildAllowedToolsString", () => {
     expect(basePlusCustom).toContain("Tool1");
     expect(basePlusCustom).toContain("Tool2");
     expect(basePlusCustom).toContain("Tool3");
+  });
+
+  test("should include GitHub Actions tools when includeActionsTools is true", () => {
+    const result = buildAllowedToolsString([], true);
+
+    // Base tools should be present
+    expect(result).toContain("Edit");
+    expect(result).toContain("Glob");
+
+    // GitHub Actions tools should be included
+    expect(result).toContain("mcp__github_ci__get_ci_status");
+    expect(result).toContain("mcp__github_ci__get_workflow_run_details");
+    expect(result).toContain("mcp__github_ci__download_job_log");
+  });
+
+  test("should include both custom and Actions tools when both provided", () => {
+    const customTools = ["Tool1", "Tool2"];
+    const result = buildAllowedToolsString(customTools, true);
+
+    // Base tools should be present
+    expect(result).toContain("Edit");
+
+    // Custom tools should be included
+    expect(result).toContain("Tool1");
+    expect(result).toContain("Tool2");
+
+    // GitHub Actions tools should be included
+    expect(result).toContain("mcp__github_ci__get_ci_status");
+    expect(result).toContain("mcp__github_ci__get_workflow_run_details");
+    expect(result).toContain("mcp__github_ci__download_job_log");
+  });
+
+  test("should include commit signing tools when useCommitSigning is true", () => {
+    const result = buildAllowedToolsString([], false, true);
+
+    // Base tools should be present
+    expect(result).toContain("Edit");
+    expect(result).toContain("Glob");
+    expect(result).toContain("Grep");
+    expect(result).toContain("LS");
+    expect(result).toContain("Read");
+    expect(result).toContain("Write");
+
+    // Commit signing tools should be included
+    expect(result).toContain("mcp__github_file_ops__commit_files");
+    expect(result).toContain("mcp__github_file_ops__delete_files");
+    // Comment tool should always be from github_comment server
+    expect(result).toContain("mcp__github_comment__update_claude_comment");
+
+    // Bash should NOT be included when using commit signing (except in comment tool name)
+    expect(result).not.toContain("Bash(");
+  });
+
+  test("should include specific Bash git commands when useCommitSigning is false", () => {
+    const result = buildAllowedToolsString([], false, false);
+
+    // Base tools should be present
+    expect(result).toContain("Edit");
+    expect(result).toContain("Glob");
+    expect(result).toContain("Grep");
+    expect(result).toContain("LS");
+    expect(result).toContain("Read");
+    expect(result).toContain("Write");
+
+    // Specific Bash git commands should be included
+    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("Bash(git push:*)");
+    expect(result).toContain("Bash(git status:*)");
+    expect(result).toContain("Bash(git diff:*)");
+    expect(result).toContain("Bash(git log:*)");
+    expect(result).toContain("Bash(git rm:*)");
+    expect(result).toContain("Bash(git config user.name:*)");
+    expect(result).toContain("Bash(git config user.email:*)");
+
+    // Comment tool from minimal server should be included
+    expect(result).toContain("mcp__github_comment__update_claude_comment");
+
+    // Commit signing tools should NOT be included
+    expect(result).not.toContain("mcp__github_file_ops__commit_files");
+    expect(result).not.toContain("mcp__github_file_ops__delete_files");
+  });
+
+  test("should handle all combinations of options", () => {
+    const customTools = ["CustomTool1", "CustomTool2"];
+    const result = buildAllowedToolsString(customTools, true, false);
+
+    // Base tools should be present
+    expect(result).toContain("Edit");
+    expect(result).toContain("Bash(git add:*)");
+
+    // Custom tools should be included
+    expect(result).toContain("CustomTool1");
+    expect(result).toContain("CustomTool2");
+
+    // GitHub Actions tools should be included
+    expect(result).toContain("mcp__github_ci__get_ci_status");
+
+    // Comment tool from minimal server should be included
+    expect(result).toContain("mcp__github_comment__update_claude_comment");
+
+    // Commit signing tools should NOT be included
+    expect(result).not.toContain("mcp__github_file_ops__commit_files");
   });
 });
 

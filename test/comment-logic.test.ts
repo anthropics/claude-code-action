@@ -1,5 +1,8 @@
 import { describe, it, expect } from "bun:test";
-import { updateCommentBody } from "../src/github/operations/comment-logic";
+import {
+  updateCommentBody,
+  type CommentUpdateInput,
+} from "../src/github/operations/comment-logic";
 
 describe("updateCommentBody", () => {
   const baseInput = {
@@ -100,12 +103,12 @@ describe("updateCommentBody", () => {
     it("adds branch name with link to header when provided", () => {
       const input = {
         ...baseInput,
-        branchName: "claude/issue-123-20240101_120000",
+        branchName: "claude/issue-123-20240101-1200",
       };
 
       const result = updateCommentBody(input);
       expect(result).toContain(
-        "• [`claude/issue-123-20240101_120000`](https://github.com/owner/repo/tree/claude/issue-123-20240101_120000)",
+        "• [`claude/issue-123-20240101-1200`](https://github.com/owner/repo/tree/claude/issue-123-20240101-1200)",
       );
     });
 
@@ -381,9 +384,9 @@ describe("updateCommentBody", () => {
       const input = {
         ...baseInput,
         currentBody: "Claude Code is working… <img src='spinner.gif' />",
-        branchName: "claude/pr-456-20240101_120000",
+        branchName: "claude/pr-456-20240101-1200",
         prLink:
-          "\n[Create a PR](https://github.com/owner/repo/compare/main...claude/pr-456-20240101_120000)",
+          "\n[Create a PR](https://github.com/owner/repo/compare/main...claude/pr-456-20240101-1200)",
         triggerUsername: "jane-doe",
       };
 
@@ -391,7 +394,7 @@ describe("updateCommentBody", () => {
 
       // Should include the PR link in the formatted style
       expect(result).toContain(
-        "• [Create PR ➔](https://github.com/owner/repo/compare/main...claude/pr-456-20240101_120000)",
+        "• [Create PR ➔](https://github.com/owner/repo/compare/main...claude/pr-456-20240101-1200)",
       );
       expect(result).toContain("**Claude finished @jane-doe's task**");
     });
@@ -400,22 +403,44 @@ describe("updateCommentBody", () => {
       const input = {
         ...baseInput,
         currentBody: "Claude Code is working…",
-        branchName: "claude/issue-123-20240101_120000",
+        branchName: "claude/issue-123-20240101-1200",
         branchLink:
-          "\n[View branch](https://github.com/owner/repo/tree/claude/issue-123-20240101_120000)",
+          "\n[View branch](https://github.com/owner/repo/tree/claude/issue-123-20240101-1200)",
         prLink:
-          "\n[Create a PR](https://github.com/owner/repo/compare/main...claude/issue-123-20240101_120000)",
+          "\n[Create a PR](https://github.com/owner/repo/compare/main...claude/issue-123-20240101-1200)",
       };
 
       const result = updateCommentBody(input);
 
       // Should include both links in formatted style
       expect(result).toContain(
-        "• [`claude/issue-123-20240101_120000`](https://github.com/owner/repo/tree/claude/issue-123-20240101_120000)",
+        "• [`claude/issue-123-20240101-1200`](https://github.com/owner/repo/tree/claude/issue-123-20240101-1200)",
       );
       expect(result).toContain(
-        "• [Create PR ➔](https://github.com/owner/repo/compare/main...claude/issue-123-20240101_120000)",
+        "• [Create PR ➔](https://github.com/owner/repo/compare/main...claude/issue-123-20240101-1200)",
       );
+    });
+
+    it("should not show branch name when branch doesn't exist remotely", () => {
+      const input: CommentUpdateInput = {
+        currentBody: "@claude can you help with this?",
+        actionFailed: false,
+        executionDetails: { duration_ms: 90000 },
+        jobUrl: "https://github.com/owner/repo/actions/runs/123",
+        branchLink: "", // Empty branch link means branch doesn't exist remotely
+        branchName: undefined, // Should be undefined when branchLink is empty
+        triggerUsername: "claude",
+        prLink: "",
+      };
+
+      const result = updateCommentBody(input);
+
+      expect(result).toContain("Claude finished @claude's task in 1m 30s");
+      expect(result).toContain(
+        "[View job](https://github.com/owner/repo/actions/runs/123)",
+      );
+      expect(result).not.toContain("claude/issue-123");
+      expect(result).not.toContain("tree/claude/issue-123");
     });
   });
 });

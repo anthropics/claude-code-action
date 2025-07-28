@@ -6,6 +6,7 @@ import { describe, it, expect } from "bun:test";
 import {
   createMockContext,
   mockIssueAssignedContext,
+  mockIssueLabeledContext,
   mockIssueCommentContext,
   mockIssueOpenedContext,
   mockPullRequestReviewContext,
@@ -27,13 +28,20 @@ describe("checkContainsTrigger", () => {
         eventName: "issues",
         eventAction: "opened",
         inputs: {
+          mode: "tag",
           triggerPhrase: "/claude",
           assigneeTrigger: "",
+          labelTrigger: "",
           directPrompt: "Fix the bug in the login form",
+          overridePrompt: "",
           allowedBots: [],
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -54,13 +62,20 @@ describe("checkContainsTrigger", () => {
           },
         } as IssuesEvent,
         inputs: {
+          mode: "tag",
           triggerPhrase: "/claude",
           assigneeTrigger: "",
+          labelTrigger: "",
           directPrompt: "",
+          overridePrompt: "",
           allowedBots: [],
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(false);
@@ -105,6 +120,39 @@ describe("checkContainsTrigger", () => {
         },
       } as ParsedGitHubContext;
 
+      expect(checkContainsTrigger(context)).toBe(false);
+    });
+  });
+
+  describe("label trigger", () => {
+    it("should return true when issue is labeled with the trigger label", () => {
+      const context = mockIssueLabeledContext;
+      expect(checkContainsTrigger(context)).toBe(true);
+    });
+
+    it("should return false when issue is labeled with a different label", () => {
+      const context = {
+        ...mockIssueLabeledContext,
+        payload: {
+          ...mockIssueLabeledContext.payload,
+          label: {
+            ...(mockIssueLabeledContext.payload as any).label,
+            name: "bug",
+          },
+        },
+      } as ParsedGitHubContext;
+      expect(checkContainsTrigger(context)).toBe(false);
+    });
+
+    it("should return false for non-labeled events", () => {
+      const context = {
+        ...mockIssueLabeledContext,
+        eventAction: "opened",
+        payload: {
+          ...mockIssueLabeledContext.payload,
+          action: "opened",
+        },
+      } as ParsedGitHubContext;
       expect(checkContainsTrigger(context)).toBe(false);
     });
   });
@@ -232,13 +280,20 @@ describe("checkContainsTrigger", () => {
           },
         } as PullRequestEvent,
         inputs: {
+          mode: "tag",
           triggerPhrase: "@claude",
           assigneeTrigger: "",
+          labelTrigger: "",
           directPrompt: "",
+          overridePrompt: "",
           allowedBots: [],
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -260,13 +315,20 @@ describe("checkContainsTrigger", () => {
           },
         } as PullRequestEvent,
         inputs: {
+          mode: "tag",
           triggerPhrase: "@claude",
           assigneeTrigger: "",
+          labelTrigger: "",
           directPrompt: "",
+          overridePrompt: "",
           allowedBots: [],
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -288,13 +350,20 @@ describe("checkContainsTrigger", () => {
           },
         } as PullRequestEvent,
         inputs: {
+          mode: "tag",
           triggerPhrase: "@claude",
           assigneeTrigger: "",
+          labelTrigger: "",
           directPrompt: "",
+          overridePrompt: "",
           allowedBots: [],
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(false);

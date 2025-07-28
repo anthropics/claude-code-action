@@ -1,0 +1,2 @@
+# Test fixtures should not be formatted to preserve exact output matching
+test/fixtures/
