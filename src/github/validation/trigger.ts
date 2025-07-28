@@ -11,9 +11,36 @@ import {
 } from "../context";
 import type { ParsedGitHubContext } from "../context";
 
+function isBotAllowed(
+  username: string,
+  userType: string | undefined,
+  allowedBots: string[],
+): boolean {
+  // Check if user is a bot
+  const isBot = userType === "Bot" || username.endsWith("[bot]");
+
+  if (!isBot) {
+    // Not a bot, always allowed
+    return true;
+  }
+
+  // If allowedBots is empty, bots are not allowed (opt-in feature)
+  if (allowedBots.length === 0) {
+    return false;
+  }
+
+  // If allowedBots contains '*', all bots are allowed
+  if (allowedBots.includes("*")) {
+    return true;
+  }
+
+  // Check if this specific bot is in the allowed list
+  return allowedBots.includes(username);
+}
+
 export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   const {
-    inputs: { assigneeTrigger, triggerPhrase, directPrompt },
+    inputs: { assigneeTrigger, triggerPhrase, directPrompt, allowedBots },
   } = context;
 
   // If direct prompt is provided, always trigger
@@ -36,6 +63,14 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
 
   // Check for issue body and title trigger on issue creation
   if (isIssuesEvent(context) && context.eventAction === "opened") {
+    const issueUser = context.payload.issue.user;
+
+    // Check if bot is allowed
+    if (!isBotAllowed(issueUser.login, issueUser.type, allowedBots)) {
+      console.log(`Bot user '${issueUser.login}' is not in allowed bots list`);
+      return false;
+    }
+
     const issueBody = context.payload.issue.body || "";
     const issueTitle = context.payload.issue.title || "";
     // Check for exact match with word boundaries or punctuation
@@ -62,6 +97,14 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
 
   // Check for pull request body and title trigger
   if (isPullRequestEvent(context)) {
+    const prUser = context.payload.pull_request.user;
+
+    // Check if bot is allowed
+    if (!isBotAllowed(prUser.login, prUser.type, allowedBots)) {
+      console.log(`Bot user '${prUser.login}' is not in allowed bots list`);
+      return false;
+    }
+
     const prBody = context.payload.pull_request.body || "";
     const prTitle = context.payload.pull_request.title || "";
     // Check for exact match with word boundaries or punctuation
@@ -91,6 +134,14 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     isPullRequestReviewEvent(context) &&
     (context.eventAction === "submitted" || context.eventAction === "edited")
   ) {
+    const reviewUser = context.payload.review.user;
+
+    // Check if bot is allowed
+    if (!isBotAllowed(reviewUser.login, reviewUser.type, allowedBots)) {
+      console.log(`Bot user '${reviewUser.login}' is not in allowed bots list`);
+      return false;
+    }
+
     const reviewBody = context.payload.review.body || "";
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(
@@ -109,6 +160,16 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     isIssueCommentEvent(context) ||
     isPullRequestReviewCommentEvent(context)
   ) {
+    const commentUser = context.payload.comment.user;
+
+    // Check if bot is allowed
+    if (!isBotAllowed(commentUser.login, commentUser.type, allowedBots)) {
+      console.log(
+        `Bot user '${commentUser.login}' is not in allowed bots list`,
+      );
+      return false;
+    }
+
     const commentBody = isIssueCommentEvent(context)
       ? context.payload.comment.body
       : context.payload.comment.body;

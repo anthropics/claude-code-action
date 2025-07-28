@@ -5,7 +5,7 @@ import type { IssueCommentEvent, IssuesEvent } from "@octokit/webhooks-types";
 
 describe("Bot user trigger validation", () => {
   describe("issue comment from bot user", () => {
-    it("should return true when bot user comments with trigger phrase", () => {
+    it("should return false when bot user comments with trigger phrase but is not in allowed list", () => {
       const context = createMockContext({
         eventName: "issue_comment",
         eventAction: "created",
@@ -50,30 +50,31 @@ describe("Bot user trigger validation", () => {
           triggerPhrase: "@claude",
           assigneeTrigger: "",
           directPrompt: "",
+          allowedBots: [],
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
         },
       });
-      expect(checkContainsTrigger(context)).toBe(true);
+      expect(checkContainsTrigger(context)).toBe(false);
     });
 
-    it("should return true when GitHub Actions bot comments with trigger phrase", () => {
+    it("should return true when bot user comments with trigger phrase and is in allowed list", () => {
       const context = createMockContext({
         eventName: "issue_comment",
         eventAction: "created",
-        actor: "github-actions[bot]",
+        actor: "dependabot[bot]",
         payload: {
           action: "created",
           comment: {
             id: 88888888,
-            body: "/claude fix the failing tests",
+            body: "@claude fix the failing tests",
             user: {
-              login: "github-actions[bot]",
-              id: 41898282,
+              login: "dependabot[bot]",
+              id: 49699333,
               type: "Bot",
-              avatar_url: "https://avatars.githubusercontent.com/in/15368",
-              html_url: "https://github.com/apps/github-actions",
+              avatar_url: "https://avatars.githubusercontent.com/in/29110",
+              html_url: "https://github.com/apps/dependabot",
             },
             created_at: "2024-01-15T11:00:00Z",
             updated_at: "2024-01-15T11:00:00Z",
@@ -107,9 +108,71 @@ describe("Bot user trigger validation", () => {
           },
         } as IssueCommentEvent,
         inputs: {
-          triggerPhrase: "/claude",
+          triggerPhrase: "@claude",
           assigneeTrigger: "",
           directPrompt: "",
+          allowedBots: ["dependabot[bot]"],
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(true);
+    });
+
+    it("should return true when bot user comments with trigger phrase and all bots are allowed", () => {
+      const context = createMockContext({
+        eventName: "issue_comment",
+        eventAction: "created",
+        actor: "github-actions[bot]",
+        payload: {
+          action: "created",
+          comment: {
+            id: 77777777,
+            body: "@claude please help with CI",
+            user: {
+              login: "github-actions[bot]",
+              id: 41898282,
+              type: "Bot",
+              avatar_url: "https://avatars.githubusercontent.com/in/15368",
+              html_url: "https://github.com/apps/github-actions",
+            },
+            created_at: "2024-01-15T11:30:00Z",
+            updated_at: "2024-01-15T11:30:00Z",
+            html_url:
+              "https://github.com/test-owner/test-repo/pull/250#issuecomment-77777777",
+          },
+          issue: {
+            number: 250,
+            title: "ci: update workflow",
+            body: "Update CI workflow",
+            user: {
+              login: "developer",
+              id: 12345,
+              type: "User",
+            },
+            pull_request: {
+              url: "https://api.github.com/repos/test-owner/test-repo/pulls/250",
+              html_url: "https://github.com/test-owner/test-repo/pull/250",
+              diff_url: "https://github.com/test-owner/test-repo/pull/250.diff",
+              patch_url:
+                "https://github.com/test-owner/test-repo/pull/250.patch",
+            },
+          },
+          repository: {
+            name: "test-repo",
+            full_name: "test-owner/test-repo",
+            private: false,
+            owner: {
+              login: "test-owner",
+            },
+          },
+        } as IssueCommentEvent,
+        inputs: {
+          triggerPhrase: "@claude",
+          assigneeTrigger: "",
+          directPrompt: "",
+          allowedBots: ["*"],
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
@@ -170,6 +233,7 @@ describe("Bot user trigger validation", () => {
           triggerPhrase: "@claude",
           assigneeTrigger: "",
           directPrompt: "",
+          allowedBots: [],
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
@@ -180,7 +244,7 @@ describe("Bot user trigger validation", () => {
   });
 
   describe("issue opened by bot user", () => {
-    it("should return true when bot creates issue with trigger phrase", () => {
+    it("should return false when bot creates issue with trigger phrase but is not allowed", () => {
       const context = createMockContext({
         eventName: "issues",
         eventAction: "opened",
@@ -216,12 +280,13 @@ describe("Bot user trigger validation", () => {
           triggerPhrase: "@claude",
           assigneeTrigger: "",
           directPrompt: "",
+          allowedBots: [],
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
         },
       });
-      expect(checkContainsTrigger(context)).toBe(true);
+      expect(checkContainsTrigger(context)).toBe(false);
     });
   });
 
@@ -272,6 +337,7 @@ describe("Bot user trigger validation", () => {
           triggerPhrase: "/claude",
           assigneeTrigger: "claude-assistant-bot",
           directPrompt: "",
+          allowedBots: [],
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",
@@ -318,6 +384,7 @@ describe("Bot user trigger validation", () => {
           triggerPhrase: "/claude",
           assigneeTrigger: "",
           directPrompt: "Analyze the CI failure and suggest fixes",
+          allowedBots: [],
           allowedTools: [],
           disallowedTools: [],
           customInstructions: "",

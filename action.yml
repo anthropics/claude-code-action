@@ -12,6 +12,10 @@ inputs:
   assignee_trigger:
     description: "The assignee username that triggers the action (e.g. @claude)"
     required: false
+  allowed_bots:
+    description: "Comma-separated list of bot usernames allowed to trigger the action, or '*' to allow all bots. By default, bot triggers are disabled."
+    required: false
+    default: ""
   base_branch:
     description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
     required: false
@@ -98,6 +102,7 @@ runs:
       env:
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
+        ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         BASE_BRANCH: ${{ inputs.base_branch }}
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
