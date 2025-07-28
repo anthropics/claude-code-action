@@ -162,6 +162,12 @@ runs:
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
 
+    - name: Setup Node.js
+      if: steps.prepare.outputs.contains_trigger == 'true'
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # https://github.com/actions/setup-node/releases/tag/v4.4.0
+      with:
+        node-version: ${{ env.NODE_VERSION || '18.x' }}
+
     - name: Install Base Action Dependencies
       if: steps.prepare.outputs.contains_trigger == 'true'
       shell: bash
@@ -172,7 +178,7 @@ runs:
         echo "Base-action dependencies installed"
         cd -
         # Install Claude Code globally
-        bun install -g @anthropic-ai/claude-code@1.0.59
+        npm install -g @anthropic-ai/claude-code@1.0.61
 
     - name: Setup Network Restrictions
       if: steps.prepare.outputs.contains_trigger == 'true' && inputs.experimental_allowed_domains != ''
