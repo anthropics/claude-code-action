@@ -153,6 +153,10 @@ jobs:
           # assignee_trigger: "claude"
           # Optional: add label trigger for issues
           # label_trigger: "claude"
+          # Optional: allow specific bots to trigger the action
+          # allowed_bots: "dependabot[bot],renovate[bot]"
+          # Or allow all bots:
+          # allowed_bots: "*"
           # Optional: add custom environment variables (YAML format)
           # claude_env: |
           #   NODE_ENV: test
@@ -191,6 +195,7 @@ jobs:
 | `assignee_trigger`             | The assignee username that triggers the action (e.g. @claude). Only used for issue assignment                          | No       | -         |
 | `label_trigger`                | The label name that triggers the action when applied to an issue (e.g. "claude")                                       | No       | -         |
 | `trigger_phrase`               | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                          | No       | `@claude` |
+| `allowed_bots`                 | Comma-separated list of bot usernames allowed to trigger the action, or `*` to allow all bots. By default, bot triggers are disabled. | No       | ""        |
 | `branch_prefix`                | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                           | No       | `claude/` |
 | `claude_env`                   | Custom environment variables to pass to Claude Code execution (YAML format)                                            | No       | ""        |
 | `settings`                     | Claude Code settings as JSON string or path to settings JSON file                                                      | No       | ""        |
@@ -469,7 +474,7 @@ The `override_prompt` feature supports these variables:
 
 ## How It Works
 
-1. **Trigger Detection**: Listens for comments containing the trigger phrase (default: `@claude`) or issue assignment to a specific user
+1. **Trigger Detection**: Listens for comments containing the trigger phrase (default: `@claude`) or issue assignment to a specific user (supports both human and bot users)
 2. **Context Gathering**: Analyzes the PR/issue, comments, code changes
 3. **Smart Responses**: Either answers questions or implements changes
 4. **Branch Management**: Creates new PRs for human authors, pushes directly for Claude's own PRs
@@ -871,7 +876,7 @@ Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
 ### Access Control
 
 - **Repository Access**: The action can only be triggered by users with write access to the repository
-- **No Bot Triggers**: GitHub Apps and bots cannot trigger this action
+- **Bot User Support**: Bot accounts (e.g., dependabot, renovate, github-actions) can trigger this action
 - **Token Permissions**: The GitHub app receives only a short-lived token scoped specifically to the repository it's operating in
 - **No Cross-Repository Access**: Each action invocation is limited to the repository where it was triggered
 - **Limited Scope**: The token cannot access other repositories or perform actions beyond the configured permissions

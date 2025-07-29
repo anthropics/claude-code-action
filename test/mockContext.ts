@@ -13,6 +13,7 @@ const defaultInputs = {
   assigneeTrigger: "",
   labelTrigger: "",
   anthropicModel: "claude-3-7-sonnet-20250219",
+  allowedBots: [] as string[],
   allowedTools: [] as string[],
   disallowedTools: [] as string[],
   customInstructions: "",

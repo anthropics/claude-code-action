@@ -1,15 +1,16 @@
 #!/usr/bin/env bun
 
 /**
- * Prepare the Claude action by checking trigger conditions, verifying human actor,
- * and creating the initial tracking comment
+ * Prepare the Claude action by checking trigger conditions and creating the initial tracking comment
  */
 
 import * as core from "@actions/core";
 import { setupGitHubToken } from "../github/token";
+import { checkTriggerAction } from "../github/validation/trigger";
 import { checkHumanActor } from "../github/validation/actor";
 import { checkWritePermissions } from "../github/validation/permissions";
 import { createInitialComment } from "../github/operations/comments/create-initial";
+import { updateTrackingComment } from "../github/operations/comments/update-with-branch";
 import { setupBranch } from "../github/operations/branch";
 import { configureGitAuth } from "../github/operations/git-config";
 import { prepareMcpConfig } from "../mcp/install-mcp-server";
@@ -65,7 +66,7 @@ async function run() {
       commentId = commentData.id;
     }
 
-    // Step 7: Fetch GitHub data (once for both branch setup and prompt creation)
+    // Step 6: Fetch GitHub data (once for both branch setup and prompt creation)
     const githubData = await fetchGitHubData({
       octokits: octokit,
       repository: `${context.repository.owner}/${context.repository.repo}`,
@@ -74,8 +75,18 @@ async function run() {
       triggerUsername: context.actor,
     });
 
-    // Step 8: Setup branch
+    // Step 7: Setup branch
     const branchInfo = await setupBranch(octokit, githubData, context);
+
+    // Step 8: Update initial comment with branch link (only for issues that created a new branch)
+    if (branchInfo.claudeBranch && commentId) {
+      await updateTrackingComment(
+        octokit,
+        context,
+        commentId,
+        branchInfo.claudeBranch,
+      );
+    }
 
     // Step 9: Configure git authentication if not using commit signing
     if (!context.inputs.useCommitSigning) {
@@ -96,7 +107,7 @@ async function run() {
 
     await createPrompt(mode, modeContext, githubData, context);
 
-    // Step 11: Get MCP configuration
+    // Step 10: Get MCP configuration
     const additionalMcpConfig = process.env.MCP_CONFIG || "";
     const mcpConfig = await prepareMcpConfig({
       githubToken,

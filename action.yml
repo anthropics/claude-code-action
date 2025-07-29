@@ -16,6 +16,10 @@ inputs:
     description: "The label that triggers the action (e.g. claude)"
     required: false
     default: "claude"
+  allowed_bots:
+    description: "Comma-separated list of bot usernames allowed to trigger the action, or '*' to allow all bots. By default, bot triggers are disabled."
+    required: false
+    default: ""
   base_branch:
     description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
     required: false
@@ -147,6 +151,7 @@ runs:
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
         LABEL_TRIGGER: ${{ inputs.label_trigger }}
+        ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         BASE_BRANCH: ${{ inputs.base_branch }}
         BRANCH_PREFIX: ${{ inputs.branch_prefix }}
         ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
