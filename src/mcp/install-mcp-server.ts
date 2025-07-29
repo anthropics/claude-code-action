@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import { GITHUB_API_URL, GITHUB_SERVER_URL } from "../github/api/config";
+import { GITHUB_API_URL } from "../github/api/config";
 import type { ParsedGitHubContext } from "../github/context";
 import { Octokit } from "@octokit/rest";
 
@@ -157,12 +157,9 @@ export async function prepareMcpConfig(
           "-e",
           "GITHUB_PERSONAL_ACCESS_TOKEN",
           "ghcr.io/github/github-mcp-server:sha-efef8ae", // https://github.com/github/github-mcp-server/releases/tag/v0.9.0
-          "-e",
-          "GITHUB_HOST",
         ],
         env: {
           GITHUB_PERSONAL_ACCESS_TOKEN: githubToken,
-          GITHUB_HOST: GITHUB_SERVER_URL,
         },
       };
     }
