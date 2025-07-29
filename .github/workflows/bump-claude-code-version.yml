@@ -75,15 +75,15 @@ jobs:
           echo "Updating base-action/action.yml..."
           ACTION_CONTENT=$(gh api repos/${GITHUB_REPOSITORY}/contents/base-action/action.yml?ref=$DEFAULT_BRANCH --jq '.content' | base64 -d)
           UPDATED_CONTENT=$(echo "$ACTION_CONTENT" | sed -E "s/(npm install -g @anthropic-ai\/claude-code@)[0-9]+\.[0-9]+\.[0-9]+/\1${{ env.NEW_VERSION }}/")
-          
+
           if ! echo "$UPDATED_CONTENT" | grep -q "@anthropic-ai/claude-code@${{ env.NEW_VERSION }}"; then
             echo "Error: Failed to update Claude Code version in base-action/action.yml"
             exit 1
           fi
-          
+
           FILE_SHA=$(gh api repos/${GITHUB_REPOSITORY}/contents/base-action/action.yml?ref=$BRANCH_NAME --jq '.sha')
           echo "$UPDATED_CONTENT" | base64 > base-action.yml.b64
-          
+
           gh api \
             --method PUT \
             repos/${GITHUB_REPOSITORY}/contents/base-action/action.yml \
@@ -96,15 +96,15 @@ jobs:
           echo "Updating root action.yml..."
           ROOT_ACTION_CONTENT=$(gh api repos/${GITHUB_REPOSITORY}/contents/action.yml?ref=$BRANCH_NAME --jq '.content' | base64 -d)
           ROOT_UPDATED_CONTENT=$(echo "$ROOT_ACTION_CONTENT" | sed -E "s/(npm install -g @anthropic-ai\/claude-code@)[0-9]+\.[0-9]+\.[0-9]+/\1${{ env.NEW_VERSION }}/")
-          
+
           if ! echo "$ROOT_UPDATED_CONTENT" | grep -q "@anthropic-ai/claude-code@${{ env.NEW_VERSION }}"; then
             echo "Error: Failed to update Claude Code version in root action.yml"
             exit 1
           fi
-          
+
           ROOT_FILE_SHA=$(gh api repos/${GITHUB_REPOSITORY}/contents/action.yml?ref=$BRANCH_NAME --jq '.sha')
           echo "$ROOT_UPDATED_CONTENT" | base64 > root-action.yml.b64
-          
+
           gh api \
             --method PUT \
             repos/${GITHUB_REPOSITORY}/contents/action.yml \
