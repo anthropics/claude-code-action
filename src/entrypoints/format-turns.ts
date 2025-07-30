@@ -393,7 +393,7 @@ export function formatGroupedContent(groupedContent: GroupedContent[]): string {
       markdown += "---\n\n";
     } else if (itemType === "final_result") {
       const data = item.data || {};
-      const cost = (data as any).cost_usd || 0;
+      const cost = (data as any).total_cost_usd || (data as any).cost_usd || 0;
       const duration = (data as any).duration_ms || 0;
       const resultText = (data as any).result || "";
 
