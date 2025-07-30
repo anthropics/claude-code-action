@@ -36,6 +36,13 @@ This is a GitHub Action that enables Claude to interact with GitHub PRs and issu
 
 ### Phase 2: Execution (`base-action/`)
 
+The `base-action/` directory contains the core Claude Code execution logic, which serves a dual purpose:
+
+- **Standalone Action**: Published separately as `@anthropic-ai/claude-code-base-action` for direct use
+- **Inner Logic**: Used internally by this GitHub Action after preparation phase completes
+
+Execution steps:
+
 1. **MCP Server Setup**: Installs and configures GitHub MCP server for tool access
 2. **Prompt Generation**: Creates context-rich prompts from GitHub data
 3. **Claude Integration**: Executes via multiple providers (Anthropic API, AWS Bedrock, Google Vertex AI)
@@ -94,12 +101,6 @@ src/
 ```
 
 ## Important Implementation Notes
-
-### Branch Strategy
-
-- **Issues**: Always creates new branch with `claude/issue-{number}-{title-slug}` format
-- **Open PRs**: Pushes directly to existing PR branch
-- **Closed PRs**: Creates new branch since original is inactive
 
 ### Authentication Flow
 
