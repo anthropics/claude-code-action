@@ -112,7 +112,9 @@ export function formatReviewComments(
           return `  [Comment on ${comment.path}:${comment.line || "?"}]: ${body}`;
         })
         .join("\n");
-      reviewOutput += `\n${comments}`;
+      if (comments) {
+        reviewOutput += `\n${comments}`;
+      }
     }
 
     return reviewOutput;
