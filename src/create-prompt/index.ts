@@ -587,13 +587,21 @@ ${formattedBody}
 ${formattedComments || "No comments"}
 </comments>
 
-${eventData.isPR ? `<review_comments>
+${
+  eventData.isPR
+    ? `<review_comments>
 ${formattedReviewComments || "No review comments"}
-</review_comments>` : ""}
+</review_comments>`
+    : ""
+}
 
-${eventData.isPR ? `<changed_files>
+${
+  eventData.isPR
+    ? `<changed_files>
 ${formattedChangedFiles || "No files changed"}
-</changed_files>` : ""}${imagesInfo}
+</changed_files>`
+    : ""
+}${imagesInfo}
 
 <event_type>${eventType}</event_type>
 <is_pr>${eventData.isPR ? "true" : "false"}</is_pr>
