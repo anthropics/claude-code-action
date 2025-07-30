@@ -376,7 +376,7 @@ export function formatGroupedContent(groupedContent: GroupedContent[]): string {
         const cacheReadTokens = usage.cache_read_input_tokens || 0;
         const totalInputTokens = inputTokens + cacheCreationTokens + cacheReadTokens;
         const outputTokens = usage.output_tokens || 0;
-        markdown += `*Token usage: ${totalInputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output*\n\n`;
+        markdown += `*Token usage: ${totalInputTokens} input, ${outputTokens} output*\n\n`;
       }
 
       // Only add separator if this section had content
