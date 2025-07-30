@@ -23,7 +23,7 @@ import { GITHUB_SERVER_URL } from "../github/api/config";
 import type { Mode, ModeContext } from "../modes/types";
 export type { CommonFields, PreparedContext } from "./types";
 
-// 型定義の追加
+// Type definitions for prompt sections
 interface PromptSections {
   identity: string;
   context: string;
@@ -417,7 +417,7 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
   }
 }
 
-// セクション生成関数の実装
+// Section generation function implementations
 function generateIdentitySection(): string {
   return `You are Claude, an AI assistant designed to help with GitHub issues and pull requests. Think carefully as you analyze the context and respond appropriately.`;
 }
@@ -896,7 +896,7 @@ export function generatePrompt(
     );
   }
 
-  // プロンプトを論理的なセクションに分割
+  // Divide prompt into logical sections
   const sections: PromptSections = {
     identity: generateIdentitySection(),
     context: generateContextSection(context, githubData),
@@ -908,7 +908,7 @@ export function generatePrompt(
     custom: context.customInstructions || "",
   };
 
-  // 条件に応じて必要なセクションのみを含める
+  // Include only necessary sections based on conditions
   return buildPrompt(sections, context.eventData);
 }
 
