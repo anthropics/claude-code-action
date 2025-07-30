@@ -374,7 +374,8 @@ export function formatGroupedContent(groupedContent: GroupedContent[]): string {
         const inputTokens = usage.input_tokens || 0;
         const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
         const cacheReadTokens = usage.cache_read_input_tokens || 0;
-        const totalInputTokens = inputTokens + cacheCreationTokens + cacheReadTokens;
+        const totalInputTokens =
+          inputTokens + cacheCreationTokens + cacheReadTokens;
         const outputTokens = usage.output_tokens || 0;
         markdown += `*Token usage: ${totalInputTokens} input, ${outputTokens} output*\n\n`;
       }
