@@ -10,6 +10,7 @@ export type GitHubComment = {
   body: string;
   author: GitHubAuthor;
   createdAt: string;
+  isMinimized?: boolean;
 };
 
 export type GitHubReviewComment = GitHubComment & {

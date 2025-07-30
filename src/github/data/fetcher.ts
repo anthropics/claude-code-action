@@ -134,7 +134,7 @@ export async function fetchGitHubData({
 
   // Prepare all comments for image processing
   const issueComments: CommentWithImages[] = comments
-    .filter((c) => c.body)
+    .filter((c) => c.body && !c.isMinimized)
     .map((c) => ({
       type: "issue_comment" as const,
       id: c.databaseId,
@@ -154,7 +154,7 @@ export async function fetchGitHubData({
   const reviewComments: CommentWithImages[] =
     reviewData?.nodes
       ?.flatMap((r) => r.comments?.nodes ?? [])
-      .filter((c) => c.body)
+      .filter((c) => c.body && !c.isMinimized)
       .map((c) => ({
         type: "review_comment" as const,
         id: c.databaseId,

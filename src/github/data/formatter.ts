@@ -50,6 +50,7 @@ export function formatComments(
   imageUrlMap?: Map<string, string>,
 ): string {
   return comments
+    .filter((comment) => !comment.isMinimized)
     .map((comment) => {
       let body = comment.body;
 
@@ -96,6 +97,7 @@ export function formatReviewComments(
       review.comments.nodes.length > 0
     ) {
       const comments = review.comments.nodes
+        .filter((comment) => !comment.isMinimized)
         .map((comment) => {
           let body = comment.body;
 

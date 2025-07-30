@@ -46,6 +46,7 @@ export const PR_QUERY = `
               login
             }
             createdAt
+            isMinimized
           }
         }
         reviews(first: 100) {
@@ -69,6 +70,7 @@ export const PR_QUERY = `
                   login
                 }
                 createdAt
+                isMinimized
               }
             }
           }
@@ -98,6 +100,7 @@ export const ISSUE_QUERY = `
               login
             }
             createdAt
+            isMinimized
           }
         }
       }
