@@ -102,8 +102,8 @@ export const agentMode: Mode = {
 
   generatePrompt(
     context: PreparedContext,
-    _githubData: FetchDataResult, // Unused in agent mode
-    _useCommitSigning: boolean, // Unused in agent mode
+    _githubData: FetchDataResult,
+    _useCommitSigning: boolean,
   ): string {
     // Agent mode uses override or direct prompt, no GitHub data needed
     if (context.overridePrompt) {

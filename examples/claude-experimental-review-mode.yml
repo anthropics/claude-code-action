@@ -1,4 +1,4 @@
-name: Claude Review Mode
+name: Claude Experimental Review Mode
 
 on:
   pull_request:
@@ -29,7 +29,7 @@ jobs:
       - name: Code Review with Claude
         uses: anthropics/claude-code-action@beta
         with:
-          mode: review
+          mode: experimental-review
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # github_token not needed - uses default GITHUB_TOKEN for GitHub operations
           timeout_minutes: "30"

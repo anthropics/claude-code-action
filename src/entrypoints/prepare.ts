@@ -27,11 +27,11 @@ async function run() {
 
     // Step 2: Setup GitHub token based on mode
     let githubToken: string;
-    if (validatedMode === "review") {
-      // For review mode, use the default GitHub Action token
+    if (validatedMode === "experimental-review") {
+      // For experimental-review mode, use the default GitHub Action token
       githubToken = process.env.ACTIONS_TOKEN || "";
       if (!githubToken) {
-        throw new Error("ACTIONS_TOKEN not found for review mode");
+        throw new Error("ACTIONS_TOKEN not found for experimental-review mode");
       }
       console.log("Using default GitHub Action token for review mode");
       core.setOutput("GITHUB_TOKEN", githubToken);

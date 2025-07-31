@@ -24,8 +24,9 @@ import {
  * Automatically includes GitHub MCP tools for review operations.
  */
 export const reviewMode: Mode = {
-  name: "review",
-  description: "Code review mode for inline comments and suggestions",
+  name: "experimental-review",
+  description:
+    "Experimental code review mode for inline comments and suggestions",
 
   shouldTrigger(context) {
     if (!isEntityContext(context)) {
@@ -45,7 +46,7 @@ export const reviewMode: Mode = {
 
   prepareContext(context, data) {
     return {
-      mode: "review",
+      mode: "experimental-review",
       githubContext: context,
       commentId: data?.commentId,
       baseBranch: data?.baseBranch,
@@ -55,15 +56,26 @@ export const reviewMode: Mode = {
 
   getAllowedTools() {
     return [
-      "mcp__github__*",
-      "mcp__github_comment__*",
-      // Explicitly list review tools in case wildcards aren't working
+      // Context tools - to know who the current user is
+      "mcp__github__get_me",
+      // Core review tools
       "mcp__github__create_pending_pull_request_review",
       "mcp__github__add_comment_to_pending_review",
       "mcp__github__submit_pending_pull_request_review",
+      "mcp__github__delete_pending_pull_request_review",
+      "mcp__github__create_and_submit_pull_request_review",
+      // PR information tools
       "mcp__github__get_pull_request",
       "mcp__github__get_pull_request_diff",
       "mcp__github__get_pull_request_files",
+      "mcp__github__get_pull_request_comments",
+      "mcp__github__get_pull_request_reviews",
+      "mcp__github__get_pull_request_status",
+      // Comment tools
+      "mcp__github_comment__create_comment",
+      "mcp__github_comment__update_comment", 
+      "mcp__github_comment__create_review_comment",
+      "mcp__github_comment__update_claude_comment",
     ];
   },
 

@@ -18,7 +18,7 @@ import type { GitHubContext } from "../github/context";
 import { isAutomationContext } from "../github/context";
 
 export const DEFAULT_MODE = "tag" as const;
-export const VALID_MODES = ["tag", "agent", "review"] as const;
+export const VALID_MODES = ["tag", "agent", "experimental-review"] as const;
 
 /**
  * All available modes.
@@ -27,7 +27,7 @@ export const VALID_MODES = ["tag", "agent", "review"] as const;
 const modes = {
   tag: tagMode,
   agent: agentMode,
-  review: reviewMode,
+  "experimental-review": reviewMode,
 } as const satisfies Record<ModeName, Mode>;
 
 /**

@@ -31,10 +31,10 @@ describe("Mode Registry", () => {
     expect(mode.name).toBe("agent");
   });
 
-  test("getMode returns review mode", () => {
-    const mode = getMode("review", mockContext);
+  test("getMode returns experimental-review mode", () => {
+    const mode = getMode("experimental-review", mockContext);
     expect(mode).toBe(reviewMode);
-    expect(mode.name).toBe("review");
+    expect(mode.name).toBe("experimental-review");
   });
 
   test("getMode throws error for tag mode with workflow_dispatch event", () => {

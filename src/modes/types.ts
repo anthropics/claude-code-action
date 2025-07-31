@@ -3,7 +3,7 @@ import type { PreparedContext } from "../create-prompt/types";
 import type { FetchDataResult } from "../github/data/fetcher";
 import type { Octokits } from "../github/api/client";
 
-export type ModeName = "tag" | "agent" | "review";
+export type ModeName = "tag" | "agent" | "experimental-review";
 
 export type ModeContext = {
   mode: ModeName;

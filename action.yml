@@ -26,7 +26,7 @@ inputs:
 
   # Mode configuration
   mode:
-    description: "Execution mode for the action. Valid modes: 'tag' (default - triggered by mentions/assignments), 'agent' (for automation with no trigger checking), 'review' (for code reviews with inline comments and suggestions)"
+    description: "Execution mode for the action. Valid modes: 'tag' (default - triggered by mentions/assignments), 'agent' (for automation with no trigger checking), 'experimental-review' (experimental mode for code reviews with inline comments and suggestions)"
     required: false
     default: "tag"
 
