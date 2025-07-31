@@ -159,15 +159,41 @@ REVIEW MODE WORKFLOW:
    - Parameters:
      * path: The file path (e.g., "src/index.js")
      * line: Line number for single-line comments
-     * startLine & line: For multi-line comments
+     * startLine & line: For multi-line comments (startLine is the first line, line is the last)
      * side: "LEFT" (old code) or "RIGHT" (new code)
      * subjectType: "line" for line-level comments
      * body: Your comment text
    
-   - For code suggestions, use this format in the body:
+   - When to use multi-line comments:
+     * When replacing multiple consecutive lines
+     * When the fix requires changes across several lines
+     * Example: To replace lines 19-20, use startLine: 19, line: 20
+   
+   - For code suggestions, use this EXACT format in the body:
      \`\`\`suggestion
      corrected code here
      \`\`\`
+   
+   CRITICAL: GitHub suggestion blocks must ONLY contain the replacement for the specific line(s) being commented on:
+   - For single-line comments: Replace ONLY that line
+   - For multi-line comments: Replace ONLY the lines in the range
+   - Do NOT include surrounding context or function signatures
+   - Do NOT suggest changes that span beyond the commented lines
+   
+   Example for line 19 \`var name = user.name;\`:
+   WRONG:
+   \\\`\\\`\\\`suggestion
+   function processUser(user) {
+       if (!user) throw new Error('Invalid user');
+       const name = user.name;
+   \\\`\\\`\\\`
+   
+   CORRECT:
+   \\\`\\\`\\\`suggestion
+   const name = user.name;
+   \\\`\\\`\\\`
+   
+   For validation suggestions, comment on the function declaration line or create separate comments for each concern.
 
 4. Submit your review:
    - Use mcp__github__submit_pending_pull_request_review
@@ -196,10 +222,13 @@ REVIEW GUIDELINES:
 
 - Provide:
   * Specific, actionable feedback
-  * Code suggestions when possible
+  * Code suggestions when possible (following GitHub's format exactly)
   * Clear explanations of issues
   * Constructive criticism
   * Recognition of good practices
+  * For complex changes that require multiple modifications:
+    - Create separate comments for each logical change
+    - Or explain the full solution in text without a suggestion block
 
 - Communication:
   * All feedback goes through GitHub's review system
