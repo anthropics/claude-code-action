@@ -169,7 +169,7 @@ jobs:
 
 | Input                          | Description                                                                                                          | Required | Default   |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | -------- | --------- |
-| `mode`                         | Execution mode: 'tag' (default - triggered by mentions/assignments), 'agent' (for automation)                        | No       | `tag`     |
+| `mode`                         | Execution mode: 'tag' (default - triggered by mentions/assignments), 'agent' (for automation), 'experimental-review' (🧪 for PR reviews) | No       | `tag`     |
 | `anthropic_api_key`            | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                           | No\*     | -         |
 | `claude_code_oauth_token`      | Claude Code OAuth token (alternative to anthropic_api_key)                                                           | No\*     | -         |
 | `direct_prompt`                | Direct prompt for Claude to execute automatically without needing a trigger (for automated workflows)                | No       | -         |
@@ -237,6 +237,27 @@ For automation and scheduled tasks without trigger checking.
     override_prompt: |
       Check for outdated dependencies and create an issue if any are found.
 ```
+
+### Experimental Review Mode 🧪
+
+> **⚠️ EXPERIMENTAL**: This mode is under active development and may change significantly. Use with caution in production workflows.
+
+Specialized mode for automated PR code reviews using GitHub's review API.
+
+- **Triggers**: PR events (opened, synchronize, reopened) or `@claude` mentions in PR comments
+- **Features**: Creates inline review comments with suggestions, batches feedback into a single review
+- **Use case**: Automated code reviews, security scanning, best practices enforcement
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    mode: experimental-review
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    custom_instructions: |
+      Focus on security vulnerabilities, performance issues, and code quality.
+```
+
+Review mode automatically includes GitHub MCP tools for creating pending reviews and inline comments. See [`examples/claude-experimental-review-mode.yml`](./examples/claude-experimental-review-mode.yml) for a complete example.
 
 See [`examples/claude-modes.yml`](./examples/claude-modes.yml) for complete examples of available modes.
 
