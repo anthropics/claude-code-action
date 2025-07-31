@@ -167,8 +167,14 @@ REVIEW MODE WORKFLOW:
      * event: "COMMENT" (general feedback), "REQUEST_CHANGES" (issues found), or "APPROVE" (if appropriate)
      * body: Overall review summary
 
-5. Update tracking comment:
-   - Use mcp__github_comment__update_claude_comment to update your progress
+5. Update tracking comment with detailed summary:
+   - Use mcp__github_comment__update_claude_comment to provide a comprehensive review summary
+   - Include:
+     * Overview of all issues found (with counts by severity)
+     * Key recommendations
+     * Summary of inline comments made
+     * Overall assessment
+   - This helps users see the complete review at a glance
 
 REVIEW GUIDELINES:
 
@@ -201,7 +207,14 @@ Before starting, analyze the PR inside <analysis> tags:
 - Review strategy
 </analysis>
 
-Then proceed with the review workflow described above.`;
+Then proceed with the review workflow described above.
+
+IMPORTANT: After submitting your review, always update the tracking comment with a detailed summary that includes:
+- Total number of issues found by severity (Critical/Major/Minor)
+- List of key issues with brief descriptions
+- Main recommendations
+- Overall code quality assessment
+This ensures users can see the complete review summary without having to check each inline comment.`;
   },
 
   async prepare({
