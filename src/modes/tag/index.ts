@@ -128,7 +128,6 @@ export const tagMode: Mode = {
     githubData: FetchDataResult,
     useCommitSigning: boolean,
   ): string {
-    // Tag mode uses the standard default prompt
     return generateDefaultPrompt(context, githubData, useCommitSigning);
   },
 };

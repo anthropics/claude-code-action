@@ -7,7 +7,7 @@ import { fetchGitHubData } from "../../github/data/fetcher";
 import type { FetchDataResult } from "../../github/data/fetcher";
 import { createPrompt } from "../../create-prompt";
 import type { PreparedContext } from "../../create-prompt";
-import { isEntityContext } from "../../github/context";
+import { isEntityContext, isPullRequestEvent } from "../../github/context";
 import {
   formatContext,
   formatBody,
@@ -33,9 +33,9 @@ export const reviewMode: Mode = {
     }
 
     // For pull_request events, only trigger on specific actions
-    if (context.eventName === "pull_request") {
+    if (isPullRequestEvent(context)) {
       const allowedActions = ["opened", "synchronize", "reopened"];
-      const action = (context.payload as any).action;
+      const action = context.payload.action;
       return allowedActions.includes(action);
     }
 
