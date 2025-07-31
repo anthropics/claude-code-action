@@ -11,7 +11,7 @@ import type {
   PullRequestQueryResponse,
 } from "../types";
 import type { CommentWithImages } from "../utils/image-downloader";
-import { downloadCommentImages } from "../utils/image-downloader";
+import { downloadCommentAttachments } from "../utils/attachment-downloader";
 
 type FetchDataParams = {
   octokits: Octokits;
@@ -187,12 +187,39 @@ export async function fetchGitHubData({
     ...reviewComments,
   ];
 
-  const imageUrlMap = await downloadCommentImages(
+  // Use the new attachment downloader for better file support
+  const attachmentResult = await downloadCommentAttachments(
     octokits,
     owner,
     repo,
     allComments,
   );
+
+  // Convert to the old format for backward compatibility
+  const imageUrlMap = new Map<string, string>();
+  for (const [url, attachment] of attachmentResult.attachments) {
+    if (
+      attachment.type === "image" &&
+      attachment.localPath &&
+      !attachment.error
+    ) {
+      imageUrlMap.set(url, attachment.localPath);
+    }
+  }
+
+  // Log summary of downloaded attachments
+  if (attachmentResult.summary.total > 0) {
+    console.log(`📎 Attachment Summary:`);
+    console.log(`   Total: ${attachmentResult.summary.total}`);
+    console.log(`   Successful: ${attachmentResult.summary.successful}`);
+    console.log(`   Failed: ${attachmentResult.summary.failed}`);
+    console.log(`   Skipped: ${attachmentResult.summary.skipped}`);
+
+    const typeBreakdown = Object.entries(attachmentResult.summary.byType)
+      .map(([type, count]) => `${type}: ${count}`)
+      .join(", ");
+    console.log(`   By type: ${typeBreakdown}`);
+  }
 
   // Fetch trigger user display name if username is provided
   let triggerDisplayName: string | null | undefined;
