@@ -530,7 +530,7 @@ export function generatePrompt(
   context: PreparedContext,
   githubData: FetchDataResult,
   useCommitSigning: boolean,
-  mode?: Mode,
+  mode: Mode,
 ): string {
   if (context.overridePrompt) {
     return substitutePromptVariables(
@@ -541,10 +541,6 @@ export function generatePrompt(
   }
 
   // Use the mode's prompt generator
-  if (!mode) {
-    throw new Error("Mode is required for prompt generation");
-  }
-
   return mode.generatePrompt(context, githubData, useCommitSigning);
 }
 
