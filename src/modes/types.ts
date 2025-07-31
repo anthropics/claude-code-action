@@ -62,7 +62,7 @@ export type Mode = {
    * @returns The complete prompt string
    */
   generatePrompt(
-    context: PreparedContext, 
+    context: PreparedContext,
     githubData: FetchDataResult,
     useCommitSigning: boolean,
   ): string;

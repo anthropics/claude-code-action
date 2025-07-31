@@ -21,15 +21,19 @@ describe("generatePrompt", () => {
     getAllowedTools: () => [],
     getDisallowedTools: () => [],
     shouldCreateTrackingComment: () => true,
-    generatePrompt: (context, githubData, useCommitSigning) => 
+    generatePrompt: (context, githubData, useCommitSigning) =>
       generateDefaultPrompt(context, githubData, useCommitSigning),
-    prepare: async () => ({ 
-      commentId: 123, 
-      branchInfo: { baseBranch: "main", currentBranch: "main", claudeBranch: undefined },
-      mcpConfig: "{}"
+    prepare: async () => ({
+      commentId: 123,
+      branchInfo: {
+        baseBranch: "main",
+        currentBranch: "main",
+        claudeBranch: undefined,
+      },
+      mcpConfig: "{}",
     }),
   };
-  
+
   const mockGitHubData = {
     contextData: {
       title: "Test PR",

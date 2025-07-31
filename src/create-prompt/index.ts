@@ -544,7 +544,7 @@ export function generatePrompt(
   if (!mode) {
     throw new Error("Mode is required for prompt generation");
   }
-  
+
   return mode.generatePrompt(context, githubData, useCommitSigning);
 }
 
