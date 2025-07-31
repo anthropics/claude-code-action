@@ -73,7 +73,7 @@ export const reviewMode: Mode = {
       "mcp__github__get_pull_request_status",
       // Comment tools
       "mcp__github_comment__create_comment",
-      "mcp__github_comment__update_comment", 
+      "mcp__github_comment__update_comment",
       "mcp__github_comment__create_review_comment",
       "mcp__github_comment__update_claude_comment",
     ];
