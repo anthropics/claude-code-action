@@ -169,7 +169,7 @@ jobs:
 
 | Input                          | Description                                                                                                          | Required | Default   |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | -------- | --------- |
-| `mode`                         | Execution mode: 'tag' (default - triggered by mentions/assignments), 'agent' (for automation), 'experimental-review' (🧪 for PR reviews) | No       | `tag`     |
+| `mode`                         | Execution mode: 'tag' (default - triggered by mentions/assignments), 'agent' (for automation), 'experimental-review' (for PR reviews) | No       | `tag`     |
 | `anthropic_api_key`            | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                           | No\*     | -         |
 | `claude_code_oauth_token`      | Claude Code OAuth token (alternative to anthropic_api_key)                                                           | No\*     | -         |
 | `direct_prompt`                | Direct prompt for Claude to execute automatically without needing a trigger (for automated workflows)                | No       | -         |
@@ -238,9 +238,9 @@ For automation and scheduled tasks without trigger checking.
       Check for outdated dependencies and create an issue if any are found.
 ```
 
-### Experimental Review Mode 🧪
+### Experimental Review Mode
 
-> **⚠️ EXPERIMENTAL**: This mode is under active development and may change significantly. Use with caution in production workflows.
+> **EXPERIMENTAL**: This mode is under active development and may change significantly. Use with caution in production workflows.
 
 Specialized mode for automated PR code reviews using GitHub's review API.
 
