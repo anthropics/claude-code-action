@@ -2,14 +2,13 @@ name: Auto review PRs
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened]
 
 jobs:
   auto-review:
     permissions:
       contents: read
-      pull-requests: write
-      issues: write
+      id-token: write
     runs-on: ubuntu-latest
 
     steps:
@@ -19,11 +18,9 @@ jobs:
           fetch-depth: 1
 
       - name: Auto review PR
-        uses: km-anthropic/claude-code-action@main
+        uses: anthropics/claude-code-action@main
         with:
-          mode: review
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          custom_instructions: |
+          direct_prompt: |
             Please review this PR. Look at the changes and provide thoughtful feedback on:
             - Code quality and best practices
             - Potential bugs or issues
@@ -32,3 +29,5 @@ jobs:
             - Documentation consistency: Verify that README.md and other documentation files are updated to reflect any code changes (especially new inputs, features, or configuration options)
 
             Be constructive and specific in your feedback. Give inline comments where applicable.
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: "mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review,mcp__github__get_pull_request_diff"
