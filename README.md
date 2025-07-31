@@ -244,7 +244,7 @@ For automation and scheduled tasks without trigger checking.
 
 Specialized mode for automated PR code reviews using GitHub's review API.
 
-- **Triggers**: PR events (opened, synchronize, reopened) or `@claude` mentions in PR comments
+- **Triggers**: Automatically on PR events (opened, synchronize, reopened) when configured in workflow
 - **Features**: Creates inline review comments with suggestions, batches feedback into a single review
 - **Use case**: Automated code reviews, security scanning, best practices enforcement
 
