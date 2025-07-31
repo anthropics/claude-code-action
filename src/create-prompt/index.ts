@@ -540,14 +540,23 @@ export function generatePrompt(
     );
   }
 
-  // Delegate to mode-specific prompt generators if available
-  if (mode?.generatePrompt) {
-    const modePrompt = mode.generatePrompt(context, githubData);
-    if (modePrompt) {
-      return modePrompt;
-    }
+  // Use the mode's prompt generator
+  if (!mode) {
+    throw new Error("Mode is required for prompt generation");
   }
+  
+  return mode.generatePrompt(context, githubData, useCommitSigning);
+}
 
+/**
+ * Generates the default prompt for tag mode
+ * @internal
+ */
+export function generateDefaultPrompt(
+  context: PreparedContext,
+  githubData: FetchDataResult,
+  useCommitSigning: boolean = false,
+): string {
   const {
     contextData,
     comments,

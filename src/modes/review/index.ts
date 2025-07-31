@@ -2,8 +2,6 @@ import * as core from "@actions/core";
 import type { Mode, ModeOptions, ModeResult } from "../types";
 import { checkContainsTrigger } from "../../github/validation/trigger";
 import { createInitialComment } from "../../github/operations/comments/create-initial";
-import { setupBranch } from "../../github/operations/branch";
-import { configureGitAuth } from "../../github/operations/git-config";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { fetchGitHubData } from "../../github/data/fetcher";
 import type { FetchDataResult } from "../../github/data/fetcher";
@@ -30,10 +28,19 @@ export const reviewMode: Mode = {
   description: "Code review mode for inline comments and suggestions",
 
   shouldTrigger(context) {
-    return (
-      isEntityContext(context) &&
-      (context.eventName === "pull_request" || checkContainsTrigger(context))
-    );
+    if (!isEntityContext(context)) {
+      return false;
+    }
+
+    // For pull_request events, only trigger on specific actions
+    if (context.eventName === "pull_request") {
+      const allowedActions = ["opened", "synchronize", "reopened"];
+      const action = (context.payload as any).action;
+      return allowedActions.includes(action);
+    }
+
+    // For other events (comments), check for trigger phrase
+    return checkContainsTrigger(context);
   },
 
   prepareContext(context, data) {
@@ -52,11 +59,11 @@ export const reviewMode: Mode = {
       "mcp__github_comment__*",
       // Explicitly list review tools in case wildcards aren't working
       "mcp__github__create_pending_pull_request_review",
-      "mcp__github__add_comment_to_pending_review", 
+      "mcp__github__add_comment_to_pending_review",
       "mcp__github__submit_pending_pull_request_review",
       "mcp__github__get_pull_request",
       "mcp__github__get_pull_request_diff",
-      "mcp__github__get_pull_request_files"
+      "mcp__github__get_pull_request_files",
     ];
   },
 
@@ -71,6 +78,7 @@ export const reviewMode: Mode = {
   generatePrompt(
     context: PreparedContext,
     githubData: FetchDataResult,
+    _useCommitSigning: boolean, // Unused in review mode
   ): string {
     const {
       contextData,
@@ -237,16 +245,13 @@ This ensures users can see the complete review summary without having to check e
       triggerUsername: context.actor,
     });
 
-    const branchInfo = await setupBranch(octokit, githubData, context);
-
-    if (!context.inputs.useCommitSigning) {
-      try {
-        await configureGitAuth(githubToken, context, commentData.user);
-      } catch (error) {
-        console.error("Failed to configure git authentication:", error);
-        throw error;
-      }
-    }
+    // Review mode doesn't need branch setup or git auth since it only creates comments
+    // Using minimal branch info since review mode doesn't create or modify branches
+    const branchInfo = {
+      baseBranch: "main",
+      currentBranch: "",
+      claudeBranch: undefined, // Review mode doesn't create branches
+    };
 
     const modeContext = this.prepareContext(context, {
       commentId,
