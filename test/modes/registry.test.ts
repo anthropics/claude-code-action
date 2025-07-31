@@ -64,14 +64,14 @@ describe("Mode Registry", () => {
   test("getMode throws error for invalid mode", () => {
     const invalidMode = "invalid" as unknown as ModeName;
     expect(() => getMode(invalidMode, mockContext)).toThrow(
-      "Invalid mode 'invalid'. Valid modes are: 'tag', 'agent', 'review'. Please check your workflow configuration.",
+      "Invalid mode 'invalid'. Valid modes are: 'tag', 'agent', 'experimental-review'. Please check your workflow configuration.",
     );
   });
 
   test("isValidMode returns true for all valid modes", () => {
     expect(isValidMode("tag")).toBe(true);
     expect(isValidMode("agent")).toBe(true);
-    expect(isValidMode("review")).toBe(true);
+    expect(isValidMode("experimental-review")).toBe(true);
   });
 
   test("isValidMode returns false for invalid mode", () => {
