@@ -19,7 +19,7 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
-      # Note: id-token not needed since review mode doesn't use OIDC for GitHub auth
+      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
