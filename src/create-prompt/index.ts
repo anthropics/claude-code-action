@@ -530,6 +530,7 @@ export function generatePrompt(
   context: PreparedContext,
   githubData: FetchDataResult,
   useCommitSigning: boolean,
+  mode: Mode,
 ): string {
   if (context.overridePrompt) {
     return substitutePromptVariables(
@@ -539,6 +540,19 @@ export function generatePrompt(
     );
   }
 
+  // Use the mode's prompt generator
+  return mode.generatePrompt(context, githubData, useCommitSigning);
+}
+
+/**
+ * Generates the default prompt for tag mode
+ * @internal
+ */
+export function generateDefaultPrompt(
+  context: PreparedContext,
+  githubData: FetchDataResult,
+  useCommitSigning: boolean = false,
+): string {
   const {
     contextData,
     comments,
@@ -810,7 +824,9 @@ export async function createPrompt(
     let claudeCommentId: string = "";
     if (mode.name === "tag") {
       if (!modeContext.commentId) {
-        throw new Error("Tag mode requires a comment ID for prompt generation");
+        throw new Error(
+          `${mode.name} mode requires a comment ID for prompt generation`,
+        );
       }
       claudeCommentId = modeContext.commentId.toString();
     }
@@ -831,6 +847,7 @@ export async function createPrompt(
       preparedContext,
       githubData,
       context.inputs.useCommitSigning,
+      mode,
     );
 
     // Log the final prompt to console

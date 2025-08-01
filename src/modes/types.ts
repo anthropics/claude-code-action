@@ -1,6 +1,9 @@
 import type { GitHubContext } from "../github/context";
+import type { PreparedContext } from "../create-prompt/types";
+import type { FetchDataResult } from "../github/data/fetcher";
+import type { Octokits } from "../github/api/client";
 
-export type ModeName = "tag" | "agent";
+export type ModeName = "tag" | "agent" | "experimental-review";
 
 export type ModeContext = {
   mode: ModeName;
@@ -55,6 +58,16 @@ export type Mode = {
   shouldCreateTrackingComment(): boolean;
 
   /**
+   * Generates the prompt for this mode.
+   * @returns The complete prompt string
+   */
+  generatePrompt(
+    context: PreparedContext,
+    githubData: FetchDataResult,
+    useCommitSigning: boolean,
+  ): string;
+
+  /**
    * Prepares the GitHub environment for this mode.
    * Each mode decides how to handle different event types.
    * @returns PrepareResult with commentId, branchInfo, and mcpConfig
@@ -62,10 +75,10 @@ export type Mode = {
   prepare(options: ModeOptions): Promise<ModeResult>;
 };
 
-// Define types for mode prepare method to avoid circular dependencies
+// Define types for mode prepare method
 export type ModeOptions = {
   context: GitHubContext;
-  octokit: any; // We'll use any to avoid circular dependency with Octokits
+  octokit: Octokits;
   githubToken: string;
 };
 

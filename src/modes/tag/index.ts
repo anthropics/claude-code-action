@@ -7,8 +7,10 @@ import { setupBranch } from "../../github/operations/branch";
 import { configureGitAuth } from "../../github/operations/git-config";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { fetchGitHubData } from "../../github/data/fetcher";
-import { createPrompt } from "../../create-prompt";
+import { createPrompt, generateDefaultPrompt } from "../../create-prompt";
 import { isEntityContext } from "../../github/context";
+import type { PreparedContext } from "../../create-prompt/types";
+import type { FetchDataResult } from "../../github/data/fetcher";
 
 /**
  * Tag mode implementation.
@@ -119,5 +121,13 @@ export const tagMode: Mode = {
       branchInfo,
       mcpConfig,
     };
+  },
+
+  generatePrompt(
+    context: PreparedContext,
+    githubData: FetchDataResult,
+    useCommitSigning: boolean,
+  ): string {
+    return generateDefaultPrompt(context, githubData, useCommitSigning);
   },
 };

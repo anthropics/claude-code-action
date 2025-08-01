@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
-import { mkdir, writeFile } from "fs/promises";
 import type { Mode, ModeOptions, ModeResult } from "../types";
 import { isAutomationContext } from "../../github/context";
+import type { PreparedContext } from "../../create-prompt/types";
 
 /**
  * Agent mode implementation.
@@ -42,24 +42,7 @@ export const agentMode: Mode = {
   async prepare({ context }: ModeOptions): Promise<ModeResult> {
     // Agent mode handles automation events (workflow_dispatch, schedule) only
 
-    // Create prompt directory
-    await mkdir(`${process.env.RUNNER_TEMP}/claude-prompts`, {
-      recursive: true,
-    });
-
-    // Write the prompt file - the base action requires a prompt_file parameter,
-    // so we must create this file even though agent mode typically uses
-    // override_prompt or direct_prompt. If neither is provided, we write
-    // a minimal prompt with just the repository information.
-    const promptContent =
-      context.inputs.overridePrompt ||
-      context.inputs.directPrompt ||
-      `Repository: ${context.repository.owner}/${context.repository.repo}`;
-
-    await writeFile(
-      `${process.env.RUNNER_TEMP}/claude-prompts/claude-prompt.txt`,
-      promptContent,
-    );
+    // Agent mode doesn't need to create prompt files here - handled by createPrompt
 
     // Export tool environment variables for agent mode
     const baseTools = [
@@ -80,8 +63,9 @@ export const agentMode: Mode = {
       ...context.inputs.disallowedTools,
     ];
 
-    core.exportVariable("ALLOWED_TOOLS", allowedTools.join(","));
-    core.exportVariable("DISALLOWED_TOOLS", disallowedTools.join(","));
+    // Export as INPUT_ prefixed variables for the base action
+    core.exportVariable("INPUT_ALLOWED_TOOLS", allowedTools.join(","));
+    core.exportVariable("INPUT_DISALLOWED_TOOLS", disallowedTools.join(","));
 
     // Agent mode uses a minimal MCP configuration
     // We don't need comment servers or PR-specific tools for automation
@@ -113,5 +97,19 @@ export const agentMode: Mode = {
       },
       mcpConfig: JSON.stringify(mcpConfig),
     };
+  },
+
+  generatePrompt(context: PreparedContext): string {
+    // Agent mode uses override or direct prompt, no GitHub data needed
+    if (context.overridePrompt) {
+      return context.overridePrompt;
+    }
+
+    if (context.directPrompt) {
+      return context.directPrompt;
+    }
+
+    // Minimal fallback - repository is a string in PreparedContext
+    return `Repository: ${context.repository}`;
   },
 };
