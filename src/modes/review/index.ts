@@ -1,7 +1,6 @@
 import * as core from "@actions/core";
 import type { Mode, ModeOptions, ModeResult } from "../types";
 import { checkContainsTrigger } from "../../github/validation/trigger";
-import { createInitialComment } from "../../github/operations/comments/create-initial";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { fetchGitHubData } from "../../github/data/fetcher";
 import type { FetchDataResult } from "../../github/data/fetcher";
@@ -79,7 +78,7 @@ export const reviewMode: Mode = {
   },
 
   shouldCreateTrackingComment() {
-    return true;
+    return false; // Review mode uses the review body instead of a tracking comment
   },
 
   generatePrompt(
@@ -210,16 +209,14 @@ REVIEW MODE WORKFLOW:
    - Use mcp__github__submit_pending_pull_request_review
    - Parameters:
      * event: "COMMENT" (general feedback), "REQUEST_CHANGES" (issues found), or "APPROVE" (if appropriate)
-     * body: Overall review summary
-
-5. Update tracking comment with detailed summary:
-   - Use mcp__github_comment__update_claude_comment to provide a comprehensive review summary
-   - Include:
-     * Overview of all issues found (with counts by severity)
-     * Key recommendations
-     * Summary of inline comments made
-     * Overall assessment
-   - This helps users see the complete review at a glance
+     * body: Write a comprehensive review summary that includes:
+       - Overview of what was reviewed (files, scope, focus areas)
+       - Summary of all issues found (with counts by severity if applicable)
+       - Key recommendations and action items
+       - Highlights of good practices observed
+       - Overall assessment and recommendation
+   - The body should be detailed and informative since it's the main review content
+   - Structure the body with clear sections using markdown headers
 
 REVIEW GUIDELINES:
 
@@ -243,8 +240,8 @@ REVIEW GUIDELINES:
 
 - Communication:
   * All feedback goes through GitHub's review system
-  * Update your tracking comment with progress
   * Be professional and respectful
+  * Your review body is the main communication channel
 
 Before starting, analyze the PR inside <analysis> tags:
 <analysis>
@@ -257,12 +254,12 @@ Before starting, analyze the PR inside <analysis> tags:
 
 Then proceed with the review workflow described above.
 
-IMPORTANT: After submitting your review, always update the tracking comment with a detailed summary that includes:
-- Total number of issues found by severity (Critical/Major/Minor)
-- List of key issues with brief descriptions
-- Main recommendations
-- Overall code quality assessment
-This ensures users can see the complete review summary without having to check each inline comment.`;
+IMPORTANT: Your review body is the primary way users will understand your feedback. Make it comprehensive and well-structured with:
+- Executive summary at the top
+- Detailed findings organized by severity or category
+- Clear action items and recommendations
+- Recognition of good practices
+This ensures users get value from the review even before checking individual inline comments.`;
   },
 
   async prepare({
@@ -274,9 +271,7 @@ This ensures users can see the complete review summary without having to check e
       throw new Error("Review mode requires entity context");
     }
 
-    const commentData = await createInitialComment(octokit.rest, context);
-    const commentId = commentData.id;
-
+    // Review mode doesn't create a tracking comment
     const githubData = await fetchGitHubData({
       octokits: octokit,
       repository: `${context.repository.owner}/${context.repository.repo}`,
@@ -294,7 +289,6 @@ This ensures users can see the complete review summary without having to check e
     };
 
     const modeContext = this.prepareContext(context, {
-      commentId,
       baseBranch: branchInfo.baseBranch,
       claudeBranch: branchInfo.claudeBranch,
     });
@@ -336,7 +330,6 @@ This ensures users can see the complete review summary without having to check e
       branch: branchInfo.claudeBranch || branchInfo.currentBranch,
       baseBranch: branchInfo.baseBranch,
       additionalMcpConfig,
-      claudeCommentId: commentId.toString(),
       allowedTools: [...this.getAllowedTools(), ...context.inputs.allowedTools],
       context,
     });
@@ -344,7 +337,6 @@ This ensures users can see the complete review summary without having to check e
     core.setOutput("mcp_config", mcpConfig);
 
     return {
-      commentId,
       branchInfo,
       mcpConfig,
     };
