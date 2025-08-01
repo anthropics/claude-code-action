@@ -223,7 +223,9 @@ The traditional implementation mode that responds to @claude mentions, issue ass
 
 ### Agent Mode
 
-For automation with workflow_dispatch and scheduled events only.
+**Note: Agent mode is currently in active development and may undergo breaking changes.**
+
+For automation with workflow_dis`patch and scheduled events only.
 
 - **Triggers**: Only runs on `workflow_dispatch` and `schedule` events
 - **Features**: Bypasses mention/assignment checking for automation scenarios
