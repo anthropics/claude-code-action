@@ -8,16 +8,12 @@
 import { $ } from "bun";
 import type { ParsedGitHubContext } from "../context";
 import { GITHUB_SERVER_URL } from "../api/config";
-
-type GitUser = {
-  login: string;
-  id: number;
-};
+import { Octokit } from "@octokit/rest";
 
 export async function configureGitAuth(
+  octokit: Octokit,
   githubToken: string,
   context: ParsedGitHubContext,
-  user: GitUser | null,
 ) {
   console.log("Configuring git authentication for non-signing mode");
 
@@ -30,6 +26,8 @@ export async function configureGitAuth(
 
   // Configure git user based on the comment creator
   console.log("Configuring git user...");
+  const userResponse = await octokit.rest.users.getAuthenticated();
+  const user = userResponse.data;
   if (user) {
     const botName = user.login;
     const botId = user.id;

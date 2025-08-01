@@ -16,17 +16,33 @@ import type { Octokit } from "@octokit/rest";
 
 const CLAUDE_APP_BOT_ID = 209825114;
 
+type CommentResponseBody = {
+  id: number;
+  user: {
+    id: number;
+    login: string;
+  } | null;
+};
+
 export async function createInitialComment(
   octokit: Octokit,
   context: ParsedGitHubContext,
 ) {
+  // If override_prompt is set, the prompt doesn't have an instruction
+  // that enforces the use of mcp__github_comment__update_claude_comment
+  // to update the initial comment.
+  // So we don't need to create an initial comment in this case.
+  if (context.inputs.overridePrompt) {
+    return null;
+  }
+
   const { owner, repo } = context.repository;
 
   const jobRunLink = createJobRunLink(owner, repo, context.runId);
   const initialBody = createCommentBody(jobRunLink);
 
   try {
-    let response;
+    let response: { data: CommentResponseBody };
 
     if (
       context.inputs.useStickyComment &&

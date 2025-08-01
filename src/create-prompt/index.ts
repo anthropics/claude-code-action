@@ -810,7 +810,9 @@ export async function createPrompt(
     let claudeCommentId: string = "";
     if (mode.name === "tag") {
       if (!modeContext.commentId) {
-        throw new Error("Tag mode requires a comment ID for prompt generation");
+        throw new Error(
+          "Tag mode requires a comment ID for prompt generation unless you're using override_prompt",
+        );
       }
       claudeCommentId = modeContext.commentId.toString();
     }

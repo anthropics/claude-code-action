@@ -84,13 +84,14 @@ describe("prepareMcpConfig", () => {
     processExitSpy.mockRestore();
   });
 
-  test("should return comment server when commit signing is disabled", async () => {
+  test("should return comment server when commit signing is disabled and claudeCommentId is provided", async () => {
     const result = await prepareMcpConfig({
       githubToken: "test-token",
       owner: "test-owner",
       repo: "test-repo",
       branch: "test-branch",
       baseBranch: "main",
+      claudeCommentId: "12345",
       allowedTools: [],
       context: mockContext,
     });
@@ -105,6 +106,27 @@ describe("prepareMcpConfig", () => {
     );
     expect(parsed.mcpServers.github_comment.env.REPO_OWNER).toBe("test-owner");
     expect(parsed.mcpServers.github_comment.env.REPO_NAME).toBe("test-repo");
+    expect(parsed.mcpServers.github_comment.env.CLAUDE_COMMENT_ID).toBe(
+      "12345",
+    );
+  });
+
+  test("should not include comment server when claudeCommentId is not provided", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: [],
+      context: mockContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers).toBeDefined();
+    expect(parsed.mcpServers.github).not.toBeDefined();
+    expect(parsed.mcpServers.github_file_ops).not.toBeDefined();
+    expect(parsed.mcpServers.github_comment).not.toBeDefined();
   });
 
   test("should return file ops server when commit signing is enabled", async () => {
@@ -122,6 +144,7 @@ describe("prepareMcpConfig", () => {
       repo: "test-repo",
       branch: "test-branch",
       baseBranch: "main",
+      claudeCommentId: "12345",
       allowedTools: [],
       context: contextWithSigning,
     });
@@ -152,6 +175,7 @@ describe("prepareMcpConfig", () => {
         "mcp__github__create_issue",
         "mcp__github_file_ops__commit_files",
       ],
+      claudeCommentId: "12345",
       context: mockContext,
     });
 
@@ -201,6 +225,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: ["Edit", "Read", "Write"],
+      claudeCommentId: "12345",
       context: mockContext,
     });
 
@@ -219,6 +244,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       additionalMcpConfig: "",
+      claudeCommentId: "12345",
       allowedTools: [],
       context: mockContext,
     });
@@ -238,6 +264,7 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       additionalMcpConfig: "   \n\t  ",
+      claudeCommentId: "12345",
       allowedTools: [],
       context: mockContext,
     });

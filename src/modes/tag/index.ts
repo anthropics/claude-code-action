@@ -66,7 +66,7 @@ export const tagMode: Mode = {
 
     // Create initial tracking comment
     const commentData = await createInitialComment(octokit.rest, context);
-    const commentId = commentData.id;
+    const commentId = commentData?.id;
 
     const githubData = await fetchGitHubData({
       octokits: octokit,
@@ -82,7 +82,7 @@ export const tagMode: Mode = {
     // Configure git authentication if not using commit signing
     if (!context.inputs.useCommitSigning) {
       try {
-        await configureGitAuth(githubToken, context, commentData.user);
+        await configureGitAuth(octokit.rest, githubToken, context);
       } catch (error) {
         console.error("Failed to configure git authentication:", error);
         throw error;
@@ -107,7 +107,7 @@ export const tagMode: Mode = {
       branch: branchInfo.claudeBranch || branchInfo.currentBranch,
       baseBranch: branchInfo.baseBranch,
       additionalMcpConfig,
-      claudeCommentId: commentId.toString(),
+      claudeCommentId: commentId?.toString(),
       allowedTools: context.inputs.allowedTools,
       context,
     });
