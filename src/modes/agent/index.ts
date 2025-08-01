@@ -2,6 +2,7 @@ import * as core from "@actions/core";
 import type { Mode, ModeOptions, ModeResult } from "../types";
 import { isAutomationContext } from "../../github/context";
 import type { PreparedContext } from "../../create-prompt/types";
+import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 
 /**
  * Agent mode implementation.
@@ -39,7 +40,7 @@ export const agentMode: Mode = {
     return false;
   },
 
-  async prepare({ context }: ModeOptions): Promise<ModeResult> {
+  async prepare({ context, githubToken }: ModeOptions): Promise<ModeResult> {
     // Agent mode handles automation events (workflow_dispatch, schedule) only
 
     // Agent mode doesn't need to create prompt files here - handled by createPrompt
@@ -67,26 +68,21 @@ export const agentMode: Mode = {
     core.exportVariable("INPUT_ALLOWED_TOOLS", allowedTools.join(","));
     core.exportVariable("INPUT_DISALLOWED_TOOLS", disallowedTools.join(","));
 
-    // Agent mode uses a minimal MCP configuration
-    // We don't need comment servers or PR-specific tools for automation
-    const mcpConfig: any = {
-      mcpServers: {},
-    };
-
-    // Add user-provided additional MCP config if any
+    // Get MCP configuration using the same setup as other modes
     const additionalMcpConfig = process.env.MCP_CONFIG || "";
-    if (additionalMcpConfig.trim()) {
-      try {
-        const additional = JSON.parse(additionalMcpConfig);
-        if (additional && typeof additional === "object") {
-          Object.assign(mcpConfig, additional);
-        }
-      } catch (error) {
-        core.warning(`Failed to parse additional MCP config: ${error}`);
-      }
-    }
+    const mcpConfig = await prepareMcpConfig({
+      githubToken,
+      owner: context.repository.owner,
+      repo: context.repository.repo,
+      branch: "", // Agent mode doesn't use branches
+      baseBranch: "",
+      additionalMcpConfig,
+      claudeCommentId: undefined, // Agent mode doesn't track comments
+      allowedTools: [...baseTools, ...context.inputs.allowedTools],
+      context,
+    });
 
-    core.setOutput("mcp_config", JSON.stringify(mcpConfig));
+    core.setOutput("mcp_config", mcpConfig);
 
     return {
       commentId: undefined,
@@ -95,7 +91,7 @@ export const agentMode: Mode = {
         currentBranch: "",
         claudeBranch: undefined,
       },
-      mcpConfig: JSON.stringify(mcpConfig),
+      mcpConfig: mcpConfig,
     };
   },
 
