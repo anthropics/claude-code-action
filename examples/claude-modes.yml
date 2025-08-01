@@ -1,13 +1,17 @@
 name: Claude Mode Examples
 
 on:
-  # Common events for both modes
+  # Events for tag mode
   issue_comment:
     types: [created]
   issues:
     types: [opened, labeled]
   pull_request:
     types: [opened]
+  # Events for agent mode (only these work with agent mode)
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday
 
 jobs:
   # Tag Mode (Default) - Traditional implementation
@@ -28,13 +32,12 @@ jobs:
           # - Creates tracking comments with progress checkboxes
           # - Perfect for: Interactive Q&A, on-demand code changes
 
-  # Agent Mode - Automation without triggers
-  agent-mode-auto-review:
-    # Automatically review every new PR
-    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+  # Agent Mode - Automation for workflow_dispatch and schedule events
+  agent-mode-scheduled-task:
+    # Only works with workflow_dispatch or schedule events
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
       issues: write
       id-token: write
@@ -44,13 +47,10 @@ jobs:
           mode: agent
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           override_prompt: |
-            Review this PR for code quality. Focus on:
-            - Potential bugs or logic errors
-            - Security concerns
-            - Performance issues
-
-            Provide specific, actionable feedback.
+            Check for outdated dependencies and security vulnerabilities.
+            Create an issue if any critical problems are found.
           # Agent mode behavior:
-          # - NO @claude mention needed - runs immediately
-          # - Enables true automation (impossible with tag mode)
-          # - Perfect for: CI/CD integration, automatic reviews, label-based workflows
+          # - ONLY works with workflow_dispatch and schedule events
+          # - Does NOT work with pull_request, issues, or issue_comment events
+          # - No @claude mention needed for supported events
+          # - Perfect for: scheduled maintenance, manual automation runs
