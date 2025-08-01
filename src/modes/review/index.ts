@@ -71,10 +71,7 @@ export const reviewMode: Mode = {
       "mcp__github__get_pull_request_comments",
       "mcp__github__get_pull_request_reviews",
       "mcp__github__get_pull_request_status",
-      // Comment tools
-      "mcp__github_comment__create_comment",
-      "mcp__github_comment__update_comment",
-      "mcp__github_comment__create_review_comment",
+      // Comment update tool from github-comment-server
       "mcp__github_comment__update_claude_comment",
     ];
   },
@@ -90,8 +87,12 @@ export const reviewMode: Mode = {
   generatePrompt(
     context: PreparedContext,
     githubData: FetchDataResult,
-    _useCommitSigning: boolean, // Unused in review mode
   ): string {
+    // Support overridePrompt
+    if (context.overridePrompt) {
+      return context.overridePrompt;
+    }
+
     const {
       contextData,
       comments,

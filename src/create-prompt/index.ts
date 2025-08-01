@@ -822,7 +822,7 @@ export async function createPrompt(
   try {
     // Prepare the context for prompt generation
     let claudeCommentId: string = "";
-    if (mode.name === "tag") {
+    if (mode.name === "tag" || mode.name === "experimental-review") {
       if (!modeContext.commentId) {
         throw new Error(
           `${mode.name} mode requires a comment ID for prompt generation`,
