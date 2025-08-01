@@ -32,6 +32,11 @@ export const reviewMode: Mode = {
       return false;
     }
 
+    // Review mode only works on PRs
+    if (!context.isPR) {
+      return false;
+    }
+
     // For pull_request events, only trigger on specific actions
     if (isPullRequestEvent(context)) {
       const allowedActions = ["opened", "synchronize", "reopened"];
@@ -65,9 +70,6 @@ export const reviewMode: Mode = {
       "mcp__github__create_and_submit_pull_request_review",
       // PR information tools
       "mcp__github__get_pull_request",
-      "mcp__github__get_pull_request_diff",
-      "mcp__github__get_pull_request_files",
-      "mcp__github__get_pull_request_comments",
       "mcp__github__get_pull_request_reviews",
       "mcp__github__get_pull_request_status",
     ];
@@ -117,6 +119,9 @@ export const reviewMode: Mode = {
 ${formattedContext}
 </formatted_context>
 
+<repository>${context.repository}</repository>
+${eventData.isPR && eventData.prNumber ? `<pr_number>${eventData.prNumber}</pr_number>` : ""}
+
 <comments>
 ${formattedComments || "No comments yet"}
 </comments>
@@ -155,10 +160,11 @@ ${context.directPrompt}
 REVIEW MODE WORKFLOW:
 
 1. First, understand the PR context:
+   - You are reviewing PR #${eventData.isPR && eventData.prNumber ? eventData.prNumber : "[PR number]"} in ${context.repository}
    - Use mcp__github__get_pull_request to get PR metadata
-   - Use mcp__github__get_pull_request_diff to see all changes
-   - Use mcp__github__get_pull_request_files to list modified files
-   - Read specific files using the Read tool for deeper analysis
+   - Use the Read, Grep, and Glob tools to examine the modified files directly from disk
+   - This provides the full context and latest state of the code
+   - Look at the changed_files section above to see which files were modified
 
 2. Create a pending review:
    - Use mcp__github__create_pending_pull_request_review to start your review
