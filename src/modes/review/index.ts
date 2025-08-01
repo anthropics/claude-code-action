@@ -68,6 +68,8 @@ export const reviewMode: Mode = {
       "mcp__github__submit_pending_pull_request_review",
       "mcp__github__delete_pending_pull_request_review",
       "mcp__github__create_and_submit_pull_request_review",
+      // Comment tools
+      "mcp__github__add_issue_comment",
       // PR information tools
       "mcp__github__get_pull_request",
       "mcp__github__get_pull_request_reviews",
