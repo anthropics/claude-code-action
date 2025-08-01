@@ -71,8 +71,6 @@ export const reviewMode: Mode = {
       "mcp__github__get_pull_request_comments",
       "mcp__github__get_pull_request_reviews",
       "mcp__github__get_pull_request_status",
-      // Comment update tool from github-comment-server
-      "mcp__github_comment__update_claude_comment",
     ];
   },
 
