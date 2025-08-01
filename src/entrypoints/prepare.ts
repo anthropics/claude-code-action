@@ -31,7 +31,9 @@ async function run() {
       // For experimental-review mode, use the default GitHub Action token
       githubToken = process.env.DEFAULT_WORKFLOW_TOKEN || "";
       if (!githubToken) {
-        throw new Error("DEFAULT_WORKFLOW_TOKEN not found for experimental-review mode");
+        throw new Error(
+          "DEFAULT_WORKFLOW_TOKEN not found for experimental-review mode",
+        );
       }
       console.log("Using default GitHub Action token for review mode");
       core.setOutput("GITHUB_TOKEN", githubToken);
