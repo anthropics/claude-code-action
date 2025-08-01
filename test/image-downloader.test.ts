@@ -662,4 +662,47 @@ describe("downloadCommentImages", () => {
     );
     expect(result.get(imageUrl2)).toBeUndefined();
   });
+
+  // New tests for enhanced functionality
+  test("should detect <img> tag format images", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl = "https://github.com/user-attachments/assets/img-tag.png";
+    const signedUrl =
+      "https://private-user-images.githubusercontent.com/img-tag.png?jwt=token";
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "777",
+        body: `HTML image: <img src="${imageUrl}" alt="test">`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(result.size).toBe(1);
+    expect(result.get(imageUrl)).toBe(
+      "/tmp/github-images/image-1704067200000-0.png",
+    );
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      "Found 1 image(s) in issue_comment 777",
+    );
+  });
 });

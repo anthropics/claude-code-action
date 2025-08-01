@@ -2,9 +2,23 @@ import fs from "fs/promises";
 import path from "path";
 import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
+import { ERROR_MESSAGES } from "./constants";
+import {
+  type GitHubCommentResponse,
+  type GitHubReviewResponse,
+  type GitHubIssueResponse,
+  type GitHubPullRequestResponse,
+  hasBodyHtml,
+} from "./github-api-types";
 
 const IMAGE_REGEX = new RegExp(
   `!\\[[^\\]]*\\]\\((${GITHUB_SERVER_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/user-attachments\\/assets\\/[^)]+)\\)`,
+  "g",
+);
+
+// Also support <img> tags for backward compatibility
+const IMG_TAG_REGEX = new RegExp(
+  `<img[^>]+src="(${GITHUB_SERVER_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/user-attachments\\/assets\\/[^"]+)"[^>]*>`,
   "g",
 );
 
@@ -64,7 +78,9 @@ export async function downloadCommentImages(
 
   for (const comment of comments) {
     const imageMatches = [...comment.body.matchAll(IMAGE_REGEX)];
-    const urls = imageMatches.map((match) => match[1] as string);
+    const imgTagMatches = [...comment.body.matchAll(IMG_TAG_REGEX)];
+    const allMatches = [...imageMatches, ...imgTagMatches];
+    const urls = allMatches.map((match) => match[1] as string);
 
     if (urls.length > 0) {
       commentsWithImages.push({ comment, urls });
@@ -86,44 +102,47 @@ export async function downloadCommentImages(
       // Get the HTML version based on comment type
       switch (comment.type) {
         case "issue_comment": {
-          const response = await octokits.rest.issues.getComment({
-            owner,
-            repo,
-            comment_id: parseInt(comment.id),
-            mediaType: {
-              format: "full+json",
-            },
-          });
+          const response: GitHubCommentResponse =
+            await octokits.rest.issues.getComment({
+              owner,
+              repo,
+              comment_id: parseInt(comment.id),
+              mediaType: {
+                format: "full+json",
+              },
+            });
           bodyHtml = response.data.body_html;
           break;
         }
         case "review_comment": {
-          const response = await octokits.rest.pulls.getReviewComment({
-            owner,
-            repo,
-            comment_id: parseInt(comment.id),
-            mediaType: {
-              format: "full+json",
-            },
-          });
+          const response: GitHubCommentResponse =
+            await octokits.rest.pulls.getReviewComment({
+              owner,
+              repo,
+              comment_id: parseInt(comment.id),
+              mediaType: {
+                format: "full+json",
+              },
+            });
           bodyHtml = response.data.body_html;
           break;
         }
         case "review_body": {
-          const response = await octokits.rest.pulls.getReview({
-            owner,
-            repo,
-            pull_number: parseInt(comment.pullNumber),
-            review_id: parseInt(comment.id),
-            mediaType: {
-              format: "full+json",
-            },
-          });
+          const response: GitHubReviewResponse =
+            await octokits.rest.pulls.getReview({
+              owner,
+              repo,
+              pull_number: parseInt(comment.pullNumber),
+              review_id: parseInt(comment.id),
+              mediaType: {
+                format: "full+json",
+              },
+            });
           bodyHtml = response.data.body_html;
           break;
         }
         case "issue_body": {
-          const response = await octokits.rest.issues.get({
+          const response: GitHubIssueResponse = await octokits.rest.issues.get({
             owner,
             repo,
             issue_number: parseInt(comment.issueNumber),
@@ -135,16 +154,18 @@ export async function downloadCommentImages(
           break;
         }
         case "pr_body": {
-          const response = await octokits.rest.pulls.get({
-            owner,
-            repo,
-            pull_number: parseInt(comment.pullNumber),
-            mediaType: {
-              format: "full+json",
-            },
-          });
-          // Type here seems to be wrong
-          bodyHtml = (response.data as any).body_html;
+          const response: GitHubPullRequestResponse =
+            await octokits.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: parseInt(comment.pullNumber),
+              mediaType: {
+                format: "full+json",
+              },
+            });
+          bodyHtml = hasBodyHtml(response)
+            ? response.data.body_html
+            : undefined;
           break;
         }
       }
@@ -224,7 +245,7 @@ function getImageExtension(url: string): string {
   const urlParts = url.split("/");
   const filename = urlParts[urlParts.length - 1];
   if (!filename) {
-    throw new Error("Invalid URL: No filename found");
+    throw new Error(ERROR_MESSAGES.INVALID_URL);
   }
 
   const match = filename.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i);
