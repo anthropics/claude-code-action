@@ -850,8 +850,14 @@ Use provider-specific model names based on your chosen provider:
 
 Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
 
+**Important:** Add the following at the top level of your workflow YAML to enable OIDC:
 ```yaml
-# For AWS Bedrock with OIDC
+permissions:
+  id-token: write # Required for OIDC
+```
+
+#### For AWS Bedrock with OIDC
+```yaml
 - name: Configure AWS Credentials (OIDC)
   uses: aws-actions/configure-aws-credentials@v4
   with:
@@ -869,14 +875,17 @@ Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
   with:
     model: "anthropic.claude-3-7-sonnet-20250219-beta:0"
     use_bedrock: "true"
+    github_token: ${{ steps.app-token.outputs.token }}
     # ... other inputs
-
-  permissions:
-    id-token: write # Required for OIDC
 ```
 
+#### For GCP Vertex AI with OIDC
+
+**secrets:**
+- `ANTHROPIC_VERTEX_PROJECT_ID`: Your Google Cloud project ID where Vertex AI and Claude access are configured.
+- `CLOUD_ML_REGION`: The default region for Vertex AI model execution (e.g. `us-east5`).
+
 ```yaml
-# For GCP Vertex AI with OIDC
 - name: Authenticate to Google Cloud
   uses: google-github-actions/auth@v2
   with:
@@ -891,13 +900,15 @@ Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
     private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
 - uses: anthropics/claude-code-action@beta
-  with:
-    model: "claude-3-7-sonnet@20250219"
-    use_vertex: "true"
-    # ... other inputs
+  env:
+    ANTHROPIC_VERTEX_PROJECT_ID: ${{ secrets.ANTHROPIC_VERTEX_PROJECT_ID }}
+    CLOUD_ML_REGION: ${{ secrets.CLOUD_ML_REGION }}
 
-  permissions:
-    id-token: write # Required for OIDC
+  with:
+    anthropic_model: "claude-3-7-sonnet@20250219"
+    use_vertex: "true"
+    github_token: ${{ steps.app-token.outputs.token }}
+    # ... other inputs
 ```
 
 ## Security
