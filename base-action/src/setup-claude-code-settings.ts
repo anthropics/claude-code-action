@@ -67,13 +67,11 @@ export async function setupClaudeCodeSettings(
   await $`echo ${JSON.stringify(settings, null, 2)} > ${settingsPath}`.quiet();
   console.log(`Settings saved successfully`);
 
-  // Copy slash commands if directory is provided
   if (slashCommandsDir) {
     console.log(
       `Copying slash commands from ${slashCommandsDir} to ${home}/.claude/`,
     );
     try {
-      // Check if directory exists
       await $`test -d ${slashCommandsDir}`.quiet();
       await $`cp ${slashCommandsDir}/*.md ${home}/.claude/ 2>/dev/null || true`.quiet();
       console.log(`Slash commands copied successfully`);

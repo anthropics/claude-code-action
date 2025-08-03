@@ -174,10 +174,8 @@ describe("setupClaudeCodeSettings", () => {
   test("should handle missing slash commands directory gracefully", async () => {
     const nonExistentDir = join(testHomeDir, "non-existent");
 
-    // Should not throw when directory doesn't exist
     await setupClaudeCodeSettings(undefined, testHomeDir, nonExistentDir);
 
-    // Settings should still be created
     const settingsContent = await readFile(settingsPath, "utf-8");
     expect(JSON.parse(settingsContent).enableAllProjectMcpServers).toBe(true);
   });
@@ -191,7 +189,6 @@ describe("setupClaudeCodeSettings", () => {
 
     await setupClaudeCodeSettings(undefined, testHomeDir, testSlashCommandsDir);
 
-    // Check that only .md files were copied
     const copiedFiles = await readdir(join(testHomeDir, ".claude"));
     expect(copiedFiles).toContain("valid.md");
     expect(copiedFiles).toContain("another.md");
@@ -203,10 +200,8 @@ describe("setupClaudeCodeSettings", () => {
     const testFile = join(testHomeDir, "not-a-directory.txt");
     await writeFile(testFile, "This is a file, not a directory");
 
-    // Should not throw but should log error
     await setupClaudeCodeSettings(undefined, testHomeDir, testFile);
 
-    // Settings should still be created
     const settingsContent = await readFile(settingsPath, "utf-8");
     expect(JSON.parse(settingsContent).enableAllProjectMcpServers).toBe(true);
   });
@@ -217,7 +212,6 @@ describe("setupClaudeCodeSettings", () => {
 
     await setupClaudeCodeSettings(undefined, testHomeDir, emptyDir);
 
-    // Settings should be created even if no slash commands were copied
     const settingsContent = await readFile(settingsPath, "utf-8");
     expect(JSON.parse(settingsContent).enableAllProjectMcpServers).toBe(true);
   });
