@@ -61,8 +61,8 @@ inputs:
     description: "Timeout in minutes for Claude Code execution"
     required: false
     default: "10"
-  slash_commands_dir:
-    description: "Directory containing slash command files to install"
+  experimental_slash_commands_dir:
+    description: "Experimental: Directory containing slash command files to install"
     required: false
 
   # Authentication settings
@@ -146,7 +146,7 @@ runs:
         INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
         INPUT_CLAUDE_ENV: ${{ inputs.claude_env }}
         INPUT_FALLBACK_MODEL: ${{ inputs.fallback_model }}
-        INPUT_SLASH_COMMANDS_DIR: ${{ inputs.slash_commands_dir }}
+        INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ inputs.experimental_slash_commands_dir }}
 
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
