@@ -11,6 +11,7 @@ describe("validateEnvironmentVariables", () => {
     originalEnv = { ...process.env };
     // Clear relevant environment variables
     delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
     delete process.env.CLAUDE_CODE_USE_BEDROCK;
     delete process.env.CLAUDE_CODE_USE_VERTEX;
     delete process.env.AWS_REGION;
