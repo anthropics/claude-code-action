@@ -1,12 +1,11 @@
 import { $ } from "bun";
 import { homedir } from "os";
 import { readFile } from "fs/promises";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
 
 export async function setupClaudeCodeSettings(
   settingsInput?: string,
   homeDir?: string,
+  slashCommandsDir?: string,
 ) {
   const home = homeDir ?? homedir();
   const settingsPath = `${home}/.claude/settings.json`;
@@ -68,17 +67,18 @@ export async function setupClaudeCodeSettings(
   await $`echo ${JSON.stringify(settings, null, 2)} > ${settingsPath}`.quiet();
   console.log(`Settings saved successfully`);
 
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  const slashCommandsDir = join(__dirname, "..", "..", "slash-commands");
-
-  console.log(
-    `Copying slash commands from ${slashCommandsDir} to ${home}/.claude/`,
-  );
-  try {
-    await $`cp ${slashCommandsDir}/*.md ${home}/.claude/ 2>/dev/null || true`.quiet();
-    console.log(`Slash commands copied successfully`);
-  } catch (e) {
-    console.log(`No slash commands to copy or error copying: ${e}`);
+  // Copy slash commands if directory is provided
+  if (slashCommandsDir) {
+    console.log(
+      `Copying slash commands from ${slashCommandsDir} to ${home}/.claude/`,
+    );
+    try {
+      // Check if directory exists
+      await $`test -d ${slashCommandsDir}`.quiet();
+      await $`cp ${slashCommandsDir}/*.md ${home}/.claude/ 2>/dev/null || true`.quiet();
+      console.log(`Slash commands copied successfully`);
+    } catch (e) {
+      console.log(`Slash commands directory not found or error copying: ${e}`);
+    }
   }
 }

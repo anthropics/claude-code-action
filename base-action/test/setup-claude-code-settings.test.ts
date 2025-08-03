@@ -3,7 +3,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { setupClaudeCodeSettings } from "../src/setup-claude-code-settings";
 import { tmpdir } from "os";
-import { mkdir, writeFile, readFile, rm, access } from "fs/promises";
+import { mkdir, writeFile, readFile, rm, readdir } from "fs/promises";
 import { join } from "path";
 
 const testHomeDir = join(
@@ -148,19 +148,77 @@ describe("setupClaudeCodeSettings", () => {
     expect(settings.model).toBe("claude-opus-4-20250514");
   });
 
-  test("should copy slash commands to .claude directory", async () => {
+  test("should copy slash commands to .claude directory when path provided", async () => {
+    const testSlashCommandsDir = join(testHomeDir, "test-slash-commands");
+    await mkdir(testSlashCommandsDir, { recursive: true });
+    await writeFile(
+      join(testSlashCommandsDir, "test-command.md"),
+      "---\ndescription: Test command\n---\nTest content",
+    );
+
+    await setupClaudeCodeSettings(undefined, testHomeDir, testSlashCommandsDir);
+
+    const testCommandPath = join(testHomeDir, ".claude", "test-command.md");
+    const content = await readFile(testCommandPath, "utf-8");
+    expect(content).toContain("Test content");
+  });
+
+  test("should skip slash commands when no directory provided", async () => {
     await setupClaudeCodeSettings(undefined, testHomeDir);
 
-    const codeReviewPath = join(testHomeDir, ".claude", "code-review.md");
+    const settingsContent = await readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsContent);
+    expect(settings.enableAllProjectMcpServers).toBe(true);
+  });
 
-    try {
-      await access(codeReviewPath);
-      const content = await readFile(codeReviewPath, "utf-8");
-      expect(content).toContain("Code review a pull request");
-    } catch (e) {
-      console.log(
-        "Slash command copy test skipped - expected in test environment",
-      );
-    }
+  test("should handle missing slash commands directory gracefully", async () => {
+    const nonExistentDir = join(testHomeDir, "non-existent");
+
+    // Should not throw when directory doesn't exist
+    await setupClaudeCodeSettings(undefined, testHomeDir, nonExistentDir);
+
+    // Settings should still be created
+    const settingsContent = await readFile(settingsPath, "utf-8");
+    expect(JSON.parse(settingsContent).enableAllProjectMcpServers).toBe(true);
+  });
+
+  test("should skip non-.md files in slash commands directory", async () => {
+    const testSlashCommandsDir = join(testHomeDir, "test-slash-commands");
+    await mkdir(testSlashCommandsDir, { recursive: true });
+    await writeFile(join(testSlashCommandsDir, "not-markdown.txt"), "ignored");
+    await writeFile(join(testSlashCommandsDir, "valid.md"), "copied");
+    await writeFile(join(testSlashCommandsDir, "another.md"), "also copied");
+
+    await setupClaudeCodeSettings(undefined, testHomeDir, testSlashCommandsDir);
+
+    // Check that only .md files were copied
+    const copiedFiles = await readdir(join(testHomeDir, ".claude"));
+    expect(copiedFiles).toContain("valid.md");
+    expect(copiedFiles).toContain("another.md");
+    expect(copiedFiles).not.toContain("not-markdown.txt");
+    expect(copiedFiles).toContain("settings.json"); // Settings should also exist
+  });
+
+  test("should handle slash commands path that is a file not directory", async () => {
+    const testFile = join(testHomeDir, "not-a-directory.txt");
+    await writeFile(testFile, "This is a file, not a directory");
+
+    // Should not throw but should log error
+    await setupClaudeCodeSettings(undefined, testHomeDir, testFile);
+
+    // Settings should still be created
+    const settingsContent = await readFile(settingsPath, "utf-8");
+    expect(JSON.parse(settingsContent).enableAllProjectMcpServers).toBe(true);
+  });
+
+  test("should handle empty slash commands directory", async () => {
+    const emptyDir = join(testHomeDir, "empty-slash-commands");
+    await mkdir(emptyDir, { recursive: true });
+
+    await setupClaudeCodeSettings(undefined, testHomeDir, emptyDir);
+
+    // Settings should be created even if no slash commands were copied
+    const settingsContent = await readFile(settingsPath, "utf-8");
+    expect(JSON.parse(settingsContent).enableAllProjectMcpServers).toBe(true);
   });
 });
