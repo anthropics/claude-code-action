@@ -11,6 +11,7 @@ describe("validateEnvironmentVariables", () => {
     originalEnv = { ...process.env };
     // Clear relevant environment variables
     delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
     delete process.env.CLAUDE_CODE_USE_BEDROCK;
     delete process.env.CLAUDE_CODE_USE_VERTEX;
     delete process.env.AWS_REGION;
@@ -36,7 +37,13 @@ describe("validateEnvironmentVariables", () => {
       expect(() => validateEnvironmentVariables()).not.toThrow();
     });
 
-    test("should fail when ANTHROPIC_API_KEY is missing", () => {
+    test("should pass when CLAUDE_CODE_OAUTH_TOKEN is provided", () => {
+      process.env.CLAUDE_CODE_OAUTH_TOKEN = "test-oauth-token";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should fail when both ANTHROPIC_API_KEY and CLAUDE_CODE_OAUTH_TOKEN are missing", () => {
       expect(() => validateEnvironmentVariables()).toThrow(
         "Either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is required when using direct Anthropic API.",
       );
