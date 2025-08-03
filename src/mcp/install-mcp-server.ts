@@ -118,7 +118,7 @@ export async function prepareMcpConfig(
     if (context.isPR && hasActionsReadPermission) {
       // Verify the token actually has actions:read permission
       const actuallyHasPermission = await checkActionsReadPermission(
-        process.env.ACTIONS_TOKEN || "",
+        process.env.DEFAULT_WORKFLOW_TOKEN || "",
         owner,
         repo,
       );
@@ -138,7 +138,7 @@ export async function prepareMcpConfig(
         ],
         env: {
           // Use workflow github token, not app token
-          GITHUB_TOKEN: process.env.ACTIONS_TOKEN,
+          GITHUB_TOKEN: process.env.DEFAULT_WORKFLOW_TOKEN,
           REPO_OWNER: owner,
           REPO_NAME: repo,
           PR_NUMBER: context.entityNumber?.toString() || "",

@@ -547,8 +547,8 @@ describe("prepareMcpConfig", () => {
   });
 
   test("should include github_ci server when context.isPR is true and actions:read permission is granted", async () => {
-    const oldEnv = process.env.ACTIONS_TOKEN;
-    process.env.ACTIONS_TOKEN = "workflow-token";
+    const oldEnv = process.env.DEFAULT_WORKFLOW_TOKEN;
+    process.env.DEFAULT_WORKFLOW_TOKEN = "workflow-token";
 
     const contextWithPermissions = {
       ...mockPRContext,
@@ -575,7 +575,7 @@ describe("prepareMcpConfig", () => {
     expect(parsed.mcpServers.github_ci.env.PR_NUMBER).toBe("456");
     expect(parsed.mcpServers.github_file_ops).toBeDefined();
 
-    process.env.ACTIONS_TOKEN = oldEnv;
+    process.env.DEFAULT_WORKFLOW_TOKEN = oldEnv;
   });
 
   test("should not include github_ci server when context.isPR is false", async () => {
@@ -595,8 +595,8 @@ describe("prepareMcpConfig", () => {
   });
 
   test("should not include github_ci server when actions:read permission is not granted", async () => {
-    const oldTokenEnv = process.env.ACTIONS_TOKEN;
-    process.env.ACTIONS_TOKEN = "workflow-token";
+    const oldTokenEnv = process.env.DEFAULT_WORKFLOW_TOKEN;
+    process.env.DEFAULT_WORKFLOW_TOKEN = "workflow-token";
 
     const result = await prepareMcpConfig({
       githubToken: "test-token",
@@ -612,12 +612,12 @@ describe("prepareMcpConfig", () => {
     expect(parsed.mcpServers.github_ci).not.toBeDefined();
     expect(parsed.mcpServers.github_file_ops).toBeDefined();
 
-    process.env.ACTIONS_TOKEN = oldTokenEnv;
+    process.env.DEFAULT_WORKFLOW_TOKEN = oldTokenEnv;
   });
 
   test("should parse additional_permissions with multiple lines correctly", async () => {
-    const oldTokenEnv = process.env.ACTIONS_TOKEN;
-    process.env.ACTIONS_TOKEN = "workflow-token";
+    const oldTokenEnv = process.env.DEFAULT_WORKFLOW_TOKEN;
+    process.env.DEFAULT_WORKFLOW_TOKEN = "workflow-token";
 
     const contextWithPermissions = {
       ...mockPRContext,
@@ -644,12 +644,12 @@ describe("prepareMcpConfig", () => {
     expect(parsed.mcpServers.github_ci).toBeDefined();
     expect(parsed.mcpServers.github_ci.env.GITHUB_TOKEN).toBe("workflow-token");
 
-    process.env.ACTIONS_TOKEN = oldTokenEnv;
+    process.env.DEFAULT_WORKFLOW_TOKEN = oldTokenEnv;
   });
 
   test("should warn when actions:read is requested but token lacks permission", async () => {
-    const oldTokenEnv = process.env.ACTIONS_TOKEN;
-    process.env.ACTIONS_TOKEN = "invalid-token";
+    const oldTokenEnv = process.env.DEFAULT_WORKFLOW_TOKEN;
+    process.env.DEFAULT_WORKFLOW_TOKEN = "invalid-token";
 
     const contextWithPermissions = {
       ...mockPRContext,
@@ -677,6 +677,6 @@ describe("prepareMcpConfig", () => {
       ),
     );
 
-    process.env.ACTIONS_TOKEN = oldTokenEnv;
+    process.env.DEFAULT_WORKFLOW_TOKEN = oldTokenEnv;
   });
 });
