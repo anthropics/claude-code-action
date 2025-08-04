@@ -4,7 +4,7 @@
 
 ## Execution Modes
 
-The action supports two execution modes, each optimized for different use cases:
+The action supports three execution modes, each optimized for different use cases:
 
 ### Tag Mode (Default)
 
@@ -23,9 +23,11 @@ The traditional implementation mode that responds to @claude mentions, issue ass
 
 ### Agent Mode
 
-For automation and scheduled tasks without trigger checking.
+**Note: Agent mode is currently in active development and may undergo breaking changes.**
 
-- **Triggers**: Always runs (no trigger checking)
+For automation with workflow_dispatch and scheduled events only.
+
+- **Triggers**: Only works with `workflow_dispatch` and `schedule` events - does NOT work with PR/issue events
 - **Features**: Perfect for scheduled tasks, works with `override_prompt`
 - **Use case**: Maintenance tasks, automated reporting, scheduled checks
 
@@ -38,7 +40,26 @@ For automation and scheduled tasks without trigger checking.
       Check for outdated dependencies and create an issue if any are found.
 ```
 
-See [`examples/claude-modes.yml`](../examples/claude-modes.yml) for complete examples of each mode.
+### Experimental Review Mode
+
+**Warning: This is an experimental feature that may change or be removed at any time.**
+
+For automated code reviews on pull requests.
+
+- **Triggers**: Pull request events (`opened`, `synchronize`) or `@claude review` comments
+- **Features**: Provides detailed code reviews with inline comments and suggestions
+- **Use case**: Automated PR reviews, code quality checks
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    mode: experimental-review
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    custom_instructions: |
+      Focus on code quality, security, and best practices.
+```
+
+See [`examples/claude-modes.yml`](../examples/claude-modes.yml) and [`examples/claude-experimental-review-mode.yml`](../examples/claude-experimental-review-mode.yml) for complete examples of each mode.
 
 ## Network Restrictions
 

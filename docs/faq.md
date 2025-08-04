@@ -135,6 +135,14 @@ allowed_tools: "Bash(npm:*),Bash(git:*)" # Allows only npm and git commands
 
 No, Claude's GitHub app token is sandboxed to the current repository only. It cannot push to any other repositories. It can, however, read public repositories, but to get access to this, you must configure it with tools to do so.
 
+### Why aren't comments posted as claude[bot]?
+
+Comments appear as claude[bot] when the action uses its built-in authentication. However, if you provide a `github_token` in your workflow, the action will use that token's authentication instead, causing comments to appear under a different username.
+
+**Solution**: Remove `github_token` from your workflow file unless you're using a custom GitHub App.
+
+**Note**: The `use_sticky_comment` feature only works with claude[bot] authentication. If you're using a custom `github_token`, sticky comments won't update properly since they expect the claude[bot] username.
+
 ## MCP Servers and Extended Functionality
 
 ### What MCP servers are available by default?
