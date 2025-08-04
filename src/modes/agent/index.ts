@@ -112,4 +112,9 @@ export const agentMode: Mode = {
     // Minimal fallback - repository is a string in PreparedContext
     return `Repository: ${context.repository}`;
   },
+
+  getSystemPrompt() {
+    // Agent mode doesn't need additional system prompts
+    return undefined;
+  },
 };

@@ -349,4 +349,10 @@ This ensures users get value from the review even before checking individual inl
       mcpConfig,
     };
   },
+
+  getSystemPrompt() {
+    // Review mode doesn't need additional system prompts
+    // The review-specific instructions are included in the main prompt
+    return undefined;
+  },
 };

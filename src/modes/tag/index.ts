@@ -130,4 +130,9 @@ export const tagMode: Mode = {
   ): string {
     return generateDefaultPrompt(context, githubData, useCommitSigning);
   },
+
+  getSystemPrompt() {
+    // Tag mode doesn't need additional system prompts
+    return undefined;
+  },
 };

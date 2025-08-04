@@ -81,6 +81,19 @@ async function run() {
 
     // Set the MCP config output
     core.setOutput("mcp_config", result.mcpConfig);
+
+    // Step 6: Get system prompt from mode if available
+    if (mode.getSystemPrompt) {
+      const modeContext = mode.prepareContext(context, {
+        commentId: result.commentId,
+        baseBranch: result.branchInfo.baseBranch,
+        claudeBranch: result.branchInfo.claudeBranch,
+      });
+      const systemPrompt = mode.getSystemPrompt(modeContext);
+      if (systemPrompt) {
+        core.exportVariable("APPEND_SYSTEM_PROMPT", systemPrompt);
+      }
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     core.setFailed(`Prepare step failed with error: ${errorMessage}`);

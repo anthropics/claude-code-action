@@ -73,6 +73,13 @@ export type Mode = {
    * @returns PrepareResult with commentId, branchInfo, and mcpConfig
    */
   prepare(options: ModeOptions): Promise<ModeResult>;
+
+  /**
+   * Returns an optional system prompt to append to Claude's base system prompt.
+   * This allows modes to add mode-specific instructions.
+   * @returns The system prompt string or undefined if no additional prompt is needed
+   */
+  getSystemPrompt?(context: ModeContext): string | undefined;
 };
 
 // Define types for mode prepare method
