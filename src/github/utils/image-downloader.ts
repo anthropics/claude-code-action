@@ -8,6 +8,11 @@ const IMAGE_REGEX = new RegExp(
   "g",
 );
 
+const HTML_IMG_REGEX = new RegExp(
+  `<img[^>]+src=["']([^"']*${GITHUB_SERVER_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/user-attachments\\/assets\\/[^"']+)["'][^>]*>`,
+  "gi",
+);
+
 type IssueComment = {
   type: "issue_comment";
   id: string;
@@ -63,8 +68,16 @@ export async function downloadCommentImages(
   }> = [];
 
   for (const comment of comments) {
-    const imageMatches = [...comment.body.matchAll(IMAGE_REGEX)];
-    const urls = imageMatches.map((match) => match[1] as string);
+    // Extract URLs from Markdown format
+    const markdownMatches = [...comment.body.matchAll(IMAGE_REGEX)];
+    const markdownUrls = markdownMatches.map((match) => match[1] as string);
+
+    // Extract URLs from HTML format
+    const htmlMatches = [...comment.body.matchAll(HTML_IMG_REGEX)];
+    const htmlUrls = htmlMatches.map((match) => match[1] as string);
+
+    // Combine and deduplicate URLs
+    const urls = [...new Set([...markdownUrls, ...htmlUrls])];
 
     if (urls.length > 0) {
       commentsWithImages.push({ comment, urls });
