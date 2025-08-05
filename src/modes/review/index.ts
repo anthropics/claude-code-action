@@ -1,12 +1,14 @@
 import * as core from "@actions/core";
 import type { Mode, ModeOptions, ModeResult } from "../types";
 import { checkContainsTrigger } from "../../github/validation/trigger";
+import { createInitialComment } from "../../github/operations/comments/create-initial";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { fetchGitHubData } from "../../github/data/fetcher";
 import type { FetchDataResult } from "../../github/data/fetcher";
 import { createPrompt } from "../../create-prompt";
 import type { PreparedContext } from "../../create-prompt";
 import { isEntityContext, isPullRequestEvent } from "../../github/context";
+import type { ParsedGitHubContext } from "../../github/context";
 import {
   formatContext,
   formatBody,
@@ -81,8 +83,16 @@ export const reviewMode: Mode = {
     return [];
   },
 
-  shouldCreateTrackingComment() {
-    return false; // Review mode uses the review body instead of a tracking comment
+  shouldCreateTrackingComment(context?: ParsedGitHubContext) {
+    // Enable tracking comment only when both sticky comment and override prompt are provided
+    if (
+      context &&
+      context.inputs.useStickyComment &&
+      context.inputs.overridePrompt
+    ) {
+      return true;
+    }
+    return false; // Default: Review mode uses the review body instead of a tracking comment
   },
 
   generatePrompt(
@@ -279,7 +289,23 @@ This ensures users get value from the review even before checking individual inl
       throw new Error("Review mode requires entity context");
     }
 
-    // Review mode doesn't create a tracking comment
+    // Conditionally create tracking comment if sticky comment and override prompt are enabled
+    let commentId: number | undefined;
+    if (this.shouldCreateTrackingComment(context)) {
+      const commentData = await createInitialComment(octokit.rest, context);
+      commentId = commentData.id;
+    } else if (
+      context.inputs.useStickyComment &&
+      !context.inputs.overridePrompt
+    ) {
+      // Warn if sticky comment is enabled but override prompt is missing
+      core.warning(
+        "use_sticky_comment is enabled in review mode, but override_prompt is not provided. " +
+          "Sticky comments in review mode require both use_sticky_comment=true AND an override_prompt. " +
+          "The default review behavior will be used instead.",
+      );
+    }
+
     const githubData = await fetchGitHubData({
       octokits: octokit,
       repository: `${context.repository.owner}/${context.repository.repo}`,
@@ -297,6 +323,7 @@ This ensures users get value from the review even before checking individual inl
     };
 
     const modeContext = this.prepareContext(context, {
+      commentId,
       baseBranch: branchInfo.baseBranch,
       claudeBranch: branchInfo.claudeBranch,
     });
@@ -315,9 +342,16 @@ This ensures users get value from the review even before checking individual inl
     ];
 
     // Add mode-specific and user-specified tools
+    const modeTools = [...this.getAllowedTools()];
+
+    // Add comment update tool if using sticky comments with override prompt
+    if (this.shouldCreateTrackingComment(context)) {
+      modeTools.push("mcp__github_comment__update_claude_comment");
+    }
+
     const allowedTools = [
       ...baseTools,
-      ...this.getAllowedTools(),
+      ...modeTools,
       ...context.inputs.allowedTools,
     ];
     const disallowedTools = [
@@ -338,13 +372,18 @@ This ensures users get value from the review even before checking individual inl
       branch: branchInfo.claudeBranch || branchInfo.currentBranch,
       baseBranch: branchInfo.baseBranch,
       additionalMcpConfig,
-      allowedTools: [...this.getAllowedTools(), ...context.inputs.allowedTools],
+      claudeCommentId: commentId?.toString(),
+      allowedTools: dedupeStringArray([
+        ...modeTools,
+        ...context.inputs.allowedTools,
+      ]),
       context,
     });
 
     core.setOutput("mcp_config", mcpConfig);
 
     return {
+      commentId,
       branchInfo,
       mcpConfig,
     };
@@ -356,3 +395,7 @@ This ensures users get value from the review even before checking individual inl
     return undefined;
   },
 };
+
+function dedupeStringArray(array: string[]): string[] {
+  return Array.from(new Set(array));
+}

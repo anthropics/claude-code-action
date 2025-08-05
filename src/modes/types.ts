@@ -55,7 +55,7 @@ export type Mode = {
   /**
    * Determines if this mode should create a tracking comment
    */
-  shouldCreateTrackingComment(): boolean;
+  shouldCreateTrackingComment(context?: GitHubContext): boolean;
 
   /**
    * Generates the prompt for this mode.
