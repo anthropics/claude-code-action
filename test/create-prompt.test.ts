@@ -1041,8 +1041,6 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("Bash(git diff:*)");
     expect(result).toContain("Bash(git log:*)");
     expect(result).toContain("Bash(git rm:*)");
-    expect(result).toContain("Bash(git config user.name:*)");
-    expect(result).toContain("Bash(git config user.email:*)");
 
     // Comment tool from minimal server should be included
     expect(result).toContain("mcp__github_comment__update_claude_comment");

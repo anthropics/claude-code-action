@@ -60,8 +60,6 @@ export function buildAllowedToolsString(
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(git rm:*)",
-      "Bash(git config user.name:*)",
-      "Bash(git config user.email:*)",
     );
   }
 
