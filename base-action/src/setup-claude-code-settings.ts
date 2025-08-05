@@ -72,7 +72,7 @@ export async function setupClaudeCodeSettings(
       `Copying slash commands from ${slashCommandsDir} to ${home}/.claude/`,
     );
     try {
-      await $`test -d ${slashCommandsDir}`.quiet();
+      await $`mkdir -p ${slashCommandsDir}`.quiet();
       await $`cp ${slashCommandsDir}/*.md ${home}/.claude/ 2>/dev/null || true`.quiet();
       console.log(`Slash commands copied successfully`);
     } catch (e) {
