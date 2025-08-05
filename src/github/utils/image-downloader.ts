@@ -3,13 +3,14 @@ import path from "path";
 import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
 
+const escapedUrl = GITHUB_SERVER_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const IMAGE_REGEX = new RegExp(
-  `!\\[[^\\]]*\\]\\((${GITHUB_SERVER_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/user-attachments\\/assets\\/[^)]+)\\)`,
+  `!\\[[^\\]]*\\]\\((${escapedUrl}\\/user-attachments\\/assets\\/[^)]+)\\)`,
   "g",
 );
 
 const HTML_IMG_REGEX = new RegExp(
-  `<img[^>]+src=["']([^"']*${GITHUB_SERVER_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/user-attachments\\/assets\\/[^"']+)["'][^>]*>`,
+  `<img[^>]+src=["']([^"']*${escapedUrl}\\/user-attachments\\/assets\\/[^"']+)["'][^>]*>`,
   "gi",
 );
 
