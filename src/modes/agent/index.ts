@@ -1,4 +1,5 @@
 import * as core from "@actions/core";
+import { mkdir, writeFile } from "fs/promises";
 import type { Mode, ModeOptions, ModeResult } from "../types";
 import { isAutomationContext } from "../../github/context";
 import type { PreparedContext } from "../../create-prompt/types";
@@ -42,7 +43,23 @@ export const agentMode: Mode = {
   async prepare({ context }: ModeOptions): Promise<ModeResult> {
     // Agent mode handles automation events (workflow_dispatch, schedule) only
 
-    // Agent mode doesn't need to create prompt files here - handled by createPrompt
+    // TODO: handle by createPrompt (similar to tag and review modes)
+    // Create prompt directory
+    await mkdir(`${process.env.RUNNER_TEMP}/claude-prompts`, {
+      recursive: true,
+    });
+    // Write the prompt file - the base action requires a prompt_file parameter,
+    // so we must create this file even though agent mode typically uses
+    // override_prompt or direct_prompt. If neither is provided, we write
+    // a minimal prompt with just the repository information.
+    const promptContent =
+      context.inputs.overridePrompt ||
+      context.inputs.directPrompt ||
+      `Repository: ${context.repository.owner}/${context.repository.repo}`;
+    await writeFile(
+      `${process.env.RUNNER_TEMP}/claude-prompts/claude-prompt.txt`,
+      promptContent,
+    );
 
     // Export tool environment variables for agent mode
     const baseTools = [
