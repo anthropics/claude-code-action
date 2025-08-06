@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-// GitHub Inline Comment MCP Server - Provides inline PR comment functionality
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { GITHUB_API_URL } from "../github/api/config";
-import { Octokit } from "@octokit/rest";
+import { createOctokit } from "../github/api/client";
 
 // Get repository and PR information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -18,6 +16,9 @@ if (!REPO_OWNER || !REPO_NAME || !PR_NUMBER) {
   process.exit(1);
 }
 
+// GitHub Inline Comment MCP Server - Provides inline PR comment functionality
+// Provides an inline comment tool without exposing full PR review capabilities, so that
+// Claude can't accidentally approve a PR
 const server = new McpServer({
   name: "GitHub Inline Comment Server",
   version: "0.0.1",
@@ -33,7 +34,10 @@ server.tool(
     body: z
       .string()
       .describe(
-        "The comment text (supports markdown and GitHub suggestion blocks)",
+        "The comment text (supports markdown and GitHub code suggestion blocks). " +
+          "For code suggestions, use: ```suggestion\\nreplacement code\\n```. " +
+          "IMPORTANT: The suggestion block will REPLACE the ENTIRE line range (single line or startLine to line). " +
+          "Ensure the replacement is syntactically complete and valid - it must work as a drop-in replacement for the selected lines.",
       ),
     line: z
       .number()
@@ -73,10 +77,7 @@ server.tool(
       const repo = REPO_NAME;
       const pull_number = parseInt(PR_NUMBER, 10);
 
-      const octokit = new Octokit({
-        auth: githubToken,
-        baseUrl: GITHUB_API_URL,
-      });
+      const octokit = createOctokit(githubToken).rest;
 
       // Validate that either line or both startLine and line are provided
       if (!line && !startLine) {
@@ -89,28 +90,23 @@ server.tool(
       // If both startLine and line are provided, it's a multi-line comment
       const isSingleLine = !startLine;
 
-      // Build the parameters for createReviewComment
-      const params: any = {
+      const pr = await octokit.pulls.get({
+        owner,
+        repo,
+        pull_number,
+      });
+
+      const params: Parameters<
+        typeof octokit.rest.pulls.createReviewComment
+      >[0] = {
         owner,
         repo,
         pull_number,
         body,
         path,
         side: side || "RIGHT",
+        commit_id: commit_id || pr.data.head.sha,
       };
-
-      // If commit_id is provided, use it; otherwise, get the latest commit
-      if (commit_id) {
-        params.commit_id = commit_id;
-      } else {
-        // Get the latest commit from the PR
-        const pr = await octokit.pulls.get({
-          owner,
-          repo,
-          pull_number,
-        });
-        params.commit_id = pr.data.head.sha;
-      }
 
       if (isSingleLine) {
         // Single-line comment
@@ -122,7 +118,6 @@ server.tool(
         params.line = line;
       }
 
-      // Create the inline comment
       const result = await octokit.rest.pulls.createReviewComment(params);
 
       return {
