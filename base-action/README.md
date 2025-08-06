@@ -69,7 +69,7 @@ Add the following to your workflow file:
   uses: anthropics/claude-code-base-action@beta
   with:
     prompt: "Review and fix TypeScript errors"
-    model: "claude-opus-4-20250514"
+    model: "claude-opus-4-1-20250805"
     fallback_model: "claude-sonnet-4-20250514"
     allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -217,7 +217,7 @@ Provide the settings configuration directly as a JSON string:
     prompt: "Your prompt here"
     settings: |
       {
-        "model": "claude-opus-4-20250514",
+        "model": "claude-opus-4-1-20250805",
         "env": {
           "DEBUG": "true",
           "API_URL": "https://api.example.com"

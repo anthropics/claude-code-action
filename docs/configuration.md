@@ -252,7 +252,7 @@ You can provide Claude Code settings to customize behavior such as model selecti
   with:
     settings: |
       {
-        "model": "claude-opus-4-20250514",
+        "model": "claude-opus-4-1-20250805",
         "env": {
           "DEBUG": "true",
           "API_URL": "https://api.example.com"

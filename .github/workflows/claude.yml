@@ -36,4 +36,4 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           allowed_tools: "Bash(bun install),Bash(bun test:*),Bash(bun run format),Bash(bun typecheck)"
           custom_instructions: "You have also been granted tools for editing files and running bun commands (install, run, test, typecheck) for testing your changes: bun install, bun test, bun run format, bun typecheck."
-          model: "claude-opus-4-20250514"
+          model: "claude-opus-4-1-20250805"

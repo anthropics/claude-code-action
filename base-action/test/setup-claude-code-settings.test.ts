@@ -134,7 +134,7 @@ describe("setupClaudeCodeSettings", () => {
     // Then, add new settings
     const newSettings = JSON.stringify({
       newKey: "newValue",
-      model: "claude-opus-4-20250514",
+      model: "claude-opus-4-1-20250805",
     });
 
     await setupClaudeCodeSettings(newSettings, testHomeDir);
@@ -145,7 +145,7 @@ describe("setupClaudeCodeSettings", () => {
     expect(settings.enableAllProjectMcpServers).toBe(true);
     expect(settings.existingKey).toBe("existingValue");
     expect(settings.newKey).toBe("newValue");
-    expect(settings.model).toBe("claude-opus-4-20250514");
+    expect(settings.model).toBe("claude-opus-4-1-20250805");
   });
 
   test("should copy slash commands to .claude directory when path provided", async () => {
