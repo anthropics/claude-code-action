@@ -111,6 +111,24 @@ export async function prepareMcpConfig(
       };
     }
 
+    // Include inline comment server for experimental review mode
+    if (context.inputs.mode === "experimental-review" && context.isPR) {
+      baseMcpConfig.mcpServers.github_inline_comment = {
+        command: "bun",
+        args: [
+          "run",
+          `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-inline-comment-server.ts`,
+        ],
+        env: {
+          GITHUB_TOKEN: githubToken,
+          REPO_OWNER: owner,
+          REPO_NAME: repo,
+          PR_NUMBER: context.entityNumber?.toString() || "",
+          GITHUB_API_URL: GITHUB_API_URL,
+        },
+      };
+    }
+
     // Only add CI server if we have actions:read permission and we're in a PR context
     const hasActionsReadPermission =
       context.inputs.additionalPermissions.get("actions") === "read";

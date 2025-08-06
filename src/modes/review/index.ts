@@ -60,20 +60,8 @@ export const reviewMode: Mode = {
 
   getAllowedTools() {
     return [
-      // Context tools - to know who the current user is
-      "mcp__github__get_me",
-      // Core review tools
-      "mcp__github__create_pending_pull_request_review",
-      "mcp__github__add_comment_to_pending_review",
-      "mcp__github__submit_pending_pull_request_review",
-      "mcp__github__delete_pending_pull_request_review",
-      "mcp__github__create_and_submit_pull_request_review",
-      // Comment tools
-      "mcp__github__add_issue_comment",
-      // PR information tools
-      "mcp__github__get_pull_request",
-      "mcp__github__get_pull_request_reviews",
-      "mcp__github__get_pull_request_status",
+      "Bash(gh issue comment:*)",
+      "mcp__github_inline_comment__create_inline_comment",
     ];
   },
 
@@ -163,17 +151,13 @@ REVIEW MODE WORKFLOW:
 
 1. First, understand the PR context:
    - You are reviewing PR #${eventData.isPR && eventData.prNumber ? eventData.prNumber : "[PR number]"} in ${context.repository}
-   - Use mcp__github__get_pull_request to get PR metadata
    - Use the Read, Grep, and Glob tools to examine the modified files directly from disk
    - This provides the full context and latest state of the code
    - Look at the changed_files section above to see which files were modified
 
-2. Create a pending review:
-   - Use mcp__github__create_pending_pull_request_review to start your review
-   - This allows you to batch comments before submitting
-
-3. Add inline comments:
-   - Use mcp__github__add_comment_to_pending_review for each issue or suggestion
+2. Add comments:
+   - use Bash(gh issue comment:*) to add top-level comments
+   - Use mcp__github_inline_comment__create_inline_comment to add inline comments (prefer this where possible)
    - Parameters:
      * path: The file path (e.g., "src/index.js")
      * line: Line number for single-line comments
@@ -182,49 +166,6 @@ REVIEW MODE WORKFLOW:
      * subjectType: "line" for line-level comments
      * body: Your comment text
    
-   - When to use multi-line comments:
-     * When replacing multiple consecutive lines
-     * When the fix requires changes across several lines
-     * Example: To replace lines 19-20, use startLine: 19, line: 20
-   
-   - For code suggestions, use this EXACT format in the body:
-     \`\`\`suggestion
-     corrected code here
-     \`\`\`
-   
-   CRITICAL: GitHub suggestion blocks must ONLY contain the replacement for the specific line(s) being commented on:
-   - For single-line comments: Replace ONLY that line
-   - For multi-line comments: Replace ONLY the lines in the range
-   - Do NOT include surrounding context or function signatures
-   - Do NOT suggest changes that span beyond the commented lines
-   
-   Example for line 19 \`var name = user.name;\`:
-   WRONG:
-   \\\`\\\`\\\`suggestion
-   function processUser(user) {
-       if (!user) throw new Error('Invalid user');
-       const name = user.name;
-   \\\`\\\`\\\`
-   
-   CORRECT:
-   \\\`\\\`\\\`suggestion
-   const name = user.name;
-   \\\`\\\`\\\`
-   
-   For validation suggestions, comment on the function declaration line or create separate comments for each concern.
-
-4. Submit your review:
-   - Use mcp__github__submit_pending_pull_request_review
-   - Parameters:
-     * event: "COMMENT" (general feedback), "REQUEST_CHANGES" (issues found), or "APPROVE" (if appropriate)
-     * body: Write a comprehensive review summary that includes:
-       - Overview of what was reviewed (files, scope, focus areas)
-       - Summary of all issues found (with counts by severity if applicable)
-       - Key recommendations and action items
-       - Highlights of good practices observed
-       - Overall assessment and recommendation
-   - The body should be detailed and informative since it's the main review content
-   - Structure the body with clear sections using markdown headers
 
 REVIEW GUIDELINES:
 
