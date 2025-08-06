@@ -98,6 +98,7 @@ export const tagMode: Mode = {
       claudeBranch: branchInfo.claudeBranch,
     });
 
+    // TODO: Capture and return the allowed/disallowed tools from createPrompt
     await createPrompt(tagMode, modeContext, githubData, context);
 
     // Get MCP configuration

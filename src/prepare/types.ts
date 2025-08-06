@@ -10,6 +10,7 @@ export type PrepareResult = {
     currentBranch: string;
   };
   mcpConfig: string;
+  // TODO: Add allowedTools and disallowedTools here once modes are updated
 };
 
 export type PrepareOptions = {

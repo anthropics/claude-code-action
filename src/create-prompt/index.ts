@@ -811,12 +811,18 @@ f. If you are unable to complete certain steps, such as running a linter or test
   return promptContent;
 }
 
+export type CreatePromptResult = {
+  promptFile: string;
+  allowedTools: string;
+  disallowedTools: string;
+};
+
 export async function createPrompt(
   mode: Mode,
   modeContext: ModeContext,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
-) {
+): Promise<CreatePromptResult> {
   try {
     // Prepare the context for prompt generation
     let claudeCommentId: string = "";
@@ -888,8 +894,17 @@ export async function createPrompt(
       combinedAllowedTools,
     );
 
+    // TODO: Remove these environment variable exports once modes are updated to use return values
     core.exportVariable("ALLOWED_TOOLS", allAllowedTools);
     core.exportVariable("DISALLOWED_TOOLS", allDisallowedTools);
+
+    const promptFile = `${process.env.RUNNER_TEMP}/claude-prompts/claude-prompt.txt`;
+
+    return {
+      promptFile,
+      allowedTools: allAllowedTools,
+      disallowedTools: allDisallowedTools,
+    };
   } catch (error) {
     core.setFailed(`Create prompt failed with error: ${error}`);
     process.exit(1);

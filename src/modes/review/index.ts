@@ -242,6 +242,7 @@ This ensures users get value from the review even before checking individual inl
       claudeBranch: branchInfo.claudeBranch,
     });
 
+    // TODO: Capture and return the allowed/disallowed tools from createPrompt
     await createPrompt(reviewMode, modeContext, githubData, context);
 
     // Export tool environment variables for review mode
