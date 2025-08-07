@@ -22,6 +22,7 @@ async function run() {
     const claudeBranch = process.env.CLAUDE_BRANCH;
     const baseBranch = process.env.BASE_BRANCH || "main";
     const triggerUsername = process.env.TRIGGER_USERNAME;
+    const disableUserMentions = process.env.DISABLE_USER_MENTIONS === "true";
 
     const context = parseGitHubContext();
 
@@ -212,6 +213,7 @@ async function run() {
       branchName: shouldDeleteBranch || !branchLink ? undefined : claudeBranch,
       triggerUsername,
       errorDetails,
+      disableUserMentions,
     };
 
     const updatedBody = updateCommentBody(commentInput);
