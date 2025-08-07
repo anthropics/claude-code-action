@@ -4,6 +4,7 @@ import type { ModeName } from "../../src/modes/types";
 import { tagMode } from "../../src/modes/tag";
 import { agentMode } from "../../src/modes/agent";
 import { reviewMode } from "../../src/modes/review";
+import { planMode } from "../../src/modes/plan";
 import { createMockContext, createMockAutomationContext } from "../mockContext";
 
 describe("Mode Registry", () => {
@@ -37,6 +38,12 @@ describe("Mode Registry", () => {
     expect(mode.name).toBe("experimental-review");
   });
 
+  test("getMode returns plan mode", () => {
+    const mode = getMode("plan", mockContext);
+    expect(mode).toBe(planMode);
+    expect(mode.name).toBe("plan");
+  });
+
   test("getMode throws error for tag mode with workflow_dispatch event", () => {
     expect(() => getMode("tag", mockWorkflowDispatchContext)).toThrow(
       "Tag mode cannot handle workflow_dispatch events. Use 'agent' mode for automation events.",
@@ -64,7 +71,7 @@ describe("Mode Registry", () => {
   test("getMode throws error for invalid mode", () => {
     const invalidMode = "invalid" as unknown as ModeName;
     expect(() => getMode(invalidMode, mockContext)).toThrow(
-      "Invalid mode 'invalid'. Valid modes are: 'tag', 'agent', 'experimental-review'. Please check your workflow configuration.",
+      "Invalid mode 'invalid'. Valid modes are: 'tag', 'agent', 'experimental-review', 'plan'. Please check your workflow configuration.",
     );
   });
 
@@ -72,6 +79,7 @@ describe("Mode Registry", () => {
     expect(isValidMode("tag")).toBe(true);
     expect(isValidMode("agent")).toBe(true);
     expect(isValidMode("experimental-review")).toBe(true);
+    expect(isValidMode("plan")).toBe(true);
   });
 
   test("isValidMode returns false for invalid mode", () => {

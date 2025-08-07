@@ -11,24 +11,37 @@
  */
 
 import type { Mode, ModeName } from "./types";
-import { tagMode } from "./tag";
-import { agentMode } from "./agent";
-import { reviewMode } from "./review";
 import type { GitHubContext } from "../github/context";
 import { isAutomationContext } from "../github/context";
 
 export const DEFAULT_MODE = "tag" as const;
-export const VALID_MODES = ["tag", "agent", "experimental-review"] as const;
+export const VALID_MODES = [
+  "tag",
+  "agent",
+  "experimental-review",
+  "plan",
+] as const;
 
 /**
  * All available modes.
  * Add new modes here as they are created.
  */
-const modes = {
-  tag: tagMode,
-  agent: agentMode,
-  "experimental-review": reviewMode,
-} as const satisfies Record<ModeName, Mode>;
+const modes = {} as Record<ModeName, Mode>;
+
+// Lazy load modes to avoid circular dependencies
+function loadModes() {
+  if (!modes.tag) {
+    const { tagMode } = require("./tag");
+    const { agentMode } = require("./agent");
+    const { reviewMode } = require("./review");
+    const { planMode } = require("./plan");
+
+    modes.tag = tagMode;
+    modes.agent = agentMode;
+    modes["experimental-review"] = reviewMode;
+    modes.plan = planMode;
+  }
+}
 
 /**
  * Retrieves a mode by name and validates it can handle the event type.
@@ -38,6 +51,7 @@ const modes = {
  * @throws Error if the mode is not found or cannot handle the event
  */
 export function getMode(name: ModeName, context: GitHubContext): Mode {
+  loadModes();
   const mode = modes[name];
   if (!mode) {
     const validModes = VALID_MODES.join("', '");
