@@ -297,9 +297,8 @@ This ensures users get value from the review even before checking individual inl
       ...context.inputs.disallowedTools,
     ];
 
-    // Export as INPUT_ prefixed variables for the base action
-    core.exportVariable("INPUT_ALLOWED_TOOLS", allowedTools.join(","));
-    core.exportVariable("INPUT_DISALLOWED_TOOLS", disallowedTools.join(","));
+    core.exportVariable("ALLOWED_TOOLS", allowedTools.join(","));
+    core.exportVariable("DISALLOWED_TOOLS", disallowedTools.join(","));
 
     const additionalMcpConfig = process.env.MCP_CONFIG || "";
     const mcpConfig = await prepareMcpConfig({

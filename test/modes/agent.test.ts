@@ -1,15 +1,29 @@
-import { describe, test, expect, beforeEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import { agentMode } from "../../src/modes/agent";
 import type { GitHubContext } from "../../src/github/context";
 import { createMockContext, createMockAutomationContext } from "../mockContext";
+import * as core from "@actions/core";
 
 describe("Agent Mode", () => {
   let mockContext: GitHubContext;
+  let exportVariableSpy: any;
+  let setOutputSpy: any;
 
   beforeEach(() => {
     mockContext = createMockAutomationContext({
       eventName: "workflow_dispatch",
     });
+    exportVariableSpy = spyOn(core, "exportVariable").mockImplementation(
+      () => {},
+    );
+    setOutputSpy = spyOn(core, "setOutput").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    exportVariableSpy?.mockClear();
+    setOutputSpy?.mockClear();
+    exportVariableSpy?.mockRestore();
+    setOutputSpy?.mockRestore();
   });
 
   test("agent mode has correct properties", () => {
@@ -55,5 +69,68 @@ describe("Agent Mode", () => {
       const context = createMockContext({ eventName });
       expect(agentMode.shouldTrigger(context)).toBe(false);
     });
+  });
+
+  test("prepare method sets up tools environment variables correctly", async () => {
+    // Clear any previous calls before this test
+    exportVariableSpy.mockClear();
+    setOutputSpy.mockClear();
+
+    const contextWithCustomTools = createMockAutomationContext({
+      eventName: "workflow_dispatch",
+    });
+    contextWithCustomTools.inputs.allowedTools = ["CustomTool1", "CustomTool2"];
+    contextWithCustomTools.inputs.disallowedTools = ["BadTool"];
+
+    const mockOctokit = {} as any;
+    const result = await agentMode.prepare({
+      context: contextWithCustomTools,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+
+    // Verify that both ALLOWED_TOOLS and DISALLOWED_TOOLS are set
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      "ALLOWED_TOOLS",
+      "Edit,MultiEdit,Glob,Grep,LS,Read,Write,CustomTool1,CustomTool2",
+    );
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      "DISALLOWED_TOOLS",
+      "WebSearch,WebFetch,BadTool",
+    );
+
+    // Verify MCP config is set
+    expect(setOutputSpy).toHaveBeenCalledWith("mcp_config", expect.any(String));
+
+    // Verify return structure
+    expect(result).toEqual({
+      commentId: undefined,
+      branchInfo: {
+        baseBranch: "",
+        currentBranch: "",
+        claudeBranch: undefined,
+      },
+      mcpConfig: expect.any(String),
+    });
+  });
+
+  test("prepare method creates prompt file with correct content", async () => {
+    const contextWithPrompts = createMockAutomationContext({
+      eventName: "workflow_dispatch",
+    });
+    contextWithPrompts.inputs.overridePrompt = "Custom override prompt";
+    contextWithPrompts.inputs.directPrompt =
+      "Direct prompt (should be ignored)";
+
+    const mockOctokit = {} as any;
+    await agentMode.prepare({
+      context: contextWithPrompts,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+
+    // Note: We can't easily test file creation in this unit test,
+    // but we can verify the method completes without errors
+    expect(setOutputSpy).toHaveBeenCalledWith("mcp_config", expect.any(String));
   });
 });
