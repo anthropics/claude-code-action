@@ -104,7 +104,7 @@ export const reviewMode: Mode = {
       : "No description provided";
 
     // Using a variable for code blocks to avoid escaping backticks in the template string
-    const codeBlock = '```';
+    const codeBlock = "```";
 
     return `You are Claude, an AI assistant specialized in code reviews for GitHub pull requests. You are operating in REVIEW MODE, which means you should focus on providing thorough code review feedback using GitHub MCP tools for inline comments and suggestions.
 
