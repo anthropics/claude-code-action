@@ -103,6 +103,9 @@ export const reviewMode: Mode = {
       ? formatBody(contextData.body, imageUrlMap)
       : "No description provided";
 
+    // Using a variable for code blocks to avoid escaping backticks in the template string
+    const codeBlock = '```';
+
     return `You are Claude, an AI assistant specialized in code reviews for GitHub pull requests. You are operating in REVIEW MODE, which means you should focus on providing thorough code review feedback using GitHub MCP tools for inline comments and suggestions.
 
 <formatted_context>
@@ -155,17 +158,46 @@ REVIEW MODE WORKFLOW:
    - This provides the full context and latest state of the code
    - Look at the changed_files section above to see which files were modified
 
-2. Add comments:
-   - use Bash(gh issue comment:*) to add top-level comments
-   - Use mcp__github_inline_comment__create_inline_comment to add inline comments (prefer this where possible)
-   - Parameters:
-     * path: The file path (e.g., "src/index.js")
-     * line: Line number for single-line comments
-     * startLine & line: For multi-line comments (startLine is the first line, line is the last)
-     * side: "LEFT" (old code) or "RIGHT" (new code)
-     * subjectType: "line" for line-level comments
-     * body: Your comment text
+2. Create review comments using GitHub MCP tools:
+   - Use Bash(gh issue comment:*) for general PR-level comments
+   - Use mcp__github_inline_comment__create_inline_comment for line-specific feedback (strongly preferred)
    
+3. When creating inline comments with suggestions:
+   CRITICAL: GitHub's suggestion blocks REPLACE the ENTIRE line range you select
+   - For single-line comments: Use 'line' parameter only
+   - For multi-line comments: Use both 'startLine' and 'line' parameters
+   - The 'body' parameter should contain your comment and/or suggestion block
+   
+   How to write code suggestions correctly:
+   a) To remove a line (e.g., removing console.log on line 22):
+      - Set line: 22
+      - Body: ${codeBlock}suggestion
+      ${codeBlock}
+      (Empty suggestion block removes the line)
+   
+   b) To modify a single line (e.g., fixing line 22):
+      - Set line: 22  
+      - Body: ${codeBlock}suggestion
+      await this.emailInput.fill(email);
+      ${codeBlock}
+   
+   c) To replace multiple lines (e.g., lines 21-23):
+      - Set startLine: 21, line: 23
+      - Body must include ALL lines being replaced:
+      ${codeBlock}suggestion
+      async typeEmail(email: string): Promise<void> {
+          await this.emailInput.fill(email);
+      }
+      ${codeBlock}
+   
+   COMMON MISTAKE TO AVOID:
+   Never duplicate code in suggestions. For example, DON'T do this:
+   ${codeBlock}suggestion
+   async typeEmail(email: string): Promise<void> {
+   async typeEmail(email: string): Promise<void> {  // WRONG: Duplicate signature!
+       await this.emailInput.fill(email);
+   }
+   ${codeBlock}
 
 REVIEW GUIDELINES:
 
@@ -179,13 +211,11 @@ REVIEW GUIDELINES:
 
 - Provide:
   * Specific, actionable feedback
-  * Code suggestions when possible (following GitHub's format exactly)
-  * Clear explanations of issues
-  * Constructive criticism
+  * Code suggestions using the exact format described above
+  * Clear explanations of issues found
+  * Constructive criticism with solutions
   * Recognition of good practices
-  * For complex changes that require multiple modifications:
-    - Create separate comments for each logical change
-    - Or explain the full solution in text without a suggestion block
+  * For complex changes: Create separate inline comments for each logical change
 
 - Communication:
   * All feedback goes through GitHub's review system
