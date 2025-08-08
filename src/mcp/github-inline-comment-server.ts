@@ -41,6 +41,7 @@ server.tool(
       ),
     line: z
       .number()
+      .nonnegative()
       .optional()
       .describe(
         "Line number for single-line comments (required if startLine is not provided)",
