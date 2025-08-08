@@ -13,12 +13,12 @@ import type { ParsedGitHubContext } from "../context";
 
 export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   const {
-    inputs: { assigneeTrigger, labelTrigger, triggerPhrase, directPrompt },
+    inputs: { assigneeTrigger, labelTrigger, triggerPhrase, prompt },
   } = context;
 
-  // If direct prompt is provided, always trigger
-  if (directPrompt) {
-    console.log(`Direct prompt provided, triggering action`);
+  // If prompt is provided, always trigger
+  if (prompt) {
+    console.log(`Prompt provided, triggering action`);
     return true;
   }
 

@@ -4,24 +4,17 @@ import { promisify } from "util";
 import { unlink, writeFile, stat } from "fs/promises";
 import { createWriteStream } from "fs";
 import { spawn } from "child_process";
+import { parse as parseShellArgs } from "shell-quote";
 
 const execAsync = promisify(exec);
 
 const PIPE_PATH = `${process.env.RUNNER_TEMP}/claude_prompt_pipe`;
 const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`;
-const BASE_ARGS = ["-p", "--verbose", "--output-format", "stream-json"];
+const BASE_ARGS = ["--verbose", "--output-format", "stream-json"];
 
 export type ClaudeOptions = {
-  allowedTools?: string;
-  disallowedTools?: string;
-  maxTurns?: string;
-  mcpConfig?: string;
-  systemPrompt?: string;
-  appendSystemPrompt?: string;
-  claudeEnv?: string;
-  fallbackModel?: string;
   timeoutMinutes?: string;
-  model?: string;
+  claudeArgs?: string;
 };
 
 type PreparedConfig = {
@@ -30,74 +23,30 @@ type PreparedConfig = {
   env: Record<string, string>;
 };
 
-function parseCustomEnvVars(claudeEnv?: string): Record<string, string> {
-  if (!claudeEnv || claudeEnv.trim() === "") {
-    return {};
-  }
-
-  const customEnv: Record<string, string> = {};
-
-  // Split by lines and parse each line as KEY: VALUE
-  const lines = claudeEnv.split("\n");
-
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (trimmedLine === "" || trimmedLine.startsWith("#")) {
-      continue; // Skip empty lines and comments
-    }
-
-    const colonIndex = trimmedLine.indexOf(":");
-    if (colonIndex === -1) {
-      continue; // Skip lines without colons
-    }
-
-    const key = trimmedLine.substring(0, colonIndex).trim();
-    const value = trimmedLine.substring(colonIndex + 1).trim();
-
-    if (key) {
-      customEnv[key] = value;
-    }
-  }
-
-  return customEnv;
-}
-
 export function prepareRunConfig(
   promptPath: string,
   options: ClaudeOptions,
 ): PreparedConfig {
-  const claudeArgs = [...BASE_ARGS];
+  // Build Claude CLI arguments:
+  // 1. Prompt flag (always first)
+  // 2. User's claudeArgs (full control)
+  // 3. BASE_ARGS (always last, cannot be overridden)
 
-  if (options.allowedTools) {
-    claudeArgs.push("--allowedTools", options.allowedTools);
+  const claudeArgs = ["-p"];
+
+  // Parse and add user's custom Claude arguments
+  if (options.claudeArgs?.trim()) {
+    const parsed = parseShellArgs(options.claudeArgs);
+    const customArgs = parsed.filter(
+      (arg): arg is string => typeof arg === "string",
+    );
+    claudeArgs.push(...customArgs);
   }
-  if (options.disallowedTools) {
-    claudeArgs.push("--disallowedTools", options.disallowedTools);
-  }
-  if (options.maxTurns) {
-    const maxTurnsNum = parseInt(options.maxTurns, 10);
-    if (isNaN(maxTurnsNum) || maxTurnsNum <= 0) {
-      throw new Error(
-        `maxTurns must be a positive number, got: ${options.maxTurns}`,
-      );
-    }
-    claudeArgs.push("--max-turns", options.maxTurns);
-  }
-  if (options.mcpConfig) {
-    claudeArgs.push("--mcp-config", options.mcpConfig);
-  }
-  if (options.systemPrompt) {
-    claudeArgs.push("--system-prompt", options.systemPrompt);
-  }
-  if (options.appendSystemPrompt) {
-    claudeArgs.push("--append-system-prompt", options.appendSystemPrompt);
-  }
-  if (options.fallbackModel) {
-    claudeArgs.push("--fallback-model", options.fallbackModel);
-  }
-  if (options.model) {
-    claudeArgs.push("--model", options.model);
-  }
+
+  // BASE_ARGS are always appended last (cannot be overridden)
+  claudeArgs.push(...BASE_ARGS);
+
+  // Validate timeout if provided (affects process wrapper, not Claude)
   if (options.timeoutMinutes) {
     const timeoutMinutesNum = parseInt(options.timeoutMinutes, 10);
     if (isNaN(timeoutMinutesNum) || timeoutMinutesNum <= 0) {
@@ -107,13 +56,10 @@ export function prepareRunConfig(
     }
   }
 
-  // Parse custom environment variables
-  const customEnv = parseCustomEnvVars(options.claudeEnv);
-
   return {
     claudeArgs,
     promptPath,
-    env: customEnv,
+    env: {},
   };
 }
 
@@ -147,8 +93,14 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
     console.log(`Custom environment variables: ${envKeys}`);
   }
 
+  // Log custom arguments if any
+  if (options.claudeArgs && options.claudeArgs.trim() !== "") {
+    console.log(`Custom Claude arguments: ${options.claudeArgs}`);
+  }
+
   // Output to console
   console.log(`Running Claude with prompt from file: ${config.promptPath}`);
+  console.log(`Full command: claude ${config.claudeArgs.join(" ")}`);
 
   // Start sending prompt to pipe in background
   const catProcess = spawn("cat", [config.promptPath], {

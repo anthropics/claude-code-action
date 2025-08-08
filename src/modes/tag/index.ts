@@ -110,7 +110,7 @@ export const tagMode: Mode = {
       baseBranch: branchInfo.baseBranch,
       additionalMcpConfig,
       claudeCommentId: commentId.toString(),
-      allowedTools: context.inputs.allowedTools,
+      allowedTools: [],
       context,
     });
 

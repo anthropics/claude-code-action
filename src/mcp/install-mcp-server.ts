@@ -111,29 +111,10 @@ export async function prepareMcpConfig(
       };
     }
 
-    // Include inline comment server for experimental review mode
-    if (context.inputs.mode === "experimental-review" && context.isPR) {
-      baseMcpConfig.mcpServers.github_inline_comment = {
-        command: "bun",
-        args: [
-          "run",
-          `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-inline-comment-server.ts`,
-        ],
-        env: {
-          GITHUB_TOKEN: githubToken,
-          REPO_OWNER: owner,
-          REPO_NAME: repo,
-          PR_NUMBER: context.entityNumber?.toString() || "",
-          GITHUB_API_URL: GITHUB_API_URL,
-        },
-      };
-    }
+    // CI server is included when we have a workflow token and context is a PR
+    const hasWorkflowToken = !!process.env.DEFAULT_WORKFLOW_TOKEN;
 
-    // Only add CI server if we have actions:read permission and we're in a PR context
-    const hasActionsReadPermission =
-      context.inputs.additionalPermissions.get("actions") === "read";
-
-    if (context.isPR && hasActionsReadPermission) {
+    if (context.isPR && hasWorkflowToken) {
       // Verify the token actually has actions:read permission
       const actuallyHasPermission = await checkActionsReadPermission(
         process.env.DEFAULT_WORKFLOW_TOKEN || "",

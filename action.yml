@@ -1,5 +1,5 @@
-name: "Claude Code Action Official"
-description: "General-purpose Claude agent for GitHub PRs and issues. Can answer questions and implement code changes."
+name: "Claude Code Action v1.0"
+description: "Flexible GitHub automation platform with Claude. Auto-detects mode based on event type: PR reviews, @claude mentions, or custom automation."
 branding:
   icon: "at-sign"
   color: "orange"
@@ -28,50 +28,9 @@ inputs:
     required: false
     default: ""
 
-  # Mode configuration
-  mode:
-    description: "Execution mode for the action. Valid modes: 'tag' (default - triggered by mentions/assignments), 'agent' (for automation with no trigger checking), 'experimental-review' (experimental mode for code reviews with inline comments and suggestions)"
-    required: false
-    default: "tag"
-
   # Claude Code configuration
-  model:
-    description: "Model to use (provider-specific format required for Bedrock/Vertex)"
-    required: false
-  anthropic_model:
-    description: "DEPRECATED: Use 'model' instead. Model to use (provider-specific format required for Bedrock/Vertex)"
-    required: false
-  fallback_model:
-    description: "Enable automatic fallback to specified model when primary model is unavailable"
-    required: false
-  allowed_tools:
-    description: "Additional tools for Claude to use (the base GitHub tools will always be included)"
-    required: false
-    default: ""
-  disallowed_tools:
-    description: "Tools that Claude should never use"
-    required: false
-    default: ""
-  custom_instructions:
-    description: "Additional custom instructions to include in the prompt for Claude"
-    required: false
-    default: ""
-  direct_prompt:
-    description: "Direct instruction for Claude (bypasses normal trigger detection)"
-    required: false
-    default: ""
-  override_prompt:
-    description: "Complete replacement of Claude's prompt with custom template (supports variable substitution)"
-    required: false
-    default: ""
-  mcp_config:
-    description: "Additional MCP configuration (JSON string) that merges with the built-in GitHub MCP servers"
-  additional_permissions:
-    description: "Additional permissions to enable. Currently supports 'actions: read' for viewing workflow results"
-    required: false
-    default: ""
-  claude_env:
-    description: "Custom environment variables to pass to Claude Code execution (YAML format)"
+  prompt:
+    description: "Instructions for Claude. Can be a direct prompt or custom template."
     required: false
     default: ""
   settings:
@@ -98,14 +57,18 @@ inputs:
     required: false
     default: "false"
 
-  max_turns:
-    description: "Maximum number of conversation turns"
-    required: false
-    default: ""
   timeout_minutes:
     description: "Timeout in minutes for execution"
     required: false
     default: "30"
+  claude_args:
+    description: "Additional arguments to pass directly to Claude CLI"
+    required: false
+    default: ""
+  additional_permissions:
+    description: "Additional GitHub permissions to request (e.g., 'actions: read')"
+    required: false
+    default: ""
   use_sticky_comment:
     description: "Use just one comment to deliver issue/PR comments"
     required: false
@@ -148,24 +111,19 @@ runs:
         bun run ${GITHUB_ACTION_PATH}/src/entrypoints/prepare.ts
       env:
         MODE: ${{ inputs.mode }}
+        PROMPT: ${{ inputs.prompt }}
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
         LABEL_TRIGGER: ${{ inputs.label_trigger }}
         BASE_BRANCH: ${{ inputs.base_branch }}
         BRANCH_PREFIX: ${{ inputs.branch_prefix }}
-        ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
-        DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
-        CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}
-        DIRECT_PROMPT: ${{ inputs.direct_prompt }}
-        OVERRIDE_PROMPT: ${{ inputs.override_prompt }}
-        MCP_CONFIG: ${{ inputs.mcp_config }}
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
-        ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
+        ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
 
     - name: Install Base Action Dependencies
       if: steps.prepare.outputs.contains_trigger == 'true'
@@ -200,20 +158,12 @@ runs:
         # Base-action inputs
         CLAUDE_CODE_ACTION: "1"
         INPUT_PROMPT_FILE: ${{ runner.temp }}/claude-prompts/claude-prompt.txt
-        INPUT_ALLOWED_TOOLS: ${{ env.ALLOWED_TOOLS }}
-        INPUT_DISALLOWED_TOOLS: ${{ env.DISALLOWED_TOOLS }}
-        INPUT_MAX_TURNS: ${{ inputs.max_turns }}
-        INPUT_MCP_CONFIG: ${{ steps.prepare.outputs.mcp_config }}
         INPUT_SETTINGS: ${{ inputs.settings }}
-        INPUT_SYSTEM_PROMPT: ""
-        INPUT_APPEND_SYSTEM_PROMPT: ${{ env.APPEND_SYSTEM_PROMPT }}
         INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
-        INPUT_CLAUDE_ENV: ${{ inputs.claude_env }}
-        INPUT_FALLBACK_MODEL: ${{ inputs.fallback_model }}
+        INPUT_CLAUDE_ARGS: ${{ inputs.claude_args }}
         INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ github.action_path }}/slash-commands
 
         # Model configuration
-        ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
         GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
         NODE_VERSION: ${{ env.NODE_VERSION }}
         DETAILED_PERMISSION_MESSAGES: "1"

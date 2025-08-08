@@ -1,55 +1,42 @@
 /**
- * Mode Registry for claude-code-action
+ * Mode Registry for claude-code-action v1.0
  *
- * This module provides access to all available execution modes.
- *
- * To add a new mode:
- * 1. Add the mode name to VALID_MODES below
- * 2. Create the mode implementation in a new directory (e.g., src/modes/new-mode/)
- * 3. Import and add it to the modes object below
- * 4. Update action.yml description to mention the new mode
+ * This module provides access to all available execution modes and handles
+ * automatic mode detection based on GitHub event types.
  */
 
 import type { Mode, ModeName } from "./types";
 import { tagMode } from "./tag";
 import { agentMode } from "./agent";
-import { reviewMode } from "./review";
 import type { GitHubContext } from "../github/context";
-import { isAutomationContext } from "../github/context";
+import { detectMode, type AutoDetectedMode } from "./detector";
 
-export const DEFAULT_MODE = "tag" as const;
-export const VALID_MODES = ["tag", "agent", "experimental-review"] as const;
+export const VALID_MODES = ["tag", "agent"] as const;
 
 /**
- * All available modes.
- * Add new modes here as they are created.
+ * All available modes in v1.0
  */
 const modes = {
   tag: tagMode,
   agent: agentMode,
-  "experimental-review": reviewMode,
-} as const satisfies Record<ModeName, Mode>;
+} as const satisfies Record<AutoDetectedMode, Mode>;
 
 /**
- * Retrieves a mode by name and validates it can handle the event type.
- * @param name The mode name to retrieve
- * @param context The GitHub context to validate against
- * @returns The requested mode
- * @throws Error if the mode is not found or cannot handle the event
+ * Automatically detects and retrieves the appropriate mode based on the GitHub context.
+ * In v1.0, modes are auto-selected based on event type.
+ * @param context The GitHub context
+ * @returns The appropriate mode for the context
  */
-export function getMode(name: ModeName, context: GitHubContext): Mode {
-  const mode = modes[name];
-  if (!mode) {
-    const validModes = VALID_MODES.join("', '");
-    throw new Error(
-      `Invalid mode '${name}'. Valid modes are: '${validModes}'. Please check your workflow configuration.`,
-    );
-  }
+export function getMode(context: GitHubContext): Mode {
+  const modeName = detectMode(context);
+  console.log(
+    `Auto-detected mode: ${modeName} for event: ${context.eventName}`,
+  );
 
-  // Validate mode can handle the event type
-  if (name === "tag" && isAutomationContext(context)) {
+  const mode = modes[modeName];
+  if (!mode) {
     throw new Error(
-      `Tag mode cannot handle ${context.eventName} events. Use 'agent' mode for automation events.`,
+      `Mode '${modeName}' not found. This should not happen. Please report this issue.`,
     );
   }
 
@@ -62,5 +49,6 @@ export function getMode(name: ModeName, context: GitHubContext): Mode {
  * @returns True if the name is a valid mode name
  */
 export function isValidMode(name: string): name is ModeName {
-  return VALID_MODES.includes(name as ModeName);
+  const validModes = ["tag", "agent"];
+  return validModes.includes(name);
 }

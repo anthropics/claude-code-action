@@ -53,7 +53,7 @@ Execution steps:
 #### Mode System (`src/modes/`)
 
 - **Tag Mode** (`tag/`): Responds to `@claude` mentions and issue assignments
-- **Agent Mode** (`agent/`): Automated execution for workflow_dispatch and schedule events only
+- **Agent Mode** (`agent/`): Direct execution when explicit prompt is provided
 - Extensible registry pattern in `modes/registry.ts`
 
 #### GitHub Integration (`src/github/`)
@@ -118,7 +118,7 @@ src/
 
 - Modes implement `Mode` interface with `shouldTrigger()` and `prepare()` methods
 - Registry validates mode compatibility with GitHub event types
-- Agent mode only works with workflow_dispatch and schedule events
+- Agent mode triggers when explicit prompt is provided
 
 ### Comment Threading
 
