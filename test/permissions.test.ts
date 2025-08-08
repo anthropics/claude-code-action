@@ -2,6 +2,7 @@ import { describe, expect, test, spyOn, beforeEach, afterEach } from "bun:test";
 import * as core from "@actions/core";
 import { checkWritePermissions } from "../src/github/validation/permissions";
 import type { ParsedGitHubContext } from "../src/github/context";
+import { defaultStickyCommentInputs } from "./mockContext";
 
 describe("checkWritePermissions", () => {
   let coreInfoSpy: any;
@@ -71,6 +72,7 @@ describe("checkWritePermissions", () => {
       overridePrompt: "",
       branchPrefix: "claude/",
       useStickyComment: false,
+      ...defaultStickyCommentInputs,
       additionalPermissions: new Map(),
       useCommitSigning: false,
       allowedBots: "",
