@@ -118,6 +118,10 @@ inputs:
     description: "Restrict network access to these domains only (newline-separated). If not set, no restrictions are applied. Provider domains are auto-detected."
     required: false
     default: ""
+  cloudflare_tunnel_token:
+    description: "Cloudflare tunnel token to expose Claude UI via browser (optional)"
+    required: false
+    default: ""
 
 outputs:
   execution_file:
@@ -211,6 +215,7 @@ runs:
         INPUT_CLAUDE_ENV: ${{ inputs.claude_env }}
         INPUT_FALLBACK_MODEL: ${{ inputs.fallback_model }}
         INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ github.action_path }}/slash-commands
+        INPUT_CLOUDFLARE_TUNNEL_TOKEN: ${{ inputs.cloudflare_tunnel_token }}
 
         # Model configuration
         ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}

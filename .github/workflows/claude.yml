@@ -9,10 +9,21 @@ on:
     types: [opened, assigned]
   pull_request_review:
     types: [submitted]
+  workflow_dispatch:
+    inputs:
+      cloudflare_tunnel_token:
+        description: 'Cloudflare tunnel token to expose Claude UI via browser'
+        required: false
+        type: string
+      direct_prompt:
+        description: 'Direct instruction for Claude'
+        required: false
+        type: string
 
 jobs:
   claude:
     if: |
+      github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
@@ -37,3 +48,6 @@ jobs:
           allowed_tools: "Bash(bun install),Bash(bun test:*),Bash(bun run format),Bash(bun typecheck)"
           custom_instructions: "You have also been granted tools for editing files and running bun commands (install, run, test, typecheck) for testing your changes: bun install, bun test, bun run format, bun typecheck."
           model: "claude-opus-4-1-20250805"
+          cloudflare_tunnel_token: ${{ github.event.inputs.cloudflare_tunnel_token }}
+          direct_prompt: ${{ github.event.inputs.direct_prompt }}
+          mode: ${{ github.event_name == 'workflow_dispatch' && 'agent' || 'tag' }}

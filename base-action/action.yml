@@ -87,6 +87,10 @@ inputs:
     description: "Whether to use Node.js dependency caching (set to true only for Node.js projects with lock files)"
     required: false
     default: "false"
+  cloudflare_tunnel_token:
+    description: "Cloudflare tunnel token to expose Claude UI via browser (optional)"
+    required: false
+    default: ""
 
 outputs:
   conclusion:
@@ -147,6 +151,7 @@ runs:
         INPUT_CLAUDE_ENV: ${{ inputs.claude_env }}
         INPUT_FALLBACK_MODEL: ${{ inputs.fallback_model }}
         INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ inputs.experimental_slash_commands_dir }}
+        INPUT_CLOUDFLARE_TUNNEL_TOKEN: ${{ inputs.cloudflare_tunnel_token }}
 
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
