@@ -60,7 +60,19 @@ export const planMode: Mode = {
   },
 
   getDisallowedTools() {
-    return [];
+    return [
+      "Edit",
+      "MultiEdit",
+      "Write",
+      // git operations
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git rm:*)",
+      // GitHub file ops
+      "mcp__github_file_ops__commit_files",
+      "mcp__github_file_ops__delete_files",
+    ];
   },
 
   shouldCreateTrackingComment() {
