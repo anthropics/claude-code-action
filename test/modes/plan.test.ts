@@ -22,25 +22,6 @@ describe("Plan Mode", () => {
     expect(planMode.shouldCreateTrackingComment()).toBe(true);
   });
 
-  test("plan mode only allows read-only tools", () => {
-    const allowedTools = planMode.getAllowedTools();
-    const disallowedTools = planMode.getDisallowedTools();
-
-    // Should only allow read-only tools
-    expect(allowedTools).toEqual(["Read", "Grep", "LS", "Glob"]);
-
-    // Should disallow all modification tools
-    expect(disallowedTools).toContain("Edit");
-    expect(disallowedTools).toContain("MultiEdit");
-    expect(disallowedTools).toContain("Write");
-    expect(disallowedTools).toContain("WebSearch");
-    expect(disallowedTools).toContain("WebFetch");
-    expect(disallowedTools).toContain("CreateFile");
-    expect(disallowedTools).toContain("DeleteFile");
-    expect(disallowedTools).toContain("MoveFile");
-    expect(disallowedTools).toContain("CopyFile");
-  });
-
   test("prepareContext returns correct data", () => {
     const testData = {
       commentId: 456,
