@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 
-import * as core from "@actions/core";
 import {
   isIssuesEvent,
   isIssuesAssignedEvent,
@@ -119,9 +118,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     isIssueCommentEvent(context) ||
     isPullRequestReviewCommentEvent(context)
   ) {
-    const commentBody = isIssueCommentEvent(context)
-      ? context.payload.comment.body
-      : context.payload.comment.body;
+    const commentBody = context.payload.comment.body;
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(
       `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
@@ -139,10 +136,4 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
 
 export function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-export async function checkTriggerAction(context: ParsedGitHubContext) {
-  const containsTrigger = checkContainsTrigger(context);
-  core.setOutput("contains_trigger", containsTrigger.toString());
-  return containsTrigger;
 }
