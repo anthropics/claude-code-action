@@ -54,7 +54,7 @@ jobs:
 | `anthropic_api_key`            | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                                            | No\*     | -         |
 | `claude_code_oauth_token`      | Claude Code OAuth token (alternative to anthropic_api_key)                                                                            | No\*     | -         |
 | `direct_prompt`                | Direct prompt for Claude to execute automatically without needing a trigger (for automated workflows)                                 | No       | -         |
-| `override_prompt`              | Complete replacement of Claude's prompt with custom template (supports variable substitution)                                         | No       | -         |
+| `override_prompt`              | Complete replacement of Claude's prompt with custom template. Supports `$VARIABLE` substitution for GitHub context data. See [Custom Automations](./custom-automations.md#custom-prompt-templates) for available variables and examples. | No       | -         |
 | `base_branch`                  | The base branch to use for creating new branches (e.g., 'main', 'develop')                                                            | No       | -         |
 | `max_turns`                    | Maximum number of conversation turns Claude can take (limits back-and-forth exchanges)                                                | No       | -         |
 | `timeout_minutes`              | Timeout in minutes for execution                                                                                                      | No       | `30`      |
