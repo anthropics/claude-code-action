@@ -720,4 +720,85 @@ describe("prepareMcpConfig", () => {
 
     process.env.DEFAULT_WORKFLOW_TOKEN = oldTokenEnv;
   });
+
+  test("should include github_inline_comment server when mode is experimental-review and isPR is true", async () => {
+    const mockExperimentalReviewContext: ParsedGitHubContext = {
+      ...mockPRContext,
+      inputs: {
+        ...mockPRContext.inputs,
+        mode: "experimental-review",
+      },
+    };
+
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      claudeCommentId: "1",
+      allowedTools: [],
+      context: mockExperimentalReviewContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_inline_comment).toBeDefined();
+    expect(parsed.mcpServers.github_inline_comment.command).toBe("bun");
+    expect(parsed.mcpServers.github_inline_comment.args[1]).toBe(
+      "/test/action/path/src/mcp/github-inline-comment-server.ts",
+    );
+    expect(parsed.mcpServers.github_inline_comment.env.GITHUB_TOKEN).toBe(
+      "test-token",
+    );
+    expect(parsed.mcpServers.github_inline_comment.env.REPO_OWNER).toBe(
+      "test-owner",
+    );
+    expect(parsed.mcpServers.github_inline_comment.env.REPO_NAME).toBe(
+      "test-repo",
+    );
+    expect(parsed.mcpServers.github_inline_comment.env.PR_NUMBER).toBe("456");
+    expect(parsed.mcpServers.github_inline_comment.env.GITHUB_API_URL).toBe(
+      "https://api.github.com",
+    );
+  });
+
+  test("should not include github_inline_comment server when mode is not experimental-review", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      claudeCommentId: "1",
+      allowedTools: [],
+      context: mockPRContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_inline_comment).not.toBeDefined();
+  });
+
+  test("should not include github_inline_comment server when isPR is false but mode is experimental-review", async () => {
+    const mockExperimentalReviewIssueContext: ParsedGitHubContext = {
+      ...mockContext,
+      inputs: {
+        ...mockContext.inputs,
+        mode: "experimental-review",
+      },
+    };
+
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      claudeCommentId: "1",
+      allowedTools: [],
+      context: mockExperimentalReviewIssueContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_inline_comment).not.toBeDefined();
+  });
 });
