@@ -72,22 +72,24 @@ export async function prepareMcpConfig(
       mcpServers: {},
     };
 
-    // Always include comment server for updating Claude comments
-    baseMcpConfig.mcpServers.github_comment = {
-      command: "bun",
-      args: [
-        "run",
-        `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-comment-server.ts`,
-      ],
-      env: {
-        GITHUB_TOKEN: githubToken,
-        REPO_OWNER: owner,
-        REPO_NAME: repo,
-        ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
-        GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
-        GITHUB_API_URL: GITHUB_API_URL,
-      },
-    };
+    // Include comment server for updating Claude comments
+    if (claudeCommentId) {
+      baseMcpConfig.mcpServers.github_comment = {
+        command: "bun",
+        args: [
+          "run",
+          `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-comment-server.ts`,
+        ],
+        env: {
+          GITHUB_TOKEN: githubToken,
+          REPO_OWNER: owner,
+          REPO_NAME: repo,
+          CLAUDE_COMMENT_ID: claudeCommentId,
+          GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
+          GITHUB_API_URL: GITHUB_API_URL,
+        },
+      };
+    }
 
     // Include file ops server when commit signing is enabled
     if (context.inputs.useCommitSigning) {
