@@ -78,7 +78,7 @@ export async function setupGitHubToken(): Promise<string> {
     return appToken;
   } catch (error) {
     core.setFailed(
-      `Failed to setup GitHub token: ${error}.\n\nIf you instead wish to use this action with a custom GitHub token or custom GitHub app, provide a \`github_token\` in the \`uses\` section of the app in your workflow yml file.`,
+      `Failed to setup GitHub token: ${error}\n\nIf you instead wish to use this action with a custom GitHub token or custom GitHub app, provide a \`github_token\` in the \`uses\` section of the app in your workflow yml file.`,
     );
     process.exit(1);
   }
