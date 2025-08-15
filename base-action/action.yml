@@ -118,7 +118,7 @@ runs:
 
     - name: Install Claude Code
       shell: bash
-      run: bun install -g @anthropic-ai/claude-code@1.0.81
+      run: curl -fsSL https://claude.ai/install.sh | bash -s 1.0.81
 
     - name: Run Claude Code Action
       shell: bash
