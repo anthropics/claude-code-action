@@ -6,7 +6,10 @@ import { createInitialComment } from "../../github/operations/comments/create-in
 import { setupBranch } from "../../github/operations/branch";
 import { configureGitAuth } from "../../github/operations/git-config";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
-import { fetchGitHubData } from "../../github/data/fetcher";
+import {
+  fetchGitHubData,
+  extractTriggerTimestamp,
+} from "../../github/data/fetcher";
 import { createPrompt, generateDefaultPrompt } from "../../create-prompt";
 import { isEntityContext } from "../../github/context";
 import type { PreparedContext } from "../../create-prompt/types";
@@ -70,12 +73,15 @@ export const tagMode: Mode = {
     const commentData = await createInitialComment(octokit.rest, context);
     const commentId = commentData.id;
 
+    const triggerTime = extractTriggerTimestamp(context);
+
     const githubData = await fetchGitHubData({
       octokits: octokit,
       repository: `${context.repository.owner}/${context.repository.repo}`,
       prNumber: context.entityNumber.toString(),
       isPR: context.isPR,
       triggerUsername: context.actor,
+      triggerTime,
     });
 
     // Setup branch
