@@ -16,7 +16,7 @@ import { prepare } from "../prepare";
 
 async function run() {
   try {
-    // Step 1: Get mode first to determine authentication method
+    // Get mode first to determine authentication method
     const modeInput = process.env.MODE || DEFAULT_MODE;
 
     // Validate mode input
@@ -25,7 +25,7 @@ async function run() {
     }
     const validatedMode: ModeName = modeInput;
 
-    // Step 2: Setup GitHub token based on mode
+    // Setup GitHub token based on mode
     let githubToken: string;
     if (validatedMode === "experimental-review") {
       // For experimental-review mode, use the default GitHub Action token
@@ -43,10 +43,10 @@ async function run() {
     }
     const octokit = createOctokit(githubToken);
 
-    // Step 2: Parse GitHub context (once for all operations)
+    // Parse GitHub context (once for all operations)
     const context = parseGitHubContext();
 
-    // Step 3: Check write permissions (only for entity contexts)
+    // Check write permissions (only for entity contexts)
     if (isEntityContext(context)) {
       const hasWritePermissions = await checkWritePermissions(
         octokit.rest,
@@ -59,7 +59,7 @@ async function run() {
       }
     }
 
-    // Step 4: Get mode and check trigger conditions
+    // Get mode and check trigger conditions
     const mode = getMode(validatedMode, context);
     const containsTrigger = mode.shouldTrigger(context);
 
@@ -71,7 +71,7 @@ async function run() {
       return;
     }
 
-    // Step 5: Use the new modular prepare function
+    // Use the new modular prepare function
     const result = await prepare({
       context,
       octokit,
@@ -82,7 +82,7 @@ async function run() {
     // Set the MCP config output
     core.setOutput("mcp_config", result.mcpConfig);
 
-    // Step 6: Get system prompt from mode if available
+    // Get system prompt from mode if available
     if (mode.getSystemPrompt) {
       const modeContext = mode.prepareContext(context, {
         commentId: result.commentId,
