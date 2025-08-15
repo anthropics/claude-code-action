@@ -1,6 +1,7 @@
 import * as core from "@actions/core";
 import { GITHUB_API_URL, GITHUB_SERVER_URL } from "../github/api/config";
-import type { ParsedGitHubContext } from "../github/context";
+import type { GitHubContext } from "../github/context";
+import { isEntityContext } from "../github/context";
 import { Octokit } from "@octokit/rest";
 
 type PrepareConfigParams = {
@@ -12,7 +13,7 @@ type PrepareConfigParams = {
   additionalMcpConfig?: string;
   claudeCommentId?: string;
   allowedTools: string[];
-  context: ParsedGitHubContext;
+  context: GitHubContext;
 };
 
 async function checkActionsReadPermission(
@@ -133,7 +134,7 @@ export async function prepareMcpConfig(
     const hasActionsReadPermission =
       context.inputs.additionalPermissions.get("actions") === "read";
 
-    if (context.isPR && hasActionsReadPermission) {
+    if (isEntityContext(context) && context.isPR && hasActionsReadPermission) {
       // Verify the token actually has actions:read permission
       const actuallyHasPermission = await checkActionsReadPermission(
         process.env.DEFAULT_WORKFLOW_TOKEN || "",
@@ -159,7 +160,9 @@ export async function prepareMcpConfig(
           GITHUB_TOKEN: process.env.DEFAULT_WORKFLOW_TOKEN,
           REPO_OWNER: owner,
           REPO_NAME: repo,
-          PR_NUMBER: context.entityNumber?.toString() || "",
+          PR_NUMBER: isEntityContext(context)
+            ? context.entityNumber?.toString() || ""
+            : "",
           RUNNER_TEMP: process.env.RUNNER_TEMP || "/tmp",
         },
       };
