@@ -34,8 +34,6 @@ export type ScheduleEvent = {
     };
   };
 };
-import type { ModeName } from "../modes/types";
-import { DEFAULT_MODE, isValidMode } from "../modes/registry";
 
 // Event name constants for better maintainability
 const ENTITY_EVENT_NAMES = [
@@ -63,19 +61,13 @@ type BaseContext = {
   };
   actor: string;
   inputs: {
-    mode: ModeName;
+    prompt: string;
     triggerPhrase: string;
     assigneeTrigger: string;
     labelTrigger: string;
-    allowedTools: string[];
-    disallowedTools: string[];
-    customInstructions: string;
-    directPrompt: string;
-    overridePrompt: string;
     baseBranch?: string;
     branchPrefix: string;
     useStickyComment: boolean;
-    additionalPermissions: Map<string, string>;
     useCommitSigning: boolean;
     allowedBots: string;
   };
@@ -106,11 +98,6 @@ export type GitHubContext = ParsedGitHubContext | AutomationContext;
 export function parseGitHubContext(): GitHubContext {
   const context = github.context;
 
-  const modeInput = process.env.MODE ?? DEFAULT_MODE;
-  if (!isValidMode(modeInput)) {
-    throw new Error(`Invalid mode: ${modeInput}.`);
-  }
-
   const commonFields = {
     runId: process.env.GITHUB_RUN_ID!,
     eventAction: context.payload.action,
@@ -121,21 +108,13 @@ export function parseGitHubContext(): GitHubContext {
     },
     actor: context.actor,
     inputs: {
-      mode: modeInput as ModeName,
+      prompt: process.env.PROMPT || "",
       triggerPhrase: process.env.TRIGGER_PHRASE ?? "@claude",
       assigneeTrigger: process.env.ASSIGNEE_TRIGGER ?? "",
       labelTrigger: process.env.LABEL_TRIGGER ?? "",
-      allowedTools: parseMultilineInput(process.env.ALLOWED_TOOLS ?? ""),
-      disallowedTools: parseMultilineInput(process.env.DISALLOWED_TOOLS ?? ""),
-      customInstructions: process.env.CUSTOM_INSTRUCTIONS ?? "",
-      directPrompt: process.env.DIRECT_PROMPT ?? "",
-      overridePrompt: process.env.OVERRIDE_PROMPT ?? "",
       baseBranch: process.env.BASE_BRANCH,
       branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
       useStickyComment: process.env.USE_STICKY_COMMENT === "true",
-      additionalPermissions: parseAdditionalPermissions(
-        process.env.ADDITIONAL_PERMISSIONS ?? "",
-      ),
       useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
       allowedBots: process.env.ALLOWED_BOTS ?? "",
     },
@@ -209,33 +188,6 @@ export function parseGitHubContext(): GitHubContext {
     default:
       throw new Error(`Unsupported event type: ${context.eventName}`);
   }
-}
-
-export function parseMultilineInput(s: string): string[] {
-  return s
-    .split(/,|[\n\r]+/)
-    .map((tool) => tool.replace(/#.+$/, ""))
-    .map((tool) => tool.trim())
-    .filter((tool) => tool.length > 0);
-}
-
-export function parseAdditionalPermissions(s: string): Map<string, string> {
-  const permissions = new Map<string, string>();
-  if (!s || !s.trim()) {
-    return permissions;
-  }
-
-  const lines = s.trim().split("\n");
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (trimmedLine) {
-      const [key, value] = trimmedLine.split(":").map((part) => part.trim());
-      if (key && value) {
-        permissions.set(key, value);
-      }
-    }
-  }
-  return permissions;
 }
 
 export function isIssuesEvent(

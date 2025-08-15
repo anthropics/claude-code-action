@@ -215,4 +215,70 @@ describe("setupClaudeCodeSettings", () => {
     const settingsContent = await readFile(settingsPath, "utf-8");
     expect(JSON.parse(settingsContent).enableAllProjectMcpServers).toBe(true);
   });
+
+  test("should copy project agents when .claude/agents directory exists", async () => {
+    // Create a mock project structure with agents
+    const projectDir = join(testHomeDir, "test-project");
+    const projectAgentsDir = join(projectDir, ".claude", "agents");
+    await mkdir(projectAgentsDir, { recursive: true });
+
+    // Create test agent files
+    await writeFile(
+      join(projectAgentsDir, "test-agent.md"),
+      "---\nname: test-agent\ndescription: Test agent\n---\nTest agent content",
+    );
+    await writeFile(
+      join(projectAgentsDir, "another-agent.md"),
+      "---\nname: another-agent\n---\nAnother agent",
+    );
+
+    // Set GITHUB_WORKSPACE to the test project directory
+    const originalWorkspace = process.env.GITHUB_WORKSPACE;
+    process.env.GITHUB_WORKSPACE = projectDir;
+
+    try {
+      await setupClaudeCodeSettings(undefined, testHomeDir);
+
+      // Check that agents were copied
+      const agentsDir = join(testHomeDir, ".claude", "agents");
+      const files = await readdir(agentsDir);
+      expect(files).toContain("test-agent.md");
+      expect(files).toContain("another-agent.md");
+
+      // Verify content was copied correctly
+      const content = await readFile(join(agentsDir, "test-agent.md"), "utf-8");
+      expect(content).toContain("Test agent content");
+    } finally {
+      // Restore original GITHUB_WORKSPACE
+      if (originalWorkspace !== undefined) {
+        process.env.GITHUB_WORKSPACE = originalWorkspace;
+      } else {
+        delete process.env.GITHUB_WORKSPACE;
+      }
+    }
+  });
+
+  test("should handle missing project agents directory gracefully", async () => {
+    // Set GITHUB_WORKSPACE to a directory without .claude/agents
+    const projectDir = join(testHomeDir, "project-without-agents");
+    await mkdir(projectDir, { recursive: true });
+
+    const originalWorkspace = process.env.GITHUB_WORKSPACE;
+    process.env.GITHUB_WORKSPACE = projectDir;
+
+    try {
+      await setupClaudeCodeSettings(undefined, testHomeDir);
+
+      // Should complete without errors
+      const settingsContent = await readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(settingsContent);
+      expect(settings.enableAllProjectMcpServers).toBe(true);
+    } finally {
+      if (originalWorkspace !== undefined) {
+        process.env.GITHUB_WORKSPACE = originalWorkspace;
+      } else {
+        delete process.env.GITHUB_WORKSPACE;
+      }
+    }
+  });
 });

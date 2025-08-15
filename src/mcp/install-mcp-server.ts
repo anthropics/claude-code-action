@@ -1,6 +1,7 @@
 import * as core from "@actions/core";
 import { GITHUB_API_URL, GITHUB_SERVER_URL } from "../github/api/config";
-import type { ParsedGitHubContext } from "../github/context";
+import type { GitHubContext } from "../github/context";
+import { isEntityContext } from "../github/context";
 import { Octokit } from "@octokit/rest";
 
 type PrepareConfigParams = {
@@ -9,10 +10,9 @@ type PrepareConfigParams = {
   repo: string;
   branch: string;
   baseBranch: string;
-  additionalMcpConfig?: string;
   claudeCommentId?: string;
   allowedTools: string[];
-  context: ParsedGitHubContext;
+  context: GitHubContext;
 };
 
 async function checkActionsReadPermission(
@@ -56,7 +56,6 @@ export async function prepareMcpConfig(
     repo,
     branch,
     baseBranch,
-    additionalMcpConfig,
     claudeCommentId,
     allowedTools,
     context,
@@ -66,6 +65,10 @@ export async function prepareMcpConfig(
 
     const hasGitHubMcpTools = allowedToolsList.some((tool) =>
       tool.startsWith("mcp__github__"),
+    );
+
+    const hasInlineCommentTools = allowedToolsList.some((tool) =>
+      tool.startsWith("mcp__github_inline_comment__"),
     );
 
     const baseMcpConfig: { mcpServers: Record<string, unknown> } = {
@@ -111,8 +114,12 @@ export async function prepareMcpConfig(
       };
     }
 
-    // Include inline comment server for experimental review mode
-    if (context.inputs.mode === "experimental-review" && context.isPR) {
+    // Include inline comment server for PRs when requested via allowed tools
+    if (
+      isEntityContext(context) &&
+      context.isPR &&
+      (hasGitHubMcpTools || hasInlineCommentTools)
+    ) {
       baseMcpConfig.mcpServers.github_inline_comment = {
         command: "bun",
         args: [
@@ -129,11 +136,10 @@ export async function prepareMcpConfig(
       };
     }
 
-    // Only add CI server if we have actions:read permission and we're in a PR context
-    const hasActionsReadPermission =
-      context.inputs.additionalPermissions.get("actions") === "read";
+    // CI server is included when we have a workflow token and context is a PR
+    const hasWorkflowToken = !!process.env.DEFAULT_WORKFLOW_TOKEN;
 
-    if (context.isPR && hasActionsReadPermission) {
+    if (isEntityContext(context) && context.isPR && hasWorkflowToken) {
       // Verify the token actually has actions:read permission
       const actuallyHasPermission = await checkActionsReadPermission(
         process.env.DEFAULT_WORKFLOW_TOKEN || "",
@@ -185,38 +191,8 @@ export async function prepareMcpConfig(
       };
     }
 
-    // Merge with additional MCP config if provided
-    if (additionalMcpConfig && additionalMcpConfig.trim()) {
-      try {
-        const additionalConfig = JSON.parse(additionalMcpConfig);
-
-        // Validate that parsed JSON is an object
-        if (typeof additionalConfig !== "object" || additionalConfig === null) {
-          throw new Error("MCP config must be a valid JSON object");
-        }
-
-        core.info(
-          "Merging additional MCP server configuration with built-in servers",
-        );
-
-        // Merge configurations with user config overriding built-in servers
-        const mergedConfig = {
-          ...baseMcpConfig,
-          ...additionalConfig,
-          mcpServers: {
-            ...baseMcpConfig.mcpServers,
-            ...additionalConfig.mcpServers,
-          },
-        };
-
-        return JSON.stringify(mergedConfig, null, 2);
-      } catch (parseError) {
-        core.warning(
-          `Failed to parse additional MCP config: ${parseError}. Using base config only.`,
-        );
-      }
-    }
-
+    // Return only our GitHub servers config
+    // User's config will be passed as separate --mcp-config flags
     return JSON.stringify(baseMcpConfig, null, 2);
   } catch (error) {
     core.setFailed(`Install MCP server failed with error: ${error}`);

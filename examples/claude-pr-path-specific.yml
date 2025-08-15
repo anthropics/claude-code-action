@@ -24,11 +24,11 @@ jobs:
           fetch-depth: 1
 
       - name: Claude Code Review
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           timeout_minutes: "60"
-          direct_prompt: |
+          prompt: |
             Please review this pull request focusing on the changed files.
             Provide feedback on:
             - Code quality and adherence to best practices

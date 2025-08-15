@@ -79,4 +79,27 @@ export async function setupClaudeCodeSettings(
       console.log(`Slash commands directory not found or error copying: ${e}`);
     }
   }
+
+  // Copy project subagents to Claude's agents directory
+  // Use GITHUB_WORKSPACE if available (set by GitHub Actions), otherwise use current directory
+  const workspaceDir = process.env.GITHUB_WORKSPACE || process.cwd();
+  const projectAgentsDir = `${workspaceDir}/.claude/agents`;
+  const claudeAgentsDir = `${home}/.claude/agents`;
+
+  try {
+    await $`test -d ${projectAgentsDir}`.quiet();
+    console.log(`Found project agents directory at ${projectAgentsDir}`);
+
+    await $`mkdir -p ${claudeAgentsDir}`.quiet();
+
+    await $`cp ${projectAgentsDir}/*.md ${claudeAgentsDir}/ 2>/dev/null || true`.quiet();
+
+    const agentFiles = await $`ls ${claudeAgentsDir}/*.md 2>/dev/null | wc -l`
+      .quiet()
+      .text();
+    const agentCount = parseInt(agentFiles.trim()) || 0;
+    console.log(`Copied ${agentCount} agent(s) to ${claudeAgentsDir}`);
+  } catch (e) {
+    console.log(`No project agents directory found at ${projectAgentsDir}`);
+  }
 }

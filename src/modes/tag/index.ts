@@ -100,26 +100,82 @@ export const tagMode: Mode = {
 
     await createPrompt(tagMode, modeContext, githubData, context);
 
-    // Get MCP configuration
-    const additionalMcpConfig = process.env.MCP_CONFIG || "";
-    const mcpConfig = await prepareMcpConfig({
+    // Get our GitHub MCP servers configuration
+    const ourMcpConfig = await prepareMcpConfig({
       githubToken,
       owner: context.repository.owner,
       repo: context.repository.repo,
       branch: branchInfo.claudeBranch || branchInfo.currentBranch,
       baseBranch: branchInfo.baseBranch,
-      additionalMcpConfig,
       claudeCommentId: commentId.toString(),
-      allowedTools: context.inputs.allowedTools,
+      allowedTools: [],
       context,
     });
 
-    core.setOutput("mcp_config", mcpConfig);
+    // Don't output mcp_config separately anymore - include in claude_args
+
+    // Build claude_args for tag mode with required tools
+    // Tag mode REQUIRES these tools to function properly
+    const tagModeTools = [
+      "Edit",
+      "MultiEdit",
+      "Glob",
+      "Grep",
+      "LS",
+      "Read",
+      "Write",
+      "mcp__github_comment__update_claude_comment",
+    ];
+
+    // Add git commands when not using commit signing
+    if (!context.inputs.useCommitSigning) {
+      tagModeTools.push(
+        "Bash(git add:*)",
+        "Bash(git commit:*)",
+        "Bash(git push:*)",
+        "Bash(git status:*)",
+        "Bash(git diff:*)",
+        "Bash(git log:*)",
+        "Bash(git rm:*)",
+      );
+    } else {
+      // When using commit signing, use MCP file ops tools
+      tagModeTools.push(
+        "mcp__github_file_ops__commit_files",
+        "mcp__github_file_ops__delete_files",
+      );
+    }
+
+    const userClaudeArgs = process.env.CLAUDE_ARGS || "";
+
+    // Build complete claude_args with multiple --mcp-config flags
+    let claudeArgs = "";
+
+    // Add our GitHub servers config
+    const escapedOurConfig = ourMcpConfig.replace(/'/g, "'\\''");
+    claudeArgs = `--mcp-config '${escapedOurConfig}'`;
+
+    // Add user's MCP_CONFIG env var as separate --mcp-config
+    const userMcpConfig = process.env.MCP_CONFIG;
+    if (userMcpConfig?.trim()) {
+      const escapedUserConfig = userMcpConfig.replace(/'/g, "'\\''");
+      claudeArgs = `${claudeArgs} --mcp-config '${escapedUserConfig}'`;
+    }
+
+    // Add required tools for tag mode
+    claudeArgs += ` --allowedTools "${tagModeTools.join(",")}"`;
+
+    // Append user's claude_args (which may have more --mcp-config flags)
+    if (userClaudeArgs) {
+      claudeArgs += ` ${userClaudeArgs}`;
+    }
+
+    core.setOutput("claude_args", claudeArgs.trim());
 
     return {
       commentId,
       branchInfo,
-      mcpConfig,
+      mcpConfig: ourMcpConfig,
     };
   },
 

@@ -25,19 +25,19 @@ The traditional implementation mode that responds to @claude mentions, issue ass
 
 **Note: Agent mode is currently in active development and may undergo breaking changes.**
 
-For automation with workflow_dispatch and scheduled events only.
+For direct automation when an explicit prompt is provided.
 
-- **Triggers**: Only works with `workflow_dispatch` and `schedule` events - does NOT work with PR/issue events
-- **Features**: Perfect for scheduled tasks, works with `override_prompt`
-- **Use case**: Maintenance tasks, automated reporting, scheduled checks
+- **Triggers**: Works with any event when `prompt` input is provided
+- **Features**: Direct execution without @claude mentions, no tracking comments
+- **Use case**: Automated PR reviews, scheduled tasks, workflow automation
 
 ```yaml
 - uses: anthropics/claude-code-action@beta
   with:
-    mode: agent
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    override_prompt: |
+    prompt: |
       Check for outdated dependencies and create an issue if any are found.
+    # Mode is auto-detected when prompt is provided
 ```
 
 ### Experimental Review Mode

@@ -29,7 +29,7 @@ describe("Agent Mode", () => {
   test("agent mode has correct properties", () => {
     expect(agentMode.name).toBe("agent");
     expect(agentMode.description).toBe(
-      "Automation mode for workflow_dispatch and schedule events",
+      "Direct automation mode for explicit prompts",
     );
     expect(agentMode.shouldCreateTrackingComment()).toBe(false);
     expect(agentMode.getAllowedTools()).toEqual([]);
@@ -45,19 +45,19 @@ describe("Agent Mode", () => {
     expect(Object.keys(context)).toEqual(["mode", "githubContext"]);
   });
 
-  test("agent mode only triggers for workflow_dispatch and schedule events", () => {
-    // Should trigger for automation events
+  test("agent mode only triggers when prompt is provided", () => {
+    // Should NOT trigger for automation events without prompt
     const workflowDispatchContext = createMockAutomationContext({
       eventName: "workflow_dispatch",
     });
-    expect(agentMode.shouldTrigger(workflowDispatchContext)).toBe(true);
+    expect(agentMode.shouldTrigger(workflowDispatchContext)).toBe(false);
 
     const scheduleContext = createMockAutomationContext({
       eventName: "schedule",
     });
-    expect(agentMode.shouldTrigger(scheduleContext)).toBe(true);
+    expect(agentMode.shouldTrigger(scheduleContext)).toBe(false);
 
-    // Should NOT trigger for entity events
+    // Should NOT trigger for entity events without prompt
     const entityEvents = [
       "issue_comment",
       "pull_request",
@@ -66,61 +66,91 @@ describe("Agent Mode", () => {
     ] as const;
 
     entityEvents.forEach((eventName) => {
-      const context = createMockContext({ eventName });
-      expect(agentMode.shouldTrigger(context)).toBe(false);
+      const contextNoPrompt = createMockContext({ eventName });
+      expect(agentMode.shouldTrigger(contextNoPrompt)).toBe(false);
+    });
+
+    // Should trigger for ANY event when prompt is provided
+    const allEvents = [
+      "workflow_dispatch",
+      "schedule",
+      "issue_comment",
+      "pull_request",
+      "pull_request_review",
+      "issues",
+    ] as const;
+
+    allEvents.forEach((eventName) => {
+      const contextWithPrompt =
+        eventName === "workflow_dispatch" || eventName === "schedule"
+          ? createMockAutomationContext({
+              eventName,
+              inputs: { prompt: "Do something" },
+            })
+          : createMockContext({
+              eventName,
+              inputs: { prompt: "Do something" },
+            });
+      expect(agentMode.shouldTrigger(contextWithPrompt)).toBe(true);
     });
   });
 
-  test("prepare method sets up tools environment variables correctly", async () => {
+  test("prepare method passes through claude_args", async () => {
     // Clear any previous calls before this test
     exportVariableSpy.mockClear();
     setOutputSpy.mockClear();
 
-    const contextWithCustomTools = createMockAutomationContext({
+    const contextWithCustomArgs = createMockAutomationContext({
       eventName: "workflow_dispatch",
     });
-    contextWithCustomTools.inputs.allowedTools = ["CustomTool1", "CustomTool2"];
-    contextWithCustomTools.inputs.disallowedTools = ["BadTool"];
+
+    // Save original env vars and set test values
+    const originalHeadRef = process.env.GITHUB_HEAD_REF;
+    const originalRefName = process.env.GITHUB_REF_NAME;
+    delete process.env.GITHUB_HEAD_REF;
+    delete process.env.GITHUB_REF_NAME;
+
+    // Set CLAUDE_ARGS environment variable
+    process.env.CLAUDE_ARGS = "--model claude-sonnet-4 --max-turns 10";
 
     const mockOctokit = {} as any;
     const result = await agentMode.prepare({
-      context: contextWithCustomTools,
+      context: contextWithCustomArgs,
       octokit: mockOctokit,
       githubToken: "test-token",
     });
 
-    // Verify that both ALLOWED_TOOLS and DISALLOWED_TOOLS are set
-    expect(exportVariableSpy).toHaveBeenCalledWith(
-      "ALLOWED_TOOLS",
-      "Edit,MultiEdit,Glob,Grep,LS,Read,Write,CustomTool1,CustomTool2",
-    );
-    expect(exportVariableSpy).toHaveBeenCalledWith(
-      "DISALLOWED_TOOLS",
-      "WebSearch,WebFetch,BadTool",
-    );
+    // Verify claude_args includes MCP config and user args
+    const callArgs = setOutputSpy.mock.calls[0];
+    expect(callArgs[0]).toBe("claude_args");
+    expect(callArgs[1]).toContain("--mcp-config");
+    expect(callArgs[1]).toContain("--model claude-sonnet-4 --max-turns 10");
 
-    // Verify MCP config is set
-    expect(setOutputSpy).toHaveBeenCalledWith("mcp_config", expect.any(String));
-
-    // Verify return structure
+    // Verify return structure - should use "main" as fallback when no env vars set
     expect(result).toEqual({
       commentId: undefined,
       branchInfo: {
-        baseBranch: "",
-        currentBranch: "",
+        baseBranch: "main",
+        currentBranch: "main",
         claudeBranch: undefined,
       },
       mcpConfig: expect.any(String),
     });
+
+    // Clean up
+    delete process.env.CLAUDE_ARGS;
+    if (originalHeadRef !== undefined)
+      process.env.GITHUB_HEAD_REF = originalHeadRef;
+    if (originalRefName !== undefined)
+      process.env.GITHUB_REF_NAME = originalRefName;
   });
 
   test("prepare method creates prompt file with correct content", async () => {
     const contextWithPrompts = createMockAutomationContext({
       eventName: "workflow_dispatch",
     });
-    contextWithPrompts.inputs.overridePrompt = "Custom override prompt";
-    contextWithPrompts.inputs.directPrompt =
-      "Direct prompt (should be ignored)";
+    // In v1-dev, we only have the unified prompt field
+    contextWithPrompts.inputs.prompt = "Custom prompt content";
 
     const mockOctokit = {} as any;
     await agentMode.prepare({
@@ -131,6 +161,9 @@ describe("Agent Mode", () => {
 
     // Note: We can't easily test file creation in this unit test,
     // but we can verify the method completes without errors
-    expect(setOutputSpy).toHaveBeenCalledWith("mcp_config", expect.any(String));
+    // Agent mode now includes MCP config even with empty user args
+    const callArgs = setOutputSpy.mock.calls[0];
+    expect(callArgs[0]).toBe("claude_args");
+    expect(callArgs[1]).toContain("--mcp-config");
   });
 });
