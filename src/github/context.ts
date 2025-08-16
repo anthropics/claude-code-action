@@ -78,6 +78,8 @@ type BaseContext = {
     additionalPermissions: Map<string, string>;
     useCommitSigning: boolean;
     allowedBots: string;
+    stickyCommentAppBotId: number;
+    stickyCommentAppBotName: string;
   };
 };
 
@@ -138,6 +140,11 @@ export function parseGitHubContext(): GitHubContext {
       ),
       useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
       allowedBots: process.env.ALLOWED_BOTS ?? "",
+      stickyCommentAppBotId: parseInt(
+        process.env.STICKY_COMMENT_APP_BOT_ID ?? "209825114",
+      ),
+      stickyCommentAppBotName:
+        process.env.STICKY_COMMENT_APP_BOT_NAME ?? "claude",
     },
   };
 
