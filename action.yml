@@ -166,6 +166,8 @@ runs:
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
+        GITHUB_SERVER_URL: ${{ env.GITHUB_SERVER_URL || 'https://github.com' }}
+        GITHUB_API_URL: ${{ env.GITHUB_SERVER_URL && format('{0}/api/v3', env.GITHUB_SERVER_URL) || 'https://api.github.com' }}
 
     - name: Install Base Action Dependencies
       if: steps.prepare.outputs.contains_trigger == 'true'
