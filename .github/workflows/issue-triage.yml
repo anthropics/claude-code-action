@@ -104,3 +104,5 @@ jobs:
           mcp_config: /tmp/mcp-config/mcp-servers.json
           timeout_minutes: "5"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
