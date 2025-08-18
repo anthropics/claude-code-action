@@ -178,6 +178,7 @@ runs:
         cd -
         # Install Claude Code globally
         curl -fsSL https://claude.ai/install.sh | bash -s 1.0.83
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
     - name: Setup Network Restrictions
       if: steps.prepare.outputs.contains_trigger == 'true' && inputs.experimental_allowed_domains != ''
