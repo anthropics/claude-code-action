@@ -68,7 +68,6 @@ async function exchangeForAppToken(oidcToken: string): Promise<string> {
     token?: string;
     app_token?: string;
   };
-  console.log("Full OIDC exchange response:", appTokenData);
   const appToken = appTokenData.token || appTokenData.app_token;
 
   if (!appToken) {
