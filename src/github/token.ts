@@ -42,17 +42,14 @@ async function exchangeForAppToken(oidcToken: string): Promise<string> {
     // Check for specific workflow validation error codes that should skip the action
     const errorCode = responseJson.error?.details?.error_code;
 
-    if (
-      errorCode === "workflow_not_found_on_default_branch" ||
-      errorCode === "workflow_content_mismatch"
-    ) {
+    if (errorCode === "workflow_not_found_on_default_branch") {
       const message =
         responseJson.message ??
         responseJson.error?.message ??
         "Workflow validation failed";
       core.warning(`Skipping action due to workflow validation: ${message}`);
       console.log(
-        "Action skipped due to workflow validation error. This is expected when adding Claude Code workflows to new repositories or on PRs with workflow changes.",
+        "Action skipped due to workflow validation error. This is expected when adding Claude Code workflows to new repositories or on PRs with workflow changes. If you're seeing this, your workflow will begin working once you merge your PR.",
       );
       core.setOutput("skipped_due_to_workflow_validation_mismatch", "true");
       process.exit(0);
