@@ -45,7 +45,7 @@ export const agentMode: Mode = {
 
     // TODO: handle by createPrompt (similar to tag and review modes)
     // Create prompt directory
-    await mkdir(`${process.env.RUNNER_TEMP}/claude-prompts`, {
+    await mkdir(`${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`, {
       recursive: true,
     });
     // Write the prompt file - the base action requires a prompt_file parameter,
@@ -57,7 +57,7 @@ export const agentMode: Mode = {
       context.inputs.directPrompt ||
       `Repository: ${context.repository.owner}/${context.repository.repo}`;
     await writeFile(
-      `${process.env.RUNNER_TEMP}/claude-prompts/claude-prompt.txt`,
+      `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts/claude-prompt.txt`,
       promptContent,
     );
 
