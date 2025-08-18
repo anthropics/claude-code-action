@@ -286,7 +286,7 @@ runs:
         fi
 
     - name: Revoke app token
-      if: always() && inputs.github_token == ''
+      if: always() && inputs.github_token == '' && steps.prepare.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
       shell: bash
       run: |
         curl -L \
