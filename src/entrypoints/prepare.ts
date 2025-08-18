@@ -13,9 +13,12 @@ import { parseGitHubContext, isEntityContext } from "../github/context";
 import { getMode, isValidMode, DEFAULT_MODE } from "../modes/registry";
 import type { ModeName } from "../modes/types";
 import { prepare } from "../prepare";
+import { collectActionInputsPresence } from "./collect-inputs";
 
 async function run() {
   try {
+    collectActionInputsPresence();
+
     // Step 1: Get mode first to determine authentication method
     const modeInput = process.env.MODE || DEFAULT_MODE;
 

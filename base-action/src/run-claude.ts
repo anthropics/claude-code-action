@@ -110,6 +110,10 @@ export function prepareRunConfig(
   // Parse custom environment variables
   const customEnv = parseCustomEnvVars(options.claudeEnv);
 
+  if (process.env.INPUT_ACTION_INPUTS_PRESENT) {
+    customEnv.GITHUB_ACTION_INPUTS = process.env.INPUT_ACTION_INPUTS_PRESENT;
+  }
+
   return {
     claudeArgs,
     promptPath,
@@ -142,9 +146,11 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
   console.log(`Prompt file size: ${promptSize} bytes`);
 
   // Log custom environment variables if any
-  if (Object.keys(config.env).length > 0) {
-    const envKeys = Object.keys(config.env).join(", ");
-    console.log(`Custom environment variables: ${envKeys}`);
+  const customEnvKeys = Object.keys(config.env).filter(
+    (key) => key !== "CLAUDE_ACTION_INPUTS_PRESENT",
+  );
+  if (customEnvKeys.length > 0) {
+    console.log(`Custom environment variables: ${customEnvKeys.join(", ")}`);
   }
 
   // Output to console
