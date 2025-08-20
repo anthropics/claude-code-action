@@ -4,6 +4,7 @@ import type { Mode, ModeOptions, ModeResult } from "../types";
 import type { PreparedContext } from "../../create-prompt/types";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { parseAllowedTools } from "./parse-tools";
+import { configureGitAuth } from "../../github/operations/git-config";
 
 /**
  * Agent mode implementation.
@@ -41,7 +42,26 @@ export const agentMode: Mode = {
     return false;
   },
 
-  async prepare({ context, githubToken }: ModeOptions): Promise<ModeResult> {
+  async prepare({ context, githubToken, octokit }: ModeOptions): Promise<ModeResult> {
+    // Configure git authentication for agent mode (same as tag mode)
+    // Fetch the authenticated user to set proper git identity
+    if (!context.inputs.useCommitSigning) {
+      try {
+        // Get the authenticated user (will be claude[bot] when using Claude App token)
+        const { data: authenticatedUser } = await octokit.rest.users.getAuthenticated();
+        const user = {
+          login: authenticatedUser.login,
+          id: authenticatedUser.id,
+        };
+        
+        // Configure git with the authenticated user's identity
+        await configureGitAuth(githubToken, context, user);
+      } catch (error) {
+        console.error("Failed to configure git authentication:", error);
+        // Continue anyway - git operations may still work with default config
+      }
+    }
+
     // Create prompt directory
     await mkdir(`${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`, {
       recursive: true,
