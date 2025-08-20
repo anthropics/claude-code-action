@@ -55,6 +55,10 @@ inputs:
     description: "Custom environment variables to pass to Claude Code execution (YAML multiline format)"
     required: false
     default: ""
+  debug:
+    description: "Enable debug mode for Claude Code execution"
+    required: false
+    default: "false"
 
   # Action settings
   timeout_minutes:
@@ -146,6 +150,7 @@ runs:
         INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
         INPUT_CLAUDE_ENV: ${{ inputs.claude_env }}
         INPUT_FALLBACK_MODEL: ${{ inputs.fallback_model }}
+        INPUT_DEBUG: ${{ inputs.debug }}
         INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ inputs.experimental_slash_commands_dir }}
 
         # Provider configuration

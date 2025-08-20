@@ -31,6 +31,7 @@ async function run() {
       claudeEnv: process.env.INPUT_CLAUDE_ENV,
       fallbackModel: process.env.INPUT_FALLBACK_MODEL,
       model: process.env.ANTHROPIC_MODEL,
+      debug: process.env.INPUT_DEBUG,
     });
   } catch (error) {
     core.setFailed(`Action failed with error: ${error}`);

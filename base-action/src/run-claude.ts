@@ -22,6 +22,7 @@ export type ClaudeOptions = {
   fallbackModel?: string;
   timeoutMinutes?: string;
   model?: string;
+  debug?: string;
 };
 
 type PreparedConfig = {
@@ -97,6 +98,9 @@ export function prepareRunConfig(
   }
   if (options.model) {
     claudeArgs.push("--model", options.model);
+  }
+  if (options.debug) {
+    claudeArgs.push("--debug");
   }
   if (options.timeoutMinutes) {
     const timeoutMinutesNum = parseInt(options.timeoutMinutes, 10);
