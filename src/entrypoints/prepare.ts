@@ -44,11 +44,18 @@ async function run() {
     // Check trigger conditions
     const containsTrigger = mode.shouldTrigger(context);
 
+    // Debug logging
+    console.log(`Mode: ${mode.name}`);
+    console.log(`Context prompt: ${context.inputs?.prompt || "NO PROMPT"}`);
+    console.log(`Trigger result: ${containsTrigger}`);
+
     // Set output for action.yml to check
     core.setOutput("contains_trigger", containsTrigger.toString());
 
     if (!containsTrigger) {
       console.log("No trigger found, skipping remaining steps");
+      // Still set github_token output even when skipping
+      core.setOutput("github_token", githubToken);
       return;
     }
 
