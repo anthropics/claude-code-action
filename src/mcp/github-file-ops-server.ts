@@ -3,8 +3,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { readFile } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 import { join } from "path";
+import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
 import { retryWithBackoff } from "../utils/retry";
@@ -162,6 +163,34 @@ async function getOrCreateBranchRef(
   return baseSha;
 }
 
+// Get the appropriate Git file mode for a file
+async function getFileMode(filePath: string): Promise<string> {
+  try {
+    const fileStat = await stat(filePath);
+    if (fileStat.isFile()) {
+      // Check if execute bit is set for user
+      if (fileStat.mode & constants.S_IXUSR) {
+        return "100755"; // Executable file
+      } else {
+        return "100644"; // Regular file
+      }
+    } else if (fileStat.isDirectory()) {
+      return "040000"; // Directory (tree)
+    } else if (fileStat.isSymbolicLink()) {
+      return "120000"; // Symbolic link
+    } else {
+      // Fallback for unknown file types
+      return "100644";
+    }
+  } catch (error) {
+    // If we can't stat the file, default to regular file
+    console.warn(
+      `Could not determine file mode for ${filePath}, using default: ${error}`,
+    );
+    return "100644";
+  }
+}
+
 // Commit files tool
 server.tool(
   "commit_files",
@@ -223,6 +252,9 @@ server.tool(
             ? filePath
             : join(REPO_DIR, filePath);
 
+          // Get the proper file mode based on file permissions
+          const fileMode = await getFileMode(fullPath);
+
           // Check if file is binary (images, etc.)
           const isBinaryFile =
             /\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|tar|gz|exe|bin|woff|woff2|ttf|eot)$/i.test(
@@ -261,7 +293,7 @@ server.tool(
             // Return tree entry with blob SHA
             return {
               path: filePath,
-              mode: "100644",
+              mode: fileMode,
               type: "blob",
               sha: blobData.sha,
             };
@@ -270,7 +302,7 @@ server.tool(
             const content = await readFile(fullPath, "utf-8");
             return {
               path: filePath,
-              mode: "100644",
+              mode: fileMode,
               type: "blob",
               content: content,
             };

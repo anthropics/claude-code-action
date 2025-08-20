@@ -145,7 +145,7 @@ runs:
         echo "Base-action dependencies installed"
         cd -
         # Install Claude Code globally
-        curl -fsSL https://claude.ai/install.sh | bash -s 1.0.84
+        curl -fsSL https://claude.ai/install.sh | bash -s 1.0.85
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
     - name: Setup Network Restrictions
