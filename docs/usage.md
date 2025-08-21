@@ -30,7 +30,7 @@ jobs:
           # Optional: pass advanced arguments to Claude CLI
           # claude_args: |
           #   --max-turns 10
-          #   --model claude-3-7-sonnet@20250219
+          #   --model claude-4-0-sonnet-20250805
 
           # Optional: add custom trigger phrase (default: @claude)
           # trigger_phrase: "/claude"
@@ -52,7 +52,7 @@ jobs:
 | `anthropic_api_key`            | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                           | No\*     | -         |
 | `claude_code_oauth_token`      | Claude Code OAuth token (alternative to anthropic_api_key)                                                           | No\*     | -         |
 | `prompt`                       | Instructions for Claude. Can be a direct prompt or custom template for automation workflows                          | No       | -         |
-| `claude_args`                  | Additional arguments to pass directly to Claude CLI (e.g., `--max-turns 10 --model claude-3-7-sonnet@20250219`)      | No       | ""        |
+| `claude_args`                  | Additional arguments to pass directly to Claude CLI (e.g., `--max-turns 10 --model claude-4-0-sonnet-20250805`)      | No       | ""        |
 | `base_branch`                  | The base branch to use for creating new branches (e.g., 'main', 'develop')                                           | No       | -         |
 | `timeout_minutes`              | Timeout in minutes for execution                                                                                     | No       | `30`      |
 | `use_sticky_comment`           | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                          | No       | `false`   |
@@ -81,7 +81,7 @@ These inputs are deprecated and will be removed in a future version:
 | `override_prompt`     | **DEPRECATED**: Use `prompt` with template variables or `claude_args` with `--system-prompt` | Use `prompt` for templates or `claude_args` for system prompts |
 | `custom_instructions` | **DEPRECATED**: Use `claude_args` with `--system-prompt` or include in `prompt`              | Move instructions to `prompt` or use `claude_args`             |
 | `max_turns`           | **DEPRECATED**: Use `claude_args` with `--max-turns` instead                                 | Use `claude_args: "--max-turns 5"`                             |
-| `model`               | **DEPRECATED**: Use `claude_args` with `--model` instead                                     | Use `claude_args: "--model claude-3-7-sonnet@20250219"`        |
+| `model`               | **DEPRECATED**: Use `claude_args` with `--model` instead                                     | Use `claude_args: "--model claude-4-0-sonnet-20250805"`        |
 | `fallback_model`      | **DEPRECATED**: Use `claude_args` with fallback configuration                                | Configure fallback in `claude_args` or `settings`              |
 | `allowed_tools`       | **DEPRECATED**: Use `claude_args` with `--allowedTools` instead                              | Use `claude_args: "--allowedTools Edit,Read,Write"`            |
 | `disallowed_tools`    | **DEPRECATED**: Use `claude_args` with `--disallowedTools` instead                           | Use `claude_args: "--disallowedTools WebSearch"`               |
@@ -137,7 +137,7 @@ These inputs are deprecated and will be removed in a future version:
     mode: "agent"
     direct_prompt: "Update the API documentation"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    model: "claude-3-5-sonnet-20241022"
+    model: "claude-4-0-sonnet-20250805"
     allowed_tools: "Edit,Read,Write"
 ```
 
@@ -149,7 +149,7 @@ These inputs are deprecated and will be removed in a future version:
     prompt: "Update the API documentation"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     claude_args: |
-      --model claude-3-5-sonnet-20241022
+      --model claude-4-0-sonnet-20250805
       --allowedTools Edit,Read,Write
 ```
 

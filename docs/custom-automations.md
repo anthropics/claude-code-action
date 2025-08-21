@@ -104,7 +104,7 @@ For more control over Claude's behavior, use the `claude_args` input to pass CLI
     prompt: "Review this PR for performance issues"
     claude_args: |
       --max-turns 15
-      --model claude-3-7-sonnet@20250219
+      --model claude-4-0-sonnet-20250805
       --allowedTools Edit,Read,Write,Bash
       --system-prompt "You are a performance optimization expert. Focus on identifying bottlenecks and suggesting improvements."
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
