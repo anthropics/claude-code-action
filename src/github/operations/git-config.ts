@@ -6,7 +6,7 @@
  */
 
 import { $ } from "bun";
-import type { ParsedGitHubContext } from "../context";
+import type { GitHubContext } from "../context";
 import { GITHUB_SERVER_URL } from "../api/config";
 
 type GitUser = {
@@ -16,7 +16,7 @@ type GitUser = {
 
 export async function configureGitAuth(
   githubToken: string,
-  context: ParsedGitHubContext,
+  context: GitHubContext,
   user: GitUser | null,
 ) {
   console.log("Configuring git authentication for non-signing mode");

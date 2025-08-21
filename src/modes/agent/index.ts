@@ -4,7 +4,7 @@ import type { Mode, ModeOptions, ModeResult } from "../types";
 import type { PreparedContext } from "../../create-prompt/types";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { parseAllowedTools } from "./parse-tools";
-import { GITHUB_SERVER_URL } from "../../github/api/config";
+import { configureGitAuth } from "../../github/operations/git-config";
 
 /**
  * Agent mode implementation.
@@ -47,40 +47,19 @@ export const agentMode: Mode = {
     githubToken,
     octokit,
   }: ModeOptions): Promise<ModeResult> {
-    // Configure git authentication for agent mode
-    // Since agent mode is for automation contexts, we set up git directly
+    // Configure git authentication for agent mode (same as tag mode)
     if (!context.inputs.useCommitSigning) {
       try {
-        const { $ } = await import("bun");
-        
         // Get the authenticated user (will be claude[bot] when using Claude App token)
         const { data: authenticatedUser } =
           await octokit.rest.users.getAuthenticated();
-        
-        // Determine the noreply email domain based on GITHUB_SERVER_URL
-        const serverUrl = new URL(GITHUB_SERVER_URL);
-        const noreplyDomain =
-          serverUrl.hostname === "github.com"
-            ? "users.noreply.github.com"
-            : `users.noreply.${serverUrl.hostname}`;
+        const user = {
+          login: authenticatedUser.login,
+          id: authenticatedUser.id,
+        };
 
-        // Configure git user
-        console.log(`Setting git user as ${authenticatedUser.login}...`);
-        await $`git config user.name "${authenticatedUser.login}"`;
-        await $`git config user.email "${authenticatedUser.id}+${authenticatedUser.login}@${noreplyDomain}"`;
-
-        // Remove existing authentication headers (if any)
-        try {
-          await $`git config --unset-all http.${GITHUB_SERVER_URL}/.extraheader`;
-        } catch (e) {
-          // No existing headers to remove
-        }
-
-        // Update the remote URL to include the token for authentication
-        const remoteUrl = `https://x-access-token:${githubToken}@${serverUrl.host}/${context.repository.owner}/${context.repository.repo}.git`;
-        await $`git remote set-url origin ${remoteUrl}`;
-        
-        console.log(`✓ Configured git as ${authenticatedUser.login}`);
+        // Use the shared git configuration function
+        await configureGitAuth(githubToken, context, user);
       } catch (error) {
         console.error("Failed to configure git authentication:", error);
         // Continue anyway - git operations may still work with default config
