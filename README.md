@@ -16,6 +16,10 @@ A general-purpose [Claude Code](https://claude.ai/code) action for GitHub PRs an
 - 🏃 **Runs on Your Infrastructure**: The action executes entirely on your own GitHub runner (Anthropic API calls go to your chosen provider)
 - ⚙️ **Simplified Configuration**: Unified `prompt` and `claude_args` inputs provide clean, powerful configuration aligned with Claude Code SDK
 
+## 📦 Upgrading from v0.x?
+
+**See our [Migration Guide](./docs/migration-guide.md)** for step-by-step instructions on updating your workflows to v1.0. The new version simplifies configuration while maintaining compatibility with most existing setups.
+
 ## Quickstart
 
 The easiest way to set up this action is through [Claude Code](https://claude.ai/code) in the terminal. Just open `claude` and run `/install-github-app`.
@@ -29,6 +33,7 @@ This command will guide you through setting up the GitHub app and required secre
 
 ## Documentation
 
+- **[Migration Guide](./docs/migration-guide.md)** - **⭐ Upgrading from v0.x to v1.0**
 - [Setup Guide](./docs/setup.md) - Manual setup, custom GitHub apps, and security best practices
 - [Usage Guide](./docs/usage.md) - Basic usage, workflow configuration, and input parameters
 - [Custom Automations](./docs/custom-automations.md) - Examples of automated workflows and custom prompts

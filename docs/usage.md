@@ -91,17 +91,11 @@ These inputs are deprecated and will be removed in a future version:
 
 > **Note**: This action is currently in beta. Features and APIs may change as we continue to improve the integration.
 
-## Migration Guide from v0.x to v1.0
+## Upgrading from v0.x?
 
-### Key Changes
+For a comprehensive guide on migrating from v0.x to v1.0, including step-by-step instructions and examples, see our **[Migration Guide](./migration-guide.md)**.
 
-1. **Automatic Mode Detection**: The action now intelligently detects whether to run in interactive mode (responding to @claude mentions) or automation mode (when a `prompt` is provided).
-
-2. **Simplified Configuration**: Most configuration has been consolidated into two main inputs:
-   - `prompt`: For providing instructions to Claude
-   - `claude_args`: For advanced CLI arguments
-
-### Migration Examples
+### Quick Migration Examples
 
 #### Interactive Workflows (with @claude mentions)
 
