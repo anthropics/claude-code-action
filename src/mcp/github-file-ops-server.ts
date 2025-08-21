@@ -385,14 +385,21 @@ server.tool(
 
           if (!updateRefResponse.ok) {
             const errorText = await updateRefResponse.text();
+
+            // Provide a more helpful error message for 403 permission errors
+            if (updateRefResponse.status === 403) {
+              const permissionError = new Error(
+                `Permission denied: Unable to push commits to branch '${branch}'. ` +
+                  `Please rebase your branch from the main/master branch to allow Claude to commit.\n\n` +
+                  `Original error: ${errorText}`,
+              );
+              throw permissionError;
+            }
+
+            // For other errors, use the original message
             const error = new Error(
               `Failed to update reference: ${updateRefResponse.status} - ${errorText}`,
             );
-
-            // Only retry on 403 errors - these are the intermittent failures we're targeting
-            if (updateRefResponse.status === 403) {
-              throw error;
-            }
 
             // For non-403 errors, fail immediately without retry
             console.error("Non-retryable error:", updateRefResponse.status);
@@ -591,15 +598,22 @@ server.tool(
 
           if (!updateRefResponse.ok) {
             const errorText = await updateRefResponse.text();
+
+            // Provide a more helpful error message for 403 permission errors
+            if (updateRefResponse.status === 403) {
+              console.log("Received 403 error, will retry...");
+              const permissionError = new Error(
+                `Permission denied: Unable to push commits to branch '${branch}'. ` +
+                  `Please rebase your branch from the main/master branch to allow Claude to commit.\n\n` +
+                  `Original error: ${errorText}`,
+              );
+              throw permissionError;
+            }
+
+            // For other errors, use the original message
             const error = new Error(
               `Failed to update reference: ${updateRefResponse.status} - ${errorText}`,
             );
-
-            // Only retry on 403 errors - these are the intermittent failures we're targeting
-            if (updateRefResponse.status === 403) {
-              console.log("Received 403 error, will retry...");
-              throw error;
-            }
 
             // For non-403 errors, fail immediately without retry
             console.error("Non-retryable error:", updateRefResponse.status);
