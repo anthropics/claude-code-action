@@ -307,7 +307,10 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
       await writeFile("output.txt", output);
 
       // Process output.txt into JSON and save to execution file
-      const { stdout: jsonOutput } = await execAsync("jq -s '.' output.txt");
+      // Increase maxBuffer from Node.js default of 1MB to 10MB to handle large Claude outputs
+      const { stdout: jsonOutput } = await execAsync("jq -s '.' output.txt", {
+        maxBuffer: 10 * 1024 * 1024,
+      });
       await writeFile(EXECUTION_FILE, jsonOutput);
 
       console.log(`Log saved to ${EXECUTION_FILE}`);
@@ -324,7 +327,10 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
     if (output) {
       try {
         await writeFile("output.txt", output);
-        const { stdout: jsonOutput } = await execAsync("jq -s '.' output.txt");
+        // Increase maxBuffer from Node.js default of 1MB to 10MB to handle large Claude outputs
+        const { stdout: jsonOutput } = await execAsync("jq -s '.' output.txt", {
+          maxBuffer: 10 * 1024 * 1024,
+        });
         await writeFile(EXECUTION_FILE, jsonOutput);
         core.setOutput("execution_file", EXECUTION_FILE);
       } catch (e) {
