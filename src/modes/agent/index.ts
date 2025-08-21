@@ -81,8 +81,12 @@ export const agentMode: Mode = {
     const userClaudeArgs = process.env.CLAUDE_ARGS || "";
     const allowedTools = parseAllowedTools(userClaudeArgs);
 
+    // Check for branch info from environment variables (useful for auto-fix workflows)
+    const claudeBranch = process.env.CLAUDE_BRANCH || undefined;
+    const baseBranch = process.env.BASE_BRANCH || context.inputs.baseBranch || "main";
+    
     // Detect current branch from GitHub environment
-    const currentBranch =
+    const currentBranch = claudeBranch || 
       process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || "main";
 
     // Get our GitHub MCP servers config
@@ -91,7 +95,7 @@ export const agentMode: Mode = {
       owner: context.repository.owner,
       repo: context.repository.repo,
       branch: currentBranch,
-      baseBranch: context.inputs.baseBranch || "main",
+      baseBranch: baseBranch,
       claudeCommentId: undefined, // No tracking comment in agent mode
       allowedTools,
       context,
@@ -122,9 +126,9 @@ export const agentMode: Mode = {
     return {
       commentId: undefined,
       branchInfo: {
-        baseBranch: context.inputs.baseBranch || "main",
-        currentBranch,
-        claudeBranch: undefined,
+        baseBranch: baseBranch,
+        currentBranch: baseBranch, // Use base branch as current when creating new branch
+        claudeBranch: claudeBranch,
       },
       mcpConfig: ourMcpConfig,
     };
