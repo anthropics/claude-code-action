@@ -120,7 +120,6 @@ Example:
 ```yaml
 # Automation mode - runs automatically
 prompt: "Review this PR for security vulnerabilities"
-
 # Interactive mode - waits for @claude mention
 # (no prompt provided)
 ```

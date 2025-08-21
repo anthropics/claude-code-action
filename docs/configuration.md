@@ -314,13 +314,13 @@ For a complete list of available settings and their descriptions, see the [Claud
 
 Many individual input parameters have been consolidated into `claude_args` or `settings`. Here's how to migrate:
 
-| Old Input | New Approach |
-| --------- | ------------ |
-| `allowed_tools` | Use `claude_args: "--allowedTools Tool1,Tool2"` |
-| `disallowed_tools` | Use `claude_args: "--disallowedTools Tool1,Tool2"` |
-| `max_turns` | Use `claude_args: "--max-turns 10"` |
-| `model` | Use `claude_args: "--model claude-3-5-sonnet-20241022"` |
-| `claude_env` | Use `settings` with `"env"` object |
+| Old Input             | New Approach                                             |
+| --------------------- | -------------------------------------------------------- |
+| `allowed_tools`       | Use `claude_args: "--allowedTools Tool1,Tool2"`          |
+| `disallowed_tools`    | Use `claude_args: "--disallowedTools Tool1,Tool2"`       |
+| `max_turns`           | Use `claude_args: "--max-turns 10"`                      |
+| `model`               | Use `claude_args: "--model claude-3-5-sonnet-20241022"`  |
+| `claude_env`          | Use `settings` with `"env"` object                       |
 | `custom_instructions` | Use `claude_args: "--system-prompt 'Your instructions'"` |
-| `direct_prompt` | Use `prompt` input instead |
-| `override_prompt` | Use `prompt` with GitHub context variables |
+| `direct_prompt`       | Use `prompt` input instead                               |
+| `override_prompt`     | Use `prompt` with GitHub context variables               |

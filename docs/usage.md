@@ -23,15 +23,15 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # Or use OAuth token instead:
           # claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          
+
           # Optional: provide a prompt for automation workflows
           # prompt: "Review this PR for security issues"
-          
+
           # Optional: pass advanced arguments to Claude CLI
           # claude_args: |
           #   --max-turns 10
           #   --model claude-3-7-sonnet@20250219
-          
+
           # Optional: add custom trigger phrase (default: @claude)
           # trigger_phrase: "/claude"
           # Optional: add assignee trigger for issues
@@ -47,45 +47,45 @@ jobs:
 
 ## Inputs
 
-| Input                          | Description                                                                                                                           | Required | Default   |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------- |
-| `anthropic_api_key`            | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                                            | No\*     | -         |
-| `claude_code_oauth_token`      | Claude Code OAuth token (alternative to anthropic_api_key)                                                                            | No\*     | -         |
-| `prompt`                       | Instructions for Claude. Can be a direct prompt or custom template for automation workflows                                           | No       | -         |
-| `claude_args`                  | Additional arguments to pass directly to Claude CLI (e.g., `--max-turns 10 --model claude-3-7-sonnet@20250219`)                      | No       | ""        |
-| `base_branch`                  | The base branch to use for creating new branches (e.g., 'main', 'develop')                                                            | No       | -         |
-| `timeout_minutes`              | Timeout in minutes for execution                                                                                                      | No       | `30`      |
-| `use_sticky_comment`           | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                                           | No       | `false`   |
-| `github_token`                 | GitHub token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!**                  | No       | -         |
-| `use_bedrock`                  | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                                                           | No       | `false`   |
-| `use_vertex`                   | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API                                                         | No       | `false`   |
-| `mcp_config`                   | Additional MCP configuration (JSON string) that merges with the built-in GitHub MCP servers                                           | No       | ""        |
-| `assignee_trigger`             | The assignee username that triggers the action (e.g. @claude). Only used for issue assignment                                         | No       | -         |
-| `label_trigger`                | The label name that triggers the action when applied to an issue (e.g. "claude")                                                      | No       | -         |
-| `trigger_phrase`               | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                                         | No       | `@claude` |
-| `branch_prefix`                | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                                          | No       | `claude/` |
-| `settings`                     | Claude Code settings as JSON string or path to settings JSON file                                                                     | No       | ""        |
-| `additional_permissions`       | Additional permissions to enable. Currently supports 'actions: read' for viewing workflow results                                     | No       | ""        |
-| `experimental_allowed_domains` | Restrict network access to these domains only (newline-separated).                                                                    | No       | ""        |
-| `use_commit_signing`           | Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands                     | No       | `false`   |
-| `allowed_bots`                 | Comma-separated list of allowed bot usernames, or '\*' to allow all bots. Empty string (default) allows no bots                       | No       | ""        |
+| Input                          | Description                                                                                                          | Required | Default   |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | -------- | --------- |
+| `anthropic_api_key`            | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                           | No\*     | -         |
+| `claude_code_oauth_token`      | Claude Code OAuth token (alternative to anthropic_api_key)                                                           | No\*     | -         |
+| `prompt`                       | Instructions for Claude. Can be a direct prompt or custom template for automation workflows                          | No       | -         |
+| `claude_args`                  | Additional arguments to pass directly to Claude CLI (e.g., `--max-turns 10 --model claude-3-7-sonnet@20250219`)      | No       | ""        |
+| `base_branch`                  | The base branch to use for creating new branches (e.g., 'main', 'develop')                                           | No       | -         |
+| `timeout_minutes`              | Timeout in minutes for execution                                                                                     | No       | `30`      |
+| `use_sticky_comment`           | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                          | No       | `false`   |
+| `github_token`                 | GitHub token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!** | No       | -         |
+| `use_bedrock`                  | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                                          | No       | `false`   |
+| `use_vertex`                   | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API                                        | No       | `false`   |
+| `mcp_config`                   | Additional MCP configuration (JSON string) that merges with the built-in GitHub MCP servers                          | No       | ""        |
+| `assignee_trigger`             | The assignee username that triggers the action (e.g. @claude). Only used for issue assignment                        | No       | -         |
+| `label_trigger`                | The label name that triggers the action when applied to an issue (e.g. "claude")                                     | No       | -         |
+| `trigger_phrase`               | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                        | No       | `@claude` |
+| `branch_prefix`                | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                         | No       | `claude/` |
+| `settings`                     | Claude Code settings as JSON string or path to settings JSON file                                                    | No       | ""        |
+| `additional_permissions`       | Additional permissions to enable. Currently supports 'actions: read' for viewing workflow results                    | No       | ""        |
+| `experimental_allowed_domains` | Restrict network access to these domains only (newline-separated).                                                   | No       | ""        |
+| `use_commit_signing`           | Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands    | No       | `false`   |
+| `allowed_bots`                 | Comma-separated list of allowed bot usernames, or '\*' to allow all bots. Empty string (default) allows no bots      | No       | ""        |
 
 ### Deprecated Inputs
 
 These inputs are deprecated and will be removed in a future version:
 
-| Input                   | Description                                                                                        | Migration Path                                               |
-| ----------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `mode`                  | **DEPRECATED**: Mode is now automatically detected based on workflow context                       | Remove this input; the action auto-detects the correct mode |
-| `direct_prompt`         | **DEPRECATED**: Use `prompt` instead                                                              | Replace with `prompt`                                       |
-| `override_prompt`       | **DEPRECATED**: Use `prompt` with template variables or `claude_args` with `--system-prompt`      | Use `prompt` for templates or `claude_args` for system prompts |
-| `custom_instructions`   | **DEPRECATED**: Use `claude_args` with `--system-prompt` or include in `prompt`                   | Move instructions to `prompt` or use `claude_args`          |
-| `max_turns`             | **DEPRECATED**: Use `claude_args` with `--max-turns` instead                                      | Use `claude_args: "--max-turns 5"`                         |
-| `model`                 | **DEPRECATED**: Use `claude_args` with `--model` instead                                          | Use `claude_args: "--model claude-3-7-sonnet@20250219"`    |
-| `fallback_model`        | **DEPRECATED**: Use `claude_args` with fallback configuration                                     | Configure fallback in `claude_args` or `settings`          |
-| `allowed_tools`         | **DEPRECATED**: Use `claude_args` with `--allowedTools` instead                                   | Use `claude_args: "--allowedTools Edit,Read,Write"`        |
-| `disallowed_tools`      | **DEPRECATED**: Use `claude_args` with `--disallowedTools` instead                                | Use `claude_args: "--disallowedTools WebSearch"`           |
-| `claude_env`            | **DEPRECATED**: Use `settings` with env configuration                                             | Configure environment in `settings` JSON                    |
+| Input                 | Description                                                                                  | Migration Path                                                 |
+| --------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `mode`                | **DEPRECATED**: Mode is now automatically detected based on workflow context                 | Remove this input; the action auto-detects the correct mode    |
+| `direct_prompt`       | **DEPRECATED**: Use `prompt` instead                                                         | Replace with `prompt`                                          |
+| `override_prompt`     | **DEPRECATED**: Use `prompt` with template variables or `claude_args` with `--system-prompt` | Use `prompt` for templates or `claude_args` for system prompts |
+| `custom_instructions` | **DEPRECATED**: Use `claude_args` with `--system-prompt` or include in `prompt`              | Move instructions to `prompt` or use `claude_args`             |
+| `max_turns`           | **DEPRECATED**: Use `claude_args` with `--max-turns` instead                                 | Use `claude_args: "--max-turns 5"`                             |
+| `model`               | **DEPRECATED**: Use `claude_args` with `--model` instead                                     | Use `claude_args: "--model claude-3-7-sonnet@20250219"`        |
+| `fallback_model`      | **DEPRECATED**: Use `claude_args` with fallback configuration                                | Configure fallback in `claude_args` or `settings`              |
+| `allowed_tools`       | **DEPRECATED**: Use `claude_args` with `--allowedTools` instead                              | Use `claude_args: "--allowedTools Edit,Read,Write"`            |
+| `disallowed_tools`    | **DEPRECATED**: Use `claude_args` with `--disallowedTools` instead                           | Use `claude_args: "--disallowedTools WebSearch"`               |
+| `claude_env`          | **DEPRECATED**: Use `settings` with env configuration                                        | Configure environment in `settings` JSON                       |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 
@@ -106,6 +106,7 @@ These inputs are deprecated and will be removed in a future version:
 #### Interactive Workflows (with @claude mentions)
 
 **Before (v0.x):**
+
 ```yaml
 - uses: anthropics/claude-code-action@beta
   with:
@@ -116,6 +117,7 @@ These inputs are deprecated and will be removed in a future version:
 ```
 
 **After (v1.0):**
+
 ```yaml
 - uses: anthropics/claude-code-action@v1
   with:
@@ -128,6 +130,7 @@ These inputs are deprecated and will be removed in a future version:
 #### Automation Workflows
 
 **Before (v0.x):**
+
 ```yaml
 - uses: anthropics/claude-code-action@beta
   with:
@@ -139,6 +142,7 @@ These inputs are deprecated and will be removed in a future version:
 ```
 
 **After (v1.0):**
+
 ```yaml
 - uses: anthropics/claude-code-action@v1
   with:
@@ -152,6 +156,7 @@ These inputs are deprecated and will be removed in a future version:
 #### Custom Templates
 
 **Before (v0.x):**
+
 ```yaml
 - uses: anthropics/claude-code-action@beta
   with:
@@ -161,6 +166,7 @@ These inputs are deprecated and will be removed in a future version:
 ```
 
 **After (v1.0):**
+
 ```yaml
 - uses: anthropics/claude-code-action@v1
   with:
