@@ -148,7 +148,8 @@ export function parseGitHubContext(): GitHubContext {
         isPR: Boolean(payload.issue.pull_request),
       };
     }
-    case "pull_request": {
+    case "pull_request":
+    case "pull_request_target": {
       const payload = context.payload as PullRequestEvent;
       return {
         ...commonFields,
