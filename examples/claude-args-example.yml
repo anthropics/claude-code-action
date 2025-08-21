@@ -17,13 +17,11 @@ jobs:
       - name: Run Claude with custom arguments
         uses: anthropics/claude-code-action@v1
         with:
-          mode: agent
           prompt: ${{ github.event.inputs.prompt }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
-          # New claudeArgs input allows direct CLI argument control
-          # Order: -p [claudeArgs] [legacy options] [BASE_ARGS]
-          # Note: BASE_ARGS (--verbose --output-format stream-json) cannot be overridden
+          # claude_args provides direct CLI argument control
+          # This allows full customization of Claude's behavior
           claude_args: |
             --max-turns 15
             --model claude-opus-4-1-20250805

@@ -160,33 +160,38 @@ jobs:
 
 ## Custom Environment Variables
 
-You can pass custom environment variables to Claude Code execution using the `claude_env` input. This is useful for CI/test setups that require specific environment variables:
+You can pass custom environment variables to Claude Code execution using the `settings` input. This is useful for CI/test setups that require specific environment variables:
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
-    claude_env: |
-      NODE_ENV: test
-      CI: true
-      DATABASE_URL: postgres://test:test@localhost:5432/test_db
+    settings: |
+      {
+        "env": {
+          "NODE_ENV": "test",
+          "CI": "true",
+          "DATABASE_URL": "postgres://test:test@localhost:5432/test_db"
+        }
+      }
     # ... other inputs
 ```
 
-The `claude_env` input accepts YAML format where each line defines a key-value pair. These environment variables will be available to Claude Code during execution, allowing it to run tests, build processes, or other commands that depend on specific environment configurations.
+These environment variables will be available to Claude Code during execution, allowing it to run tests, build processes, or other commands that depend on specific environment configurations.
 
 ## Limiting Conversation Turns
 
-You can use the `max_turns` parameter to limit the number of back-and-forth exchanges Claude can have during task execution. This is useful for:
+You can limit the number of back-and-forth exchanges Claude can have during task execution using the `claude_args` input. This is useful for:
 
 - Controlling costs by preventing runaway conversations
 - Setting time boundaries for automated workflows
 - Ensuring predictable behavior in CI/CD pipelines
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    max_turns: "5" # Limit to 5 conversation turns
+    claude_args: |
+      --max-turns 5  # Limit to 5 conversation turns
     # ... other inputs
 ```
 
@@ -200,28 +205,50 @@ By default, Claude only has access to:
 - Comment management (creating/updating comments)
 - Basic GitHub operations
 
-Claude does **not** have access to execute arbitrary Bash commands by default. If you want Claude to run specific commands (e.g., npm install, npm test), you must explicitly allow them using the `allowed_tools` configuration:
+Claude does **not** have access to execute arbitrary Bash commands by default. If you want Claude to run specific commands (e.g., npm install, npm test), you must explicitly allow them using the `claude_args` configuration:
 
-**Note**: If your repository has a `.mcp.json` file in the root directory, Claude will automatically detect and use the MCP server tools defined there. However, these tools still need to be explicitly allowed via the `allowed_tools` configuration.
+**Note**: If your repository has a `.mcp.json` file in the root directory, Claude will automatically detect and use the MCP server tools defined there. However, these tools still need to be explicitly allowed.
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
-    allowed_tools: "Bash(npm install),Bash(npm run test),Edit,Replace,NotebookEditCell"
-    disallowed_tools: "TaskOutput,KillTask"
+    claude_args: |
+      --allowedTools "Bash(npm install),Bash(npm run test),Edit,Replace,NotebookEditCell"
+      --disallowedTools "TaskOutput,KillTask"
     # ... other inputs
 ```
 
-**Note**: The base GitHub tools are always included. Use `allowed_tools` to add additional tools (including specific Bash commands), and `disallowed_tools` to prevent specific tools from being used.
+**Note**: The base GitHub tools are always included. Use `--allowedTools` to add additional tools (including specific Bash commands), and `--disallowedTools` to prevent specific tools from being used.
 
 ## Custom Model
 
-Use a specific Claude model:
+Specify a Claude model using `claude_args`:
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
-    # model: "claude-3-5-sonnet-20241022"  # Optional: specify a different model
+    claude_args: |
+      --model claude-3-5-sonnet-20241022
+    # ... other inputs
+```
+
+For provider-specific models:
+
+```yaml
+# AWS Bedrock
+- uses: anthropics/claude-code-action@v1
+  with:
+    use_bedrock: "true"
+    claude_args: |
+      --model anthropic.claude-3-7-sonnet-20250219-beta:0
+    # ... other inputs
+
+# Google Vertex AI
+- uses: anthropics/claude-code-action@v1
+  with:
+    use_vertex: "true"
+    claude_args: |
+      --model claude-3-7-sonnet@20250219
     # ... other inputs
 ```
 
@@ -232,7 +259,7 @@ You can provide Claude Code settings to customize behavior such as model selecti
 ### Option 1: Settings File
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     settings: "path/to/settings.json"
     # ... other inputs
@@ -241,7 +268,7 @@ You can provide Claude Code settings to customize behavior such as model selecti
 ### Option 2: Inline Settings
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     settings: |
       {
@@ -280,6 +307,20 @@ For a complete list of available settings and their descriptions, see the [Claud
 **Notes**:
 
 - The `enableAllProjectMcpServers` setting is always set to `true` by this action to ensure MCP servers work correctly.
-- If both the `model` input parameter and a `model` in settings are provided, the `model` input parameter takes precedence.
-- The `allowed_tools` and `disallowed_tools` input parameters take precedence over `permissions` in settings.
-- In a future version, we may deprecate individual input parameters in favor of using the settings file for all configuration.
+- The `claude_args` input provides direct access to Claude Code CLI arguments and takes precedence over settings.
+- We recommend using `claude_args` for simple configurations and `settings` for complex configurations with hooks and environment variables.
+
+## Migration from Deprecated Inputs
+
+Many individual input parameters have been consolidated into `claude_args` or `settings`. Here's how to migrate:
+
+| Old Input | New Approach |
+| --------- | ------------ |
+| `allowed_tools` | Use `claude_args: "--allowedTools Tool1,Tool2"` |
+| `disallowed_tools` | Use `claude_args: "--disallowedTools Tool1,Tool2"` |
+| `max_turns` | Use `claude_args: "--max-turns 10"` |
+| `model` | Use `claude_args: "--model claude-3-5-sonnet-20241022"` |
+| `claude_env` | Use `settings` with `"env"` object |
+| `custom_instructions` | Use `claude_args: "--system-prompt 'Your instructions'"` |
+| `direct_prompt` | Use `prompt` input instead |
+| `override_prompt` | Use `prompt` with GitHub context variables |

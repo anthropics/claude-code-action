@@ -1,21 +1,21 @@
-name: Claude Mode Examples
+name: Claude Automatic Mode Detection Examples
 
 on:
-  # Events for tag mode
+  # Events for interactive mode (responds to @claude mentions)
   issue_comment:
     types: [created]
   issues:
     types: [opened, labeled]
   pull_request:
     types: [opened]
-  # Events for agent mode (only these work with agent mode)
+  # Events for automation mode (runs with explicit prompt)
   workflow_dispatch:
   schedule:
     - cron: "0 0 * * 0" # Weekly on Sunday
 
 jobs:
-  # Tag Mode (Default) - Traditional implementation
-  tag-mode-example:
+  # Interactive Mode - Activated automatically when no prompt is provided
+  interactive-mode-example:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -23,18 +23,17 @@ jobs:
       issues: write
       id-token: write
     steps:
-      - uses: anthropics/claude-code-action@beta
+      - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Tag mode (default) behavior:
+          # Interactive mode (auto-detected when no prompt):
           # - Scans for @claude mentions in comments, issues, and PRs
           # - Only acts when trigger phrase is found
           # - Creates tracking comments with progress checkboxes
           # - Perfect for: Interactive Q&A, on-demand code changes
 
-  # Agent Mode - Automation for workflow_dispatch and schedule events
-  agent-mode-scheduled-task:
-    # Only works with workflow_dispatch or schedule events
+  # Automation Mode - Activated automatically when prompt is provided
+  automation-mode-scheduled-task:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -42,15 +41,14 @@ jobs:
       issues: write
       id-token: write
     steps:
-      - uses: anthropics/claude-code-action@beta
+      - uses: anthropics/claude-code-action@v1
         with:
-          mode: agent
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          override_prompt: |
+          prompt: |
             Check for outdated dependencies and security vulnerabilities.
             Create an issue if any critical problems are found.
-          # Agent mode behavior:
-          # - ONLY works with workflow_dispatch and schedule events
-          # - Does NOT work with pull_request, issues, or issue_comment events
-          # - No @claude mention needed for supported events
-          # - Perfect for: scheduled maintenance, manual automation runs
+          # Automation mode (auto-detected when prompt provided):
+          # - Works with any GitHub event
+          # - Executes immediately without waiting for @claude mentions
+          # - No tracking comments created
+          # - Perfect for: scheduled maintenance, automated reviews, CI/CD tasks
