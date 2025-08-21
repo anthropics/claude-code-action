@@ -4,7 +4,6 @@ import type { Mode, ModeOptions, ModeResult } from "../types";
 import type { PreparedContext } from "../../create-prompt/types";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { parseAllowedTools } from "./parse-tools";
-import { configureGitAuth } from "../../github/operations/git-config";
 
 /**
  * Agent mode implementation.
@@ -42,20 +41,37 @@ export const agentMode: Mode = {
     return false;
   },
 
-  async prepare({ context, githubToken, octokit }: ModeOptions): Promise<ModeResult> {
-    // Configure git authentication for agent mode (same as tag mode)
-    // Fetch the authenticated user to set proper git identity
+  async prepare({
+    context,
+    githubToken,
+    octokit,
+  }: ModeOptions): Promise<ModeResult> {
+    // Configure git authentication for agent mode
+    // Since agent mode is for automation contexts, we need to set up git differently
     if (!context.inputs.useCommitSigning) {
       try {
         // Get the authenticated user (will be claude[bot] when using Claude App token)
-        const { data: authenticatedUser } = await octokit.rest.users.getAuthenticated();
-        const user = {
-          login: authenticatedUser.login,
-          id: authenticatedUser.id,
-        };
+        const { data: authenticatedUser } =
+          await octokit.rest.users.getAuthenticated();
         
-        // Configure git with the authenticated user's identity
-        await configureGitAuth(githubToken, context, user);
+        // Set up git config directly for automation contexts
+        const { $ } = await import("bun");
+        const serverUrl = new URL(
+          process.env.GITHUB_SERVER_URL || "https://github.com",
+        );
+        const noreplyDomain =
+          serverUrl.hostname === "github.com"
+            ? "users.noreply.github.com"
+            : `users.noreply.${serverUrl.hostname}`;
+
+        await $`git config user.name "${authenticatedUser.login}"`;
+        await $`git config user.email "${authenticatedUser.id}+${authenticatedUser.login}@${noreplyDomain}"`;
+
+        // Set up token authentication
+        const authHeader = `Authorization: token ${githubToken}`;
+        await $`git config http.${serverUrl.origin}/.extraheader "${authHeader}"`;
+        
+        console.log(`✓ Configured git as ${authenticatedUser.login}`);
       } catch (error) {
         console.error("Failed to configure git authentication:", error);
         // Continue anyway - git operations may still work with default config
@@ -83,11 +99,15 @@ export const agentMode: Mode = {
 
     // Check for branch info from environment variables (useful for auto-fix workflows)
     const claudeBranch = process.env.CLAUDE_BRANCH || undefined;
-    const baseBranch = process.env.BASE_BRANCH || context.inputs.baseBranch || "main";
-    
+    const baseBranch =
+      process.env.BASE_BRANCH || context.inputs.baseBranch || "main";
+
     // Detect current branch from GitHub environment
-    const currentBranch = claudeBranch || 
-      process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || "main";
+    const currentBranch =
+      claudeBranch ||
+      process.env.GITHUB_HEAD_REF ||
+      process.env.GITHUB_REF_NAME ||
+      "main";
 
     // Get our GitHub MCP servers config
     const ourMcpConfig = await prepareMcpConfig({
