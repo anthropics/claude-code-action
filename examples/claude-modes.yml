@@ -23,7 +23,7 @@ jobs:
       issues: write
       id-token: write
     steps:
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@v1-dev
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # Interactive mode (auto-detected when no prompt):
@@ -41,7 +41,7 @@ jobs:
       issues: write
       id-token: write
     steps:
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@v1-dev
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |

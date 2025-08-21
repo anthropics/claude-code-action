@@ -1,4 +1,4 @@
-name: Claude Auto Review
+name: Claude PR Auto Review
 
 on:
   pull_request:
@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 1
 
       - name: Automatic PR Review
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@v1-dev
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           timeout_minutes: "60"
@@ -32,10 +32,10 @@ jobs:
             - Security implications
             - Test coverage
             - Documentation updates if needed
+            - Verify that README.md and docs are updated for any new features or config changes
 
             Provide constructive feedback with specific suggestions for improvement.
             Use inline comments to highlight specific areas of concern.
 
-          # Optional: Configure specific tools for review operations
-          # claude_args: |
-          #   --allowedTools "mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review,mcp__github__get_pull_request_diff"
+          claude_args: |
+            --allowedTools "mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review,mcp__github__get_pull_request_diff"

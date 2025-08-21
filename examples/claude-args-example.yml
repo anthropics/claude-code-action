@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Claude with custom arguments
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@v1-dev
         with:
           prompt: ${{ github.event.inputs.prompt }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
