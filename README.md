@@ -2,10 +2,11 @@
 
 # Claude Code Action
 
-A general-purpose [Claude Code](https://claude.ai/code) action for GitHub PRs and issues that can answer questions and implement code changes. This action listens for a trigger phrase in comments and activates Claude act on the request. It supports multiple authentication methods including Anthropic direct API, Amazon Bedrock, and Google Vertex AI.
+A general-purpose [Claude Code](https://claude.ai/code) action for GitHub PRs and issues that can answer questions and implement code changes. This action intelligently detects when to activate based on your workflow context—whether responding to @claude mentions, issue assignments, or executing automation tasks with explicit prompts. It supports multiple authentication methods including Anthropic direct API, Amazon Bedrock, and Google Vertex AI.
 
 ## Features
 
+- 🎯 **Intelligent Mode Detection**: Automatically selects the appropriate execution mode based on your workflow context—no configuration needed
 - 🤖 **Interactive Code Assistant**: Claude can answer questions about code, architecture, and programming
 - 🔍 **Code Review**: Analyzes PR changes and suggests improvements
 - ✨ **Code Implementation**: Can implement simple fixes, refactoring, and even new features
@@ -13,19 +14,11 @@ A general-purpose [Claude Code](https://claude.ai/code) action for GitHub PRs an
 - 🛠️ **Flexible Tool Access**: Access to GitHub APIs and file operations (additional tools can be enabled via configuration)
 - 📋 **Progress Tracking**: Visual progress indicators with checkboxes that dynamically update as Claude completes tasks
 - 🏃 **Runs on Your Infrastructure**: The action executes entirely on your own GitHub runner (Anthropic API calls go to your chosen provider)
+- ⚙️ **Simplified Configuration**: Unified `prompt` and `claude_args` inputs provide clean, powerful configuration aligned with Claude Code SDK
 
-## ⚠️ **BREAKING CHANGES COMING IN v1.0** ⚠️
+## 📦 Upgrading from v0.x?
 
-**We're planning a major update that will significantly change how this action works.** The new version will:
-
-- ✨ Automatically select the appropriate mode (no more `mode` input)
-- 🔧 Simplify configuration with unified `prompt` and `claude_args`
-- 🚀 Align more closely with the Claude Code SDK capabilities
-- 💥 Remove multiple inputs like `direct_prompt`, `custom_instructions`, and others
-
-**[→ Read the full v1.0 roadmap and provide feedback](https://github.com/anthropics/claude-code-action/discussions/428)**
-
----
+**See our [Migration Guide](./docs/migration-guide.md)** for step-by-step instructions on updating your workflows to v1.0. The new version simplifies configuration while maintaining compatibility with most existing setups.
 
 ## Quickstart
 
@@ -40,6 +33,7 @@ This command will guide you through setting up the GitHub app and required secre
 
 ## Documentation
 
+- **[Migration Guide](./docs/migration-guide.md)** - **⭐ Upgrading from v0.x to v1.0**
 - [Setup Guide](./docs/setup.md) - Manual setup, custom GitHub apps, and security best practices
 - [Usage Guide](./docs/usage.md) - Basic usage, workflow configuration, and input parameters
 - [Custom Automations](./docs/custom-automations.md) - Examples of automated workflows and custom prompts

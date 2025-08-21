@@ -20,23 +20,25 @@ Use provider-specific model names based on your chosen provider:
 
 ```yaml
 # For direct Anthropic API (default)
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     # ... other inputs
 
 # For Amazon Bedrock with OIDC
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
-    model: "anthropic.claude-3-7-sonnet-20250219-beta:0" # Cross-region inference
     use_bedrock: "true"
+    claude_args: |
+      --model anthropic.claude-4-0-sonnet-20250805-v1:0
     # ... other inputs
 
 # For Google Vertex AI with OIDC
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
-    model: "claude-3-7-sonnet@20250219"
     use_vertex: "true"
+    claude_args: |
+      --model claude-4-0-sonnet@20250805
     # ... other inputs
 ```
 
@@ -59,10 +61,11 @@ Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
     app-id: ${{ secrets.APP_ID }}
     private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
-    model: "anthropic.claude-3-7-sonnet-20250219-beta:0"
     use_bedrock: "true"
+    claude_args: |
+      --model anthropic.claude-4-0-sonnet-20250805-v1:0
     # ... other inputs
 
   permissions:
@@ -84,10 +87,11 @@ Both AWS Bedrock and GCP Vertex AI require OIDC authentication.
     app-id: ${{ secrets.APP_ID }}
     private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
-    model: "claude-3-7-sonnet@20250219"
     use_vertex: "true"
+    claude_args: |
+      --model claude-4-0-sonnet@20250805
     # ... other inputs
 
   permissions:

@@ -41,10 +41,11 @@ By default, Claude only uses commit tools for non-destructive changes to the bra
 - Never push to branches other than where it was invoked (either its own branch or the PR branch)
 - Never force push or perform destructive operations
 
-You can grant additional tools via the `allowed_tools` input if needed:
+You can grant additional tools via the `claude_args` input if needed:
 
 ```yaml
-allowed_tools: "Bash(git rebase:*)" # Use with caution
+claude_args: |
+  --allowedTools "Bash(git rebase:*)"  # Use with caution
 ```
 
 ### Why won't Claude create a pull request?
@@ -67,7 +68,7 @@ Yes! Claude can access GitHub Actions workflow runs, job logs, and test results 
 
 2. Configure the action with additional permissions:
    ```yaml
-   - uses: anthropics/claude-code-action@beta
+   - uses: anthropics/claude-code-action@v1
      with:
        additional_permissions: |
          actions: read
@@ -105,30 +106,51 @@ If you need full history, you can configure this in your workflow before calling
 
 ## Configuration and Tools
 
-### What's the difference between `direct_prompt` and `custom_instructions`?
+### How does automatic mode detection work?
 
-These inputs serve different purposes in how Claude responds:
+The action intelligently detects whether to run in interactive mode or automation mode:
 
-- **`direct_prompt`**: Bypasses trigger detection entirely. When provided, Claude executes this exact instruction regardless of comments or mentions. Perfect for automated workflows where you want Claude to perform a specific task on every run (e.g., "Update the API documentation based on changes in this PR").
+- **With `prompt` input**: Runs in automation mode - executes immediately without waiting for @claude mentions
+- **Without `prompt` input**: Runs in interactive mode - waits for @claude mentions in comments
 
-- **`custom_instructions`**: Additional context added to Claude's system prompt while still respecting normal triggers. These instructions modify Claude's behavior but don't replace the triggering comment. Use this to give Claude standing instructions like "You have been granted additional tools for ...".
+This automatic detection eliminates the need to manually configure modes.
 
 Example:
 
 ```yaml
-# Using direct_prompt - runs automatically without @claude mention
-direct_prompt: "Review this PR for security vulnerabilities"
+# Automation mode - runs automatically
+prompt: "Review this PR for security vulnerabilities"
+# Interactive mode - waits for @claude mention
+# (no prompt provided)
+```
 
-# Using custom_instructions - still requires @claude trigger
-custom_instructions: "Focus on performance implications and suggest optimizations"
+### What happened to `direct_prompt` and `custom_instructions`?
+
+**These inputs are deprecated in v1.0:**
+
+- **`direct_prompt`** → Use `prompt` instead
+- **`custom_instructions`** → Use `claude_args` with `--system-prompt`
+
+Migration examples:
+
+```yaml
+# Old (v0.x)
+direct_prompt: "Review this PR"
+custom_instructions: "Focus on security"
+
+# New (v1.0)
+prompt: "Review this PR"
+claude_args: |
+  --system-prompt "Focus on security"
 ```
 
 ### Why doesn't Claude execute my bash commands?
 
-The Bash tool is **disabled by default** for security. To enable individual bash commands:
+The Bash tool is **disabled by default** for security. To enable individual bash commands using `claude_args`:
 
 ```yaml
-allowed_tools: "Bash(npm:*),Bash(git:*)" # Allows only npm and git commands
+claude_args: |
+  --allowedTools "Bash(npm:*),Bash(git:*)"  # Allows only npm and git commands
 ```
 
 ### Can Claude work across multiple repositories?
@@ -152,7 +174,7 @@ Claude Code Action automatically configures two MCP servers:
 1. **GitHub MCP server**: For GitHub API operations
 2. **File operations server**: For advanced file manipulation
 
-However, tools from these servers still need to be explicitly allowed via `allowed_tools`.
+However, tools from these servers still need to be explicitly allowed via `claude_args` with `--allowedTools`.
 
 ## Troubleshooting
 
@@ -168,7 +190,7 @@ The trigger uses word boundaries, so `@claude` must be a complete word. Variatio
 
 1. **Always specify permissions explicitly** in your workflow file
 2. **Use GitHub Secrets** for API keys - never hardcode them
-3. **Be specific with `allowed_tools`** - only enable what's necessary
+3. **Be specific with tool permissions** - only enable what's necessary via `claude_args`
 4. **Test in a separate branch** before using on important PRs
 5. **Monitor Claude's token usage** to avoid hitting API limits
 6. **Review Claude's changes** carefully before merging

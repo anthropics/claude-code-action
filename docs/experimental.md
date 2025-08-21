@@ -2,64 +2,65 @@
 
 **Note:** Experimental features are considered unstable and not supported for production use. They may change or be removed at any time.
 
-## Execution Modes
+## Automatic Mode Detection
 
-The action supports three execution modes, each optimized for different use cases:
+The action intelligently detects the appropriate execution mode based on your workflow context, eliminating the need for manual mode configuration.
 
-### Tag Mode (Default)
+### Interactive Mode (Tag Mode)
 
-The traditional implementation mode that responds to @claude mentions, issue assignments, or labels.
+Activated when Claude detects @mentions, issue assignments, or labels—without an explicit `prompt`.
 
-- **Triggers**: `@claude` mentions, issue assignment, label application
+- **Triggers**: `@claude` mentions in comments, issue assignment to claude user, label application
 - **Features**: Creates tracking comments with progress checkboxes, full implementation capabilities
-- **Use case**: General-purpose code implementation and Q&A
+- **Use case**: Interactive code assistance, Q&A, and implementation requests
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    # mode: tag is the default
+    # No prompt needed - responds to @claude mentions
 ```
 
-### Agent Mode
+### Automation Mode (Agent Mode)
 
-**Note: Agent mode is currently in active development and may undergo breaking changes.**
+Automatically activated when you provide a `prompt` input.
 
-For direct automation when an explicit prompt is provided.
-
-- **Triggers**: Works with any event when `prompt` input is provided
-- **Features**: Direct execution without @claude mentions, no tracking comments
+- **Triggers**: Any GitHub event when `prompt` input is provided
+- **Features**: Direct execution without requiring @claude mentions, streamlined for automation
 - **Use case**: Automated PR reviews, scheduled tasks, workflow automation
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     prompt: |
       Check for outdated dependencies and create an issue if any are found.
-    # Mode is auto-detected when prompt is provided
+    # Automatically runs in agent mode when prompt is provided
 ```
 
-### Experimental Review Mode
+### How It Works
 
-**Warning: This is an experimental feature that may change or be removed at any time.**
+The action uses this logic to determine the mode:
 
-For automated code reviews on pull requests.
+1. **If `prompt` is provided** → Runs in **agent mode** for automation
+2. **If no `prompt` but @claude is mentioned** → Runs in **tag mode** for interaction
+3. **If neither** → No action is taken
 
-- **Triggers**: Pull request events (`opened`, `synchronize`) or `@claude review` comments
-- **Features**: Provides detailed code reviews with inline comments and suggestions
-- **Use case**: Automated PR reviews, code quality checks
+This automatic detection ensures your workflows are simpler and more intuitive, without needing to understand or configure different modes.
+
+### Advanced Mode Control
+
+For specialized use cases, you can fine-tune behavior using `claude_args`:
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
-    mode: experimental-review
+    prompt: "Review this PR"
+    claude_args: |
+      --max-turns 20
+      --system-prompt "You are a code review specialist"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    custom_instructions: |
-      Focus on code quality, security, and best practices.
 ```
-
-See [`examples/claude-modes.yml`](../examples/claude-modes.yml) and [`examples/claude-experimental-review-mode.yml`](../examples/claude-experimental-review-mode.yml) for complete examples of each mode.
 
 ## Network Restrictions
 
@@ -76,7 +77,7 @@ When `experimental_allowed_domains` is set, Claude can only access the domains y
 #### If using Anthropic API or subscription
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     # Or: claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -87,7 +88,7 @@ When `experimental_allowed_domains` is set, Claude can only access the domains y
 #### If using AWS Bedrock
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     use_bedrock: "true"
     experimental_allowed_domains: |
@@ -98,7 +99,7 @@ When `experimental_allowed_domains` is set, Claude can only access the domains y
 #### If using Google Vertex AI
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     use_vertex: "true"
     experimental_allowed_domains: |
@@ -111,7 +112,7 @@ When `experimental_allowed_domains` is set, Claude can only access the domains y
 In addition to your provider domains, you may need to include GitHub-related domains. For GitHub.com users, common domains include:
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     experimental_allowed_domains: |
