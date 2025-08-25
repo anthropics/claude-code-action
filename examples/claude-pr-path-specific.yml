@@ -27,7 +27,6 @@ jobs:
         uses: anthropics/claude-code-action@v1-dev
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          timeout_minutes: "60"
           prompt: |
             Please review this pull request focusing on the changed files.
             Provide feedback on:

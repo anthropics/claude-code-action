@@ -13,7 +13,6 @@ const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`
 const BASE_ARGS = ["--verbose", "--output-format", "stream-json"];
 
 export type ClaudeOptions = {
-  timeoutMinutes?: string;
   claudeArgs?: string;
   model?: string;
   pathToClaudeCodeExecutable?: string;
@@ -55,16 +54,6 @@ export function prepareRunConfig(
 
   // BASE_ARGS are always appended last (cannot be overridden)
   claudeArgs.push(...BASE_ARGS);
-
-  // Validate timeout if provided (affects process wrapper, not Claude)
-  if (options.timeoutMinutes) {
-    const timeoutMinutesNum = parseInt(options.timeoutMinutes, 10);
-    if (isNaN(timeoutMinutesNum) || timeoutMinutesNum <= 0) {
-      throw new Error(
-        `timeoutMinutes must be a positive number, got: ${options.timeoutMinutes}`,
-      );
-    }
-  }
 
   const customEnv: Record<string, string> = {};
 
@@ -194,57 +183,15 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
     claudeProcess.kill("SIGTERM");
   });
 
-  // Wait for Claude to finish with timeout
-  let timeoutMs = 10 * 60 * 1000; // Default 10 minutes
-  if (options.timeoutMinutes) {
-    timeoutMs = parseInt(options.timeoutMinutes, 10) * 60 * 1000;
-  } else if (process.env.INPUT_TIMEOUT_MINUTES) {
-    const envTimeout = parseInt(process.env.INPUT_TIMEOUT_MINUTES, 10);
-    if (isNaN(envTimeout) || envTimeout <= 0) {
-      throw new Error(
-        `INPUT_TIMEOUT_MINUTES must be a positive number, got: ${process.env.INPUT_TIMEOUT_MINUTES}`,
-      );
-    }
-    timeoutMs = envTimeout * 60 * 1000;
-  }
+  // Wait for Claude to finish
   const exitCode = await new Promise<number>((resolve) => {
-    let resolved = false;
-
-    // Set a timeout for the process
-    const timeoutId = setTimeout(() => {
-      if (!resolved) {
-        console.error(
-          `Claude process timed out after ${timeoutMs / 1000} seconds`,
-        );
-        claudeProcess.kill("SIGTERM");
-        // Give it 5 seconds to terminate gracefully, then force kill
-        setTimeout(() => {
-          try {
-            claudeProcess.kill("SIGKILL");
-          } catch (e) {
-            // Process may already be dead
-          }
-        }, 5000);
-        resolved = true;
-        resolve(124); // Standard timeout exit code
-      }
-    }, timeoutMs);
-
     claudeProcess.on("close", (code) => {
-      if (!resolved) {
-        clearTimeout(timeoutId);
-        resolved = true;
-        resolve(code || 0);
-      }
+      resolve(code || 0);
     });
 
     claudeProcess.on("error", (error) => {
-      if (!resolved) {
-        console.error("Claude process error:", error);
-        clearTimeout(timeoutId);
-        resolved = true;
-        resolve(1);
-      }
+      console.error("Claude process error:", error);
+      resolve(1);
     });
   });
 

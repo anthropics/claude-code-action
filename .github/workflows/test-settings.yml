@@ -26,7 +26,6 @@ jobs:
                 "allow": ["Bash(echo:*)"]
               }
             }
-          timeout_minutes: "2"
 
       - name: Verify echo worked
         run: |
@@ -76,7 +75,6 @@ jobs:
                 "deny": ["Bash(echo:*)"]
               }
             }
-          timeout_minutes: "2"
 
       - name: Verify echo was denied
         run: |
@@ -114,7 +112,6 @@ jobs:
             Use Bash to echo "Hello from settings file test"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           settings: "test-settings.json"
-          timeout_minutes: "2"
 
       - name: Verify echo worked
         run: |
@@ -169,7 +166,6 @@ jobs:
             Use Bash to echo "This should not work from file"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           settings: "test-settings.json"
-          timeout_minutes: "2"
 
       - name: Verify echo was denied
         run: |

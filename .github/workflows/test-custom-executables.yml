@@ -53,7 +53,6 @@ jobs:
           path_to_claude_code_executable: /home/runner/.local/bin/claude
           path_to_bun_executable: /home/runner/.bun/bin/bun
           allowed_tools: "LS,Read"
-          timeout_minutes: "3"
 
       - name: Verify custom executables worked
         run: |

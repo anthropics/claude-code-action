@@ -22,7 +22,6 @@ async function run() {
     });
 
     await runClaude(promptConfig.path, {
-      timeoutMinutes: process.env.INPUT_TIMEOUT_MINUTES,
       claudeArgs: process.env.INPUT_CLAUDE_ARGS,
       allowedTools: process.env.INPUT_ALLOWED_TOOLS,
       disallowedTools: process.env.INPUT_DISALLOWED_TOOLS,
