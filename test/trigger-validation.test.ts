@@ -20,6 +20,7 @@ import type {
   PullRequestReviewEvent,
 } from "@octokit/webhooks-types";
 import type { ParsedGitHubContext } from "../src/github/context";
+import { defaultStickyCommentInputs } from "./mockContext";
 
 describe("checkContainsTrigger", () => {
   describe("direct prompt trigger", () => {
@@ -39,6 +40,7 @@ describe("checkContainsTrigger", () => {
           customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          ...defaultStickyCommentInputs,
           additionalPermissions: new Map(),
           useCommitSigning: false,
           allowedBots: "",
@@ -73,6 +75,7 @@ describe("checkContainsTrigger", () => {
           customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          ...defaultStickyCommentInputs,
           additionalPermissions: new Map(),
           useCommitSigning: false,
           allowedBots: "",
@@ -291,6 +294,7 @@ describe("checkContainsTrigger", () => {
           customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          ...defaultStickyCommentInputs,
           additionalPermissions: new Map(),
           useCommitSigning: false,
           allowedBots: "",
@@ -326,6 +330,7 @@ describe("checkContainsTrigger", () => {
           customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          ...defaultStickyCommentInputs,
           additionalPermissions: new Map(),
           useCommitSigning: false,
           allowedBots: "",
@@ -361,6 +366,7 @@ describe("checkContainsTrigger", () => {
           customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          ...defaultStickyCommentInputs,
           additionalPermissions: new Map(),
           useCommitSigning: false,
           allowedBots: "",

@@ -10,6 +10,11 @@ import type {
   PullRequestReviewCommentEvent,
 } from "@octokit/webhooks-types";
 
+export const defaultStickyCommentInputs = {
+  stickyCommentAppBotId: 209825114,
+  stickyCommentAppBotName: "claude",
+};
+
 const defaultInputs = {
   mode: "tag" as const,
   triggerPhrase: "/claude",
@@ -26,6 +31,7 @@ const defaultInputs = {
   timeoutMinutes: 30,
   branchPrefix: "claude/",
   useStickyComment: false,
+  ...defaultStickyCommentInputs,
   additionalPermissions: new Map<string, string>(),
   useCommitSigning: false,
   allowedBots: "",
