@@ -80,38 +80,7 @@ jobs:
           gh release create "$next_version" \
             --title "$next_version" \
             --generate-notes \
-            --latest=false # We want to keep beta as the latest
-
-  update-beta-tag:
-    needs: create-release
-    if: ${{ !inputs.dry_run }}
-    runs-on: ubuntu-latest
-    environment: production
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Update beta tag
-        run: |
-          # Get the latest version tag
-          VERSION=$(git tag -l 'v[0-9]*' | sort -V | tail -1)
-
-          # Update the beta tag to point to this release
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -fa beta -m "Update beta tag to ${VERSION}"
-          git push origin beta --force
-
-      - name: Update beta release to be latest
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Update beta release to be marked as latest
-          gh release edit beta --latest
+            --latest=false # keep v1 as latest
 
   update-major-tag:
     needs: create-release
