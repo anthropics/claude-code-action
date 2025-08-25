@@ -24,6 +24,7 @@ export interface GitHubConfig {
   token: string;
   organization: string;
   repoTemplate?: string;
+  repository?: string; // Override repository URL instead of creating user-specific ones
 }
 
 export interface QueueConfig {

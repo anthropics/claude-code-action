@@ -1,12 +1,12 @@
 # Development Setup Guide
 
-This guide helps you set up the Claude Code Slack Bot for local development.
+This guide helps you set up the Peerbot for local development.
 
 ## Prerequisites
 
 Before starting, ensure you have the following installed:
 
-1. **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop)
+1. **Kubernetes** - [Download for Mac](https://orbstack.dev/)
 2. **kubectl** - [Install Guide](https://kubernetes.io/docs/tasks/tools/)
 3. **Skaffold** - [Install Guide](https://skaffold.dev/docs/install/)
 4. **Bun** - Install with: `curl -fsSL https://bun.sh/install | bash`

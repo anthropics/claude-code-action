@@ -304,6 +304,22 @@ setup_github() {
         local github_org=$(ask "GitHub Organization (default: peerbot-community): ")
         export GITHUB_ORGANIZATION="${github_org:-peerbot-community}"
     fi
+    
+    if [[ -z "$GITHUB_REPOSITORY" ]]; then
+        echo ""
+        echo "📂 Repository Configuration:"
+        echo "You can optionally specify a single GitHub repository URL to use for all users."
+        echo "If not provided, the bot will automatically create individual repositories for each user."
+        echo ""
+        echo "Examples:"
+        echo "  - Leave empty: Bot creates user-specific repos (user-john, user-jane, etc.)"
+        echo "  - https://github.com/yourorg/shared-workspace: All users work in this repository"
+        echo ""
+        local github_repo=$(ask "GitHub Repository URL (optional, press Enter to skip): ")
+        if [[ -n "$github_repo" ]]; then
+            export GITHUB_REPOSITORY="$github_repo"
+        fi
+    fi
 }
 
 setup_claude() {
@@ -361,6 +377,17 @@ setup_claude() {
     local manual_token=$(ask "Please enter Claude token manually (starts with sk-ant, or press Enter to skip): ")
     if [[ -n "$manual_token" ]]; then
         export CLAUDE_CODE_OAUTH_TOKEN="$manual_token"
+    fi
+    
+    # Configure worker cleanup
+    if [[ -z "$WORKER_IDLE_CLEANUP_MINUTES" ]]; then
+        echo ""
+        echo "🧹 Worker Cleanup Configuration"
+        echo "Configure how long idle workers stay running before being automatically deleted."
+        echo "This helps save resources by cleaning up workers that haven't received messages."
+        echo ""
+        local cleanup_minutes=$(ask "Minutes before cleaning up idle workers (default: 60): ")
+        export WORKER_IDLE_CLEANUP_MINUTES="${cleanup_minutes:-60}"
     fi
 }
 
@@ -500,12 +527,16 @@ SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET:-}
 # GitHub Configuration
 GITHUB_TOKEN=${GITHUB_TOKEN:-}
 GITHUB_ORGANIZATION=${GITHUB_ORGANIZATION:-}
+GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-}
 
 # Claude Configuration
 CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
 
 # PostgreSQL Configuration
 POSTGRESQL_CONNECTION_STRING=${POSTGRESQL_CONNECTION_STRING:-}
+
+# Worker Configuration
+WORKER_IDLE_CLEANUP_MINUTES=${WORKER_IDLE_CLEANUP_MINUTES:-60}
 
 # Kubernetes Configuration
 KUBERNETES_NAMESPACE=${KUBERNETES_NAMESPACE:-peerbot}

@@ -122,11 +122,6 @@ gcs:
   enabled: false
   customPorts: []
 
-# Use LoadBalancer for local Docker Desktop
-service:
-  type: LoadBalancer
-  port: 3000
-
 # Development settings
 dispatcher:
   enabled: true
@@ -194,6 +189,7 @@ orchestrator:
 
 config:
   githubOrganization: "peerbot-community"
+  githubRepository: ""  # Optional: Override repository URL for all users
   gcsProjectId: ""
   sessionTimeoutMinutes: "5"
 

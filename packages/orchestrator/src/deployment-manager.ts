@@ -216,7 +216,7 @@ export class DeploymentManager {
             containers: [{
               name: 'worker',
               image: `${this.config.worker.image.repository}:${this.config.worker.image.tag}`,
-              imagePullPolicy: 'Always',
+              imagePullPolicy: 'IfNotPresent',
               env: [
                 // User-specific database connection from secret
                 {
@@ -337,7 +337,170 @@ export class DeploymentManager {
     }
   }
 
+  /**
+   * Find idle deployments from the database
+   */
+  async findIdleDeployments(): Promise<Array<{
+    deploymentId: string;
+    userId: string;
+    lastActivity: Date;
+    minutesIdle: number;
+    messageCount: number;
+  }>> {
+    const client = await this.dbPool.getClient();
+    try {
+      const query = `
+        WITH deployment_last_activity AS (
+          SELECT 
+            COALESCE(
+              SUBSTRING(data->>'gitBranch' FROM 'claude/session-([0-9.-]+)'),
+              data->>'threadTs'
+            ) as deployment_id,
+            data->>'userId' as user_id,
+            MAX(created_on) as last_activity,
+            COUNT(*) as message_count
+          FROM pgboss.job
+          WHERE name = 'thread_response'
+            AND data->>'gitBranch' IS NOT NULL
+          GROUP BY 
+            COALESCE(
+              SUBSTRING(data->>'gitBranch' FROM 'claude/session-([0-9.-]+)'),
+              data->>'threadTs'
+            ),
+            data->>'userId'
+        ),
+        idle_deployments AS (
+          SELECT 
+            deployment_id,
+            user_id,
+            last_activity,
+            message_count,
+            EXTRACT(EPOCH FROM (NOW() - last_activity))/60 as minutes_idle
+          FROM deployment_last_activity
+          WHERE last_activity < NOW() - INTERVAL '${this.config.worker.idleCleanupMinutes} minutes'
+        )
+        SELECT 
+          deployment_id,
+          user_id,
+          last_activity,
+          minutes_idle,
+          message_count
+        FROM idle_deployments
+        ORDER BY last_activity ASC;
+      `;
 
+      const result = await client.query(query);
+      
+      return result.rows.map(row => ({
+        deploymentId: row.deployment_id,
+        userId: row.user_id,
+        lastActivity: row.last_activity,
+        minutesIdle: parseFloat(row.minutes_idle),
+        messageCount: parseInt(row.message_count)
+      }));
+    } finally {
+      client.release();
+    }
+  }
 
+  /**
+   * Delete a worker deployment and associated resources
+   */
+  async deleteWorkerDeployment(deploymentId: string): Promise<void> {
+    try {
+      const deploymentName = `peerbot-worker-${deploymentId}`;
+      
+      console.log(`🧹 Cleaning up idle worker deployment: ${deploymentName}`);
+      
+      // Delete the deployment
+      try {
+        await this.appsV1Api.deleteNamespacedDeployment(
+          deploymentName,
+          this.config.kubernetes.namespace
+        );
+        console.log(`✅ Deleted deployment: ${deploymentName}`);
+      } catch (error: any) {
+        if (error.statusCode === 404) {
+          console.log(`⚠️  Deployment ${deploymentName} not found (already deleted)`);
+        } else {
+          throw error;
+        }
+      }
+
+      // Delete associated PVC if it exists
+      try {
+        const pvcName = `peerbot-workspace-${deploymentId}`;
+        await this.coreV1Api.deleteNamespacedPersistentVolumeClaim(
+          pvcName,
+          this.config.kubernetes.namespace
+        );
+        console.log(`✅ Deleted PVC: ${pvcName}`);
+      } catch (error: any) {
+        if (error.statusCode === 404) {
+          console.log(`⚠️  PVC for ${deploymentName} not found (already deleted)`);
+        } else {
+          console.log(`⚠️  Failed to delete PVC for ${deploymentName}:`, error.message);
+        }
+      }
+
+      // Delete associated secret if it exists
+      try {
+        const secretName = `peerbot-user-secret-${deploymentId.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`;
+        await this.coreV1Api.deleteNamespacedSecret(
+          secretName,
+          this.config.kubernetes.namespace
+        );
+        console.log(`✅ Deleted secret: ${secretName}`);
+      } catch (error: any) {
+        if (error.statusCode === 404) {
+          console.log(`⚠️  Secret for ${deploymentName} not found (already deleted)`);
+        } else {
+          console.log(`⚠️  Failed to delete secret for ${deploymentName}:`, error.message);
+        }
+      }
+
+    } catch (error) {
+      throw new OrchestratorError(
+        ErrorCode.DEPLOYMENT_DELETE_FAILED,
+        `Failed to delete deployment for ${deploymentId}: ${error instanceof Error ? error.message : String(error)}`,
+        { deploymentId, error },
+        true
+      );
+    }
+  }
+
+  /**
+   * Clean up idle deployments based on configuration
+   */
+  async cleanupIdleDeployments(): Promise<void> {
+    try {
+      console.log(`🧹 Starting idle deployment cleanup (threshold: ${this.config.worker.idleCleanupMinutes} minutes)`);
+      
+      const idleDeployments = await this.findIdleDeployments();
+      
+      if (idleDeployments.length === 0) {
+        console.log('✅ No idle deployments found to clean up');
+        return;
+      }
+
+      console.log(`📊 Found ${idleDeployments.length} idle deployments to clean up:`);
+      
+      for (const deployment of idleDeployments) {
+        console.log(`  - ${deployment.deploymentId} (user: ${deployment.userId}, idle: ${deployment.minutesIdle.toFixed(1)}min, messages: ${deployment.messageCount})`);
+        
+        try {
+          await this.deleteWorkerDeployment(deployment.deploymentId);
+          console.log(`✅ Successfully cleaned up deployment: ${deployment.deploymentId}`);
+        } catch (error) {
+          console.error(`❌ Failed to clean up deployment ${deployment.deploymentId}:`, error instanceof Error ? error.message : String(error));
+        }
+      }
+      
+      console.log(`🧹 Idle deployment cleanup completed. Cleaned up ${idleDeployments.length} deployments.`);
+      
+    } catch (error) {
+      console.error('❌ Error during idle deployment cleanup:', error instanceof Error ? error.message : String(error));
+    }
+  }
 
 }

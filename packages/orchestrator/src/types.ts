@@ -22,6 +22,7 @@ export interface OrchestratorConfig {
       requests: { cpu: string; memory: string };
       limits: { cpu: string; memory: string };
     };
+    idleCleanupMinutes: number; // Minutes after which idle workers are deleted
   };
   kubernetes: {
     namespace: string;

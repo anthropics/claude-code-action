@@ -1,4 +1,4 @@
-# Development Makefile for Claude Code Slack Bot
+# Development Makefile for Peerbot
 
 .PHONY: help setup build compile dev test clean logs restart
 

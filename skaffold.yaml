@@ -1,7 +1,7 @@
 apiVersion: skaffold/v4beta6
 kind: Config
 metadata:
-  name: claude-code-slack
+  name: peerbot
 build:
   artifacts:
   - image: peerbot-dispatcher
@@ -33,6 +33,7 @@ deploy:
         dispatcher.image.tag: "{{.IMAGE_TAG_peerbot_dispatcher}}"
         orchestrator.image.tag: "{{.IMAGE_TAG_peerbot_orchestrator}}"
         worker.image.tag: "{{.IMAGE_TAG_claude_worker}}"
+        worker.image.repository: "claude-worker"
       setValues:
         dispatcher.socketMode: "true"
         dispatcher.httpMode: "false"

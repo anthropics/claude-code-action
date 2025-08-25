@@ -10,6 +10,9 @@ data:
   
   # GitHub Configuration
   github-organization: {{ .Values.config.githubOrganization | quote }}
+  {{- if .Values.config.githubRepository }}
+  github-repository: {{ .Values.config.githubRepository | quote }}
+  {{- end }}
   
   # Session Configuration
   session-timeout-minutes: {{ .Values.config.sessionTimeoutMinutes | quote }}

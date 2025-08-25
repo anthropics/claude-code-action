@@ -3,103 +3,72 @@
 import PgBoss from "pg-boss";
 import { WebClient } from "@slack/web-api";
 import type { GitHubRepositoryManager } from "../github/repository-manager";
-import { markdownToSlackBlocks } from "../utils/markdown-to-slack";
 // Simple blockkit detection and conversion for now
-function handleBlockkitContent(content: string, contextInfo?: string): { text: string; blocks?: any[] } {
-  // Look for any code block pattern: ```language { action: "...", ... }\n{content}\n```
-  const codeBlockRegex = /```(\w+)\s*\{([^}]+)\}\s*\n([\s\S]*?)\n```/g;
+function processMarkdownAndBlockkit(content: string): { text: string; blocks: any[] } {
+  // Process blockkit with metadata
+  const codeBlockRegex = /```(\w+)\s*\{([^}]+)\}\s*\n?([\s\S]*?)\n?```/g;
   let processedContent = content;
   const actionButtons: any[] = [];
 
   let match;
   while ((match = codeBlockRegex.exec(content)) !== null) {
-    const language = match[1];
-    const metadataStr = match[2];
-    const codeContent = match[3];
+    const [fullMatch, language, metadataStr, codeContent] = match;
     
     try {
-      // Parse metadata - handle both comma-separated and space-separated formats
       const metadata: any = {};
-      if (metadataStr) {
-        // Try to parse as JSON-like object first
-        try {
-          // Convert to valid JSON format by ensuring proper quotes
-          const jsonStr = `{${metadataStr}}`;
-          const parsed = JSON.parse(jsonStr);
-          Object.assign(metadata, parsed);
-        } catch {
-          // Fallback to comma-separated parsing
-          metadataStr.split(',').forEach(pair => {
-            const [key, value] = pair.split(':').map(s => s.trim());
-            if (key && value) {
-              const cleanKey = key.replace(/"/g, '');
-              let cleanValue: any = value.replace(/"/g, '');
-              if (cleanValue === 'true') cleanValue = true;
-              if (cleanValue === 'false') cleanValue = false;
-              metadata[cleanKey] = cleanValue;
-            }
-          });
+      metadataStr.split(',').forEach(pair => {
+        const [key, value] = pair.split(':').map(s => s.trim());
+        if (key && value) {
+          const cleanKey = key.replace(/"/g, '');
+          let cleanValue: any = value.replace(/"/g, '');
+          if (cleanValue === 'true') cleanValue = true;
+          if (cleanValue === 'false') cleanValue = false;
+          metadata[cleanKey] = cleanValue;
         }
-      }
+      });
 
-      // Only process blocks that have action metadata
-      if (metadata.action || metadata.action_id) {
+      if (metadata.action) {
+        if (metadata.show === false) {
+          console.log(`[DEBUG] Skipping blockkit with show:false - action: ${metadata.action}`);
+          processedContent = processedContent.replace(fullMatch, '');
+          continue;
+        }
         
         if (language === 'blockkit') {
-          // Handle blockkit forms - parse JSON content
           const parsed = codeContent ? JSON.parse(codeContent.trim()) : { blocks: [] };
-          const blocks = parsed.blocks || [parsed];
-          
           actionButtons.push({
             type: "button",
-            text: {
-              type: "plain_text",
-              text: metadata.action
-            },
+            text: { type: "plain_text", text: metadata.action },
             action_id: `blockkit_form_${Date.now()}`,
-            value: JSON.stringify({ blocks })
+            value: JSON.stringify({ blocks: parsed.blocks || [parsed] })
           });
+          processedContent = processedContent.replace(fullMatch, '');
         } else {
-          // Handle executable code blocks (bash, python, etc.)
-          // Skip buttons with values over Slack's 2000 character limit
-          const MAX_BUTTON_VALUE_LENGTH = 2000;
-          if (codeContent && codeContent.length > MAX_BUTTON_VALUE_LENGTH) {
-            logger.warn(`Skipping action button "${metadata.action}" - code content exceeds 2000 character limit (${codeContent.length} chars)`);
-          } else {
+          if (codeContent && codeContent.length <= 2000) {
             actionButtons.push({
               type: "button",
-              text: {
-                type: "plain_text",
-                text: metadata.action
-              },
+              text: { type: "plain_text", text: metadata.action },
               action_id: `${language}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
               value: codeContent
             });
           }
-        }
-        
-        // Remove the code block from text content
-        if (metadata.show && language !== 'blockkit') {
-          // Keep the code block visible for show:true
-          processedContent = processedContent.replace(match[0], `\`\`\`${language}\n${codeContent}\n\`\`\``);
-        } else {
-          // Remove the code block from text
-          processedContent = processedContent.replace(match[0], '');
+          if (metadata.show === false) {
+            processedContent = processedContent.replace(fullMatch, '');
+          }
         }
       }
     } catch (error) {
       console.error('Failed to parse code block:', error);
-      // Keep original content on error
     }
   }
 
   // Convert basic markdown
   const text = processedContent
-    .replace(/\*\*(.+?)\*\*/g, '*$1*')
+    .replace(/\*\*(.*?)\*\*/g, '*$1*')
     .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '_$1_')
     .trim();
 
-  // Always create blocks structure for consistency
+  // Always create at least one block
   const blocks: any[] = [];
   
   if (text) {
@@ -112,31 +81,15 @@ function handleBlockkitContent(content: string, contextInfo?: string): { text: s
     });
   }
 
-  // Add divider and bottom control section (like the worker does)
-  if (actionButtons.length > 0 || contextInfo) {
-    blocks.push({ type: "divider" });
-    
-    // Add context info section if provided
-    if (contextInfo) {
-      blocks.push({
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: contextInfo
-        }
-      });
-    }
-    
-    // Add action buttons if any
-    if (actionButtons.length > 0) {
-      blocks.push({
-        type: "actions",
-        elements: actionButtons
-      });
-    }
+  if (actionButtons.length > 0) {
+    if (blocks.length > 0) blocks.push({ type: "divider" });
+    blocks.push({
+      type: "actions",
+      elements: actionButtons
+    });
   }
 
-  return { text, blocks: blocks.length > 0 ? blocks : undefined };
+  return { text, blocks };
 }
 
 
@@ -177,16 +130,8 @@ async function generateGitHubActionButtons(
     
     logger.info(`Showing Edit button for branch: ${gitBranch}`);
     return [
-      {
-        type: "button",
-        text: {
-          type: "plain_text",
-          text: "Edit",
-          emoji: true
-        },
-        url: `https://github.dev/${repoPath}/tree/${gitBranch}`,
-        style: "primary"
-      }
+      `<https://github.com/${repoPath}/compare/${gitBranch}...${gitBranch}?quick_pull=1&labels=peerbot|🔀 Pull Request>`,
+      `<https://github.dev/${repoPath}/tree/${gitBranch}|Code>`,
     ];
   } catch (error) {
     // Return undefined on error - this will result in no action buttons being added
@@ -422,44 +367,29 @@ export class ThreadResponseConsumer {
     try {
       logger.info(`Updating message in channel ${channelId}, thread ${threadTs}`);
       
-      // Convert markdown to Slack format with blockkit support
-      const slackMessage = markdownToSlackBlocks(content);
+      // Process markdown and blockkit content
+      const result = processMarkdownAndBlockkit(content);
       
-      // Add action buttons from code blocks (if any)
-      const actionButtonResult = handleBlockkitContent(content);
+      // Get GitHub action links for this session
+      const githubActionLinks = await generateGitHubActionButtons(userId, data.gitBranch, this.userMappings, this.repoManager);
       
-      // Get GitHub action buttons for this session
-      const githubActionButtons = await generateGitHubActionButtons(userId, data.gitBranch, this.userMappings, this.repoManager);
-      
-      // Collect all action buttons
-      const allActionButtons: any[] = [];
-      if (actionButtonResult.blocks) {
-        // Extract action buttons from the blockkit handler
-        for (const block of actionButtonResult.blocks) {
-          if (block.type === "actions") {
-            allActionButtons.push(...block.elements);
-          }
+      // Add GitHub action links to the content
+      if (githubActionLinks && githubActionLinks.length > 0) {
+        const linksText = `\n\n${githubActionLinks.join(' | ')}`;
+        result.text = (result.text || content) + linksText;
+        
+        // Also add to the last section block if it exists
+        const lastSectionBlock = result.blocks.slice().reverse().find(block => block.type === "section" && block.text?.type === "mrkdwn");
+        if (lastSectionBlock) {
+          lastSectionBlock.text.text += linksText;
         }
-      }
-      if (githubActionButtons) {
-        allActionButtons.push(...githubActionButtons);
-      }
-      
-      // Add action buttons section if we have any buttons
-      if (allActionButtons.length > 0) {
-        slackMessage.blocks = slackMessage.blocks || [];
-        slackMessage.blocks.push({ type: "divider" });
-        slackMessage.blocks.push({
-          type: "actions",
-          elements: allActionButtons
-        });
       }
       
       // Truncate text to Slack's limit (3000 chars for text field)
       const MAX_TEXT_LENGTH = 3000;
-      const truncatedText = (slackMessage.text || content).length > MAX_TEXT_LENGTH 
-        ? (slackMessage.text || content).substring(0, MAX_TEXT_LENGTH - 20) + '\n...[truncated]'
-        : (slackMessage.text || content);
+      const truncatedText = (result.text || content).length > MAX_TEXT_LENGTH 
+        ? (result.text || content).substring(0, MAX_TEXT_LENGTH - 20) + '\n...[truncated]'
+        : (result.text || content);
       
       const updateOptions: any = {
         channel: channelId,
@@ -468,18 +398,15 @@ export class ThreadResponseConsumer {
         mrkdwn: true,
       };
       
-      // Add blocks if we have them (blockkit parser handles all the complexity)
-      // Limit to 50 blocks (Slack's limit)
-      if (slackMessage.blocks && slackMessage.blocks.length > 0) {
-        const MAX_BLOCKS = 50;
-        updateOptions.blocks = slackMessage.blocks.slice(0, MAX_BLOCKS);
-      }
+      // Add blocks (always have at least one)
+      const MAX_BLOCKS = 50;
+      updateOptions.blocks = result.blocks.slice(0, MAX_BLOCKS);
       
-      const result = await this.slackClient.chat.update(updateOptions);
-      logger.info(`Slack update result: ${result.ok}`);
+      const updateResult = await this.slackClient.chat.update(updateOptions);
+      logger.info(`Slack update result: ${updateResult.ok}`);
       
-      if (!result.ok) {
-        logger.error(`Slack update failed with error: ${result.error}`);
+      if (!updateResult.ok) {
+        logger.error(`Slack update failed with error: ${updateResult.error}`);
       }
 
     } catch (error: any) {
@@ -526,35 +453,41 @@ export class ThreadResponseConsumer {
       
       const errorContent = `❌ **Error occurred**\n\n**Error:** \`${error}\``;
       
-      // Convert markdown to Slack format with blockkit support
-      const slackMessage = markdownToSlackBlocks(errorContent);
+      // Simple error message
+      const errorResult = { 
+        text: errorContent, 
+        blocks: [{
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: errorContent
+          }
+        }]
+      };
       
-      // Get GitHub action buttons for this session
-      const githubActionButtons = await generateGitHubActionButtons(userId, data.gitBranch, this.userMappings, this.repoManager);
+      // Get GitHub action links for this session
+      const githubActionLinks = await generateGitHubActionButtons(userId, data.gitBranch, this.userMappings, this.repoManager);
       
-      // Add action buttons section if we have any buttons
-      if (githubActionButtons && githubActionButtons.length > 0) {
-        slackMessage.blocks = slackMessage.blocks || [];
-        slackMessage.blocks.push({ type: "divider" });
-        slackMessage.blocks.push({
-          type: "actions",
-          elements: githubActionButtons
-        });
+      // Add GitHub action links if available
+      if (githubActionLinks && githubActionLinks.length > 0) {
+        const linksText = `\n\n${githubActionLinks.join(' | ')}`;
+        errorResult.text = (errorResult.text || errorContent) + linksText;
+        if (errorResult.blocks[0]?.text) {
+          errorResult.blocks[0].text.text = errorContent + linksText;
+        }
       }
       
       const updateOptions: any = {
         channel: channelId,
         ts: threadTs,
-        text: slackMessage.text || errorContent,
+        text: errorResult.text || errorContent,
         mrkdwn: true,
       };
       
-      if (slackMessage.blocks && slackMessage.blocks.length > 0) {
-        updateOptions.blocks = slackMessage.blocks;
-      }
+      updateOptions.blocks = errorResult.blocks;
       
-      const result = await this.slackClient.chat.update(updateOptions);
-      logger.info(`Error message update result: ${result.ok}`);
+      const updateResult = await this.slackClient.chat.update(updateOptions);
+      logger.info(`Error message update result: ${updateResult.ok}`);
 
     } catch (updateError: any) {
       logger.error(`Failed to send error message to Slack: ${updateError.message}`);

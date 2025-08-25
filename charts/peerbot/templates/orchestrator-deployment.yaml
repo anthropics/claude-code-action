@@ -111,6 +111,8 @@ spec:
           value: "8080"
         - name: LOG_LEVEL
           value: {{ .Values.orchestrator.logLevel | default "info" }}
+        - name: WORKER_IDLE_CLEANUP_MINUTES
+          value: {{ .Values.orchestrator.idleCleanupMinutes | default "60" | quote }}
         
         ports:
         - name: http

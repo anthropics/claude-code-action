@@ -8,7 +8,7 @@ import type { WorkerConfig } from "./types";
 import logger from "./logger";
 import { execSync } from "node:child_process";
 import fs from "node:fs";
-import { dirname, relative } from "node:path";
+import { join } from "node:path";
 
 export class ClaudeWorker {
   private sessionRunner: ClaudeSessionRunner;
@@ -41,8 +41,8 @@ export class ClaudeWorker {
 
 
 
-  private listMakefilePaths(rootDirectory: string): string[] {
-    const foundMakefiles: string[] = [];
+  private listAppDirectories(rootDirectory: string): string[] {
+    const foundDirectories: string[] = [];
     const ignored = new Set([
       "node_modules",
       ".git",
@@ -55,6 +55,19 @@ export class ClaudeWorker {
       "venv"
     ]);
 
+    const buildConfigFiles = new Set([
+      "Makefile",
+      "makefile", 
+      "package.json",
+      "pyproject.toml",
+      "Cargo.toml",
+      "pom.xml",
+      "build.gradle",
+      "build.gradle.kts",
+      "CMakeLists.txt",
+      "go.mod"
+    ]);
+
     const walk = (dir: string): void => {
       let entries: fs.Dirent[] = [];
       try {
@@ -62,55 +75,38 @@ export class ClaudeWorker {
       } catch {
         return;
       }
+      
+      // Check if current directory has any build config files
+      const hasConfigFile = entries.some(entry => 
+        entry.isFile() && buildConfigFiles.has(entry.name)
+      );
+      
+      if (hasConfigFile) {
+        foundDirectories.push(dir);
+      }
+      
+      // Recursively walk subdirectories
       for (const entry of entries) {
         const p = `${dir}/${entry.name}`;
-        if (entry.isDirectory()) {
-          if (ignored.has(entry.name)) continue;
+        if (entry.isDirectory() && !ignored.has(entry.name)) {
           walk(p);
-        } else if (entry.isFile() && entry.name === "Makefile") {
-          foundMakefiles.push(p);
         }
       }
     };
 
     walk(rootDirectory);
-    return foundMakefiles;
+    return foundDirectories;
   }
 
-  private extractMakeTargets(makefileDirectory: string): string[] {
-    try {
-      const stdout = execSync(`make -C "${makefileDirectory}" -qp`, { stdio: ["ignore", "pipe", "ignore"], encoding: "utf-8" });
-      const lineRegex = new RegExp('^[a-zA-Z0-9][^$#\\/\\t%=:]*:([^=]|$)');
-      const targets = new Set<string>();
-      for (const line of stdout.split("\n")) {
-        if (!lineRegex.test(line)) continue;
-        const name = line.split(":")[0];
-        if (!name || name.startsWith(".")) continue;
-        if (name === "Makefile" || name === "makefile" || name === "GNUmakefile") continue;
-        targets.add(name);
-      }
-      return Array.from(targets).sort((a, b) => a.localeCompare(b));
-    } catch {
-      return [];
-    }
-  }
 
   private getMakeTargetsSummary(): string {
     const root = `/workspace/${this.config.userId}`;
-    const makefiles = this.listMakefilePaths(root);
-    if (makefiles.length === 0) return "  - none";
+    const appDirectories = this.listAppDirectories(root);
+    if (appDirectories.length === 0) return "  - none";
 
     const lines: string[] = [];
-    for (const mf of makefiles) {
-      const dir = dirname(mf);
-      const rel = relative(root, dir) || ".";
-      const targets = this.extractMakeTargets(dir);
-      lines.push(`  - ${rel}`);
-      if (targets.length === 0) {
-        lines.push("    - (none)");
-      } else {
-        for (const t of targets) lines.push(`    - ${t}`);
-      }
+    for (const dir of appDirectories) {
+      lines.push(`  - ${dir}`);
     }
     return lines.join("\n");
   }
@@ -291,70 +287,22 @@ export class ClaudeWorker {
    * Generate custom instructions for Claude
    */
   private generateCustomInstructions(): string {
-    return `
-You are a helpful Claude Code agent running in a pod on K8S for user ${this.config.userId}. 
-You MUST generate Markdown content that will be rendered in user's messaging app. 
-
-**Code Block Actions:**
-You can add action metadata to code blocks to create interactive buttons. 
-The metadata goes in the fence info, NOT in the content.
-Only use it to run commands and programs, not to create forms or links.
-IMPORTANT: Code blocks with action metadata MUST be less than 2000 characters. Longer code blocks will be skipped and won't create buttons.
-
-**Examples:**
-
-\`\`\`bash { action: "Deploy App", confirm: true, show: true }
-#!/bin/bash
-npm run build
-docker build -t myapp .
-\`\`\`
-
-\`\`\`blockkit { action: "Configure Settings", confirm: false, show: false }
-{
-  "blocks": [
-    {
-      "type": "input",
-      "element": {
-        "type": "plain_text_input",
-        "action_id": "name_input"
-      },
-      "label": {
-        "type": "plain_text",
-        "text": "Project Name"
-      }
+    try {
+      const templatePath = join(__dirname, 'custom-instructions.md');
+      const template = fs.readFileSync(templatePath, 'utf-8');
+      
+      // Replace placeholders with actual values
+      return template
+        .replace(/{{userId}}/g, this.config.userId)
+        .replace(/{{repositoryUrl}}/g, this.config.repositoryUrl)
+        .replace(/{{sessionKey}}/g, this.config.sessionKey)
+        .replace(/{{sessionKeyFormatted}}/g, this.config.sessionKey.replace(/\./g, "-"))
+        .replace(/{{makeTargetsSummary}}/g, this.getMakeTargetsSummary());
+    } catch (error) {
+      logger.error('Failed to read custom instructions template:', error);
+      // Fallback to basic instructions
+      return `You are a helpful Claude Code agent for user ${this.config.userId}.`;
     }
-  ]
-}
-\`\`\`
-
-**CRITICAL FOR BLOCKKIT FORMS:**
-- ALWAYS include action metadata: \`{ action: "Button Name", confirm: false, show: false }\`
-- NEVER use plain \`\`\`blockkit without metadata
-- Forms without action metadata will NOT work properly
-
-**Environment:**
-- Repo: ${this.config.repositoryUrl}
-- Session: ${this.config.sessionKey}
-- Makefile directories and targets (indicating projects):
-${this.getMakeTargetsSummary()}
-
-**Guidelines:**
-- Branch: claude/${this.config.sessionKey.replace(/\./g, "-")}
-- IMPORTANT: After making any code changes, you MUST commit and push them using git commands (git add, git commit, git push).
-- Push only to this branch (no PR creation, the user has to create PR manually) include the PR creation link in the message (https://github.com/[CURRENT_REPO_OWNER]/[CURRENT_REPO_NAME]/compare/[TARGET_ORIGIN_BRANCH]...[CURRENT_BRANCH]) or ask the user to click "Edit" button below.
-- Focus on the user's request.
-- Always prefer numbered lists over bullet points.
-
-**Instructions:**
-1. New project: create a folder in the root directory; ask for name, tech stack (dbname,providername,apiservicename etc.) in a form and autopopulate if provided. Collect secrets if needed. Deployment types are Node.js/bun, Python/uv, Docker, Docker Compose, Cloudflare (install flarectl and ask for personal access token.).
-2. Feature/bug: if no Makefile in current dir, show a dropdown of folders containing a Makefile in a form; user selects one; set the current directory to the selected folder.
-3. Secrets: if required, collect values via form and map to .env file before running make commands.
-4. New persona: If the user says he wants to create subagent/persona, create a Claude subagent on .claude/agents/agent-name.md and in there add it's traits based on the form values the user enters.
-5. If the user wants to remember something, add it to CLAUDE.md file.
-6. If the user wants to create an action, create a new file in .claude/actions/action-name.md and in there add the action's traits based on the form values the user enters.
-
-}.`
-.trim();
   }
 
 

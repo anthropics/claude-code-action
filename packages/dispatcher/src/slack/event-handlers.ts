@@ -833,17 +833,84 @@ export class SlackEventHandlers {
 
   private async updateAppHome(userId: string, client: any): Promise<void> {
     logger.info(`Updating app home for user: ${userId}`);
-    const homeView = {
-      type: "home",
-      blocks: [
-        {
-          type: "section",
-          text: { type: "mrkdwn", text: "Welcome to Claude Code!" },
-        },
-      ],
-    };
 
-    await client.views.publish({ user_id: userId, view: homeView });
+    try {
+      const username = await this.getOrCreateUserMapping(userId, client);
+      const repository = await this.repoManager.ensureUserRepository(username);
+
+      const homeView = {
+        type: "home",
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: "*Welcome to Peerbot!* 👋" },
+          },
+          {
+            type: "divider",
+          },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `*Current Repository:*\n<${repository.repositoryUrl}|${repository.repositoryName}>`
+            },
+            accessory: {
+              type: "button",
+              text: {
+                type: "plain_text",
+                text: "Change Repository"
+              },
+              action_id: "open_repository_override_modal"
+            }
+          },
+          {
+            type: "context",
+            elements: [
+              {
+                type: "mrkdwn",
+                text: this.config.github.repository 
+                  ? "📌 Using configured repository override"
+                  : "🔧 Using auto-generated user repository"
+              }
+            ]
+          },
+          {
+            type: "divider",
+          },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "💬 *Get Started:*\nSend me a message or mention me in a channel to start coding together!"
+            }
+          }
+        ],
+      };
+
+      await client.views.publish({ user_id: userId, view: homeView });
+    } catch (error) {
+      logger.error(`Error updating app home for user ${userId}:`, error);
+      
+      // Fallback home view if repository lookup fails
+      const fallbackHomeView = {
+        type: "home",
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: "*Welcome to Peerbot!* 👋" },
+          },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "💬 Send me a message or mention me in a channel to start coding together!"
+            }
+          }
+        ],
+      };
+
+      await client.views.publish({ user_id: userId, view: fallbackHomeView });
+    }
   }
 
   private async handleBlockkitFormSubmission(
@@ -963,12 +1030,23 @@ export class SlackEventHandlers {
       return;
     }
 
+    // Send confirmation message if triggered from a thread
     if (channelId && threadTs) {
       await client.chat.postMessage({
         channel: channelId,
         thread_ts: threadTs,
         text: `✅ Repository set to ${repoUrl}`,
       });
+    } else {
+      // If triggered from home tab, send ephemeral confirmation and refresh home tab
+      await client.chat.postEphemeral({
+        channel: userId, // DM channel
+        user: userId,
+        text: `✅ Repository set to ${repoUrl}`,
+      });
+      
+      // Refresh the home tab to show updated repository
+      await this.updateAppHome(userId, client);
     }
   }
 

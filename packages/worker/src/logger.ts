@@ -13,7 +13,26 @@ const logger = winston.createLogger({
       format: winston.format.combine(
         winston.format.colorize(),
         winston.format.printf(({ timestamp, level, message, ...meta }) => {
-          const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
+          let metaStr = '';
+          if (Object.keys(meta).length) {
+            try {
+              metaStr = ` ${JSON.stringify(meta, null, 0)}`;
+            } catch (err) {
+              // Handle circular structures by using a replacer function
+              metaStr = ` ${JSON.stringify(meta, (_, value) => {
+                if (typeof value === 'object' && value !== null) {
+                  if (value instanceof Error) {
+                    return {
+                      name: value.name,
+                      message: value.message,
+                      stack: value.stack?.split('\n')[0] // Only first line of stack
+                    };
+                  }
+                }
+                return value;
+              })}`;
+            }
+          }
           return `[${timestamp}] [${level}] ${message}${metaStr}`;
         })
       )

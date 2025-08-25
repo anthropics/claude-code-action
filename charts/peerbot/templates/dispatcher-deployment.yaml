@@ -149,6 +149,13 @@ spec:
                 configMapKeyRef:
                   name: {{ include "peerbot.fullname" . }}-config
                   key: github-organization
+            {{- if .Values.config.githubRepository }}
+            - name: GITHUB_REPOSITORY
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "peerbot.fullname" . }}-config
+                  key: github-repository
+            {{- end }}
           
             # Claude configuration
             - name: MODEL

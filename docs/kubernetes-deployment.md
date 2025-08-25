@@ -1,10 +1,10 @@
 # Kubernetes Deployment Guide
 
-This guide covers deploying the Claude Code Slack Bot to Google Kubernetes Engine (GKE) using the provided Helm charts.
+This guide covers deploying the Peerbot to Google Kubernetes Engine (GKE) using the provided Helm charts.
 
 ## Architecture Overview
 
-The Claude Code Slack Bot uses a **dispatcher-worker pattern** for scalable, thread-based conversations:
+The Peerbot uses a **dispatcher-worker pattern** for scalable, thread-based conversations:
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -482,4 +482,4 @@ podDisruptionBudget:
   minAvailable: 1
 ```
 
-This deployment guide provides a complete setup for running the Claude Code Slack Bot on Kubernetes with enterprise-grade reliability and security.
+This deployment guide provides a complete setup for running the Peerbot on Kubernetes with enterprise-grade reliability and security.

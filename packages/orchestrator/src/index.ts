@@ -13,6 +13,7 @@ class PeerbotOrchestrator {
   private deploymentManager: DeploymentManager;
   private queueConsumer: QueueConsumer;
   private isRunning = false;
+  private cleanupInterval?: NodeJS.Timeout;
 
   constructor(config: OrchestratorConfig) {
     this.config = config;
@@ -39,11 +40,15 @@ class PeerbotOrchestrator {
       // Setup graceful shutdown
       this.setupGracefulShutdown();
 
+      // Run initial cleanup and set up periodic cleanup
+      this.setupIdleCleanup();
+
       this.isRunning = true;
       console.log('🎉 Peerbot Orchestrator is running!');
       console.log(`- Kubernetes namespace: ${this.config.kubernetes.namespace}`);
       console.log('- Simple deployment scaling with 5-minute idle timeout');
       console.log('- Deployments start with 1 replica and scale to 0 after idle');
+      console.log(`- Worker idle cleanup: ${this.config.worker.idleCleanupMinutes} minutes threshold`);
 
     } catch (error) {
       console.error('❌ Failed to start orchestrator:', error);
@@ -58,6 +63,13 @@ class PeerbotOrchestrator {
     this.isRunning = false;
 
     try {
+      // Clear cleanup interval
+      if (this.cleanupInterval) {
+        clearInterval(this.cleanupInterval);
+        this.cleanupInterval = undefined;
+        console.log('✅ Cleanup interval stopped');
+      }
+
       await this.queueConsumer.stop();
       await this.dbPool.close();
       console.log('✅ Orchestrator stopped gracefully');
@@ -206,6 +218,24 @@ class PeerbotOrchestrator {
     });
   }
 
+  private setupIdleCleanup(): void {
+    console.log(`🧹 Setting up worker cleanup (${this.config.worker.idleCleanupMinutes}min threshold, 5min interval)`);
+    
+    // Run initial cleanup
+    this.deploymentManager.cleanupIdleDeployments().catch(error => {
+      console.error('❌ Initial cleanup failed:', error);
+    });
+
+    // Set up periodic cleanup every 5 minutes
+    this.cleanupInterval = setInterval(async () => {
+      try {
+        await this.deploymentManager.cleanupIdleDeployments();
+      } catch (error) {
+        console.error('❌ Periodic cleanup failed:', error);
+      }
+    }, 5 * 60 * 1000); // 5 minutes in milliseconds
+  }
+
   private setupGracefulShutdown(): void {
     const cleanup = async () => {
       console.log('🔄 Received shutdown signal, gracefully shutting down...');
@@ -288,7 +318,8 @@ async function main() {
             cpu: process.env.WORKER_CPU_LIMIT || '1000m', 
             memory: process.env.WORKER_MEMORY_LIMIT || '2Gi'
           }
-        }
+        },
+        idleCleanupMinutes: parseInt(process.env.WORKER_IDLE_CLEANUP_MINUTES || '60')
       },
       kubernetes: {
         namespace: process.env.KUBERNETES_NAMESPACE || 'peerbot'

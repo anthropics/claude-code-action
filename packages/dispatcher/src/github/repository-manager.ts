@@ -34,10 +34,42 @@ export class GitHubRepositoryManager {
   }
 
   /**
+   * Extract repository name from GitHub URL
+   */
+  private extractRepoNameFromUrl(url: string): string {
+    try {
+      // Handle both HTTPS and SSH URLs
+      const match = url.match(/github\.com[:/]([^/]+)\/([^/.]+)(?:\.git)?$/);
+      if (match) {
+        return match[2]; // Return repository name
+      }
+      return 'unknown-repo';
+    } catch (error) {
+      return 'unknown-repo';
+    }
+  }
+
+  /**
    * Ensure user repository exists, create if needed
    */
   async ensureUserRepository(username: string): Promise<UserRepository> {
     try {
+      // If a repository override is configured, use it instead of creating user-specific repositories
+      if (this.config.repository) {
+        // Create repository info from override URL (no caching for overrides)
+        const repository: UserRepository = {
+          username,
+          repositoryName: this.extractRepoNameFromUrl(this.config.repository),
+          repositoryUrl: this.config.repository,
+          cloneUrl: this.config.repository.replace('github.com', 'github.com'),
+          createdAt: Date.now(),
+          lastUsed: Date.now(),
+        };
+
+        logger.info(`Using repository override for user ${username}: ${repository.repositoryUrl}`);
+        return repository;
+      }
+
       // Check if we have cached repository info
       const cached = this.repositories.get(username);
       if (cached) {
@@ -140,7 +172,7 @@ export class GitHubRepositoryManager {
           repoResponse = await this.octokit.rest.repos.createInOrg({
             org: this.config.organization,
             name: repositoryName,
-            description: `Personal workspace for ${username} - Claude Code Slack Bot`,
+            description: `Personal workspace for ${username} - Peerbot`,
             private: false,
             has_issues: true,
             has_projects: false,
@@ -155,7 +187,7 @@ export class GitHubRepositoryManager {
             logger.info(`Organization ${this.config.organization} not found, creating repository for authenticated user...`);
             repoResponse = await this.octokit.rest.repos.createForAuthenticatedUser({
               name: repositoryName,
-              description: `Personal workspace for ${username} - Claude Code Slack Bot`,
+              description: `Personal workspace for ${username} - Peerbot`,
               private: false,
               has_issues: true,
               has_projects: false,
@@ -173,7 +205,7 @@ export class GitHubRepositoryManager {
         logger.info(`No organization specified, creating repository for authenticated user...`);
         repoResponse = await this.octokit.rest.repos.createForAuthenticatedUser({
           name: repositoryName,
-          description: `Personal workspace for ${username} - Claude Code Slack Bot`,
+          description: `Personal workspace for ${username} - Peerbot`,
           private: false,
           has_issues: true,
           has_projects: false,
@@ -184,8 +216,6 @@ export class GitHubRepositoryManager {
         });
       }
 
-      // Create initial README
-      const readmeContent = this.generateInitialReadme(username);
       
       // Use the actual owner from the response
       const owner = repoResponse.data.owner.login;
@@ -194,8 +224,8 @@ export class GitHubRepositoryManager {
         owner: owner,
         repo: repositoryName,
         path: "README.md",
-        message: "Initial setup by Claude Code Slack Bot",
-        content: Buffer.from(readmeContent).toString("base64"),
+        message: "Initial setup by Peerbot",
+        content: `# ${repositoryName}`,
       });
 
       // Create initial directory structure
@@ -222,56 +252,6 @@ export class GitHubRepositoryManager {
         error as Error
       );
     }
-  }
-
-  /**
-   * Generate initial README content
-   */
-  private generateInitialReadme(username: string): string {
-    return `# ${username}'s Workspace
-
-This is your personal workspace for the Claude Code Slack Bot.
-
-## How it works
-
-1. **Mention @peerbotai** in any Slack channel or send a direct message
-2. **Each thread** becomes a persistent conversation with Claude
-3. **All changes** are automatically committed to this repository
-4. **Resume conversations** by replying to existing threads
-
-## Repository Structure
-
-\`\`\`
-├── projects/          # Your coding projects
-│   └── examples/      # Example projects
-├── scripts/           # Utility scripts
-├── docs/              # Documentation
-└── workspace/         # Temporary workspace (auto-cleaned)
-\`\`\`
-
-## Recent Sessions
-
-<!-- Session history will be updated automatically -->
-
-## Getting Started
-
-Try asking Claude to:
-- Create a simple Python script
-- Set up a React project
-- Debug existing code
-- Write documentation
-- Analyze code quality
-
-## Links
-
-- 📝 [Edit on GitHub.dev](https://github.dev/${this.config.organization}/${username})
-- 🔄 [Create Pull Request](https://github.com/${this.config.organization}/${username}/compare)
-- 📊 [Repository Insights](https://github.com/${this.config.organization}/${username}/pulse)
-
----
-
-*This workspace is managed by the Claude Code Slack Bot. All interactions are logged and persisted automatically.*
-`;
   }
 
   /**
