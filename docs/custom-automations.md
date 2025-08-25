@@ -62,7 +62,7 @@ Perfect for automatically reviewing PRs from new team members, external contribu
 
 ## Custom Prompt Templates
 
-Use `override_prompt` for complete control over Claude's behavior with variable substitution:
+Use `override_prompt` for complete control over Claude's behavior with variable substitution. Variables are replaced with formatted data from the GitHub context.
 
 ```yaml
 - uses: anthropics/claude-code-action@beta
@@ -82,10 +82,81 @@ Use `override_prompt` for complete control over Claude's behavior with variable 
       Provide severity ratings (Critical/High/Medium/Low) for any issues found.
 ```
 
-The `override_prompt` feature supports these variables:
+### Available Variables
 
-- `$REPOSITORY`, `$PR_NUMBER`, `$ISSUE_NUMBER`
-- `$PR_TITLE`, `$ISSUE_TITLE`, `$PR_BODY`, `$ISSUE_BODY`
-- `$PR_COMMENTS`, `$ISSUE_COMMENTS`, `$REVIEW_COMMENTS`
-- `$CHANGED_FILES`, `$TRIGGER_COMMENT`, `$TRIGGER_USERNAME`
-- `$BRANCH_NAME`, `$BASE_BRANCH`, `$EVENT_TYPE`, `$IS_PR`
+| Variable | Description | Example Output | Availability |
+|----------|-------------|----------------|--------------|
+| `$REPOSITORY` | Full repository name | `owner/repo` | All contexts |
+| `$PR_NUMBER` | Pull request number | `123` | PR contexts only |
+| `$ISSUE_NUMBER` | Issue number | `456` | Issue contexts only |
+| `$PR_TITLE` | Pull request title | `feat: add new feature` | PR contexts only |
+| `$ISSUE_TITLE` | Issue title | `Bug: Login not working` | Issue contexts only |
+| `$PR_BODY` | Formatted PR description with images replaced | Multi-line markdown content | PR contexts only |
+| `$ISSUE_BODY` | Formatted issue description with images replaced | Multi-line markdown content | Issue contexts only |
+| `$PR_COMMENTS` | Formatted PR comments | `[username at 2024-01-01]: Comment text`<br/><br/>`[user2 at 2024-01-02]: Another comment` | PR contexts only |
+| `$ISSUE_COMMENTS` | Formatted issue comments | Same format as PR_COMMENTS | Issue contexts only |
+| `$REVIEW_COMMENTS` | Formatted PR review comments with inline code locations | `[Review by user at 2024-01-01]: APPROVED`<br/>`Review body text`<br/>`  [Comment on src/file.js:10]: Inline comment` | PR contexts only |
+| `$CHANGED_FILES` | List of changed files with stats and SHAs | `- src/file.js (MODIFIED) +10/-5 SHA: abc123`<br/>`- docs/readme.md (ADDED) +50/-0 SHA: def456` | PR contexts only |
+| `$TRIGGER_COMMENT` | The comment that triggered Claude | `@claude please review this` | Comment events only |
+| `$TRIGGER_USERNAME` | Username who triggered the action | `johndoe` | All contexts |
+| `$BRANCH_NAME` | Current branch name (claudeBranch or baseBranch) | `feature-123` or `main` | All contexts |
+| `$BASE_BRANCH` | Base branch for PRs/issues | `main` | All contexts |
+| `$EVENT_TYPE` | GitHub event type | `pull_request_review_comment`, `issues`, etc. | All contexts |
+| `$IS_PR` | Whether context is a PR | `true` or `false` | All contexts |
+
+### Important Notes
+
+- **Empty variables**: Variables that don't apply to the current context (e.g., `$PR_NUMBER` in an issue) will be replaced with empty strings
+- **Image handling**: `$PR_BODY`, `$ISSUE_BODY`, and comment variables automatically have image URLs replaced with local file paths
+- **Formatting**: Comments include author and timestamp, changed files include modification stats
+- **Mode availability**: Variable substitution works in all modes (tag, review, agent) when using `override_prompt`
+
+### Variable Output Examples
+
+#### Comments Format
+
+```text
+$PR_COMMENTS outputs:
+[alice at 2024-12-01T10:30:00Z]: This looks great! Just one suggestion below.
+
+[bob at 2024-12-01T11:00:00Z]: I agree with Alice. Also, can we add tests?
+```
+
+#### Changed Files Format
+
+```text
+$CHANGED_FILES outputs:
+- src/components/Button.tsx (MODIFIED) +25/-10 SHA: a1b2c3d4
+- src/components/Button.test.tsx (ADDED) +100/-0 SHA: e5f6g7h8
+- src/old/Legacy.js (DELETED) +0/-150 SHA: deleted
+```
+
+#### Review Comments Format
+
+```text
+$REVIEW_COMMENTS outputs:
+[Review by charlie at 2024-12-01T12:00:00Z]: REQUEST_CHANGES
+Please address the security concern below.
+  [Comment on src/auth.js:45]: This could be vulnerable to SQL injection
+  [Comment on src/auth.js:67]: Consider using prepared statements here
+```
+
+### Mode-Specific Considerations
+
+#### Review Mode
+
+- All PR-related variables are available since review mode only works on pull requests
+- `$TRIGGER_COMMENT` contains the review comment if triggered by a review
+- Variable substitution fully supported with `override_prompt`
+
+#### Agent Mode
+
+- Typically used for automation without PR/issue context
+- PR/issue-specific variables will be empty when no context is available
+- Variable substitution fully supported with `override_prompt`
+
+#### Tag Mode
+
+- Full variable support for both PR and issue contexts
+- Variables adapt based on whether triggered on a PR or issue
+- Variable substitution fully supported with `override_prompt`

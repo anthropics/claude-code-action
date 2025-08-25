@@ -13,6 +13,7 @@ A general-purpose [Claude Code](https://claude.ai/code) action for GitHub PRs an
 - 🛠️ **Flexible Tool Access**: Access to GitHub APIs and file operations (additional tools can be enabled via configuration)
 - 📋 **Progress Tracking**: Visual progress indicators with checkboxes that dynamically update as Claude completes tasks
 - 🏃 **Runs on Your Infrastructure**: The action executes entirely on your own GitHub runner (Anthropic API calls go to your chosen provider)
+- 🎯 **Custom Prompts**: Create tailored prompts with variable substitution (`$PR_NUMBER`, `$CHANGED_FILES`, etc.) for automated workflows
 
 ## ⚠️ **BREAKING CHANGES COMING IN v1.0** ⚠️
 
@@ -42,7 +43,7 @@ This command will guide you through setting up the GitHub app and required secre
 
 - [Setup Guide](./docs/setup.md) - Manual setup, custom GitHub apps, and security best practices
 - [Usage Guide](./docs/usage.md) - Basic usage, workflow configuration, and input parameters
-- [Custom Automations](./docs/custom-automations.md) - Examples of automated workflows and custom prompts
+- [Custom Automations](./docs/custom-automations.md) - Automated workflows, custom prompts with variable substitution
 - [Configuration](./docs/configuration.md) - MCP servers, permissions, environment variables, and advanced settings
 - [Experimental Features](./docs/experimental.md) - Execution modes and network restrictions
 - [Cloud Providers](./docs/cloud-providers.md) - AWS Bedrock and Google Vertex AI setup
