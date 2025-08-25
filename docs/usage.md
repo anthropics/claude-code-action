@@ -54,7 +54,6 @@ jobs:
 | `prompt`                       | Instructions for Claude. Can be a direct prompt or custom template for automation workflows                          | No       | -         |
 | `claude_args`                  | Additional arguments to pass directly to Claude CLI (e.g., `--max-turns 10 --model claude-4-0-sonnet-20250805`)      | No       | ""        |
 | `base_branch`                  | The base branch to use for creating new branches (e.g., 'main', 'develop')                                           | No       | -         |
-| `timeout_minutes`              | Timeout in minutes for execution                                                                                     | No       | `30`      |
 | `use_sticky_comment`           | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                          | No       | `false`   |
 | `github_token`                 | GitHub token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!** | No       | -         |
 | `use_bedrock`                  | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                                          | No       | `false`   |
