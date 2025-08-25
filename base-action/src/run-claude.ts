@@ -15,6 +15,16 @@ const BASE_ARGS = ["--verbose", "--output-format", "stream-json"];
 export type ClaudeOptions = {
   timeoutMinutes?: string;
   claudeArgs?: string;
+  model?: string;
+  pathToClaudeCodeExecutable?: string;
+  allowedTools?: string;
+  disallowedTools?: string;
+  maxTurns?: string;
+  mcpConfig?: string;
+  systemPrompt?: string;
+  appendSystemPrompt?: string;
+  claudeEnv?: string;
+  fallbackModel?: string;
 };
 
 type PreparedConfig = {
@@ -122,7 +132,10 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
     pipeStream.destroy();
   });
 
-  const claudeProcess = spawn("claude", config.claudeArgs, {
+  // Use custom executable path if provided, otherwise default to "claude"
+  const claudeExecutable = options.pathToClaudeCodeExecutable || "claude";
+
+  const claudeProcess = spawn(claudeExecutable, config.claudeArgs, {
     stdio: ["pipe", "pipe", "inherit"],
     env: {
       ...process.env,
