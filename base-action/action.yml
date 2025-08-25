@@ -20,10 +20,6 @@ inputs:
     default: ""
 
   # Action settings
-  timeout_minutes:
-    description: "Timeout in minutes for Claude Code execution"
-    required: false
-    default: "10"
   claude_args:
     description: "Additional arguments to pass directly to Claude CLI (e.g., '--max-turns 3 --mcp-config /path/to/config.json')"
     required: false
@@ -130,7 +126,6 @@ runs:
         INPUT_PROMPT: ${{ inputs.prompt }}
         INPUT_PROMPT_FILE: ${{ inputs.prompt_file }}
         INPUT_SETTINGS: ${{ inputs.settings }}
-        INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
         INPUT_CLAUDE_ARGS: ${{ inputs.claude_args }}
         INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ inputs.experimental_slash_commands_dir }}
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}

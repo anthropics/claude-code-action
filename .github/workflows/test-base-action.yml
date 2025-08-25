@@ -25,7 +25,6 @@ jobs:
           prompt: ${{ github.event.inputs.test_prompt || 'List the files in the current directory starting with "package"' }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           allowed_tools: "LS,Read"
-          timeout_minutes: "3"
 
       - name: Verify inline prompt output
         run: |
@@ -83,7 +82,6 @@ jobs:
           prompt_file: "test-prompt.txt"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           allowed_tools: "LS,Read"
-          timeout_minutes: "3"
 
       - name: Verify prompt file output
         run: |

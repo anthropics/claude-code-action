@@ -31,7 +31,6 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # github_token not needed - uses default GITHUB_TOKEN for GitHub operations
-          timeout_minutes: "30"
           prompt: |
             Review this pull request comprehensively.
 

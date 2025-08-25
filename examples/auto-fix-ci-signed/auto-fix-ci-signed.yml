@@ -93,6 +93,5 @@ jobs:
             Error logs:
             ${{ toJSON(fromJSON(steps.failure_details.outputs.result).errorLogs) }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          timeout_minutes: "30"
           use_commit_signing: true
           claude_args: "--allowedTools 'Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(bun:*),Bash(npm:*),Bash(npx:*),Bash(gh:*),mcp__github_file_ops__commit_files,mcp__github_file_ops__delete_files'"
