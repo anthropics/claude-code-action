@@ -79,6 +79,7 @@ jobs:
 | `experimental_allowed_domains` | Restrict network access to these domains only (newline-separated).                                                                    | No       | ""        |
 | `use_commit_signing`           | Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands                     | No       | `false`   |
 | `allowed_bots`                 | Comma-separated list of allowed bot usernames, or '\*' to allow all bots. Empty string (default) allows no bots                       | No       | ""        |
+| `disable_user_mentions`        | Disable @username mentions in Claude comment headers                                                                                  | No       | `false`   |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 

@@ -118,6 +118,10 @@ inputs:
     description: "Restrict network access to these domains only (newline-separated). If not set, no restrictions are applied. Provider domains are auto-detected."
     required: false
     default: ""
+  disable_user_mentions:
+    description: "Disable @username mentions in Claude comment headers"
+    required: false
+    default: "false"
 
 outputs:
   execution_file:
@@ -269,6 +273,7 @@ runs:
         PREPARE_ERROR: ${{ steps.prepare.outputs.prepare_error || '' }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
+        DISABLE_USER_MENTIONS: ${{ inputs.disable_user_mentions }}
 
     - name: Display Claude Code Report
       if: steps.prepare.outputs.contains_trigger == 'true' && steps.claude-code.outputs.execution_file != ''
