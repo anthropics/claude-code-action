@@ -22,6 +22,7 @@ export type ClaudeOptions = {
   fallbackModel?: string;
   timeoutMinutes?: string;
   model?: string;
+  pathToClaudeCodeExecutable?: string;
 };
 
 type PreparedConfig = {
@@ -168,7 +169,10 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
     pipeStream.destroy();
   });
 
-  const claudeProcess = spawn("claude", config.claudeArgs, {
+  // Use custom executable path if provided, otherwise default to "claude"
+  const claudeExecutable = options.pathToClaudeCodeExecutable || "claude";
+
+  const claudeProcess = spawn(claudeExecutable, config.claudeArgs, {
     stdio: ["pipe", "pipe", "inherit"],
     env: {
       ...process.env,

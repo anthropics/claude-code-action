@@ -31,6 +31,8 @@ async function run() {
       claudeEnv: process.env.INPUT_CLAUDE_ENV,
       fallbackModel: process.env.INPUT_FALLBACK_MODEL,
       model: process.env.ANTHROPIC_MODEL,
+      pathToClaudeCodeExecutable:
+        process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE,
     });
   } catch (error) {
     core.setFailed(`Action failed with error: ${error}`);
