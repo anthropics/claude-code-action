@@ -3,7 +3,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { setupClaudeCodeSettings } from "../src/setup-claude-code-settings";
 import { tmpdir } from "os";
-import { mkdir, writeFile, readFile, rm, readdir } from "fs/promises";
+import { mkdir, writeFile, readFile, rm } from "fs/promises";
 import { join } from "path";
 
 const testHomeDir = join(

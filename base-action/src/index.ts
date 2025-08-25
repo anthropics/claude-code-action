@@ -13,7 +13,6 @@ async function run() {
     await setupClaudeCodeSettings(
       process.env.INPUT_SETTINGS,
       undefined, // homeDir
-      process.env.INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR,
     );
 
     const promptConfig = await preparePrompt({
