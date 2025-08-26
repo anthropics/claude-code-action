@@ -24,9 +24,13 @@ data:
     -- Load the main schema migration
     \i /docker-entrypoint-initdb.d/schema-001_initial_schema.sql
     \i /docker-entrypoint-initdb.d/schema-002_queue_tables.sql
+    \i /docker-entrypoint-initdb.d/schema-003_pgboss_rls_fix.sql
     
   schema-001_initial_schema.sql: |
 {{ .Files.Get "../../db/migrations/001_initial_schema.sql" | indent 4 }}
     
   schema-002_queue_tables.sql: |
 {{ .Files.Get "../../db/migrations/002_queue_tables.sql" | indent 4 }}
+    
+  schema-003_pgboss_rls_fix.sql: |
+{{ .Files.Get "../../db/migrations/003_pgboss_rls_fix.sql" | indent 4 }}

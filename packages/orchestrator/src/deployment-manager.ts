@@ -72,9 +72,60 @@ export class DeploymentManager {
   }
 
   /**
-   * Create PostgreSQL user with generated credentials and isolated schema
+   * Create PostgreSQL user with isolated access to pgboss using new RLS system
    */
   private async createPostgresUser(username: string, password: string): Promise<void> {
+    const client = await this.dbPool.getClient();
+    
+    try {
+      // Check if new RLS function exists, if not fall back to old method
+      const functionExists = await client.query(
+        'SELECT 1 FROM pg_proc WHERE proname = $1',
+        ['create_isolated_pgboss_user']
+      );
+      
+      if (functionExists.rows.length > 0) {
+        // Extract user ID and team ID from username (format: slack_teamid_userid)
+        const usernameParts = username.split('_');
+        if (usernameParts.length < 3 || usernameParts[0] !== 'slack') {
+          throw new Error(`Invalid username format: ${username}. Expected format: slack_teamid_userid`);
+        }
+        
+        const teamId = usernameParts[1];
+        const userId = usernameParts.slice(2).join('_'); // Handle user IDs with underscores
+        
+        console.log(`Creating isolated pgboss user: ${username} (team: ${teamId}, user: ${userId})`);
+        
+        // Use the new RLS-aware user creation function
+        const createdUsername = await client.query(
+          'SELECT create_isolated_pgboss_user($1, $2, $3) as username',
+          [userId, teamId, password]
+        );
+        
+        const actualUsername = createdUsername.rows[0]?.username;
+        if (actualUsername !== username) {
+          console.warn(`Username mismatch: expected ${username}, got ${actualUsername}`);
+        }
+        
+        console.log(`✅ Successfully ensured user ${username} has isolated pgboss access`);
+      } else {
+        // Fall back to old method temporarily
+        console.log(`RLS function not found, using legacy user creation for: ${username}`);
+        await this.createPostgresUserLegacy(username, password);
+      }
+      
+    } catch (error) {
+      console.error(`Failed to create/update PostgreSQL user ${username}:`, error);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  
+  /**
+   * Legacy method for creating PostgreSQL users (fallback)
+   */
+  private async createPostgresUserLegacy(username: string, password: string): Promise<void> {
     const client = await this.dbPool.getClient();
     const schemaName = `user_${username.replace(/[^a-zA-Z0-9]/g, '_')}`;
     
@@ -102,28 +153,9 @@ export class DeploymentManager {
         await client.query(`GRANT SELECT, INSERT, UPDATE ON pgboss.job TO "${username}"`);
         await client.query(`GRANT USAGE ON ALL SEQUENCES IN SCHEMA pgboss TO "${username}"`);
         
-        // Create row-level security policy for pgboss.job table
-        await client.query(`ALTER TABLE pgboss.job ENABLE ROW LEVEL SECURITY`);
-        await client.query(`
-          CREATE POLICY "${username}_job_policy" ON pgboss.job 
-          FOR ALL TO "${username}"
-          USING (data->>'userId' = '${username}' OR name LIKE 'thread_message_peerbot-worker-%')
-        `);
-        
-        console.log(`Created isolated schema and RLS policies for: ${username}`);
+        console.log(`Created legacy user setup for: ${username}`);
       } else {
         console.log(`PostgreSQL user already exists: ${username}`);
-        
-        // Ensure schema exists and permissions are correct
-        try {
-          await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}" AUTHORIZATION "${username}"`);
-          await client.query(`ALTER USER "${username}" SET search_path TO "${schemaName}", pgboss`);
-          await client.query(`GRANT USAGE ON SCHEMA pgboss TO "${username}"`);
-          await client.query(`GRANT SELECT, INSERT, UPDATE ON pgboss.job TO "${username}"`);
-          await client.query(`GRANT USAGE ON ALL SEQUENCES IN SCHEMA pgboss TO "${username}"`);
-        } catch (permError) {
-          console.error(`Failed to update permissions for existing user ${username}:`, permError);
-        }
       }
     } finally {
       client.release();
@@ -336,7 +368,12 @@ export class DeploymentManager {
                 ...(process.env.CLAUDE_TIMEOUT_MINUTES ? [{
                   name: 'CLAUDE_TIMEOUT_MINUTES',
                   value: process.env.CLAUDE_TIMEOUT_MINUTES
-                }] : [])
+                }] : []),
+                // Worker environment variables from configuration
+                ...Object.entries(this.config.worker.env || {}).map(([key, value]) => ({
+                  name: key,
+                  value: String(value)
+                }))
               ],
               resources: {
                 requests: this.config.worker.resources.requests,

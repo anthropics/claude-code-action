@@ -24,6 +24,7 @@ export interface OrchestratorConfig {
     };
     idleCleanupMinutes: number; // Minutes after which idle workers are deleted
     maxDeployments: number; // Maximum number of worker deployments allowed
+    env?: Record<string, string>; // Environment variables for worker containers
   };
   kubernetes: {
     namespace: string;
