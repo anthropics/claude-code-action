@@ -113,6 +113,8 @@ spec:
           value: {{ .Values.orchestrator.logLevel | default "info" }}
         - name: WORKER_IDLE_CLEANUP_MINUTES
           value: {{ .Values.orchestrator.idleCleanupMinutes | default "60" | quote }}
+        - name: MAX_WORKER_DEPLOYMENTS
+          value: {{ .Values.orchestrator.maxWorkerDeployments | default "20" | quote }}
         
         ports:
         - name: http

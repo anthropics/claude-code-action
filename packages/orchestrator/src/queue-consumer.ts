@@ -96,6 +96,9 @@ export class QueueConsumer {
         await this.deploymentManager.createWorkerDeployment(data.userId, data.threadId, teamId, data);
         console.log(`✅ Created deployment: ${deploymentName}`);
 
+        // Enforce deployment limit after creating new deployment
+        await this.deploymentManager.enforceMaxDeploymentLimit();
+
       } else {
         // Existing thread - ensure deployment is scaled to 1
         console.log(`Existing thread ${data.threadId} - ensuring deployment ${deploymentName} is running`);
@@ -108,6 +111,9 @@ export class QueueConsumer {
           console.log(`Deployment ${deploymentName} doesn't exist, recreating...`);
           await this.deploymentManager.createWorkerDeployment(data.userId, data.threadId, teamId, data);
           console.log(`✅ Recreated deployment: ${deploymentName}`);
+
+          // Enforce deployment limit after recreating deployment
+          await this.deploymentManager.enforceMaxDeploymentLimit();
         }
       }
 
@@ -203,7 +209,7 @@ export class QueueConsumer {
       } catch (error) {
         console.error('Error during cleanup task:', error);
       }
-    }, 5 * 60 * 1000); // Run every 5 minutes
+    }, 60 * 1000); // Run every minute
   }
 
   /**

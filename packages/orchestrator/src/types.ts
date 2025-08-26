@@ -23,6 +23,7 @@ export interface OrchestratorConfig {
       limits: { cpu: string; memory: string };
     };
     idleCleanupMinutes: number; // Minutes after which idle workers are deleted
+    maxDeployments: number; // Maximum number of worker deployments allowed
   };
   kubernetes: {
     namespace: string;

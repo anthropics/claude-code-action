@@ -227,6 +227,31 @@ export class WorkerQueueConsumer {
   private payloadToWorkerConfig(payload: ThreadMessagePayload): WorkerConfig {
     const platformMetadata = payload.platformMetadata;
     
+    // Extract session ID info from claudeOptions for session continuity
+    let resumeSessionId: string | undefined;
+    let sessionId: string | undefined;
+    try {
+      if (payload.claudeOptions && typeof payload.claudeOptions === 'object') {
+        resumeSessionId = (payload.claudeOptions as any).resumeSessionId;
+        sessionId = (payload.claudeOptions as any).sessionId;
+      } else if (typeof payload.claudeOptions === 'string') {
+        const parsedOptions = JSON.parse(payload.claudeOptions);
+        resumeSessionId = parsedOptions.resumeSessionId;
+        sessionId = parsedOptions.sessionId;
+      }
+    } catch (error) {
+      logger.warn('Failed to extract session IDs from claudeOptions:', error);
+    }
+
+    // Log session info for debugging
+    if (resumeSessionId) {
+      logger.info(`Resuming existing Claude session: ${resumeSessionId} for thread ${payload.threadId}`);
+    } else if (sessionId) {
+      logger.info(`Creating new Claude session: ${sessionId} for thread ${payload.threadId}`);
+    } else {
+      logger.info(`Starting Claude session without explicit ID for thread ${payload.threadId}`);
+    }
+    
     return {
       sessionKey: payload.agentSessionId || `session-${payload.threadId}`,
       userId: payload.userId,
@@ -237,7 +262,8 @@ export class WorkerQueueConsumer {
       slackResponseChannel: platformMetadata.slackResponseChannel || payload.channelId,
       slackResponseTs: platformMetadata.slackResponseTs || payload.messageId,
       claudeOptions: JSON.stringify(payload.claudeOptions),
-      resumeSessionId: undefined, // Don't resume - each message starts fresh
+      sessionId: sessionId, // Pass through sessionId for new sessions
+      resumeSessionId: resumeSessionId, // Pass through resumeSessionId for session continuity
       workspace: {
         baseDirectory: "/workspace",
         githubToken: process.env.GITHUB_TOKEN!,

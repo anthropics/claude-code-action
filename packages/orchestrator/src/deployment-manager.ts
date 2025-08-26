@@ -503,4 +503,124 @@ export class DeploymentManager {
     }
   }
 
+  /**
+   * Find all active deployments ordered by oldest last activity (to delete oldest first)
+   */
+  async findAllDeploymentsByActivity(): Promise<Array<{
+    deploymentId: string;
+    userId: string;
+    lastActivity: Date;
+    messageCount: number;
+  }>> {
+    const client = await this.dbPool.getClient();
+    try {
+      const query = `
+        WITH deployment_last_activity AS (
+          SELECT 
+            COALESCE(
+              SUBSTRING(data->>'gitBranch' FROM 'claude/session-([0-9.-]+)'),
+              data->>'threadTs'
+            ) as deployment_id,
+            data->>'userId' as user_id,
+            MAX(created_on) as last_activity,
+            COUNT(*) as message_count
+          FROM pgboss.job
+          WHERE name = 'thread_response'
+            AND data->>'gitBranch' IS NOT NULL
+          GROUP BY 
+            COALESCE(
+              SUBSTRING(data->>'gitBranch' FROM 'claude/session-([0-9.-]+)'),
+              data->>'threadTs'
+            ),
+            data->>'userId'
+        )
+        SELECT 
+          deployment_id,
+          user_id,
+          last_activity,
+          message_count
+        FROM deployment_last_activity
+        ORDER BY last_activity ASC;
+      `;
+
+      const result = await client.query(query);
+      
+      return result.rows.map(row => ({
+        deploymentId: row.deployment_id,
+        userId: row.user_id,
+        lastActivity: row.last_activity,
+        messageCount: parseInt(row.message_count)
+      }));
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Enforce maximum deployment limit by cleaning up oldest deployments
+   */
+  async enforceMaxDeploymentLimit(): Promise<void> {
+    try {
+      const maxDeployments = this.config.worker.maxDeployments;
+      console.log(`🔄 Checking deployment limit (max: ${maxDeployments})`);
+      
+      // Get all active deployments by checking actual Kubernetes deployments
+      const k8sDeployments = await this.appsV1Api.listNamespacedDeployment(
+        this.config.kubernetes.namespace,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'app.kubernetes.io/component=worker'
+      );
+
+      const activeDeployments = k8sDeployments.body.items || [];
+      const currentCount = activeDeployments.length;
+      
+      if (currentCount <= maxDeployments) {
+        console.log(`✅ Deployment count OK: ${currentCount}/${maxDeployments}`);
+        return;
+      }
+
+      const excessCount = currentCount - maxDeployments;
+      console.log(`⚠️  Deployment limit exceeded: ${currentCount}/${maxDeployments} (need to delete ${excessCount})`);
+
+      // Get deployment activity data to determine which ones to delete (oldest first)
+      const deploymentActivity = await this.findAllDeploymentsByActivity();
+      const activityMap = new Map(
+        deploymentActivity.map(d => [d.deploymentId, d.lastActivity])
+      );
+
+      // Sort K8s deployments by last activity (oldest first) and extract deployment IDs
+      const sortedDeployments = activeDeployments
+        .map((deployment: any) => {
+          const deploymentName = deployment.metadata?.name || '';
+          const deploymentId = deploymentName.replace('peerbot-worker-', '');
+          const lastActivity = activityMap.get(deploymentId) || new Date(0); // Default to epoch for deployments without activity
+          return { deploymentId, deploymentName, lastActivity };
+        })
+        .sort((a: any, b: any) => a.lastActivity.getTime() - b.lastActivity.getTime());
+
+      // Delete the oldest deployments
+      const toDelete = sortedDeployments.slice(0, excessCount);
+      
+      console.log(`🧹 Deleting ${toDelete.length} oldest deployments:`);
+      for (const deployment of toDelete) {
+        console.log(`  - ${deployment.deploymentId} (last activity: ${deployment.lastActivity.toISOString()})`);
+        
+        try {
+          await this.deleteWorkerDeployment(deployment.deploymentId);
+          console.log(`✅ Successfully deleted deployment: ${deployment.deploymentId}`);
+        } catch (error) {
+          console.error(`❌ Failed to delete deployment ${deployment.deploymentId}:`, error instanceof Error ? error.message : String(error));
+        }
+      }
+
+      console.log(`🧹 Deployment limit enforcement completed. Deleted ${toDelete.length} deployments.`);
+      
+    } catch (error) {
+      console.error('❌ Error during deployment limit enforcement:', error instanceof Error ? error.message : String(error));
+    }
+  }
+
 }

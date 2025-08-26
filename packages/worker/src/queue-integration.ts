@@ -36,17 +36,20 @@ export class QueueIntegration {
   // @ts-ignore - Used in showStopButton() and hideStopButton() methods
   private stopButtonVisible: boolean = false;
   private deploymentName?: string;
+  private workspaceManager?: any; // WorkspaceManager dependency
 
   constructor(config: { 
     databaseUrl: string;
     responseChannel?: string; 
     responseTs?: string;
     messageId?: string;
+    workspaceManager?: any;
   }) {
     this.pgBoss = new PgBoss(config.databaseUrl);
+    this.workspaceManager = config.workspaceManager;
     
     // Get response location from config or environment
-    this.responseChannel = config.responseChannel || process.env.INITIAL_SLACK_RESPONSE_CHANNEL || process.env.SLACK_RESPONSE_CHANNEL!;
+    this.responseChannel = config.responseChannel || process.env.SLACK_RESPONSE_CHANNEL!;
     this.responseTs = config.responseTs || process.env.INITIAL_SLACK_RESPONSE_TS || process.env.SLACK_RESPONSE_TS!;
     this.messageId = config.messageId || process.env.INITIAL_SLACK_MESSAGE_ID || process.env.SLACK_MESSAGE_ID!;
     
@@ -192,9 +195,41 @@ export class QueueIntegration {
   }
 
   /**
-   * Get the current git branch name only if it has commits
+   * Get the current git branch name only if the session has made changes
    */
-  private getCurrentGitBranch(): string | undefined {
+  private async getCurrentGitBranch(): Promise<string | undefined> {
+    try {
+      // If no workspace manager, fall back to old behavior
+      if (!this.workspaceManager) {
+        return this.getFallbackGitBranch();
+      }
+
+      // Check repository status
+      const status = await this.workspaceManager.getRepositoryStatus();
+      
+      // Show Edit button if either:
+      // 1. There are pending changes, OR
+      // 2. We're on a session branch (claude/*) which means work was done
+      const isSessionBranch = status.branch && status.branch.startsWith('claude/');
+      
+      if (status.hasChanges || isSessionBranch) {
+        logger.info(`Git branch for Edit button: ${status.branch} (hasChanges: ${status.hasChanges}, isSessionBranch: ${isSessionBranch})`);
+        return status.branch;
+      } else {
+        logger.debug(`Git branch ${status.branch} has no changes and is not a session branch, skipping Edit button`);
+        return undefined;
+      }
+      
+    } catch (error) {
+      logger.warn('Could not get git branch status from workspace manager:', error);
+      return this.getFallbackGitBranch();
+    }
+  }
+
+  /**
+   * Fallback method for getting git branch (old behavior)
+   */
+  private getFallbackGitBranch(): string | undefined {
     try {
       // Use the workspace directory if USER_ID is available, otherwise fall back to process.cwd()
       const workspaceDir = process.env.USER_ID ? `/workspace/${process.env.USER_ID}` : process.cwd();
@@ -208,7 +243,11 @@ export class QueueIntegration {
         return undefined;
       }
       
-      // Check if the branch has any commits
+      // Show Edit button if either:
+      // 1. The branch has commits, OR  
+      // 2. It's a session branch (claude/*) which indicates work was done
+      const isSessionBranch = branch.startsWith('claude/');
+      
       try {
         execSync('git log -1 --oneline', {
           encoding: 'utf-8',
@@ -216,13 +255,18 @@ export class QueueIntegration {
           stdio: 'pipe' // Suppress output
         });
         
-        // If we get here, there are commits in the branch
-        logger.info(`Git branch with commits detected: ${branch}`);
+        // Branch has commits
+        logger.info(`Git branch for Edit button (fallback): ${branch} (hasCommits: true, isSessionBranch: ${isSessionBranch})`);
         return branch;
       } catch (logError) {
-        // No commits in the branch yet
-        logger.debug(`Git branch ${branch} has no commits yet, skipping gitBranch field`);
-        return undefined;
+        // No commits yet, but still show Edit button for session branches
+        if (isSessionBranch) {
+          logger.info(`Git branch for Edit button (fallback): ${branch} (hasCommits: false, isSessionBranch: ${isSessionBranch})`);
+          return branch;
+        } else {
+          logger.debug(`Git branch ${branch} has no commits and is not a session branch, skipping Edit button`);
+          return undefined;
+        }
       }
       
     } catch (error) {
@@ -263,7 +307,7 @@ export class QueueIntegration {
         isDone: false, // Agent is still running
         timestamp: Date.now(),
         originalMessageTs: process.env.ORIGINAL_MESSAGE_TS, // User's original message for reactions
-        gitBranch: this.getCurrentGitBranch() // Current git branch for Edit button URLs
+        gitBranch: await this.getCurrentGitBranch() // Current git branch for Edit button URLs
       };
 
       // Send to thread_response queue
@@ -320,7 +364,7 @@ export class QueueIntegration {
         isDone: true, // Agent is done
         timestamp: Date.now(),
         originalMessageTs: process.env.ORIGINAL_MESSAGE_TS, // User's original message for reactions
-        gitBranch: this.getCurrentGitBranch() // Current git branch for Edit button URLs
+        gitBranch: await this.getCurrentGitBranch() // Current git branch for Edit button URLs
       };
 
       const jobId = await this.pgBoss.send('thread_response', payload, {
@@ -357,7 +401,7 @@ export class QueueIntegration {
         isDone: true, // Agent is done due to error
         timestamp: Date.now(),
         originalMessageTs: process.env.ORIGINAL_MESSAGE_TS, // User's original message for reactions
-        gitBranch: this.getCurrentGitBranch() // Current git branch for Edit button URLs
+        gitBranch: await this.getCurrentGitBranch() // Current git branch for Edit button URLs
       };
 
       const jobId = await this.pgBoss.send('thread_response', payload, {

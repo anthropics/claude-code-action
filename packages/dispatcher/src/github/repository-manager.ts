@@ -40,7 +40,7 @@ export class GitHubRepositoryManager {
     try {
       // Handle both HTTPS and SSH URLs
       const match = url.match(/github\.com[:/]([^/]+)\/([^/.]+)(?:\.git)?$/);
-      if (match) {
+      if (match && match[2]) {
         return match[2]; // Return repository name
       }
       return 'unknown-repo';
@@ -416,6 +416,37 @@ export class GitHubRepositoryManager {
         remaining: 0,
         reset: new Date(),
       };
+    }
+  }
+
+  /**
+   * Fetch README.md content from a GitHub repository
+   */
+  async fetchReadmeContent(owner: string, repo: string): Promise<string | null> {
+    try {
+      logger.info(`Fetching README.md from ${owner}/${repo}...`);
+      
+      const response = await this.octokit.rest.repos.getContent({
+        owner,
+        repo,
+        path: 'README.md',
+      });
+
+      if ('content' in response.data && response.data.content) {
+        const content = Buffer.from(response.data.content, 'base64').toString('utf8');
+        logger.info(`Successfully fetched README.md from ${owner}/${repo} (${content.length} characters)`);
+        return content;
+      }
+      
+      logger.warn(`README.md found but no content available for ${owner}/${repo}`);
+      return null;
+    } catch (error: any) {
+      if (error.status === 404) {
+        logger.info(`README.md not found for ${owner}/${repo}`);
+        return null;
+      }
+      logger.error(`Failed to fetch README.md from ${owner}/${repo}:`, error);
+      return null;
     }
   }
 }

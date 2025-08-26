@@ -16,7 +16,7 @@ function processMarkdownAndBlockkit(content: string): { text: string; blocks: an
     
     try {
       const metadata: any = {};
-      metadataStr.split(',').forEach(pair => {
+      metadataStr?.split(',').forEach(pair => {
         const [key, value] = pair.split(':').map(s => s.trim());
         if (key && value) {
           const cleanKey = key.replace(/"/g, '');
@@ -100,7 +100,8 @@ async function generateGitHubActionButtons(
   userId: string,
   gitBranch: string | undefined,
   userMappings: Map<string, string>,
-  repoManager: GitHubRepositoryManager
+  repoManager: GitHubRepositoryManager,
+  slackClient?: any
 ): Promise<any[] | undefined> {
   try {
     logger.debug(`Generating GitHub action buttons for user ${userId}, gitBranch: ${gitBranch}`);
@@ -112,14 +113,44 @@ async function generateGitHubActionButtons(
     }
     
     // Get GitHub username from Slack user ID
-    const githubUsername = userMappings.get(userId);
+    let githubUsername = userMappings.get(userId);
+    if (!githubUsername && slackClient) {
+      // Create user mapping on-demand if not found
+      logger.debug(`Creating on-demand user mapping for user ${userId}`);
+      try {
+        const userInfo = await slackClient.users.info({ user: userId });
+        const user = userInfo.user;
+        
+        let username = user.profile?.display_name || user.profile?.real_name || user.name;
+        if (!username) {
+          username = userId;
+        }
+        
+        // Sanitize username for GitHub
+        username = username.toLowerCase()
+          .replace(/[^a-z0-9-]/g, "-")
+          .replace(/^-|-$/g, "");
+        
+        username = `user-${username}`;
+        userMappings.set(userId, username);
+        githubUsername = username;
+        
+        logger.info(`Created user mapping: ${userId} -> ${username}`);
+      } catch (error) {
+        logger.error(`Failed to create user mapping for ${userId}:`, error);
+        const fallbackUsername = `user-${userId.substring(0, 8)}`;
+        userMappings.set(userId, fallbackUsername);
+        githubUsername = fallbackUsername;
+      }
+    }
+    
     if (!githubUsername) {
       logger.debug(`No GitHub username mapping found for user ${userId}`);
       return undefined;
     }
 
-    // Get repository information
-    const repository = await repoManager.getRepositoryInfo(githubUsername);
+    // Get repository information, create if needed
+    const repository = await repoManager.ensureUserRepository(githubUsername);
     if (!repository) {
       logger.debug(`No repository found for GitHub user ${githubUsername}`);
       return undefined;
@@ -130,7 +161,7 @@ async function generateGitHubActionButtons(
     
     logger.info(`Showing Edit button for branch: ${gitBranch}`);
     return [
-      `<https://github.com/${repoPath}/compare/${gitBranch}...${gitBranch}?quick_pull=1&labels=peerbot|🔀 Pull Request>`,
+      `<https://github.com/${repoPath}/compare/main...${gitBranch}?quick_pull=1&labels=peerbot|🔀 Pull Request>`,
       `<https://github.dev/${repoPath}/tree/${gitBranch}|Code>`,
     ];
   } catch (error) {
@@ -371,7 +402,7 @@ export class ThreadResponseConsumer {
       const result = processMarkdownAndBlockkit(content);
       
       // Get GitHub action links for this session
-      const githubActionLinks = await generateGitHubActionButtons(userId, data.gitBranch, this.userMappings, this.repoManager);
+      const githubActionLinks = await generateGitHubActionButtons(userId, data.gitBranch, this.userMappings, this.repoManager, this.slackClient);
       
       // Add GitHub action links to the content
       if (githubActionLinks && githubActionLinks.length > 0) {
@@ -466,7 +497,7 @@ export class ThreadResponseConsumer {
       };
       
       // Get GitHub action links for this session
-      const githubActionLinks = await generateGitHubActionButtons(userId, data.gitBranch, this.userMappings, this.repoManager);
+      const githubActionLinks = await generateGitHubActionButtons(userId, data.gitBranch, this.userMappings, this.repoManager, this.slackClient);
       
       // Add GitHub action links if available
       if (githubActionLinks && githubActionLinks.length > 0) {

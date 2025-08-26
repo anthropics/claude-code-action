@@ -225,11 +225,18 @@ class PeerbotOrchestrator {
     this.deploymentManager.cleanupIdleDeployments().catch(error => {
       console.error('❌ Initial cleanup failed:', error);
     });
+    
+    // Run initial deployment limit enforcement
+    this.deploymentManager.enforceMaxDeploymentLimit().catch(error => {
+      console.error('❌ Initial deployment limit enforcement failed:', error);
+    });
 
-    // Set up periodic cleanup every 5 minutes
+    // Set up periodic cleanup every minute
     this.cleanupInterval = setInterval(async () => {
       try {
+        console.log('🧹 Running worker deployment cleanup task...');
         await this.deploymentManager.cleanupIdleDeployments();
+        await this.deploymentManager.enforceMaxDeploymentLimit();
       } catch (error) {
         console.error('❌ Periodic cleanup failed:', error);
       }
@@ -319,7 +326,8 @@ async function main() {
             memory: process.env.WORKER_MEMORY_LIMIT || '2Gi'
           }
         },
-        idleCleanupMinutes: parseInt(process.env.WORKER_IDLE_CLEANUP_MINUTES || '60')
+        idleCleanupMinutes: parseInt(process.env.WORKER_IDLE_CLEANUP_MINUTES || '60'),
+        maxDeployments: parseInt(process.env.MAX_WORKER_DEPLOYMENTS || '20')
       },
       kubernetes: {
         namespace: process.env.KUBERNETES_NAMESPACE || 'peerbot'

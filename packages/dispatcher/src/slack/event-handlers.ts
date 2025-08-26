@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { randomUUID } from "crypto";
 import type { App } from "@slack/bolt";
 import type { GitHubRepositoryManager } from "../github/repository-manager";
 import type { 
@@ -322,8 +323,18 @@ export class SlackEventHandlers {
       // Get user's GitHub username mapping
       const username = await this.getOrCreateUserMapping(context.userId, client);
       
-      // Check if we have an existing Claude session for this thread
-      const existingClaudeSessionId = await this.loadSessionMapping(username, sessionKey);
+      // Generate or retrieve UUID-format Claude session ID for CLI compatibility
+      let existingClaudeSessionId = this.sessionMappings.get(sessionKey);
+      let isNewSession = false;
+      if (!existingClaudeSessionId) {
+        // Generate new UUID session ID for new threads
+        existingClaudeSessionId = randomUUID();
+        this.sessionMappings.set(sessionKey, existingClaudeSessionId);
+        isNewSession = true;
+        logger.info(`Generated new Claude session ID ${existingClaudeSessionId} for thread ${sessionKey}`);
+      } else {
+        logger.info(`Using existing Claude session ID ${existingClaudeSessionId} for thread ${sessionKey}`);
+      }
       
       // Check repository cache first
       let repository;
@@ -389,7 +400,8 @@ export class SlackEventHandlers {
             allowedTools: this.config.claude.allowedTools,
             model: this.config.claude.model,
             timeoutMinutes: this.config.sessionTimeoutMinutes.toString(),
-            resumeSessionId: existingClaudeSessionId,
+            // Use sessionId for new sessions, resumeSessionId for existing sessions
+            ...(isNewSession ? { sessionId: existingClaudeSessionId } : { resumeSessionId: existingClaudeSessionId }),
           },
         };
 
@@ -420,6 +432,8 @@ export class SlackEventHandlers {
           claudeOptions: {
             ...this.config.claude,
             timeoutMinutes: this.config.sessionTimeoutMinutes.toString(),
+            // Use sessionId for new sessions, resumeSessionId for existing sessions
+            ...(isNewSession ? { sessionId: existingClaudeSessionId } : { resumeSessionId: existingClaudeSessionId }),
           },
           // Add routing metadata for thread-specific processing
           routingMetadata: {
@@ -832,11 +846,17 @@ export class SlackEventHandlers {
   }
 
   private async updateAppHome(userId: string, client: any): Promise<void> {
-    logger.info(`Updating app home for user: ${userId}`);
+    logger.info(`Updating app home for user: ${userId} with README from active repository`);
 
     try {
       const username = await this.getOrCreateUserMapping(userId, client);
       const repository = await this.repoManager.ensureUserRepository(username);
+
+      // Fetch README.md content from the user's active repository
+      const readmeContent = await this.fetchRepositoryReadme(repository.repositoryUrl);
+      const readmeSection = readmeContent 
+        ? `*📖 README.md - ${repository.repositoryName}:*\n\n${this.formatReadmeForSlack(readmeContent)}`
+        : "*📖 README.md:* _Unable to fetch README content_";
 
       const homeView = {
         type: "home",
@@ -881,6 +901,16 @@ export class SlackEventHandlers {
             type: "section",
             text: {
               type: "mrkdwn",
+              text: readmeSection
+            }
+          },
+          {
+            type: "divider",
+          },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
               text: "💬 *Get Started:*\nSend me a message or mention me in a channel to start coding together!"
             }
           }
@@ -911,6 +941,48 @@ export class SlackEventHandlers {
 
       await client.views.publish({ user_id: userId, view: fallbackHomeView });
     }
+  }
+
+  /**
+   * Fetch README content from a repository URL
+   */
+  private async fetchRepositoryReadme(repositoryUrl: string): Promise<string | null> {
+    try {
+      // Extract owner and repo name from GitHub URL
+      const match = repositoryUrl.match(/github\.com[:/]([^/]+)\/([^/.]+)(?:\.git)?$/);
+      if (!match || !match[1] || !match[2]) {
+        logger.warn(`Could not parse repository URL: ${repositoryUrl}`);
+        return null;
+      }
+      
+      const owner = match[1];
+      const repo = match[2];
+      
+      return await this.repoManager.fetchReadmeContent(owner, repo);
+    } catch (error) {
+      logger.error(`Failed to fetch README for repository ${repositoryUrl}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Format README content for Slack display
+   */
+  private formatReadmeForSlack(readme: string): string {
+    // Truncate README if too long (Slack has limits)
+    const maxLength = 2000; // Conservative limit for Slack blocks
+    let formatted = readme.length > maxLength ? readme.substring(0, maxLength) + '...' : readme;
+    
+    // Replace GitHub-style headings with Slack formatting
+    formatted = formatted
+      .replace(/^### (.+)$/gm, '• *$1*')
+      .replace(/^## (.+)$/gm, '• *$1*')
+      .replace(/^# (.+)$/gm, '*$1*')
+      .replace(/\*\*(.+?)\*\*/g, '*$1*')
+      .replace(/`([^`]+)`/g, '`$1`')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<$2|$1>');
+    
+    return formatted;
   }
 
   private async handleBlockkitFormSubmission(

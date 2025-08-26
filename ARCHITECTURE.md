@@ -23,22 +23,17 @@ Peerbot is a Kubernetes-native Slack bot that provides AI-powered coding assista
 - **Claude Integration**: [`src/claude-worker.ts`](packages/worker/src/claude-worker.ts) - Claude CLI execution and streaming
 - **Queue Integration**: [`src/queue-integration.ts`](packages/worker/src/queue-integration.ts) - Job processing and status updates
 
-## PostgreSQL & Queue System
+## Queue System
 
 ### Database Structure
 - **Instance**: Single PostgreSQL StatefulSet (8Gi storage)
 - **Queue Library**: pgboss for reliable job queuing
-- **Schema**: Automatic migrations for queue tables
+- **RLS**: Row Level Security to prevent cross-deployment access with separate user credentials in Postgresql.
 
-### Queue Types (2 Main Queues)
+### Queues
 1. **`thread_response`**: User messages in Slack threads/channels
 2. **`direct_message`**: Direct messages to the bot
-
-Each queue job contains:
-- User context (user ID, channel ID, thread timestamp)
-- Message content and metadata
-- Session information
-- Repository details
+3. For each worker deployment **`thread_message_{deploymentId}`**: Each conversation thread gets its own isolated queue, combined with RLS policies to prevent cross-thread access
 
 ## User Message Flow
 
@@ -142,14 +137,14 @@ graph TB
 ### Worker Lifecycle
 - **Creation**: Orchestrator creates Kubernetes deployment per conversation thread
 - **Scaling**: Deployments start with 1 replica, scale to 0 after 60 minutes idle
-- **Cleanup**: Idle worker cleanup runs every 5 minutes, removes deployments idle >60min
+- **Cleanup**: Idle worker cleanup runs every minute, removes deployments idle >60min
 - **Persistence**: User data remains in PVC even after pod deletion
 
 ### Idle Worker Cleanup Process
 
 The orchestrator automatically cleans up idle worker deployments to prevent resource accumulation:
 
-1. **Cleanup Schedule**: Runs every 5 minutes via `setInterval`
+1. **Cleanup Schedule**: Runs every minute via `setInterval`
 2. **Idle Detection**: SQL query identifies deployments with no activity for >60 minutes:
    ```sql
    SELECT deployment_id, user_id, last_activity, 
@@ -181,12 +176,6 @@ Each worker gets isolated database access through dedicated PostgreSQL users:
    ```
 4. **Kubernetes Secret**: Credentials stored in `peerbot-user-secret-{username}`
 
-#### Thread-Specific Queues
-Each conversation thread gets its own isolated queue:
-- **Queue Name**: `thread_message_{deploymentId}` 
-- **Purpose**: Ensures messages are only visible to the worker handling that thread
-- **Security**: Combined with RLS policies to prevent cross-thread access
-
 #### Row Level Security (RLS)
 Database queries execute with user context for access control:
 ```sql
@@ -206,7 +195,7 @@ This ensures workers can only access their own thread messages and user data.
 
 | Emoji | Status | Description |
 |-------|--------|-------------|
-| ⚙️ | Processing | Claude CLI actively running |
+| ⚙️ | Processing | The deployment is active, processing user's request or running background processes |
 | ✅ | Complete | Task completed successfully |
 | ❌ | Failed | Error during execution |
 | ⏳ | Timeout | Job exceeded time limit |

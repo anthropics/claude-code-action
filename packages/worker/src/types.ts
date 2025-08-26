@@ -11,6 +11,7 @@ export interface WorkerConfig {
   slackResponseChannel: string;
   slackResponseTs: string;
   claudeOptions: string; // JSON string
+  sessionId?: string; // Claude session ID for new sessions
   resumeSessionId?: string; // Claude session ID to resume from
   workspace: {
     baseDirectory: string;

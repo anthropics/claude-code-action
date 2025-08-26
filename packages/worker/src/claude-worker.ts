@@ -3,7 +3,7 @@
 import { ClaudeSessionRunner } from "@claude-code-slack/core-runner";
 import { WorkspaceManager } from "./workspace-setup";
 import { QueueIntegration } from "./queue-integration";
-import { extractFinalResponse } from "./claude-output-parser";
+import { parseClaudeOutput } from "./claude-output-parser";
 import type { WorkerConfig } from "./types";
 import logger from "./logger";
 import { execSync } from "node:child_process";
@@ -35,7 +35,8 @@ export class ClaudeWorker {
       databaseUrl: databaseUrl,
       responseChannel: config.slackResponseChannel,
       responseTs: config.slackResponseTs,
-      messageId: process.env.INITIAL_SLACK_MESSAGE_ID || config.slackResponseTs
+      messageId: process.env.INITIAL_SLACK_MESSAGE_ID || config.slackResponseTs,
+      workspaceManager: this.workspaceManager
     });
   }
 
@@ -175,7 +176,9 @@ export class ClaudeWorker {
         context: sessionContext,
         options: {
           ...JSON.parse(this.config.claudeOptions),
-          resumeSessionId: this.config.resumeSessionId, // Use resumeSessionId if available
+          // Use resumeSessionId for continuation, sessionId for new sessions
+          ...(this.config.resumeSessionId ? { resumeSessionId: this.config.resumeSessionId } : {}),
+          ...(this.config.sessionId && !this.config.resumeSessionId ? { sessionId: this.config.sessionId } : {}),
         },
         onProgress: async (update) => {
           // Log timing for first output
@@ -316,12 +319,12 @@ export class ClaudeWorker {
       return "";
     }
     
-    const extracted = extractFinalResponse(output);
-    logger.info(`extracted response: ${extracted}`);
-    logger.info(`extracted length: ${extracted.length}`);
+    const parsed = parseClaudeOutput(output);
+    logger.info(`parsed response: ${parsed}`);
+    logger.info(`parsed length: ${parsed.length}`);
     
-    // Return the raw extracted markdown - slack-integration will handle conversion
-    return extracted || "";
+    // Return the parsed markdown with tool details - slack-integration will handle conversion
+    return parsed || "";
   }
 
   /**
