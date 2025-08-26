@@ -17,7 +17,8 @@ RUN apt-get update && apt-get install -y \
     iputils-ping \
     && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /bin/bash /bin/sh
 
 # Install cloudflared
 RUN curl -L "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64" -o /usr/local/bin/cloudflared && \
@@ -81,9 +82,12 @@ COPY --chown=claude:claude .claude/ /home/claude/.claude/
 
 # Ensure .claude directory structure exists for claude user and make scripts executable
 RUN mkdir -p /home/claude/.claude/projects && \
+    mkdir -p /home/claude/bin && \
     chown -R claude:claude /home/claude/.claude && \
+    chown -R claude:claude /home/claude && \
     chmod -R 755 /home/claude/.claude && \
-    chmod +x /app/scripts/*.sh
+    chmod +x /app/scripts/*.sh && \
+    echo 'export PATH="/home/claude/bin:$PATH"' >> /home/claude/.bashrc
 
 # Switch to non-root user
 USER claude

@@ -14,8 +14,8 @@ MONITOR_PID=$!
 echo "Process monitor started with PID: $MONITOR_PID"
 echo "$MONITOR_PID" > /tmp/process-monitor.pid
 
-# Also provide easy access commands for Claude
-cat > /usr/local/bin/claude-processes << 'EOF'
+# Create the claude-processes command wrapper
+cat > /home/claude/bin/claude-processes << 'EOF'
 #!/bin/bash
 # Convenient wrapper for Claude process management
 
@@ -32,7 +32,7 @@ fi
 exec "$PROCESS_MANAGER" "$@"
 EOF
 
-chmod +x /usr/local/bin/claude-processes
+chmod +x /home/claude/bin/claude-processes
 
 echo "✅ Process monitor initialized"
 echo "💡 Use 'claude-processes' command to manage background processes"

@@ -101,9 +101,8 @@ export class ClaudeWorker {
 
 
   private getMakeTargetsSummary(): string {
-    // Use thread-specific workspace path
-    const threadId = this.config.threadTs || this.config.slackResponseTs || this.config.sessionKey || this.config.userId;
-    const root = `/workspace/${threadId.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    // Use the actual workspace directory from workspace manager
+    const root = this.workspaceManager.getCurrentWorkingDirectory();
     const appDirectories = this.listAppDirectories(root);
     if (appDirectories.length === 0) return "  - none";
 
@@ -294,19 +293,28 @@ export class ClaudeWorker {
   private generateCustomInstructions(): string {
     try {
       const templatePath = join(__dirname, 'custom-instructions.md');
+      logger.debug(`[CUSTOM-INSTRUCTIONS] Loading from: ${templatePath}`);
+      
       const template = fs.readFileSync(templatePath, 'utf-8');
       
       // Replace placeholders with actual values
-      return template
+      const processed = template
         .replace(/{{userId}}/g, this.config.userId)
         .replace(/{{repositoryUrl}}/g, this.config.repositoryUrl)
         .replace(/{{sessionKey}}/g, this.config.sessionKey)
         .replace(/{{sessionKeyFormatted}}/g, this.config.sessionKey.replace(/\./g, "-"))
         .replace(/{{makeTargetsSummary}}/g, this.getMakeTargetsSummary());
+      
+      logger.info(`[CUSTOM-INSTRUCTIONS] \n${processed}`);
+      
+      return processed;
     } catch (error) {
       logger.error('Failed to read custom instructions template:', error);
+      logger.error(`Template path attempted: ${join(__dirname, 'custom-instructions.md')}`);
       // Fallback to basic instructions
-      return `You are a helpful Claude Code agent for user ${this.config.userId}.`;
+      const fallback = `You are a helpful Claude Code agent for user ${this.config.userId}.`;
+      logger.warn(`[CUSTOM-INSTRUCTIONS] Using fallback: ${fallback}`);
+      return fallback;
     }
   }
 

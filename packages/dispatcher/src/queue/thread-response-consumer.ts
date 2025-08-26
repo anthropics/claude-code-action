@@ -452,16 +452,34 @@ export class ThreadResponseConsumer {
         // These are Slack validation errors - retrying won't help
         logger.error(`Slack validation error: ${error.data?.error}`);
         
-        // Try to send a simple error message instead
+        // Try to send a simple error message with raw content for recovery
         try {
+          // Truncate content to fit in code block (leave room for error message + code block formatting)
+          const maxContentLength = 2500; // Conservative limit
+          const truncatedContent = content.length > maxContentLength 
+            ? content.substring(0, maxContentLength) + '\n...[truncated]'
+            : content;
+          
+          const errorMessage = `❌ *Error occurred while updating message*\n\n*Error:* ${error.data?.error || error.message}\n\nThe response may be too long or contain invalid formatting.\n\n*Raw Content:*\n\`\`\`\n${truncatedContent}\n\`\`\``;
+          
           await this.slackClient.chat.update({
             channel: channelId,
             ts: threadTs,
-            text: `❌ **Error occurred while updating message**\n\n**Error:** ${error.data?.error || error.message}\n\nThe response may be too long or contain invalid formatting.`
+            text: errorMessage
           });
-          logger.info(`Sent fallback error message to user for validation error: ${error.data?.error}`);
+          logger.info(`Sent fallback error message with raw content for validation error: ${error.data?.error}`);
         } catch (fallbackError) {
           logger.error("Failed to send fallback error message:", fallbackError);
+          // If even the fallback fails, try a minimal message
+          try {
+            await this.slackClient.chat.update({
+              channel: channelId,
+              ts: threadTs,
+              text: `❌ *Error occurred while updating message*\n\n*Error:* ${error.data?.error || error.message}`
+            });
+          } catch (minimalError) {
+            logger.error("Failed to send minimal error message:", minimalError);
+          }
         }
         // Don't throw - this prevents retry loops for validation errors
       } else {

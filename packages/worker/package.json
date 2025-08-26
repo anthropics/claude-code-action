@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp src/custom-instructions.md dist/",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "test": "bun test",
