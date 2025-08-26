@@ -162,6 +162,11 @@ jobs:
   # Test the outer action with inline MCP config
   test-outer-action-inline-mcp:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4
@@ -205,6 +210,11 @@ jobs:
   # Test the outer action with file-based MCP config
   test-outer-action-file-mcp:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4
