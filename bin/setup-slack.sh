@@ -71,7 +71,7 @@ check_prerequisites() {
     echo "📋 Checking prerequisites..."
     echo ""
     
-    local checks=("docker:Docker:true" "kubectl:kubectl:true" "skaffold:Skaffold:true" "bun:Bun:true")
+    local checks=("docker:Docker:true" "kubectl:kubectl:true" "skaffold:Skaffold:true")
     
     for check in "${checks[@]}"; do
         IFS=':' read -r command name required <<< "$check"
@@ -413,18 +413,6 @@ setup_postgresql() {
     echo "✅ Generated PostgreSQL connection string with password: $password"
 }
 
-install_dependencies() {
-    echo ""
-    echo "📦 Installing dependencies..."
-    echo ""
-    
-    if ! bun install; then
-        echo "❌ Failed to install dependencies"
-        exit 1
-    fi
-    echo "✅ Dependencies installed"
-}
-
 create_values_local() {
     echo ""
     echo "📝 Configuring values-local.yaml..."
@@ -586,7 +574,6 @@ full_setup() {
         echo "✅ All configuration is already up to date - proceeding with setup..."
     fi
     
-    install_dependencies
     create_values_local
     setup_kubernetes
     
