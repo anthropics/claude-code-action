@@ -33,6 +33,8 @@ export class QueueIntegration {
   private updateQueue: string[] = [];
   private isProcessingQueue = false;
   private currentTodos: TodoItem[] = [];
+  private currentToolExecution: string = "";
+  // private lastToolUpdate: number = 0;
   // @ts-ignore - Used in showStopButton() and hideStopButton() methods
   private stopButtonVisible: boolean = false;
   private deploymentName?: string;
@@ -140,19 +142,37 @@ export class QueueIntegration {
         dataToCheck = data;
       } else if (typeof data === "object") {
         dataToCheck = JSON.stringify(data);
+        logger.info(`📊 StreamProgress received object data: ${dataToCheck.substring(0, 200)}...`);
       } else {
         return;
       }
       
-      // Check if this contains TodoWrite tool usage
+      // Priority 1: TodoWrite updates (full todo list refresh)
       const todoData = this.extractTodoList(dataToCheck);
       if (todoData) {
         this.currentTodos = todoData;
+        this.currentToolExecution = ""; // Clear tool execution on todo update
         await this.updateProgressWithTodos();
         return;
       }
       
-      // Stream the content normally
+      // Priority 2: Tool execution tracking (between todo updates)
+      const toolExecution = this.extractToolExecution(dataToCheck);
+      if (toolExecution && toolExecution !== this.currentToolExecution) {
+        logger.info(`🔧 Detected tool execution: ${toolExecution}`);
+        this.currentToolExecution = toolExecution;
+        // this.lastToolUpdate = Date.now();
+        // Only update if we have todos to show
+        if (this.currentTodos.length > 0) {
+          logger.info(`📝 Updating progress with todos + tool execution`);
+          await this.updateProgressWithTodos();
+          return;
+        } else {
+          logger.info(`🔧 Tool detected but no todos to show: ${toolExecution}`);
+        }
+      }
+      
+      // Priority 3: Regular content streaming
       if (typeof data === "string") {
         await this.updateProgress(data);
       } else if (typeof data === "object" && data.content) {
@@ -490,6 +510,58 @@ export class QueueIntegration {
   }
 
   /**
+   * Extract tool execution details from Claude's JSON output
+   */
+  private extractToolExecution(data: string): string | null {
+    try {
+      const lines = data.split('\n');
+      for (const line of lines) {
+        if (line.trim().startsWith('{')) {
+          const parsed = JSON.parse(line);
+          
+          // Detect tool usage
+          if (parsed.type === "assistant" && parsed.message?.content) {
+            for (const content of parsed.message.content) {
+              if (content.type === "tool_use") {
+                return this.formatToolExecution(content);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Silently continue - not all lines are valid JSON
+    }
+    return null;
+  }
+
+  /**
+   * Format tool execution for user-friendly display
+   */
+  private formatToolExecution(toolUse: any): string {
+    const toolName = toolUse.name;
+    const params = toolUse.input || {};
+    
+    switch (toolName) {
+      case "Write":
+        return `✏️ **Writing file:** \`${params.file_path}\``;
+      case "Edit":
+        return `✏️ **Editing file:** \`${params.file_path}\``;
+      case "Bash":
+        const command = params.command || params.description || "command";
+        return `🔧 **Running:** \`${command.length > 50 ? command.substring(0, 50) + '...' : command}\``;
+      case "Read":
+        return `📖 **Reading file:** \`${params.file_path}\``;
+      case "Grep":
+        return `🔍 **Searching:** "${params.pattern}"`;
+      case "TodoWrite":
+        return "📝 **Updating task list...**";
+      default:
+        return `🔧 **Using tool:** ${toolName}`;
+    }
+  }
+
+  /**
    * Update progress with todo list display
    */
   private async updateProgressWithTodos(): Promise<void> {
@@ -514,7 +586,14 @@ export class QueueIntegration {
       return `${checkbox} ${todo.content}`;
     });
 
-    return `📝 **Task Progress**\n\n${todoLines.join('\n')}`;
+    let content = `📝 **Task Progress**\n\n${todoLines.join('\n')}`;
+    
+    // Add current tool execution if available
+    if (this.currentToolExecution) {
+      content += `\n\n${this.currentToolExecution}`;
+    }
+    
+    return content;
   }
 
   /**
@@ -546,6 +625,7 @@ export class QueueIntegration {
     this.updateQueue = [];
     this.isProcessingQueue = false;
     this.currentTodos = [];
+    this.currentToolExecution = "";
   }
 
   /**

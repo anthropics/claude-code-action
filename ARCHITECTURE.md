@@ -19,9 +19,10 @@ Peerbot is a Kubernetes-native Slack bot that provides AI-powered coding assista
 - **Queue Consumer**: [`src/queue-consumer.ts`](packages/orchestrator/src/queue-consumer.ts) - PostgreSQL/pgboss job processing
 
 ### 🔧 Worker ([`packages/worker/`](packages/worker/))
-**Responsibilities**: Claude CLI execution, GitHub integration, progress streaming
+**Responsibilities**: Claude CLI execution, GitHub integration, progress streaming, background process management
 - **Claude Integration**: [`src/claude-worker.ts`](packages/worker/src/claude-worker.ts) - Claude CLI execution and streaming
 - **Queue Integration**: [`src/queue-integration.ts`](packages/worker/src/queue-integration.ts) - Job processing and status updates
+- **Background Process Management**: [`scripts/process-manager.sh`](packages/worker/scripts/process-manager.sh) - Persistent process lifecycle management
 
 ## Queue System
 
@@ -117,6 +118,23 @@ graph TB
 4. **Auto-Resume**: Workers use `claude --resume <session-id>` to continue conversations
 5. **No Data Loss**: Data persists even when worker pods terminate
 
+### Background Process Management
+Workers include a background process management system that ensures long-running processes persist beyond worker lifecycle:
+
+2. **Process Persistence**: Background processes (web servers, tunnels) continue running even after worker pods terminate
+3. **Output Redirection**: All stdout/stderr from background processes captured in persistent logs
+5. **Process Control**: `claude-processes` command provides complete lifecycle management:
+   ```bash
+   # Start processes with proper daemonization
+   claude-processes start web-server "bun run dev" "Development web server"
+   claude-processes start tunnel "cloudflared tunnel --url http://localhost:3000" "Cloudflare tunnel"
+   
+   # Monitor and control processes
+   claude-processes status        # Check all process status
+   claude-processes logs tunnel   # View process logs
+   claude-processes restart web-server  # Restart failed processes
+   ```
+
 ### Directory Structure
 ```
 /workspace/                     # PVC mount point  
@@ -126,10 +144,13 @@ graph TB
 │   │   ├── projects/           # Project context
 │   │   └── sessions/           # Conversation history
 │   └── [project files]         # User's code
-└── user-jane/                  # Another user's workspace
-    ├── .git/
-    ├── .claude/
-    └── [project files]
+├── user-jane/                  # Another user's workspace
+│   ├── .git/
+│   ├── .claude/
+│   └── [project files]
+└── /tmp/                       # Background process management
+    ├── claude-processes/       # Process control files (.pid, .info)
+    └── claude-logs/           # Process output logs
 ```
 
 ## Deployment Management

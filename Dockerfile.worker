@@ -11,6 +11,10 @@ RUN apt-get update && apt-get install -y \
     jq \
     sudo \
     ca-certificates \
+    procps \
+    htop \
+    net-tools \
+    iputils-ping \
     && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -87,5 +91,5 @@ USER claude
 # Set working directory to worker
 WORKDIR /app/packages/worker
 
-# Run the compiled JavaScript
-ENTRYPOINT ["bun", "run", "dist/index.js"]
+# Start the process monitor in the background and then run the worker
+ENTRYPOINT ["/bin/bash", "-c", "/app/packages/worker/scripts/start-process-monitor.sh && exec bun run dist/index.js"]

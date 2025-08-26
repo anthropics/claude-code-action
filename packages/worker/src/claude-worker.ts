@@ -6,7 +6,7 @@ import { QueueIntegration } from "./queue-integration";
 import { parseClaudeOutput } from "./claude-output-parser";
 import type { WorkerConfig } from "./types";
 import logger from "./logger";
-import { execSync } from "node:child_process";
+// import { execSync } from "node:child_process";
 import fs from "node:fs";
 import { join } from "node:path";
 
@@ -101,7 +101,9 @@ export class ClaudeWorker {
 
 
   private getMakeTargetsSummary(): string {
-    const root = `/workspace/${this.config.userId}`;
+    // Use thread-specific workspace path
+    const threadId = this.config.threadTs || this.config.slackResponseTs || this.config.sessionKey || this.config.userId;
+    const root = `/workspace/${threadId.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     const appDirectories = this.listAppDirectories(root);
     if (appDirectories.length === 0) return "  - none";
 

@@ -219,7 +219,7 @@ class PeerbotOrchestrator {
   }
 
   private setupIdleCleanup(): void {
-    console.log(`🧹 Setting up worker cleanup (${this.config.worker.idleCleanupMinutes}min threshold, 5min interval)`);
+    console.log(`🧹 Setting up worker cleanup (${this.config.worker.idleCleanupMinutes}min threshold, 1min interval)`);
     
     // Run initial cleanup
     this.deploymentManager.cleanupIdleDeployments().catch(error => {
@@ -231,16 +231,17 @@ class PeerbotOrchestrator {
       console.error('❌ Initial deployment limit enforcement failed:', error);
     });
 
-    // Set up periodic cleanup every minute
+    // Set up periodic cleanup every minute for more responsive cleanup
     this.cleanupInterval = setInterval(async () => {
       try {
         console.log('🧹 Running worker deployment cleanup task...');
         await this.deploymentManager.cleanupIdleDeployments();
         await this.deploymentManager.enforceMaxDeploymentLimit();
       } catch (error) {
-        console.error('❌ Periodic cleanup failed:', error);
+        console.error('Error during periodic cleanup - will retry on next interval:', error instanceof Error ? error.message : String(error));
+        // Don't exit process - just log the error and continue
       }
-    }, 5 * 60 * 1000); // 5 minutes in milliseconds
+    }, 60 * 1000); // 1 minute in milliseconds
   }
 
   private setupGracefulShutdown(): void {

@@ -18,7 +18,31 @@ export class DeploymentManager {
     this.dbPool = dbPool;
 
     const kc = new k8s.KubeConfig();
-    kc.loadFromDefault();
+    try {
+      // Try in-cluster config first, then fall back to default
+      if (process.env.KUBERNETES_SERVICE_HOST) {
+        kc.loadFromCluster();
+        console.log('✅ Loaded in-cluster Kubernetes config');
+      } else {
+        kc.loadFromDefault();
+        console.log('✅ Loaded default Kubernetes config');
+      }
+    } catch (error) {
+      console.error('❌ Failed to load Kubernetes config:', error);
+      // Try to load default config as fallback
+      try {
+        kc.loadFromDefault();
+        console.log('✅ Loaded default Kubernetes config as fallback');
+      } catch (fallbackError) {
+        console.error('❌ Failed to load fallback Kubernetes config:', fallbackError);
+        throw new OrchestratorError(
+          ErrorCode.DEPLOYMENT_CREATE_FAILED,
+          `Failed to initialize Kubernetes client: ${error instanceof Error ? error.message : String(error)}`,
+          { error, fallbackError },
+          true
+        );
+      }
+    }
     
     this.appsV1Api = kc.makeApiClient(k8s.AppsV1Api);
     this.coreV1Api = kc.makeApiClient(k8s.CoreV1Api);
@@ -476,15 +500,22 @@ export class DeploymentManager {
     try {
       console.log(`🧹 Starting idle deployment cleanup (threshold: ${this.config.worker.idleCleanupMinutes} minutes)`);
       
+      // First, clean up deployments found in database with activity records
       const idleDeployments = await this.findIdleDeployments();
       
-      if (idleDeployments.length === 0) {
+      // Second, check for orphaned Kubernetes deployments without database records
+      const orphanedDeployments = await this.findOrphanedDeployments();
+      
+      const totalDeployments = idleDeployments.length + orphanedDeployments.length;
+      
+      if (totalDeployments === 0) {
         console.log('✅ No idle deployments found to clean up');
         return;
       }
 
-      console.log(`📊 Found ${idleDeployments.length} idle deployments to clean up:`);
+      console.log(`📊 Found ${totalDeployments} idle deployments to clean up (${idleDeployments.length} from database, ${orphanedDeployments.length} orphaned):`);
       
+      // Clean up deployments from database activity
       for (const deployment of idleDeployments) {
         console.log(`  - ${deployment.deploymentId} (user: ${deployment.userId}, idle: ${deployment.minutesIdle.toFixed(1)}min, messages: ${deployment.messageCount})`);
         
@@ -496,10 +527,85 @@ export class DeploymentManager {
         }
       }
       
-      console.log(`🧹 Idle deployment cleanup completed. Cleaned up ${idleDeployments.length} deployments.`);
+      // Clean up orphaned deployments
+      for (const deployment of orphanedDeployments) {
+        console.log(`  - ${deployment.deploymentId} (orphaned, age: ${deployment.ageMinutes.toFixed(1)}min)`);
+        
+        try {
+          await this.deleteWorkerDeployment(deployment.deploymentId);
+          console.log(`✅ Successfully cleaned up orphaned deployment: ${deployment.deploymentId}`);
+        } catch (error) {
+          console.error(`❌ Failed to clean up orphaned deployment ${deployment.deploymentId}:`, error instanceof Error ? error.message : String(error));
+        }
+      }
+      
+      console.log(`🧹 Idle deployment cleanup completed. Cleaned up ${totalDeployments} deployments.`);
       
     } catch (error) {
-      console.error('❌ Error during idle deployment cleanup:', error instanceof Error ? error.message : String(error));
+      console.error('Error during worker deployment cleanup:', error instanceof Error ? error.message : String(error));
+      // Don't throw the error - let the cleanup continue on next interval
+    }
+  }
+
+  /**
+   * Find orphaned Kubernetes deployments that exist but have no database records
+   */
+  async findOrphanedDeployments(): Promise<Array<{
+    deploymentId: string;
+    ageMinutes: number;
+  }>> {
+    try {
+      // Get all worker deployments from Kubernetes
+      const k8sDeployments = await this.appsV1Api.listNamespacedDeployment(
+        this.config.kubernetes.namespace,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'app.kubernetes.io/component=worker'
+      );
+
+      const activeDeployments = k8sDeployments.body.items || [];
+      const orphanedDeployments: Array<{ deploymentId: string; ageMinutes: number }> = [];
+      
+      // Get all deployment IDs that have database records
+      const client = await this.dbPool.getClient();
+      let knownDeploymentIds: Set<string>;
+      try {
+        const query = `
+          SELECT DISTINCT 
+            COALESCE(
+              SUBSTRING(data->>'gitBranch' FROM 'claude/session-([0-9.-]+)'),
+              data->>'threadTs'
+            ) as deployment_id
+          FROM pgboss.job
+          WHERE name = 'thread_response'
+            AND data->>'gitBranch' IS NOT NULL
+        `;
+        const result = await client.query(query);
+        knownDeploymentIds = new Set(result.rows.map(row => row.deployment_id).filter(Boolean));
+      } finally {
+        client.release();
+      }
+
+      // Check each Kubernetes deployment
+      for (const deployment of activeDeployments) {
+        const deploymentName = deployment.metadata?.name || '';
+        const deploymentId = deploymentName.replace('peerbot-worker-', '');
+        const creationTime = deployment.metadata?.creationTimestamp ? new Date(deployment.metadata.creationTimestamp) : new Date();
+        const ageMinutes = (Date.now() - creationTime.getTime()) / (1000 * 60);
+        
+        // If deployment is older than threshold and not in database, it's orphaned
+        if (ageMinutes > this.config.worker.idleCleanupMinutes && !knownDeploymentIds.has(deploymentId)) {
+          orphanedDeployments.push({ deploymentId, ageMinutes });
+        }
+      }
+      
+      return orphanedDeployments.sort((a, b) => b.ageMinutes - a.ageMinutes); // Oldest first
+      
+    } catch (error) {
+      console.error('Error finding orphaned deployments:', error instanceof Error ? error.message : String(error));
+      return [];
     }
   }
 
@@ -619,7 +725,8 @@ export class DeploymentManager {
       console.log(`🧹 Deployment limit enforcement completed. Deleted ${toDelete.length} deployments.`);
       
     } catch (error) {
-      console.error('❌ Error during deployment limit enforcement:', error instanceof Error ? error.message : String(error));
+      console.error('Error during deployment limit enforcement:', error instanceof Error ? error.message : String(error));
+      // Don't throw the error - let the cleanup continue on next interval
     }
   }
 

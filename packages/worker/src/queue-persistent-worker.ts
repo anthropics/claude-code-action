@@ -16,7 +16,8 @@ import logger from "./logger";
  */
 export class QueuePersistentClaudeWorker {
   private worker: ClaudeWorker | null = null;
-  private config: WorkerConfig;
+  // @ts-ignore - Config loaded but not currently used
+  private config!: WorkerConfig;
   private queueConsumer: WorkerQueueConsumer;
   private userId: string;
   private targetThreadId?: string;
@@ -27,7 +28,7 @@ export class QueuePersistentClaudeWorker {
     this.targetThreadId = targetThreadId;
     
     // Load initial configuration from environment
-    this.config = this.loadConfigFromEnv();
+    // this.config = this.loadConfigFromEnv();
     
     // Get deployment name from environment
     const deploymentName = process.env.DEPLOYMENT_NAME;
@@ -69,6 +70,7 @@ export class QueuePersistentClaudeWorker {
     return `postgres://${username}:${password}@${host}:${port}/${database}`;
   }
 
+  // @ts-ignore - Method loaded but not currently used
   private loadConfigFromEnv(): WorkerConfig {
     return {
       sessionKey: process.env.SESSION_KEY!,

@@ -27,9 +27,11 @@ export class WorkspaceManager {
    */
   async setupWorkspace(repositoryUrl: string, username: string, sessionKey?: string): Promise<WorkspaceInfo> {
     try {
-      logger.info(`Setting up workspace for ${username}...`);
-      
-      const userDirectory = join(this.config.baseDirectory, username);
+      // Use thread-specific directory instead of user-specific to avoid conflicts
+      // between concurrent threads from the same user
+      const threadId = process.env.SLACK_THREAD_TS || process.env.SLACK_RESPONSE_TS || sessionKey || username;
+      logger.info(`Setting up thread-specific workspace for ${username}, thread: ${threadId}...`);
+      const userDirectory = join(this.config.baseDirectory, threadId.replace(/[^a-zA-Z0-9.-]/g, '_'));
       
       // Ensure base directory exists
       await this.ensureDirectory(this.config.baseDirectory);
@@ -70,7 +72,7 @@ export class WorkspaceManager {
         setupComplete: true,
       };
 
-      logger.info(`Workspace setup completed for ${username} at ${userDirectory}`);
+      logger.info(`Thread-specific workspace setup completed for ${username} (thread: ${threadId}) at ${userDirectory}`);
       return this.workspaceInfo;
 
     } catch (error) {
@@ -391,7 +393,7 @@ export class WorkspaceManager {
             try {
               await execAsync(`git push -u origin "${branchName}"`, {
                 cwd: this.workspaceInfo.userDirectory,
-                timeout: 30000
+                timeout: 120000
               });
               logger.info(`Pushed new session branch to GitHub: ${branchName}`);
             } catch (pushError) {
@@ -409,7 +411,7 @@ export class WorkspaceManager {
           try {
             await execAsync(`git push -u origin "${branchName}"`, {
               cwd: this.workspaceInfo.userDirectory,
-              timeout: 30000
+              timeout: 120000
             });
             logger.info(`Pushed new session branch to GitHub: ${branchName}`);
           } catch (pushError) {
@@ -447,25 +449,48 @@ export class WorkspaceManager {
       await execAsync("git add .", { cwd: repoDir });
       
       // Check if there are changes to commit
+      let hasUnstagedChanges = false;
       try {
         await execAsync("git diff --cached --exit-code", { cwd: repoDir });
-        logger.info("No changes to commit");
-        return;
+        logger.info("No staged changes to commit - checking for unpushed commits");
       } catch (error) {
-        // Changes exist, proceed with commit
+        // Staged changes exist, proceed with commit
+        hasUnstagedChanges = true;
       }
       
-      // Commit changes
-      await execAsync(`git commit -m "${message}"`, { cwd: repoDir });
+      // Check if there are unpushed commits
+      let hasUnpushedCommits = false;
+      try {
+        const branch = this.workspaceInfo.repository.branch;
+        await execAsync(`git diff --exit-code origin/${branch}..HEAD`, { cwd: repoDir });
+        logger.info("No unpushed commits");
+      } catch (error) {
+        // Unpushed commits exist
+        hasUnpushedCommits = true;
+        logger.info("Found unpushed commits");
+      }
       
-      // Push to origin
-      const branch = this.workspaceInfo.repository.branch;
-      await execAsync(`git push -u origin "${branch}"`, { 
-        cwd: repoDir,
-        timeout: 30000 
-      });
+      // If neither staged changes nor unpushed commits, return
+      if (!hasUnstagedChanges && !hasUnpushedCommits) {
+        logger.info("No changes to commit or push");
+        return;
+      }
       
-      logger.info(`Changes committed and pushed to ${branch}`);
+      // Commit changes if there are staged changes
+      if (hasUnstagedChanges) {
+        await execAsync(`git commit -m "${message}"`, { cwd: repoDir });
+        logger.info("Changes committed");
+      }
+      
+      // Always push if there are unpushed commits (either new ones or existing ones)
+      if (hasUnpushedCommits || hasUnstagedChanges) {
+        const branch = this.workspaceInfo.repository.branch;
+        await execAsync(`git push -u origin "${branch}"`, { 
+          cwd: repoDir,
+          timeout: 120000 
+        });
+        logger.info(`Changes pushed to ${branch}`);
+      }
       
     } catch (error) {
       throw new WorkspaceError(
