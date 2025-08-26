@@ -252,6 +252,18 @@ export class WorkerQueueConsumer {
       logger.info(`Starting Claude session without explicit ID for thread ${payload.threadId}`);
     }
     
+    // Build Claude options with security restrictions from env vars (only if set)
+    const claudeOptions = {
+      ...(payload.claudeOptions || {}),
+      // Apply security restrictions from environment only if env vars exist
+      ...(process.env.CLAUDE_ALLOWED_TOOLS ? { allowedTools: process.env.CLAUDE_ALLOWED_TOOLS } : 
+          payload.claudeOptions?.allowedTools ? { allowedTools: payload.claudeOptions.allowedTools } : {}),
+      ...(process.env.CLAUDE_DISALLOWED_TOOLS ? { disallowedTools: process.env.CLAUDE_DISALLOWED_TOOLS } : 
+          payload.claudeOptions?.disallowedTools ? { disallowedTools: payload.claudeOptions.disallowedTools } : {}),
+      ...(process.env.CLAUDE_TIMEOUT_MINUTES ? { timeoutMinutes: process.env.CLAUDE_TIMEOUT_MINUTES } : 
+          payload.claudeOptions?.timeoutMinutes ? { timeoutMinutes: payload.claudeOptions.timeoutMinutes } : {}),
+    };
+    
     return {
       sessionKey: payload.agentSessionId || `session-${payload.threadId}`,
       userId: payload.userId,
@@ -261,7 +273,7 @@ export class WorkerQueueConsumer {
       userPrompt: Buffer.from(payload.messageText).toString("base64"), // Base64 encode for consistency
       slackResponseChannel: platformMetadata.slackResponseChannel || payload.channelId,
       slackResponseTs: platformMetadata.slackResponseTs || payload.messageId,
-      claudeOptions: JSON.stringify(payload.claudeOptions),
+      claudeOptions: JSON.stringify(claudeOptions),
       sessionId: sessionId, // Pass through sessionId for new sessions
       resumeSessionId: resumeSessionId, // Pass through resumeSessionId for session continuity
       workspace: {

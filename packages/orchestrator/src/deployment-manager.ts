@@ -72,10 +72,12 @@ export class DeploymentManager {
   }
 
   /**
-   * Create PostgreSQL user with generated credentials
+   * Create PostgreSQL user with generated credentials and isolated schema
    */
   private async createPostgresUser(username: string, password: string): Promise<void> {
     const client = await this.dbPool.getClient();
+    const schemaName = `user_${username.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    
     try {
       // Check if user already exists
       const userExists = await client.query(
@@ -85,29 +87,42 @@ export class DeploymentManager {
       
       if (userExists.rows.length === 0) {
         // Create user with password
-        await client.query(`CREATE USER "${username}" WITH PASSWORD '${password}'`);
+        await client.query(`CREATE USER "${username}" WITH PASSWORD '${password}' NOCREATEDB NOCREATEROLE`);
         console.log(`Created PostgreSQL user: ${username}`);
         
-        // Grant necessary permissions for pgboss schema
+        // Create isolated schema for user
+        await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}" AUTHORIZATION "${username}"`);
+        console.log(`Created schema: ${schemaName}`);
+        
+        // Set default search path to user schema and pgboss
+        await client.query(`ALTER USER "${username}" SET search_path TO "${schemaName}", pgboss`);
+        
+        // Grant limited pgboss permissions - only for their own jobs
         await client.query(`GRANT USAGE ON SCHEMA pgboss TO "${username}"`);
-        await client.query(`GRANT ALL ON ALL TABLES IN SCHEMA pgboss TO "${username}"`);
-        await client.query(`GRANT ALL ON ALL SEQUENCES IN SCHEMA pgboss TO "${username}"`);
-        await client.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA pgboss GRANT ALL ON TABLES TO "${username}"`);
-        await client.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA pgboss GRANT ALL ON SEQUENCES TO "${username}"`);
-        console.log(`Granted pgboss permissions to user: ${username}`);
+        await client.query(`GRANT SELECT, INSERT, UPDATE ON pgboss.job TO "${username}"`);
+        await client.query(`GRANT USAGE ON ALL SEQUENCES IN SCHEMA pgboss TO "${username}"`);
+        
+        // Create row-level security policy for pgboss.job table
+        await client.query(`ALTER TABLE pgboss.job ENABLE ROW LEVEL SECURITY`);
+        await client.query(`
+          CREATE POLICY "${username}_job_policy" ON pgboss.job 
+          FOR ALL TO "${username}"
+          USING (data->>'userId' = '${username}' OR name LIKE 'thread_message_peerbot-worker-%')
+        `);
+        
+        console.log(`Created isolated schema and RLS policies for: ${username}`);
       } else {
         console.log(`PostgreSQL user already exists: ${username}`);
         
-        // Grant permissions even if user exists (in case they were missing)
+        // Ensure schema exists and permissions are correct
         try {
+          await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}" AUTHORIZATION "${username}"`);
+          await client.query(`ALTER USER "${username}" SET search_path TO "${schemaName}", pgboss`);
           await client.query(`GRANT USAGE ON SCHEMA pgboss TO "${username}"`);
-          await client.query(`GRANT ALL ON ALL TABLES IN SCHEMA pgboss TO "${username}"`);
-          await client.query(`GRANT ALL ON ALL SEQUENCES IN SCHEMA pgboss TO "${username}"`);
-          await client.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA pgboss GRANT ALL ON TABLES TO "${username}"`);
-          await client.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA pgboss GRANT ALL ON SEQUENCES TO "${username}"`);
-          console.log(`Granted pgboss permissions to existing user: ${username}`);
+          await client.query(`GRANT SELECT, INSERT, UPDATE ON pgboss.job TO "${username}"`);
+          await client.query(`GRANT USAGE ON ALL SEQUENCES IN SCHEMA pgboss TO "${username}"`);
         } catch (permError) {
-          console.error(`Failed to grant permissions to existing user ${username}:`, permError);
+          console.error(`Failed to update permissions for existing user ${username}:`, permError);
         }
       }
     } finally {
@@ -172,6 +187,17 @@ export class DeploymentManager {
     const deploymentName = `peerbot-worker-${threadId}`;
     
     try {
+      // Check per-user deployment limit (max 3 concurrent deployments per user)
+      const userDeployments = await this.getUserDeploymentCount(userId);
+      if (userDeployments >= 3) {
+        throw new OrchestratorError(
+          ErrorCode.DEPLOYMENT_CREATE_FAILED,
+          `User ${userId} has reached maximum deployment limit (3)`,
+          { userId, currentCount: userDeployments },
+          false
+        );
+      }
+      
       // Always ensure user credentials exist first
       const username = this.generatePostgresUsername(userId, teamId);
       const password = this.generateRandomPassword();
@@ -308,7 +334,20 @@ export class DeploymentManager {
                 {
                   name: 'WORKSPACE_PATH',
                   value: '/workspace'
-                }
+                },
+                // Security: Claude tool restrictions (only if env vars exist)
+                ...(process.env.CLAUDE_ALLOWED_TOOLS ? [{
+                  name: 'CLAUDE_ALLOWED_TOOLS',
+                  value: process.env.CLAUDE_ALLOWED_TOOLS
+                }] : []),
+                ...(process.env.CLAUDE_DISALLOWED_TOOLS ? [{
+                  name: 'CLAUDE_DISALLOWED_TOOLS',
+                  value: process.env.CLAUDE_DISALLOWED_TOOLS
+                }] : []),
+                ...(process.env.CLAUDE_TIMEOUT_MINUTES ? [{
+                  name: 'CLAUDE_TIMEOUT_MINUTES',
+                  value: process.env.CLAUDE_TIMEOUT_MINUTES
+                }] : [])
               ],
               resources: {
                 requests: this.config.worker.resources.requests,
@@ -331,6 +370,30 @@ export class DeploymentManager {
     await this.appsV1Api.createNamespacedDeployment(this.config.kubernetes.namespace, deployment);
   }
 
+
+  /**
+   * Get count of active deployments for a user
+   */
+  private async getUserDeploymentCount(userId: string): Promise<number> {
+    const client = await this.dbPool.getClient();
+    try {
+      // Count active threads for this user in the last 2 hours
+      const result = await client.query(`
+        SELECT COUNT(DISTINCT data->>'threadId') as count
+        FROM pgboss.job
+        WHERE data->>'userId' = $1
+          AND name LIKE 'thread_message_%'
+          AND created_on > NOW() - INTERVAL '2 hours'
+      `, [userId]);
+      
+      return parseInt(result.rows[0]?.count || '0');
+    } catch (error) {
+      console.error(`Failed to get user deployment count:`, error);
+      return 0;
+    } finally {
+      client.release();
+    }
+  }
 
   /**
    * Scale deployment to specified replica count
@@ -358,6 +421,71 @@ export class DeploymentManager {
         { deploymentName, replicas, error },
         true
       );
+    }
+  }
+
+  /**
+   * Enforce maximum deployment limit by removing oldest inactive deployments
+   */
+  async enforceMaxDeploymentLimit(): Promise<void> {
+    const client = await this.dbPool.getClient();
+    try {
+      const maxDeployments = this.config.worker.maxDeployments || 10;
+      
+      // Query active threads from database
+      const activeThreadsQuery = `
+        SELECT DISTINCT 
+          data->>'threadId' as thread_id,
+          data->>'userId' as user_id,
+          MIN(created_on) as first_activity,
+          MAX(created_on) as last_activity,
+          COUNT(*) as message_count
+        FROM pgboss.job
+        WHERE name LIKE 'thread_message_%'
+          AND created_on > NOW() - INTERVAL '24 hours'
+        GROUP BY data->>'threadId', data->>'userId'
+        ORDER BY MAX(created_on) ASC
+        LIMIT $1 OFFSET $2
+      `;
+      
+      // Get total active threads count
+      const countResult = await client.query(`
+        SELECT COUNT(DISTINCT data->>'threadId') as total
+        FROM pgboss.job
+        WHERE name LIKE 'thread_message_%'
+          AND created_on > NOW() - INTERVAL '24 hours'
+      `);
+      
+      const totalThreads = parseInt(countResult.rows[0]?.total || '0');
+      
+      if (totalThreads > maxDeployments) {
+        const excessCount = totalThreads - maxDeployments;
+        
+        // Get oldest threads to delete
+        const threadsToDelete = await client.query(activeThreadsQuery, [excessCount, 0]);
+        
+        for (const thread of threadsToDelete.rows) {
+          const deploymentName = `peerbot-worker-${thread.thread_id}`;
+          console.log(`🧹 Removing excess deployment: ${deploymentName} (last activity: ${thread.last_activity})`);
+          
+          try {
+            await this.appsV1Api.deleteNamespacedDeployment(
+              deploymentName,
+              this.config.kubernetes.namespace
+            );
+          } catch (error: any) {
+            if (error.statusCode !== 404) {
+              console.error(`Failed to delete deployment ${deploymentName}:`, error);
+            }
+          }
+        }
+        
+        console.log(`✅ Removed ${threadsToDelete.rows.length} excess deployments`);
+      }
+    } catch (error) {
+      console.error('Failed to enforce deployment limit:', error);
+    } finally {
+      client.release();
     }
   }
 
@@ -661,73 +789,4 @@ export class DeploymentManager {
       client.release();
     }
   }
-
-  /**
-   * Enforce maximum deployment limit by cleaning up oldest deployments
-   */
-  async enforceMaxDeploymentLimit(): Promise<void> {
-    try {
-      const maxDeployments = this.config.worker.maxDeployments;
-      console.log(`🔄 Checking deployment limit (max: ${maxDeployments})`);
-      
-      // Get all active deployments by checking actual Kubernetes deployments
-      const k8sDeployments = await this.appsV1Api.listNamespacedDeployment(
-        this.config.kubernetes.namespace,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        'app.kubernetes.io/component=worker'
-      );
-
-      const activeDeployments = k8sDeployments.body.items || [];
-      const currentCount = activeDeployments.length;
-      
-      if (currentCount <= maxDeployments) {
-        console.log(`✅ Deployment count OK: ${currentCount}/${maxDeployments}`);
-        return;
-      }
-
-      const excessCount = currentCount - maxDeployments;
-      console.log(`⚠️  Deployment limit exceeded: ${currentCount}/${maxDeployments} (need to delete ${excessCount})`);
-
-      // Get deployment activity data to determine which ones to delete (oldest first)
-      const deploymentActivity = await this.findAllDeploymentsByActivity();
-      const activityMap = new Map(
-        deploymentActivity.map(d => [d.deploymentId, d.lastActivity])
-      );
-
-      // Sort K8s deployments by last activity (oldest first) and extract deployment IDs
-      const sortedDeployments = activeDeployments
-        .map((deployment: any) => {
-          const deploymentName = deployment.metadata?.name || '';
-          const deploymentId = deploymentName.replace('peerbot-worker-', '');
-          const lastActivity = activityMap.get(deploymentId) || new Date(0); // Default to epoch for deployments without activity
-          return { deploymentId, deploymentName, lastActivity };
-        })
-        .sort((a: any, b: any) => a.lastActivity.getTime() - b.lastActivity.getTime());
-
-      // Delete the oldest deployments
-      const toDelete = sortedDeployments.slice(0, excessCount);
-      
-      console.log(`🧹 Deleting ${toDelete.length} oldest deployments:`);
-      for (const deployment of toDelete) {
-        console.log(`  - ${deployment.deploymentId} (last activity: ${deployment.lastActivity.toISOString()})`);
-        
-        try {
-          await this.deleteWorkerDeployment(deployment.deploymentId);
-          console.log(`✅ Successfully deleted deployment: ${deployment.deploymentId}`);
-        } catch (error) {
-          console.error(`❌ Failed to delete deployment ${deployment.deploymentId}:`, error instanceof Error ? error.message : String(error));
-        }
-      }
-
-      console.log(`🧹 Deployment limit enforcement completed. Deleted ${toDelete.length} deployments.`);
-      
-    } catch (error) {
-      console.error('Error during deployment limit enforcement:', error instanceof Error ? error.message : String(error));
-      // Don't throw the error - let the cleanup continue on next interval
-    }
-  }
-
 }

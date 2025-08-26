@@ -26,15 +26,26 @@ serviceAccount:
 
 # Pod Security Policy (disabled for local development)
 podSecurityPolicy:
-  enabled: false
+  enabled: true
 
 # Pod Security Standards (disabled for local development)
 podSecurityStandards:
-  enabled: false
+  enabled: true
+  enforce: restricted
+  audit: restricted
+  warn: restricted
 
 # Security Context
 securityContext:
-  enabled: false
+  enabled: true
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  readOnlyRootFilesystem: false  # Claude needs write access
+  worker:
+    readOnlyRootFilesystem: false
+    additionalCapabilities: []
 
 # Pod Disruption Budget
 podDisruptionBudget:
@@ -46,7 +57,8 @@ autoscaling:
 
 # Network Policy
 networkPolicy:
-  enabled: false
+  enabled: true
+  defaultDeny: true
 
 # Ingress
 ingress:
@@ -81,8 +93,7 @@ slack:
 
 claude:
   model: "claude-3-5-sonnet-20241022"
-  timeoutMinutes: "5"
-  allowedTools: ""
+  timeoutMinutes: "5"  # Default timeout
 
 # Disable static worker deployment - workers are created dynamically by orchestrator
 worker:
@@ -92,11 +103,11 @@ worker:
     tag: latest
   resources:
     requests:
-      memory: "1Gi"     # Claude Code requires significant memory
-      cpu: "200m"       # Increased CPU for better performance  
+      memory: "512Mi"   # Reduced for security
+      cpu: "100m"       # Minimal CPU allocation
     limits:
-      memory: "2Gi"     # Allow headroom for Claude operations
-      cpu: "1000m"      # 5:1 ratio (1000m/200m = 5) to meet cluster policy
+      memory: "1Gi"     # Hard cap at 1GB
+      cpu: "500m"       # Max 0.5 CPU cores
   persistence:
     enabled: true
     size: "1Gi"
@@ -171,9 +182,6 @@ workerQuota:
     pods: "15"    # Max 15 concurrent worker pods
     jobs: "10"    # Legacy job limit
 
-autoscaling:
-  enabled: false
-
 # Re-enable orchestrator - needed for dynamic worker creation
 orchestrator:
   enabled: true
@@ -196,6 +204,3 @@ config:
 # pgboss configuration override
 pgboss:
   expireInHours: 1  # 1 hour minimum required by pgboss
-
-ingress:
-  enabled: false
