@@ -136,7 +136,6 @@ gcs:
 # Development settings
 dispatcher:
   enabled: true
-  disableRateLimit: true
   image:
     pullPolicy: IfNotPresent
     tag: latest

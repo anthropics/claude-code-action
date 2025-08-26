@@ -121,10 +121,6 @@ spec:
             # Kubernetes configuration
             - name: KUBERNETES_NAMESPACE
               value: "{{ .Values.kubernetes.namespace }}"
-            {{- if .Values.dispatcher.disableRateLimit }}
-            - name: DISABLE_RATE_LIMIT
-              value: "true"
-            {{- end }}
             - name: WORKER_IMAGE
               value: "{{ .Values.global.imageRegistry }}{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
             - name: WORKER_CPU

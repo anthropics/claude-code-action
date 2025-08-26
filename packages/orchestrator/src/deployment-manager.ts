@@ -187,17 +187,6 @@ export class DeploymentManager {
     const deploymentName = `peerbot-worker-${threadId}`;
     
     try {
-      // Check per-user deployment limit (max 3 concurrent deployments per user)
-      const userDeployments = await this.getUserDeploymentCount(userId);
-      if (userDeployments >= 3) {
-        throw new OrchestratorError(
-          ErrorCode.DEPLOYMENT_CREATE_FAILED,
-          `User ${userId} has reached maximum deployment limit (3)`,
-          { userId, currentCount: userDeployments },
-          false
-        );
-      }
-      
       // Always ensure user credentials exist first
       const username = this.generatePostgresUsername(userId, teamId);
       const password = this.generateRandomPassword();
@@ -371,29 +360,6 @@ export class DeploymentManager {
   }
 
 
-  /**
-   * Get count of active deployments for a user
-   */
-  private async getUserDeploymentCount(userId: string): Promise<number> {
-    const client = await this.dbPool.getClient();
-    try {
-      // Count active threads for this user in the last 2 hours
-      const result = await client.query(`
-        SELECT COUNT(DISTINCT data->>'threadId') as count
-        FROM pgboss.job
-        WHERE data->>'userId' = $1
-          AND name LIKE 'thread_message_%'
-          AND created_on > NOW() - INTERVAL '2 hours'
-      `, [userId]);
-      
-      return parseInt(result.rows[0]?.count || '0');
-    } catch (error) {
-      console.error(`Failed to get user deployment count:`, error);
-      return 0;
-    } finally {
-      client.release();
-    }
-  }
 
   /**
    * Scale deployment to specified replica count
@@ -736,6 +702,7 @@ export class DeploymentManager {
       return [];
     }
   }
+
 
   /**
    * Find all active deployments ordered by oldest last activity (to delete oldest first)
