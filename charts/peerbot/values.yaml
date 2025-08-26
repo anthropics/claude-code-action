@@ -24,10 +24,6 @@ serviceAccount:
   create: true
   annotations: {}
 
-# Pod Security Policy (disabled for local development)
-podSecurityPolicy:
-  enabled: true
-
 # Pod Security Standards (disabled for local development)
 podSecurityStandards:
   enabled: true
@@ -57,8 +53,8 @@ autoscaling:
 
 # Network Policy
 networkPolicy:
-  enabled: true
-  defaultDeny: true
+  enabled: false
+  defaultDeny: false
 
 # Ingress
 ingress:

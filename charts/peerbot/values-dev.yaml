@@ -120,9 +120,6 @@ workerQuota:
 limitRange:
   enabled: false
 
-podSecurityPolicy:
-  enabled: false
-
 podSecurityStandards:
   enforce: "restricted"
 

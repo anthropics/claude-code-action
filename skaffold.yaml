@@ -19,6 +19,7 @@ build:
   local:
     push: false
     useBuildkit: true
+    tryImportMissing: true
 deploy:
   helm:
     releases:
