@@ -159,8 +159,8 @@ export class WorkerQueueConsumer {
       throw new Error(`Invalid job data format: ${error instanceof Error ? error.message : String(error)}`);
     }
 
-    // Validate message is for our user (sanity check)
-    if (actualData.userId !== this.userId) {
+    // Validate message is for our user (case insensitive sanity check)
+    if (actualData.userId.toLowerCase() !== this.userId.toLowerCase()) {
       logger.warn(`Received message for user ${actualData.userId}, but this worker is for user ${this.userId}`);
       return; // Skip this message - wrong user
     }
