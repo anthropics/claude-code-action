@@ -99,10 +99,10 @@ jobs:
       - name: Run Claude Code for Issue Triage
         uses: anthropics/claude-code-base-action@v1
         with:
-          prompt_file: /tmp/claude-prompts/triage-prompt.txt
-          allowed_tools: "Bash(gh label list),mcp__github__get_issue,mcp__github__get_issue_comments,mcp__github__update_issue,mcp__github__search_issues,mcp__github__list_issues"
-          claude_args: |
-            --mcp-config /tmp/mcp-config/mcp-servers.json
+          prompt: $(cat /tmp/claude-prompts/triage-prompt.txt)
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --allowedTools Bash(gh label list),mcp__github__get_issue,mcp__github__get_issue_comments,mcp__github__update_issue,mcp__github__search_issues,mcp__github__list_issues
+            --mcp-config /tmp/mcp-config/mcp-servers.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
