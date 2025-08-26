@@ -186,7 +186,7 @@ jobs:
       - name: Check execution output
         run: |
           echo "Checking execution output for MCP test tool..."
-          OUTPUT_FILE="${{ runner.temp }}/claude-execution-output.json"
+          OUTPUT_FILE="${RUNNER_TEMP}/claude-execution-output.json"
 
           if [ ! -f "$OUTPUT_FILE" ]; then
             echo "Error: Output file not found!"
@@ -246,7 +246,7 @@ jobs:
       - name: Check tool usage
         run: |
           echo "Checking if MCP test tool was used..."
-          OUTPUT_FILE="${{ runner.temp }}/claude-execution-output.json"
+          OUTPUT_FILE="${RUNNER_TEMP}/claude-execution-output.json"
 
           if [ ! -f "$OUTPUT_FILE" ]; then
             echo "Error: Output file not found!"
