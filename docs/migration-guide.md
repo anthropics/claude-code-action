@@ -25,6 +25,7 @@ The following inputs have been deprecated and replaced:
 | `allowed_tools`       | `claude_args: --allowedTools`    | Use CLI format                                |
 | `disallowed_tools`    | `claude_args: --disallowedTools` | Use CLI format                                |
 | `claude_env`          | `settings` with env object       | Use settings JSON                             |
+| `mcp_config`          | `claude_args: --mcp-config`      | Pass MCP config via CLI arguments             |
 
 ## Migration Examples
 
@@ -156,17 +157,19 @@ claude_args: |
   --allowedTools Edit,Read,Write,Bash
   --disallowedTools WebSearch
   --system-prompt "You are a senior engineer focused on code quality"
+  --mcp-config '{"mcpServers": {"custom": {"command": "npx", "args": ["-y", "@example/server"]}}}'
 ```
 
 ### Common claude_args Options
 
-| Option              | Description              | Example                               |
-| ------------------- | ------------------------ | ------------------------------------- |
-| `--max-turns`       | Limit conversation turns | `--max-turns 10`                      |
-| `--model`           | Specify Claude model     | `--model claude-4-0-sonnet-20250805`  |
-| `--allowedTools`    | Enable specific tools    | `--allowedTools Edit,Read,Write`      |
-| `--disallowedTools` | Disable specific tools   | `--disallowedTools WebSearch`         |
-| `--system-prompt`   | Add system instructions  | `--system-prompt "Focus on security"` |
+| Option              | Description              | Example                                |
+| ------------------- | ------------------------ | -------------------------------------- |
+| `--max-turns`       | Limit conversation turns | `--max-turns 10`                       |
+| `--model`           | Specify Claude model     | `--model claude-4-0-sonnet-20250805`   |
+| `--allowedTools`    | Enable specific tools    | `--allowedTools Edit,Read,Write`       |
+| `--disallowedTools` | Disable specific tools   | `--disallowedTools WebSearch`          |
+| `--system-prompt`   | Add system instructions  | `--system-prompt "Focus on security"`  |
+| `--mcp-config`      | Add MCP server config    | `--mcp-config '{"mcpServers": {...}}'` |
 
 ## Provider-Specific Updates
 
@@ -190,6 +193,44 @@ claude_args: |
       --model claude-4-0-sonnet@20250805
 ```
 
+## MCP Configuration Migration
+
+### Adding Custom MCP Servers
+
+**Before (v0.x):**
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    mcp_config: |
+      {
+        "mcpServers": {
+          "custom-server": {
+            "command": "npx",
+            "args": ["-y", "@example/server"]
+          }
+        }
+      }
+```
+
+**After (v1.0):**
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    claude_args: |
+      --mcp-config '{"mcpServers": {"custom-server": {"command": "npx", "args": ["-y", "@example/server"]}}}'
+```
+
+You can also pass MCP configuration from a file:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    claude_args: |
+      --mcp-config /path/to/mcp-config.json
+```
+
 ## Step-by-Step Migration Checklist
 
 - [ ] Update action version from `@beta` to `@v1`
@@ -202,6 +243,7 @@ claude_args: |
 - [ ] Convert `allowed_tools` to `claude_args` with `--allowedTools`
 - [ ] Convert `disallowed_tools` to `claude_args` with `--disallowedTools`
 - [ ] Move `claude_env` to `settings` JSON format
+- [ ] Move `mcp_config` to `claude_args` with `--mcp-config`
 - [ ] Test workflow in a non-production environment
 
 ## Getting Help

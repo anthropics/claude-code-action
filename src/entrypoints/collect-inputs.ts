@@ -17,7 +17,6 @@ export function collectActionInputsPresence(): void {
     custom_instructions: "",
     direct_prompt: "",
     override_prompt: "",
-    mcp_config: "",
     additional_permissions: "",
     claude_env: "",
     settings: "",

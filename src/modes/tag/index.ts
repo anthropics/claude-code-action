@@ -155,13 +155,6 @@ export const tagMode: Mode = {
     const escapedOurConfig = ourMcpConfig.replace(/'/g, "'\\''");
     claudeArgs = `--mcp-config '${escapedOurConfig}'`;
 
-    // Add user's MCP_CONFIG env var as separate --mcp-config
-    const userMcpConfig = process.env.MCP_CONFIG;
-    if (userMcpConfig?.trim()) {
-      const escapedUserConfig = userMcpConfig.replace(/'/g, "'\\''");
-      claudeArgs = `${claudeArgs} --mcp-config '${escapedUserConfig}'`;
-    }
-
     // Add required tools for tag mode
     claudeArgs += ` --allowedTools "${tagModeTools.join(",")}"`;
 

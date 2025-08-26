@@ -61,10 +61,6 @@ inputs:
     description: "Additional arguments to pass directly to Claude CLI"
     required: false
     default: ""
-  mcp_config:
-    description: "Additional MCP configuration (JSON string) that merges with built-in GitHub MCP servers"
-    required: false
-    default: ""
   additional_permissions:
     description: "Additional GitHub permissions to request (e.g., 'actions: read')"
     required: false
@@ -146,7 +142,6 @@ runs:
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         CLAUDE_ARGS: ${{ inputs.claude_args }}
-        MCP_CONFIG: ${{ inputs.mcp_config }}
         ALL_INPUTS: ${{ toJson(inputs) }}
 
     - name: Install Base Action Dependencies

@@ -2,51 +2,47 @@
 
 ## Using Custom MCP Configuration
 
-The `mcp_config` input allows you to add custom MCP (Model Context Protocol) servers to extend Claude's capabilities. These servers merge with the built-in GitHub MCP servers.
+You can add custom MCP (Model Context Protocol) servers to extend Claude's capabilities using the `--mcp-config` flag in `claude_args`. These servers merge with the built-in GitHub MCP servers.
 
 ### Basic Example: Adding a Sequential Thinking Server
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    mcp_config: |
-      {
-        "mcpServers": {
-          "sequential-thinking": {
-            "command": "npx",
-            "args": [
-              "-y",
-              "@modelcontextprotocol/server-sequential-thinking"
-            ]
-          }
-        }
-      }
-    allowed_tools: "mcp__sequential-thinking__sequentialthinking" # Important: Each MCP tool from your server must be listed here, comma-separated
+    claude_args: |
+      --mcp-config '{"mcpServers": {"sequential-thinking": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]}}}'
+      --allowedTools mcp__sequential-thinking__sequentialthinking
     # ... other inputs
 ```
 
 ### Passing Secrets to MCP Servers
 
-For MCP servers that require sensitive information like API keys or tokens, use GitHub Secrets in the environment variables:
+For MCP servers that require sensitive information like API keys or tokens, you can create a configuration file with GitHub Secrets:
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
-  with:
-    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    mcp_config: |
-      {
-        "mcpServers": {
-          "custom-api-server": {
-            "command": "npx",
-            "args": ["-y", "@example/api-server"],
-            "env": {
-              "API_KEY": "${{ secrets.CUSTOM_API_KEY }}",
-              "BASE_URL": "https://api.example.com"
-            }
+- name: Create MCP Config
+  run: |
+    cat > /tmp/mcp-config.json << 'EOF'
+    {
+      "mcpServers": {
+        "custom-api-server": {
+          "command": "npx",
+          "args": ["-y", "@example/api-server"],
+          "env": {
+            "API_KEY": "${{ secrets.CUSTOM_API_KEY }}",
+            "BASE_URL": "https://api.example.com"
           }
         }
       }
+    }
+    EOF
+
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    claude_args: |
+      --mcp-config /tmp/mcp-config.json
     # ... other inputs
 ```
 
@@ -55,25 +51,31 @@ For MCP servers that require sensitive information like API keys or tokens, use 
 For Python-based MCP servers managed with `uv`, you need to specify the directory containing your server:
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
-  with:
-    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    mcp_config: |
-      {
-        "mcpServers": {
-          "my-python-server": {
-            "type": "stdio",
-            "command": "uv",
-            "args": [
-              "--directory",
-              "${{ github.workspace }}/path/to/server/",
-              "run",
-              "server_file.py"
-            ]
-          }
+- name: Create MCP Config for Python Server
+  run: |
+    cat > /tmp/mcp-config.json << 'EOF'
+    {
+      "mcpServers": {
+        "my-python-server": {
+          "type": "stdio",
+          "command": "uv",
+          "args": [
+            "--directory",
+            "${{ github.workspace }}/path/to/server/",
+            "run",
+            "server_file.py"
+          ]
         }
       }
-    allowed_tools: "my-python-server__<tool_name>" # Replace <tool_name> with your server's tool names
+    }
+    EOF
+
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    claude_args: |
+      --mcp-config /tmp/mcp-config.json
+      --allowedTools my-python-server__<tool_name>  # Replace <tool_name> with your server's tool names
     # ... other inputs
 ```
 
@@ -84,10 +86,26 @@ For example, if your Python MCP server is at `mcp_servers/weather.py`, you would
   ["--directory", "${{ github.workspace }}/mcp_servers/", "run", "weather.py"]
 ```
 
+### Multiple MCP Servers
+
+You can add multiple MCP servers by using multiple `--mcp-config` flags:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    claude_args: |
+      --mcp-config /tmp/config1.json
+      --mcp-config /tmp/config2.json
+      --mcp-config '{"mcpServers": {"inline-server": {"command": "npx", "args": ["@example/server"]}}}'
+    # ... other inputs
+```
+
 **Important**:
 
 - Always use GitHub Secrets (`${{ secrets.SECRET_NAME }}`) for sensitive values like API keys, tokens, or passwords. Never hardcode secrets directly in the workflow file.
 - Your custom servers will override any built-in servers with the same name.
+- The `claude_args` supports multiple `--mcp-config` flags that will be merged together.
 
 ## Additional Permissions for CI/CD Integration
 
@@ -322,5 +340,6 @@ Many individual input parameters have been consolidated into `claude_args` or `s
 | `model`               | Use `claude_args: "--model claude-4-0-sonnet-20250805"`  |
 | `claude_env`          | Use `settings` with `"env"` object                       |
 | `custom_instructions` | Use `claude_args: "--system-prompt 'Your instructions'"` |
+| `mcp_config`          | Use `claude_args: "--mcp-config '{...}'"`                |
 | `direct_prompt`       | Use `prompt` input instead                               |
 | `override_prompt`     | Use `prompt` with GitHub context variables               |

@@ -119,13 +119,6 @@ export const agentMode: Mode = {
       claudeArgs = `--mcp-config '${escapedOurConfig}'`;
     }
 
-    // Add user's MCP_CONFIG env var as separate --mcp-config
-    const userMcpConfig = process.env.MCP_CONFIG;
-    if (userMcpConfig?.trim()) {
-      const escapedUserConfig = userMcpConfig.replace(/'/g, "'\\''");
-      claudeArgs = `${claudeArgs} --mcp-config '${escapedUserConfig}'`.trim();
-    }
-
     // Append user's claude_args (which may have more --mcp-config flags)
     claudeArgs = `${claudeArgs} ${userClaudeArgs}`.trim();
 
