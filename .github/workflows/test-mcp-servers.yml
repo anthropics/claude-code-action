@@ -255,6 +255,8 @@ jobs:
             exit 1
           fi
 
+          cat $OUTPUT_FILE
+
           # Check if the tool was actually called
           if jq -e '.[] | select(.type == "tool" and .name == "mcp__test-server__test_tool")' "$OUTPUT_FILE" > /dev/null; then
             echo "✓ MCP test tool was called"
