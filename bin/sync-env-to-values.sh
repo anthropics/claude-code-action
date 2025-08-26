@@ -77,7 +77,8 @@ in_secrets == 1 && /^  [a-zA-Z]/ {
 }
 ' "$VALUES_FILE" > "$TEMP_FILE"
 
-# Replace the original file
+# Replace the original file and set proper permissions
 mv "$TEMP_FILE" "$VALUES_FILE"
+chmod 644 "$VALUES_FILE"
 
 echo "✅ Successfully synced .env values to $VALUES_FILE"
