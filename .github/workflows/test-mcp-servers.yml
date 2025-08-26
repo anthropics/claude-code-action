@@ -257,16 +257,17 @@ jobs:
 
           cat $OUTPUT_FILE
 
-          # Check if the tool was actually called
-          if jq -e '.[] | select(.type == "tool" and .name == "mcp__test-server__test_tool")' "$OUTPUT_FILE" > /dev/null; then
+          # Check if the tool was actually called - looking in assistant messages
+          if jq -e '.[] | select(.type == "assistant" and .message.content) | .message.content[] | select(.type == "tool_use" and .name == "mcp__test-server__test_tool")' "$OUTPUT_FILE" > /dev/null; then
             echo "✓ MCP test tool was called"
             
-            # Check the tool result
-            if jq -e '.[] | select(.type == "tool-result" and .tool_name == "mcp__test-server__test_tool") | .result | contains("Hello from test tool")' "$OUTPUT_FILE" > /dev/null; then
+            # Check the tool result - looking for the user message with tool_result
+            if jq -e '.[] | select(.type == "user" and .message.content[0].type == "tool_result") | .message.content[0].content[0].text | contains("Test tool response")' "$OUTPUT_FILE" > /dev/null; then
               echo "✓ MCP test tool returned expected result"
             else
               echo "✗ MCP test tool result not as expected"
-              jq '.[] | select(.type == "tool-result" and .tool_name == "mcp__test-server__test_tool")' "$OUTPUT_FILE"
+              echo "Tool results in output:"
+              jq '.[] | select(.type == "user") | .message.content[]? | select(.type == "tool_result")' "$OUTPUT_FILE"
               exit 1
             fi
           else
