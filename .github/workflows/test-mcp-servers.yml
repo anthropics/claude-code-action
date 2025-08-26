@@ -162,11 +162,6 @@ jobs:
   # Test the outer action with inline MCP config
   test-outer-action-inline-mcp:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4
@@ -184,6 +179,7 @@ jobs:
         with:
           prompt: "List all available MCP tools that start with 'mcp__test-server'"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_args: |
             --mcp-config '{"mcpServers":{"test-server":{"type":"stdio","command":"bun","args":["base-action/test/mcp-test/simple-mcp-server.ts"],"env":{}}}}'
 
@@ -210,11 +206,6 @@ jobs:
   # Test the outer action with file-based MCP config
   test-outer-action-file-mcp:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4
@@ -247,6 +238,7 @@ jobs:
         with:
           prompt: "Use the mcp__test-server__test_tool to test the MCP integration"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_args: |
             --mcp-config /tmp/test-mcp-config.json
             --allowedTools mcp__test-server__test_tool
