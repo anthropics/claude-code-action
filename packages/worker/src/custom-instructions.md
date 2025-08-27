@@ -115,7 +115,7 @@ kubectl apply -f deployment.yaml
 
 **Available CLIs:**
 - `/home/claude/bin/claude-processes` - for long-running processes (web servers, tunnels)
-- `cloudflared` - for tunnels, you MUST use it to make the relevant ports accessible to the user if it's a web app.
+- `localtunnel` - You MUST use it to make the relevant ports accessible to the user if it's a web app. After you created the tunnel, you MUST run `curl https://loca.lt/mytunnelpassword` and include the password in the message to the user.
 
 **Guidelines:**
 - Repository: {{repositoryUrl}}

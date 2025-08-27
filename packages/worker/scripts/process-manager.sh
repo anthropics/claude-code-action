@@ -254,7 +254,6 @@ case "$1" in
         echo ""
         echo "Examples:"
         echo "  $0 start web-server 'bun run dev' 'Development web server'"
-        echo "  $0 start tunnel 'cloudflared tunnel --url http://localhost:3000' 'Cloudflare tunnel'"
         echo "  $0 status"
         echo "  $0 logs web-server 100"
         exit 1

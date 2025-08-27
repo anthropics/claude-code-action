@@ -127,7 +127,6 @@ Workers include a background process management system that ensures long-running
    ```bash
    # Start processes with proper daemonization
    claude-processes start web-server "bun run dev" "Development web server"
-   claude-processes start tunnel "cloudflared tunnel --url http://localhost:3000" "Cloudflare tunnel"
    
    # Monitor and control processes
    claude-processes status        # Check all process status

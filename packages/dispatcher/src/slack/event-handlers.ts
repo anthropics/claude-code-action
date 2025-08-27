@@ -113,7 +113,7 @@ export class SlackEventHandlers {
       // Use channel ID prefix to reliably detect channel vs DM (C* = channel, D* = DM)
       const channelId = (message as any).channel;
       if (channelId && channelId.startsWith('C')) {
-        logger.debug(`Skipping channel message in ${channelId} - only app_mention handles channels`);
+        logger.debug(`Skipping channel message in ${channelId} - only app_mention handles channels`); 
         return;
       }
       
@@ -1285,7 +1285,7 @@ export class SlackEventHandlers {
         // Capture section text as context
         const text = block.text.text;
         if (text && !text.includes('Would you like to')) {
-          selections.push(`Context: ${text}`);
+          selections.push(text);
         }
       }
     }

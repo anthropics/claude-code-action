@@ -287,7 +287,11 @@ export class DeploymentManager {
             annotations: {
               // Add Slack thread link for visibility
               ...(messageData?.channelId && messageData?.threadId ? {
-                'slack.thread.url': `https://app.slack.com/client/${messageData?.platformMetadata?.teamId || 'unknown'}/${messageData.channelId}/thread/${messageData.threadId}`
+                'thread_url': `https://app.slack.com/client/${messageData?.platformMetadata?.teamId || 'unknown'}/${messageData.channelId}/thread/${messageData.threadId}`
+              } : {}),
+              // Add Slack user profile link
+              ...(messageData?.platformUserId && messageData?.platformMetadata?.teamId ? {
+                'user_url': `https://app.slack.com/team/${messageData.platformMetadata.teamId}/${messageData.platformUserId}`
               } : {}),
               'peerbot.io/created': new Date().toISOString()
             },
@@ -616,6 +620,26 @@ export class DeploymentManager {
   }
 
   /**
+   * Check if a worker deployment exists in Kubernetes
+   */
+  async checkWorkerDeploymentExists(deploymentId: string): Promise<boolean> {
+    try {
+      const deploymentName = `peerbot-worker-${deploymentId}`;
+      await this.appsV1Api.readNamespacedDeployment(
+        deploymentName,
+        this.config.kubernetes.namespace
+      );
+      return true;
+    } catch (error: any) {
+      if (error.statusCode === 404) {
+        return false;
+      }
+      // Re-throw other errors
+      throw error;
+    }
+  }
+
+  /**
    * Delete a worker deployment and associated resources
    */
   async deleteWorkerDeployment(deploymentId: string): Promise<void> {
@@ -708,8 +732,14 @@ export class DeploymentManager {
         console.log(`  - ${deployment.deploymentId} (user: ${deployment.userId}, idle: ${deployment.minutesIdle.toFixed(1)}min, messages: ${deployment.messageCount})`);
         
         try {
-          await this.deleteWorkerDeployment(deployment.deploymentId);
-          console.log(`✅ Successfully cleaned up deployment: ${deployment.deploymentId}`);
+          // First check if the deployment actually exists in Kubernetes
+          const deploymentExists = await this.checkWorkerDeploymentExists(deployment.deploymentId);
+          if (deploymentExists) {
+            await this.deleteWorkerDeployment(deployment.deploymentId);
+            console.log(`✅ Successfully cleaned up deployment: ${deployment.deploymentId}`);
+          } else {
+            console.log(`⚠️  Deployment ${deployment.deploymentId} already deleted, skipping`);
+          }
         } catch (error) {
           console.error(`❌ Failed to clean up deployment ${deployment.deploymentId}:`, error instanceof Error ? error.message : String(error));
         }
@@ -720,8 +750,14 @@ export class DeploymentManager {
         console.log(`  - ${deployment.deploymentId} (orphaned, age: ${deployment.ageMinutes.toFixed(1)}min)`);
         
         try {
-          await this.deleteWorkerDeployment(deployment.deploymentId);
-          console.log(`✅ Successfully cleaned up orphaned deployment: ${deployment.deploymentId}`);
+          // First check if the deployment actually exists in Kubernetes
+          const deploymentExists = await this.checkWorkerDeploymentExists(deployment.deploymentId);
+          if (deploymentExists) {
+            await this.deleteWorkerDeployment(deployment.deploymentId);
+            console.log(`✅ Successfully cleaned up orphaned deployment: ${deployment.deploymentId}`);
+          } else {
+            console.log(`⚠️  Orphaned deployment ${deployment.deploymentId} already deleted, skipping`);
+          }
         } catch (error) {
           console.error(`❌ Failed to clean up orphaned deployment ${deployment.deploymentId}:`, error instanceof Error ? error.message : String(error));
         }
@@ -850,8 +886,4 @@ export class DeploymentManager {
       client.release();
     }
   }
-}// Updated k8s client Tue Aug 26 23:32:16 BST 2025
-// OrbStack fix Tue Aug 26 23:37:07 BST 2025
-// Universal K8s fix Tue Aug 26 23:38:35 BST 2025
-// All K8s clients upgraded Tue Aug 26 23:42:51 BST 2025
-// Force rebuild Wed Aug 27 01:30:06 BST 2025
+}
