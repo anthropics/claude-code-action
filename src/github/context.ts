@@ -6,6 +6,7 @@ import type {
   PullRequestEvent,
   PullRequestReviewEvent,
   PullRequestReviewCommentEvent,
+  PullRequestReviewRequestedEvent,
   WorkflowRunEvent,
 } from "@octokit/webhooks-types";
 // Custom types for GitHub Actions events that aren't webhooks
@@ -69,6 +70,7 @@ type BaseContext = {
     prompt: string;
     triggerPhrase: string;
     assigneeTrigger: string;
+    reviewerTrigger: string;
     labelTrigger: string;
     baseBranch?: string;
     branchPrefix: string;
@@ -119,6 +121,7 @@ export function parseGitHubContext(): GitHubContext {
       prompt: process.env.PROMPT || "",
       triggerPhrase: process.env.TRIGGER_PHRASE ?? "@claude",
       assigneeTrigger: process.env.ASSIGNEE_TRIGGER ?? "",
+      reviewerTrigger: process.env.REVIEWER_TRIGGER ?? "",
       labelTrigger: process.env.LABEL_TRIGGER ?? "",
       baseBranch: process.env.BASE_BRANCH,
       branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
@@ -245,6 +248,16 @@ export function isIssuesAssignedEvent(
   context: GitHubContext,
 ): context is ParsedGitHubContext & { payload: IssuesAssignedEvent } {
   return isIssuesEvent(context) && context.eventAction === "assigned";
+}
+
+export function isPullRequestReviewRequestedEvent(
+  context: GitHubContext,
+): context is ParsedGitHubContext & {
+  payload: PullRequestReviewRequestedEvent;
+} {
+  return (
+    isPullRequestEvent(context) && context.eventAction === "review_requested"
+  );
 }
 
 // Type guard to check if context is an entity context (has entityNumber and isPR)

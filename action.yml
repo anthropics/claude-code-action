@@ -12,6 +12,9 @@ inputs:
   assignee_trigger:
     description: "The assignee username that triggers the action (e.g. @claude)"
     required: false
+  reviewer_trigger:
+    description: "The reviewer username that triggers the action when review is requested (e.g. @claude)"
+    required: false
   label_trigger:
     description: "The label that triggers the action (e.g. claude)"
     required: false
@@ -143,6 +146,7 @@ runs:
         PROMPT: ${{ inputs.prompt }}
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
+        REVIEWER_TRIGGER: ${{ inputs.reviewer_trigger }}
         LABEL_TRIGGER: ${{ inputs.label_trigger }}
         BASE_BRANCH: ${{ inputs.base_branch }}
         BRANCH_PREFIX: ${{ inputs.branch_prefix }}

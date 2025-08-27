@@ -39,10 +39,9 @@ export async function createInitialComment(
       const existingComment = comments.data.find((comment) => {
         const idMatch =
           comment.user?.id === context.inputs.stickyCommentAppBotId;
-        const botNameMatch =
-          comment.user?.login
-            .toLowerCase()
-            .includes(context.inputs.stickyCommentAppBotName);
+        const botNameMatch = comment.user?.login
+          .toLowerCase()
+          .includes(context.inputs.stickyCommentAppBotName);
         const bodyMatch = comment.body === initialBody;
 
         return idMatch || botNameMatch || bodyMatch;

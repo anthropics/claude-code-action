@@ -28,6 +28,7 @@ describe("prepareMcpConfig", () => {
       prompt: "",
       triggerPhrase: "@claude",
       assigneeTrigger: "",
+      reviewerTrigger: "",
       labelTrigger: "",
       branchPrefix: "",
       useStickyComment: false,

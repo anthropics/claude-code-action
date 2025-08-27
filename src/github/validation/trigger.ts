@@ -8,12 +8,19 @@ import {
   isPullRequestEvent,
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
+  isPullRequestReviewRequestedEvent,
 } from "../context";
 import type { ParsedGitHubContext } from "../context";
 
 export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   const {
-    inputs: { assigneeTrigger, labelTrigger, triggerPhrase, prompt },
+    inputs: {
+      assigneeTrigger,
+      reviewerTrigger,
+      labelTrigger,
+      triggerPhrase,
+      prompt,
+    },
   } = context;
 
   // If prompt is provided, always trigger
@@ -30,6 +37,20 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
 
     if (triggerUser && assigneeUsername === triggerUser) {
       console.log(`Issue assigned to trigger user '${triggerUser}'`);
+      return true;
+    }
+  }
+
+  // Check for reviewer trigger
+  if (isPullRequestReviewRequestedEvent(context)) {
+    // Remove @ symbol from reviewer_trigger if present
+    let triggerUser = reviewerTrigger.replace(/^@/, "");
+    // Handle both variants of PullRequestReviewRequestedEvent - some have requested_reviewer (User), some have requested_team (Team)
+    const requestedReviewerUsername =
+      (context.payload as any).requested_reviewer?.login || "";
+
+    if (triggerUser && requestedReviewerUsername === triggerUser) {
+      console.log(`Review requested from trigger user '${triggerUser}'`);
       return true;
     }
   }

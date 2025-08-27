@@ -4,6 +4,7 @@ export function collectActionInputsPresence(): void {
   const inputDefaults: Record<string, string> = {
     trigger_phrase: "@claude",
     assignee_trigger: "",
+    reviewer_trigger: "",
     label_trigger: "claude",
     base_branch: "",
     branch_prefix: "claude/",

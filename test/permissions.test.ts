@@ -64,6 +64,7 @@ describe("checkWritePermissions", () => {
       prompt: "",
       triggerPhrase: "@claude",
       assigneeTrigger: "",
+      reviewerTrigger: "",
       labelTrigger: "",
       branchPrefix: "claude/",
       useStickyComment: false,
