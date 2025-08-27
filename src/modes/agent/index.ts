@@ -5,6 +5,8 @@ import type { PreparedContext } from "../../create-prompt/types";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { parseAllowedTools } from "./parse-tools";
 import { configureGitAuth } from "../../github/operations/git-config";
+import { fetchGitHubData } from "../../github/data/fetcher";
+import { isEntityContext } from "../../github/context";
 
 /**
  * Agent mode implementation.
@@ -121,6 +123,36 @@ export const agentMode: Mode = {
 
     // Append user's claude_args (which may have more --mcp-config flags)
     claudeArgs = `${claudeArgs} ${userClaudeArgs}`.trim();
+
+    // Download GitHub assets if requested
+    const shouldDownload = process.env.DOWNLOAD_GITHUB_ASSETS === "true";
+
+    if (shouldDownload && isEntityContext(context)) {
+      console.log("Downloading GitHub assets for agent mode...");
+
+      try {
+        // Fetch GitHub data (reuse existing logic)
+        const githubData = await fetchGitHubData({
+          octokits: octokit,
+          repository: `${context.repository.owner}/${context.repository.repo}`,
+          prNumber: context.entityNumber.toString(),
+          isPR: context.isPR,
+          triggerUsername: context.actor,
+        });
+
+        // Set simple environment variable with comma-separated paths
+        const downloadedPaths = Array.from(githubData.imageUrlMap.values());
+        if (downloadedPaths.length > 0) {
+          process.env.CLAUDE_ASSET_FILES = downloadedPaths.join(",");
+          console.log(
+            `Exposed ${downloadedPaths.length} assets: ${process.env.CLAUDE_ASSET_FILES}`,
+          );
+        }
+      } catch (error) {
+        console.error("Failed to download GitHub assets:", error);
+        // Continue execution - don't fail the entire action
+      }
+    }
 
     core.setOutput("claude_args", claudeArgs);
 

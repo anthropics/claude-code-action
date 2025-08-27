@@ -3,6 +3,7 @@ import { agentMode } from "../../src/modes/agent";
 import type { GitHubContext } from "../../src/github/context";
 import { createMockContext, createMockAutomationContext } from "../mockContext";
 import * as core from "@actions/core";
+import * as fetcher from "../../src/github/data/fetcher";
 
 describe("Agent Mode", () => {
   let mockContext: GitHubContext;
@@ -165,5 +166,144 @@ describe("Agent Mode", () => {
     const callArgs = setOutputSpy.mock.calls[0];
     expect(callArgs[0]).toBe("claude_args");
     expect(callArgs[1]).toContain("--mcp-config");
+  });
+
+  test("downloads GitHub assets when enabled for entity context", async () => {
+    // Mock the fetchGitHubData function
+    const mockImageMap = new Map([
+      [
+        "https://github.com/user-attachments/assets/image1",
+        "/tmp/github-images/image-123.png",
+      ],
+      [
+        "https://github.com/user-attachments/assets/image2",
+        "/tmp/github-images/image-456.jpg",
+      ],
+    ]);
+    const fetchSpy = spyOn(fetcher, "fetchGitHubData").mockResolvedValue({
+      contextData: {} as any,
+      comments: [],
+      changedFiles: [],
+      changedFilesWithSHA: [],
+      reviewData: null,
+      imageUrlMap: mockImageMap,
+      triggerDisplayName: null,
+    });
+
+    // Create an entity context (issue comment)
+    const entityContext = createMockContext({
+      eventName: "issue_comment",
+      inputs: { prompt: "Analyze images" },
+    });
+
+    // Set download assets environment variable
+    const originalDownload = process.env.DOWNLOAD_GITHUB_ASSETS;
+    process.env.DOWNLOAD_GITHUB_ASSETS = "true";
+
+    const mockOctokit = {} as any;
+
+    await agentMode.prepare({
+      context: entityContext,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+
+    // Verify fetchGitHubData was called
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith({
+      octokits: mockOctokit,
+      repository: `${entityContext.repository.owner}/${entityContext.repository.repo}`,
+      prNumber: entityContext.entityNumber.toString(),
+      isPR: entityContext.isPR,
+      triggerUsername: entityContext.actor,
+    });
+
+    // Verify CLAUDE_ASSET_FILES environment variable was set
+    expect(process.env.CLAUDE_ASSET_FILES).toBe(
+      "/tmp/github-images/image-123.png,/tmp/github-images/image-456.jpg",
+    );
+
+    // Clean up
+    delete process.env.CLAUDE_ASSET_FILES;
+    if (originalDownload !== undefined) {
+      process.env.DOWNLOAD_GITHUB_ASSETS = originalDownload;
+    } else {
+      delete process.env.DOWNLOAD_GITHUB_ASSETS;
+    }
+    fetchSpy.mockRestore();
+  });
+
+  test("skips asset download when disabled", async () => {
+    const fetchSpy = spyOn(fetcher, "fetchGitHubData");
+
+    const entityContext = createMockContext({
+      eventName: "issue_comment",
+      inputs: { prompt: "Analyze images" },
+    });
+
+    // Ensure download assets is disabled (default)
+    const originalDownload = process.env.DOWNLOAD_GITHUB_ASSETS;
+    process.env.DOWNLOAD_GITHUB_ASSETS = "false";
+
+    const mockOctokit = {} as any;
+
+    await agentMode.prepare({
+      context: entityContext,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+
+    // Verify fetchGitHubData was NOT called
+    expect(fetchSpy).toHaveBeenCalledTimes(0);
+    expect(process.env.CLAUDE_ASSET_FILES).toBeUndefined();
+
+    // Clean up
+    if (originalDownload !== undefined) {
+      process.env.DOWNLOAD_GITHUB_ASSETS = originalDownload;
+    } else {
+      delete process.env.DOWNLOAD_GITHUB_ASSETS;
+    }
+    fetchSpy.mockRestore();
+  });
+
+  test("handles asset download errors gracefully", async () => {
+    const consoleSpy = spyOn(console, "error").mockImplementation(() => {});
+    const fetchSpy = spyOn(fetcher, "fetchGitHubData").mockRejectedValue(
+      new Error("Network error"),
+    );
+
+    const entityContext = createMockContext({
+      eventName: "issue_comment",
+      inputs: { prompt: "Analyze images" },
+    });
+
+    // Set download assets environment variable
+    const originalDownload = process.env.DOWNLOAD_GITHUB_ASSETS;
+    process.env.DOWNLOAD_GITHUB_ASSETS = "true";
+
+    const mockOctokit = {} as any;
+
+    // This should not throw despite the error
+    await agentMode.prepare({
+      context: entityContext,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+
+    // Verify error was logged but execution continued
+    expect(consoleSpy).toHaveBeenCalledWith(
+      "Failed to download GitHub assets:",
+      expect.any(Error),
+    );
+    expect(process.env.CLAUDE_ASSET_FILES).toBeUndefined();
+
+    // Clean up
+    if (originalDownload !== undefined) {
+      process.env.DOWNLOAD_GITHUB_ASSETS = originalDownload;
+    } else {
+      delete process.env.DOWNLOAD_GITHUB_ASSETS;
+    }
+    fetchSpy.mockRestore();
+    consoleSpy.mockRestore();
   });
 });

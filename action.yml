@@ -27,6 +27,10 @@ inputs:
     description: "Comma-separated list of allowed bot usernames, or '*' to allow all bots. Empty string (default) allows no bots."
     required: false
     default: ""
+  download_github_assets:
+    description: "Download GitHub assets (images, attachments) for access via environment variables"
+    required: false
+    default: "false"
 
   # Claude Code configuration
   prompt:
@@ -143,6 +147,7 @@ runs:
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         CLAUDE_ARGS: ${{ inputs.claude_args }}
         ALL_INPUTS: ${{ toJson(inputs) }}
+        DOWNLOAD_GITHUB_ASSETS: ${{ inputs.download_github_assets }}
 
     - name: Install Base Action Dependencies
       if: steps.prepare.outputs.contains_trigger == 'true'
