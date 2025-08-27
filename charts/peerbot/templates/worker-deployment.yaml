@@ -15,6 +15,9 @@ spec:
       app.kubernetes.io/component: worker
   template:
     metadata:
+      annotations:
+        slack.thread.url: "Will be updated by dispatcher with actual thread link"
+        peerbot.io/last-updated: "{{ now | unixEpoch }}"
       labels:
         {{- include "peerbot.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: worker
@@ -97,6 +100,14 @@ spec:
         # Workspace configuration
         - name: WORKSPACE_PATH
           value: "/workspace"
+        
+        # Slack thread link variables (will be populated by dispatcher)
+        - name: SLACK_TEAM_DOMAIN
+          value: ""
+        - name: SLACK_CHANNEL_ID
+          value: ""
+        - name: SLACK_THREAD_TS
+          value: ""
         
         ports:
         - name: health

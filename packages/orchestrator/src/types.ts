@@ -93,6 +93,7 @@ export interface SimpleDeployment {
     template: {
       metadata: {
         labels: Record<string, string>;
+        annotations?: Record<string, string>;
       };
       spec: {
         serviceAccountName?: string;

@@ -30,7 +30,7 @@ The bot updates automatically when running `make dev` - no manual steps needed!
 
 ## k3s Setup
 
-For k3s clusters, configure Docker runtime support to avoid image pull issues: run `sudo /tmp/setup-k3s-docker.sh` to install cri-dockerd and configure k3s to use Docker daemon for local images.
+For k3s clusters, you can install cri-dockerd and configure k3s to use Docker daemon for local images.
 
 ## Persistent Storage
 

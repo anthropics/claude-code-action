@@ -284,6 +284,13 @@ export class DeploymentManager {
         },
         template: {
           metadata: {
+            annotations: {
+              // Add Slack thread link for visibility
+              ...(messageData?.channelId && messageData?.threadId ? {
+                'slack.thread.url': `https://app.slack.com/client/${messageData?.platformMetadata?.teamId || 'unknown'}/${messageData.channelId}/thread/${messageData.threadId}`
+              } : {}),
+              'peerbot.io/created': new Date().toISOString()
+            },
             labels: {
               'app.kubernetes.io/name': 'peerbot',
               'app.kubernetes.io/component': 'worker'
@@ -362,6 +369,19 @@ export class DeploymentManager {
                 {
                   name: 'WORKSPACE_PATH',
                   value: '/workspace'
+                },
+                // Slack thread information for visibility and tooling
+                {
+                  name: 'SLACK_TEAM_ID',
+                  value: messageData?.platformMetadata?.teamId || ''
+                },
+                {
+                  name: 'SLACK_CHANNEL_ID', 
+                  value: messageData?.channelId || ''
+                },
+                {
+                  name: 'SLACK_THREAD_TS',
+                  value: messageData?.threadId || ''
                 },
                 // Security: Claude tool restrictions (only if env vars exist)
                 ...(process.env.CLAUDE_ALLOWED_TOOLS ? [{

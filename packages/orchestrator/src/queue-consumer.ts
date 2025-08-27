@@ -58,7 +58,7 @@ export class QueueConsumer {
       console.log('✅ Created/verified messages queue');
 
       // Subscribe to the single messages queue for all messages
-      await this.pgBoss.work('messages', async (job) => {
+      await this.pgBoss.work('messages', async (job: any) => {
         return await Sentry.startSpan(
           { 
             name: "orchestrator.process_queue_job", 

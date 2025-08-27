@@ -109,10 +109,11 @@ export class SlackEventHandlers {
         return;
       }
       
-      // Skip channel messages with bot mentions (handled by app_mention)
-      const messageText = (message as any).text || '';
-      if (message.channel_type === 'channel' && messageText.includes(`<@${botUserId}>`)) {
-        logger.debug("Skipping channel message with bot mention - handled by app_mention");
+      // Skip ALL channel messages - only app_mention handles channel mentions
+      // Use channel ID prefix to reliably detect channel vs DM (C* = channel, D* = DM)
+      const channelId = (message as any).channel;
+      if (channelId && channelId.startsWith('C')) {
+        logger.debug(`Skipping channel message in ${channelId} - only app_mention handles channels`);
         return;
       }
       
