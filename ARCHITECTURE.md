@@ -119,20 +119,7 @@ graph TB
 5. **No Data Loss**: Data persists even when worker pods terminate
 
 ### Background Process Management
-Workers include a background process management system that ensures long-running processes persist beyond worker lifecycle:
-
-2. **Process Persistence**: Background processes (web servers, tunnels) continue running even after worker pods terminate
-3. **Output Redirection**: All stdout/stderr from background processes captured in persistent logs
-5. **Process Control**: `claude-processes` command provides complete lifecycle management:
-   ```bash
-   # Start processes with proper daemonization
-   claude-processes start web-server "bun run dev" "Development web server"
-   
-   # Monitor and control processes
-   claude-processes status        # Check all process status
-   claude-processes logs tunnel   # View process logs
-   claude-processes restart web-server  # Restart failed processes
-   ```
+Workers include a background process management MCP server.
 
 ### Directory Structure
 ```
@@ -148,7 +135,7 @@ Workers include a background process management system that ensures long-running
 │   ├── .claude/
 │   └── [project files]
 └── /tmp/                       # Background process management
-    ├── claude-processes/       # Process control files (.pid, .info)
+    ├── agent-processes/       # Process control files (.pid, .info)
     └── claude-logs/           # Process output logs
 ```
 

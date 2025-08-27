@@ -23,7 +23,7 @@ interface ProcessInfo {
 
 class ProcessManager {
   private processes: Map<string, ProcessInfo> = new Map();
-  private processDir = "/tmp/claude-processes";
+  private processDir = "/tmp/agent-processes";
   private logsDir = "/tmp/claude-logs";
   private monitorInterval?: NodeJS.Timeout;
   private autoRestart = false;
