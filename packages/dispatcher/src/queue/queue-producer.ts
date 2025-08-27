@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import * as Sentry from "@sentry/node";
 import PgBoss from "pg-boss";
 import { Pool } from "pg";
 import logger from "../logger";
@@ -148,6 +149,7 @@ export class QueueProducer {
       return jobId || 'job-sent';
 
     } catch (error) {
+      Sentry.captureException(error);
       logger.error(`Failed to enqueue message for user ${payload.userId}:`, error);
       throw error;
     }

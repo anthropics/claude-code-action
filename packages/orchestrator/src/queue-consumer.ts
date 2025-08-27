@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import PgBoss from 'pg-boss';
 import * as k8s from '@kubernetes/client-node';
 import { 
@@ -58,9 +59,20 @@ export class QueueConsumer {
 
       // Subscribe to the single messages queue for all messages
       await this.pgBoss.work('messages', async (job) => {
-        console.log('=== PG-BOSS JOB RECEIVED ===');
-        console.log('Raw job:', JSON.stringify(job, null, 2));
-        return this.handleMessage(job);
+        return await Sentry.startSpan(
+          { 
+            name: "orchestrator.process_queue_job", 
+            op: "orchestrator.queue_processing",
+            attributes: {
+              "job.id": job?.id || "unknown"
+            }
+          },
+          async () => {
+            console.log('=== PG-BOSS JOB RECEIVED ===');
+            console.log('Raw job:', JSON.stringify(job, null, 2));
+            return this.handleMessage(job);
+          }
+        );
       });
 
       console.log('✅ Queue consumer started - listening for messages');
@@ -109,7 +121,20 @@ export class QueueConsumer {
         // New thread - create deployment
         console.log(`New thread ${data.threadId} - creating deployment ${deploymentName}`);
         
-        await this.deploymentManager.createWorkerDeployment(data.userId, data.threadId, teamId, data);
+        await Sentry.startSpan(
+          { 
+            name: "orchestrator.create_worker_deployment", 
+            op: "orchestrator.deployment_management",
+            attributes: {
+              "user.id": data.userId,
+              "thread.id": data.threadId,
+              "deployment.name": deploymentName
+            }
+          },
+          async () => {
+            await this.deploymentManager.createWorkerDeployment(data.userId, data.threadId, teamId, data);
+          }
+        );
         console.log(`✅ Created deployment: ${deploymentName}`);
 
         // Enforce deployment limit after creating new deployment
@@ -134,11 +159,25 @@ export class QueueConsumer {
       }
 
       // Send message to worker queue
-      await this.sendToWorkerQueue(data, deploymentName);
+      await Sentry.startSpan(
+        { 
+          name: "orchestrator.send_to_worker_queue", 
+          op: "orchestrator.message_routing",
+          attributes: {
+            "user.id": data.userId,
+            "thread.id": data.threadId,
+            "deployment.name": deploymentName
+          }
+        },
+        async () => {
+          await this.sendToWorkerQueue(data, deploymentName);
+        }
+      );
 
       console.log(`✅ Message job ${jobId} completed successfully`);
       
     } catch (error) {
+      Sentry.captureException(error);
       console.error(`❌ Message job ${jobId} failed:`, error);
 
       // Re-throw for pgboss retry handling

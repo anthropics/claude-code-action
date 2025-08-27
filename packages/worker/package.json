@@ -16,6 +16,7 @@
     "@claude-code-slack/core-runner": "workspace:*",
     "@kubernetes/client-node": "^1.3.0",
     "@octokit/rest": "^21.1.1",
+    "@sentry/node": "^10.6.0",
     "node-fetch": "^3.3.2",
     "pg": "^8.11.3",
     "pg-boss": "^10.0.2",

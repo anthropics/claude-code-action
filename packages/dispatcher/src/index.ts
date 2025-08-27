@@ -1,5 +1,10 @@
 #!/usr/bin/env bun
 
+import { initSentry } from "./sentry";
+
+// Initialize Sentry monitoring
+initSentry();
+
 import { config as dotenvConfig } from 'dotenv';
 import { join } from 'path';
 import { App, ExpressReceiver, LogLevel } from "@slack/bolt";

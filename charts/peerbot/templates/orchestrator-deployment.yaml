@@ -78,6 +78,14 @@ spec:
         - name: DATABASE_URL
           value: "postgres://{{ .Values.postgresql.username }}:peerbot123@{{ include "peerbot.fullname" . }}-postgresql:5432/{{ .Values.postgresql.database }}"
         
+        # Sentry configuration
+        - name: SENTRY_DSN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "peerbot.fullname" . }}-secrets
+              key: sentry-dsn
+              optional: true
+        
         # pgboss configuration
         - name: PGBOSS_RETRY_LIMIT
           value: "{{ .Values.pgboss.retryLimit }}"

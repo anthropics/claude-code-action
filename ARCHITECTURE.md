@@ -227,3 +227,15 @@ This ensures workers can only access their own thread messages and user data.
 - **Pod Security**: Non-root containers, read-only filesystem except `/workspace`
 - **Network**: Workers access only GitHub and Claude API
 - **Secrets**: Kubernetes secrets for API tokens, mounted as volumes
+
+# Error / Exception Tracking
+
+Use `Sentry.captureException(error)` to capture an exception and log the error in Sentry.
+Use this in try catch blocks or areas where exceptions are expected
+
+# Tracing Examples
+
+Spans should be created for meaningful actions within an applications like button clicks, API calls, and function calls
+Ensure you are creating custom spans with meaningful names and operations
+Use the `Sentry.startSpan` function to create a span
+Child spans can exist within a parent span

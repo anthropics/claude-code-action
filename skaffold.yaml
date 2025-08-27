@@ -36,8 +36,7 @@ deploy:
         worker.image.tag: "{{.IMAGE_TAG_claude_worker}}"
         worker.image.repository: "claude-worker"
       setValues:
-        dispatcher.socketMode: "true"
-        dispatcher.httpMode: "false"
+        slack.socketMode: "true"
         ingress.enabled: "false"
         service.type: ClusterIP
         dispatcher.image.pullPolicy: IfNotPresent

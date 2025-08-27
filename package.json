@@ -36,6 +36,7 @@
     "@octokit/graphql": "^8.2.2",
     "@octokit/rest": "^21.1.1",
     "@octokit/webhooks-types": "^7.6.1",
+    "@sentry/node": "^10.6.0",
     "@slack/bolt": "^3.19.0",
     "@slack/web-api": "^7.6.0",
     "node-fetch": "^3.3.2",

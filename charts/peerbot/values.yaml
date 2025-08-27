@@ -12,6 +12,7 @@ secrets:
   githubToken: "placeholder"
   claudeCodeOAuthToken: "placeholder"
   postgresqlPassword: "placeholder"
+  sentryDsn: "https://078b368139997798ba4d6d23f94dcc7f@o4507291398897664.ingest.us.sentry.io/4509916004220928"
 
 kubernetes:
   namespace: peerbot

@@ -17,6 +17,7 @@
     "@claude-code-slack/core-runner": "workspace:*",
     "@kubernetes/client-node": "^1.3.0",
     "@octokit/rest": "^21.1.1",
+    "@sentry/node": "^10.6.0",
     "@slack/bolt": "^3.22.0",
     "@slack/web-api": "^7.6.0",
     "marked": "^12.0.0",

@@ -25,4 +25,4 @@ ingress:
 
 # Increase replicas for HTTP mode
 dispatcher:
-  replicaCount: 2
+  replicaCount: 1

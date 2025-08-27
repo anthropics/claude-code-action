@@ -1,5 +1,10 @@
 #!/usr/bin/env bun
 
+import { initSentry } from "./sentry";
+
+// Initialize Sentry monitoring
+initSentry();
+
 import { QueuePersistentClaudeWorker } from "./queue-persistent-worker";
 import { QueueIntegration } from "./queue-integration";
 import logger from "./logger";

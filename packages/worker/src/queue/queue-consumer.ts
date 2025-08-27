@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import * as Sentry from "@sentry/node";
 import PgBoss from "pg-boss";
 import { ClaudeWorker } from "../claude-worker";
 import type { WorkerConfig } from "../types";
@@ -72,7 +73,22 @@ export class WorkerQueueConsumer {
       // Register job handler for thread queue messages
       await this.pgBoss.work(
         threadQueueName,
-        async (job: any) => this.handleThreadMessage(job)
+        async (job: any) => {
+          return await Sentry.startSpan(
+            { 
+              name: "worker.process_thread_message", 
+              op: "worker.message_processing",
+              attributes: {
+                "user.id": this.userId,
+                "deployment.name": this.deploymentName,
+                "job.id": job?.id || "unknown"
+              }
+            },
+            async () => {
+              return this.handleThreadMessage(job);
+            }
+          );
+        }
       );
 
       this.isRunning = true;

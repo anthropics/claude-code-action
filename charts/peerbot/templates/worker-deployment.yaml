@@ -67,6 +67,14 @@ spec:
             secretKeyRef:
               name: {{ include "peerbot.fullname" . }}-secrets
               key: postgresql-password
+        
+        # Sentry configuration
+        - name: SENTRY_DSN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "peerbot.fullname" . }}-secrets
+              key: sentry-dsn
+              optional: true
         # Queue configuration
         - name: QUEUE_DIRECT_MESSAGE
           value: {{ .Values.queues.directMessage }}

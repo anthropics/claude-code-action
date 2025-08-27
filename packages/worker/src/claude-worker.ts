@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import * as Sentry from "@sentry/node";
 import { ClaudeSessionRunner } from "@claude-code-slack/core-runner";
 import { WorkspaceManager } from "./workspace-setup";
 import { QueueIntegration } from "./queue-integration";
@@ -143,15 +144,28 @@ export class ClaudeWorker {
 
       // Setup workspace
       logger.info("Setting up workspace...");
-      await this.workspaceManager.setupWorkspace(
-        this.config.repositoryUrl,
-        this.config.userId,
-        this.config.sessionKey
+      await Sentry.startSpan(
+        {
+          name: "worker.workspace_setup",
+          op: "worker.setup",
+          attributes: {
+            "user.id": this.config.userId,
+            "repository.url": this.config.repositoryUrl,
+            "session.key": this.config.sessionKey
+          }
+        },
+        async () => {
+          await this.workspaceManager.setupWorkspace(
+            this.config.repositoryUrl,
+            this.config.userId,
+            this.config.sessionKey
+          );
+          
+          // Create or checkout session branch
+          logger.info("Setting up session branch...");
+          await this.workspaceManager.createSessionBranch(this.config.sessionKey);
+        }
       );
-      
-      // Create or checkout session branch
-      logger.info("Setting up session branch...");
-      await this.workspaceManager.createSessionBranch(this.config.sessionKey);
       // Prepare session context
       const sessionContext = {
         platform: "slack" as const,
@@ -171,30 +185,45 @@ export class ClaudeWorker {
       logger.info(`[TIMING] Total worker startup time: ${claudeStartTime - executeStartTime}ms`);
       
       let firstOutputLogged = false;
-      const result = await this.sessionRunner.executeSession({
-        sessionKey: this.config.sessionKey,
-        userPrompt,
-        context: sessionContext,
-        options: {
-          ...JSON.parse(this.config.claudeOptions),
-          // Use resumeSessionId for continuation, sessionId for new sessions
-          ...(this.config.resumeSessionId ? { resumeSessionId: this.config.resumeSessionId } : {}),
-          ...(this.config.sessionId && !this.config.resumeSessionId ? { sessionId: this.config.sessionId } : {}),
-        },
-        onProgress: async (update) => {
-          // Log timing for first output
-          if (!firstOutputLogged && update.type === "output") {
-            logger.info(`[TIMING] First Claude output at: ${new Date().toISOString()} (${Date.now() - claudeStartTime}ms after Claude start)`);
-            firstOutputLogged = true;
-            // Update progress to show Claude is now actively working
-            await this.queueIntegration.sendTyping();
-          }
-          // Stream progress via queue
-          if (update.type === "output" && update.data) {
-            await this.queueIntegration.streamProgress(update.data);
+      const result = await Sentry.startSpan(
+        {
+          name: "worker.claude_execution",
+          op: "ai.inference",
+          attributes: {
+            "user.id": this.config.userId,
+            "session.key": this.config.sessionKey,
+            "thread.id": this.config.threadTs,
+            "model": JSON.parse(this.config.claudeOptions).model || "unknown",
+            "is_resume": !!this.config.resumeSessionId
           }
         },
-      });
+        async () => {
+          return await this.sessionRunner.executeSession({
+            sessionKey: this.config.sessionKey,
+            userPrompt,
+            context: sessionContext,
+            options: {
+              ...JSON.parse(this.config.claudeOptions),
+              // Use resumeSessionId for continuation, sessionId for new sessions
+              ...(this.config.resumeSessionId ? { resumeSessionId: this.config.resumeSessionId } : {}),
+              ...(this.config.sessionId && !this.config.resumeSessionId ? { sessionId: this.config.sessionId } : {}),
+            },
+            onProgress: async (update) => {
+              // Log timing for first output
+              if (!firstOutputLogged && update.type === "output") {
+                logger.info(`[TIMING] First Claude output at: ${new Date().toISOString()} (${Date.now() - claudeStartTime}ms after Claude start)`);
+                firstOutputLogged = true;
+                // Update progress to show Claude is now actively working
+                await this.queueIntegration.sendTyping();
+              }
+              // Stream progress via queue
+              if (update.type === "output" && update.data) {
+                await this.queueIntegration.streamProgress(update.data);
+              }
+            },
+          });
+        }
+      );
 
       // Handle final result
       
