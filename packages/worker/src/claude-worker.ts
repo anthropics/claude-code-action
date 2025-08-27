@@ -230,7 +230,7 @@ export class ClaudeWorker {
           ? claudeResponse 
           : "✅ Task completed successfully";
         
-        logger.info(`Sending final message via queue: ${finalMessage.substring(0, 100)}...`);
+        logger.info(`Sending final message via queue: ${finalMessage}...`);
         await this.queueIntegration.updateProgress(finalMessage);
         await this.queueIntegration.signalDone(finalMessage);
         

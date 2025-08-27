@@ -234,7 +234,6 @@ export class QueueIntegration {
       const isSessionBranch = status.branch && status.branch.startsWith('claude/');
       
       if (status.hasChanges || isSessionBranch) {
-        logger.info(`Git branch for Edit button: ${status.branch} (hasChanges: ${status.hasChanges}, isSessionBranch: ${isSessionBranch})`);
         return status.branch;
       } else {
         logger.debug(`Git branch ${status.branch} has no changes and is not a session branch, skipping Edit button`);
@@ -277,12 +276,11 @@ export class QueueIntegration {
         });
         
         // Branch has commits
-        logger.info(`Git branch for Edit button (fallback): ${branch} (hasCommits: true, isSessionBranch: ${isSessionBranch})`);
+        logger.info(`Git branch: ${branch} (hasCommits: true, isSessionBranch: ${isSessionBranch})`);
         return branch;
       } catch (logError) {
         // No commits yet, but still show Edit button for session branches
         if (isSessionBranch) {
-          logger.info(`Git branch for Edit button (fallback): ${branch} (hasCommits: false, isSessionBranch: ${isSessionBranch})`);
           return branch;
         } else {
           logger.debug(`Git branch ${branch} has no commits and is not a session branch, skipping Edit button`);
@@ -311,13 +309,6 @@ export class QueueIntegration {
         logger.warn("performUpdate called with empty content, using fallback");
         content = "✅ Task completed";
       }
-      
-      logger.info(`Sending progress update to thread_response queue, content length: ${content.length}`);
-      
-      // Debug the properties to see if they're corrupted
-      logger.info(`DEBUG: messageId type=${typeof this.messageId}, value=${JSON.stringify(this.messageId)}`);
-      logger.info(`DEBUG: responseChannel type=${typeof this.responseChannel}, value=${JSON.stringify(this.responseChannel)}`);
-      logger.info(`DEBUG: responseTs type=${typeof this.responseTs}, value=${JSON.stringify(this.responseTs)}`);
       
       const payload: ThreadResponsePayload = {
         messageId: this.messageId,
