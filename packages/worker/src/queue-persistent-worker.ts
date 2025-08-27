@@ -70,25 +70,6 @@ export class QueuePersistentClaudeWorker {
     return `postgres://${username}:${password}@${host}:${port}/${database}`;
   }
 
-  // @ts-ignore - Method loaded but not currently used
-  private loadConfigFromEnv(): WorkerConfig {
-    return {
-      sessionKey: process.env.SESSION_KEY!,
-      userId: process.env.USER_ID!,
-      channelId: process.env.CHANNEL_ID!,
-      threadTs: process.env.THREAD_ID || undefined,
-      repositoryUrl: process.env.REPOSITORY_URL!,
-      userPrompt: "", // Will be populated from queue messages
-      slackResponseChannel: process.env.CHANNEL_ID!,
-      slackResponseTs: "", // Will be populated from queue messages
-      claudeOptions: "{}",
-      resumeSessionId: undefined,
-      workspace: {
-        baseDirectory: "/workspace",
-        githubToken: process.env.GITHUB_TOKEN!,
-      },
-    };
-  }
 
   async start(): Promise<void> {
     try {

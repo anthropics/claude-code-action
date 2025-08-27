@@ -1296,19 +1296,7 @@ export class SlackEventHandlers {
     return selections.join('\n');
   }
 
-  /**
-   * Get active sessions for monitoring
-   */
-  getActiveSessions(): ThreadSession[] {
-    return Array.from(this.activeSessions.values());
-  }
 
-  /**
-   * Get session count
-   */
-  getActiveSessionCount(): number {
-    return this.activeSessions.size;
-  }
 
   /**
    * Get user mappings (for thread response consumer)

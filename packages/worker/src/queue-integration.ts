@@ -431,39 +431,7 @@ export class QueueIntegration {
     }
   }
 
-  /**
-   * Format error message
-   */
-  formatError(error: Error, context?: string): string {
-    const parts = ["❌ **Error occurred**"];
-    
-    if (context) {
-      parts.push(`**Context:** ${context}`);
-    }
-    
-    parts.push(`**Error:** \`${error.message}\``);
-    
-    if (error.stack) {
-      parts.push(`**Stack trace:**\n\`\`\`\n${error.stack.substring(0, 500)}\n\`\`\``);
-    }
-    
-    return parts.join("\n\n");
-  }
 
-  /**
-   * Format success message
-   */
-  formatSuccess(message: string, details?: Record<string, any>): string {
-    const parts = [`✅ **${message}**`];
-    
-    if (details) {
-      for (const [key, value] of Object.entries(details)) {
-        parts.push(`**${key}:** \`${value}\``);
-      }
-    }
-    
-    return parts.join("\n");
-  }
 
   /**
    * Extract todo list from Claude's JSON output

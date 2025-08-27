@@ -43,32 +43,6 @@ export class SecretManager {
     return password;
   }
 
-  /**
-   * Update existing Kubernetes secret with new PostgreSQL credentials
-   */
-  async updateUserSecret(secretName: string, username: string, password: string): Promise<void> {
-    try {
-      const secretData = {
-        'DATABASE_URL': Buffer.from(`postgres://${username}:${password}@peerbot-postgresql:5432/peerbot`).toString('base64'),
-        'DB_USERNAME': Buffer.from(username).toString('base64'),
-        'DB_PASSWORD': Buffer.from(password).toString('base64')
-      };
-
-      const secretPatch = {
-        data: secretData
-      };
-
-      await this.coreV1Api.patchNamespacedSecret(secretName, this.config.kubernetes.namespace, secretPatch);
-      console.log(`✅ Updated secret: ${secretName}`);
-    } catch (error) {
-      throw new OrchestratorError(
-        ErrorCode.DEPLOYMENT_CREATE_FAILED,
-        `Failed to update user secret: ${error instanceof Error ? error.message : String(error)}`,
-        { username, secretName, error },
-        true
-      );
-    }
-  }
 
   /**
    * Create Kubernetes secret with PostgreSQL credentials

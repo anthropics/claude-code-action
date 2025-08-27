@@ -8,8 +8,7 @@ import type {
   ClaudeExecutionOptions, 
   ClaudeExecutionResult, 
   ProgressCallback,
-  SessionContext,
-  SessionState 
+  SessionContext
 } from "./types";
 
 export interface ExecuteClaudeSessionOptions {
@@ -137,13 +136,6 @@ export class ClaudeSessionRunner {
     await this.sessionManager.cleanup(sessionKey);
   }
 
-  /**
-   * Get current session state (always returns null in stateless mode)
-   */
-  async getSessionState(_sessionKey: string): Promise<SessionState | null> {
-    // Always return null since we don't store sessions
-    return null;
-  }
 
   /**
    * Check if session exists (always returns false in stateless mode)

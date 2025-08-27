@@ -333,12 +333,6 @@ export class WorkspaceManager {
     }
   }
 
-  /**
-   * Get workspace information
-   */
-  getWorkspaceInfo(): WorkspaceInfo | undefined {
-    return this.workspaceInfo;
-  }
 
   /**
    * Get current working directory

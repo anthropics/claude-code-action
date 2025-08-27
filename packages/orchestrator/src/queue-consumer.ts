@@ -263,118 +263,13 @@ export class QueueConsumer {
 
       console.log('🧹 Running worker deployment cleanup task...');
       try {
-        await this.cleanupIdleWorkerDeployments();
+        await this.deploymentManager.reconcileDeployments();
       } catch (error) {
         console.error('Error during cleanup task:', error);
       }
     }, 60 * 1000); // Run every minute
   }
 
-  /**
-   * Clean up idle worker deployments
-   */
-  private async cleanupIdleWorkerDeployments(): Promise<void> {
-    try {
-      // Get all worker deployments
-      const kc = new k8s.KubeConfig();
-      kc.loadFromDefault();
-      const k8sApi = kc.makeApiClient(k8s.AppsV1Api);
-      const response = await k8sApi.listNamespacedDeployment(
-        'peerbot',
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        'app.kubernetes.io/component=worker'
-      );
-      const body = response.body;
-
-      const now = Date.now();
-      const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-
-      for (const deployment of body.items) {
-        if (!deployment.metadata?.name?.startsWith('peerbot-worker-')) {
-          continue;
-        }
-
-        // Check deployment age
-        const creationTime = new Date(deployment.metadata.creationTimestamp!).getTime();
-        const ageMs = now - creationTime;
-
-        // Check if deployment has been idle for too long OR has ttl annotation for immediate cleanup
-        const shouldCleanup = ageMs > IDLE_TIMEOUT_MS || 
-                             deployment.metadata?.annotations?.['peerbot/cleanup'] === 'true';
-
-        if (shouldCleanup) {
-          // Check if deployment is actually idle by looking at pod status
-          const isIdle = await this.isWorkerDeploymentIdle(deployment.metadata.name);
-          
-          if (isIdle) {
-            console.log(`🗑️  Cleaning up idle worker deployment: ${deployment.metadata.name} (age: ${Math.round(ageMs / 60000)}m)`);
-            
-            try {
-              await k8sApi.deleteNamespacedDeployment(
-                deployment.metadata.name,
-                'peerbot'
-              );
-              console.log(`✅ Successfully cleaned up deployment: ${deployment.metadata.name}`);
-            } catch (deleteError) {
-              console.error(`❌ Failed to delete deployment ${deployment.metadata.name}:`, deleteError);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error during worker deployment cleanup:', error);
-    }
-  }
-
-  /**
-   * Check if a worker deployment is idle
-   */
-  private async isWorkerDeploymentIdle(deploymentName: string): Promise<boolean> {
-    try {
-      const kc = new k8s.KubeConfig();
-      kc.loadFromDefault();
-      const coreApi = kc.makeApiClient(k8s.CoreV1Api);
-      const response = await coreApi.listNamespacedPod(
-        'peerbot',
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        `app=${deploymentName}`
-      );
-      const pods = response.body;
-
-      // If no pods exist, deployment is idle
-      if (pods.items.length === 0) {
-        return true;
-      }
-
-      // Check pod status - if all pods are not running or failing, consider idle
-      const runningPods = pods.items.filter((pod: k8s.V1Pod) => 
-        pod.status?.phase === 'Running' && 
-        pod.status?.containerStatuses?.every((c: k8s.V1ContainerStatus) => c.ready)
-      );
-
-      // If no healthy running pods, deployment is idle
-      if (runningPods.length === 0) {
-        return true;
-      }
-
-      // Additional check: look at container restarts - high restart count might indicate problems
-      const hasHighRestarts = pods.items.some((pod: k8s.V1Pod) =>
-        pod.status?.containerStatuses?.some((c: k8s.V1ContainerStatus) => (c.restartCount || 0) > 3)
-      );
-
-      return hasHighRestarts;
-    } catch (error) {
-      console.error(`Error checking if deployment ${deploymentName} is idle:`, error);
-      // If we can't check, assume it's not idle (safer)
-      return false;
-    }
-  }
 
 
   /**

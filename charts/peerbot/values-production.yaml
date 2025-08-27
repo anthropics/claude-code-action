@@ -1,8 +1,6 @@
 # Production values for HTTP mode
 slack:
-  # Disable socket mode to use HTTP mode
-  socketMode: false
-  port: 3000
+  socketMode: true
 
 # Enable ingress for HTTP mode
 ingress:

@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 
-import { SessionError } from "./types";
 import logger from "./logger";
 import type { 
   SessionState, 
@@ -75,23 +74,12 @@ export class SessionManager {
     // No-op
   }
 
-  async persistSession(sessionKey: string): Promise<string> {
-    logger.info(`Session ${sessionKey} - no persistence needed (Slack is source of truth)`);
-    return `slack://thread/${sessionKey}`;
-  }
 
   async sessionExists(_sessionKey: string): Promise<boolean> {
     // Always return false since we don't store sessions
     return false;
   }
 
-  async recoverSession(sessionKey: string): Promise<SessionState> {
-    throw new SessionError(
-      sessionKey,
-      "NOT_IMPLEMENTED",
-      "Session recovery not needed - conversation history comes from Slack"
-    );
-  }
 
   async cleanup(sessionKey: string): Promise<void> {
     logger.info(`Cleanup for ${sessionKey} (no-op in stateless mode)`);

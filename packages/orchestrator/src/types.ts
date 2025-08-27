@@ -165,18 +165,6 @@ export class OrchestratorError extends Error {
     this.name = 'OrchestratorError';
   }
 
-  static fromKubernetesError(error: any): OrchestratorError {
-    return new OrchestratorError(
-      ErrorCode.KUBERNETES_API_ERROR,
-      `Kubernetes API error: ${error instanceof Error ? error.message : String(error)}`,
-      { 
-        status: error.statusCode,
-        reason: error.body?.reason,
-        details: error.body?.details 
-      },
-      error.statusCode >= 500
-    );
-  }
 
   static fromDatabaseError(error: any): OrchestratorError {
     return new OrchestratorError(

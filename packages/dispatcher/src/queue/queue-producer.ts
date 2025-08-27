@@ -264,31 +264,7 @@ export class QueueProducer {
     }
   }
 
-  /**
-   * Cancel a job by ID
-   */
-  async cancelJob(jobId: string): Promise<void> {
-    try {
-      await this.pgBoss.cancel('messages', jobId);  // PgBoss.cancel requires queue name
-      logger.info(`Cancelled job ${jobId}`);
-    } catch (error) {
-      logger.error(`Failed to cancel job ${jobId}:`, error);
-      throw error;
-    }
-  }
 
-  /**
-   * Get job status by ID
-   */
-  async getJobStatus(jobId: string): Promise<any> {
-    try {
-      const job = await this.pgBoss.getJobById('messages', jobId);  // PgBoss.getJobById requires queue name
-      return job;
-    } catch (error) {
-      logger.error(`Failed to get job status for ${jobId}:`, error);
-      return null;
-    }
-  }
 
   /**
    * Check if producer is connected

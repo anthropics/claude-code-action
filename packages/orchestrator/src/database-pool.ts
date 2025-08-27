@@ -76,21 +76,6 @@ export class DatabasePool {
   }
 
 
-  /**
-   * Get user configuration from database
-   */
-  async getUserConfig(userId: string): Promise<Record<string, string> | null> {
-    try {
-      const result = await this.queryWithUserContext(
-        userId,
-        'SELECT environment_variables FROM user_configs WHERE user_id = $1',
-        [userId]
-      );
-      return result.rows.length > 0 ? result.rows[0].environment_variables : null;
-    } catch (error) {
-      throw OrchestratorError.fromDatabaseError(error);
-    }
-  }
 
   /**
    * Update job status in database

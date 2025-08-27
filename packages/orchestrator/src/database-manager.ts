@@ -16,17 +16,6 @@ export class DatabaseManager {
     return username;
   }
 
-  /**
-   * Generate random password for PostgreSQL user (URL-safe characters only)
-   */
-  generateRandomPassword(): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let password = '';
-    for (let i = 0; i < 32; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
-  }
 
   /**
    * Create PostgreSQL user with isolated access to pgboss using RLS system

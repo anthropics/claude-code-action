@@ -60,14 +60,6 @@ class ProcessManager {
     await writeFile(infoPath, JSON.stringify(info, null, 2));
   }
 
-  private async removeProcessInfo(id: string) {
-    const infoPath = path.join(this.processDir, `${id}.json`);
-    try {
-      await unlink(infoPath);
-    } catch (error) {
-      // Ignore if file doesn't exist
-    }
-  }
 
   private getLogPath(id: string): string {
     return path.join(this.logsDir, `${id}.log`);
