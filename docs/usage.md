@@ -55,7 +55,9 @@ jobs:
 | `track_progress`               | Force tag mode with tracking comments. Only works with specific PR/issue events. Preserves GitHub context            | No       | `false`   |
 | `claude_args`                  | Additional arguments to pass directly to Claude CLI (e.g., `--max-turns 10 --model claude-4-0-sonnet-20250805`)      | No       | ""        |
 | `base_branch`                  | The base branch to use for creating new branches (e.g., 'main', 'develop')                                           | No       | -         |
-| `use_sticky_comment`           | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                          | No       | `false`   |
+| `use_sticky_comment`           | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                          | No       | `false`     |
+| `sticky_comment_app_bot_id`    | The ID of the app bot that will be used to create the sticky comment. Defaults to the Claude app bot ID.              | No       | `209825114` |
+| `sticky_comment_app_bot_name`  | The name of the app bot that will be used to create the sticky comment. Defaults to 'claude'.                         | No       | `claude`    |
 | `github_token`                 | GitHub token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!** | No       | -         |
 | `use_bedrock`                  | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                                          | No       | `false`   |
 | `use_vertex`                   | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API                                        | No       | `false`   |

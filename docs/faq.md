@@ -163,7 +163,7 @@ Comments appear as claude[bot] when the action uses its built-in authentication.
 
 **Solution**: Remove `github_token` from your workflow file unless you're using a custom GitHub App.
 
-**Note**: The `use_sticky_comment` feature only works with claude[bot] authentication. If you're using a custom `github_token`, sticky comments won't update properly since they expect the claude[bot] username.
+**Note**: The `use_sticky_comment` feature by default only works with claude[bot] authentication. If you're using a custom `github_token`, sticky comments won't update properly unless you also pass `sticky_comment_app_bot_id` or `sticky_comment_app_bot_name`.
 
 ## MCP Servers and Extended Functionality
 

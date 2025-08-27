@@ -75,6 +75,8 @@ type BaseContext = {
     useStickyComment: boolean;
     useCommitSigning: boolean;
     allowedBots: string;
+    stickyCommentAppBotId: number;
+    stickyCommentAppBotName: string;
     trackProgress: boolean;
   };
 };
@@ -124,6 +126,11 @@ export function parseGitHubContext(): GitHubContext {
       useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
       allowedBots: process.env.ALLOWED_BOTS ?? "",
       trackProgress: process.env.TRACK_PROGRESS === "true",
+      stickyCommentAppBotId: parseInt(
+        process.env.STICKY_COMMENT_APP_BOT_ID ?? "209825114",
+      ),
+      stickyCommentAppBotName:
+        process.env.STICKY_COMMENT_APP_BOT_NAME ?? "claude",
     },
   };
 

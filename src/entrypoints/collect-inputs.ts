@@ -25,6 +25,8 @@ export function collectActionInputsPresence(): void {
     github_token: "",
     max_turns: "",
     use_sticky_comment: "false",
+    sticky_comment_app_bot_id: "209825114",
+    sticky_comment_app_bot_name: "claude",
     use_commit_signing: "false",
     experimental_allowed_domains: "",
   };
