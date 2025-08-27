@@ -162,14 +162,15 @@ export class QueueIntegration {
         logger.info(`🔧 Detected tool execution: ${toolExecution}`);
         this.currentToolExecution = toolExecution;
         // this.lastToolUpdate = Date.now();
-        // Only update if we have todos to show
+        // Update with todos if available, otherwise show just the tool execution
         if (this.currentTodos.length > 0) {
           logger.info(`📝 Updating progress with todos + tool execution`);
           await this.updateProgressWithTodos();
-          return;
         } else {
-          logger.info(`🔧 Tool detected but no todos to show: ${toolExecution}`);
+          logger.info(`🔧 Showing tool execution without todos: ${toolExecution}`);
+          await this.updateProgress(toolExecution);
         }
+        return;
       }
       
       // Priority 3: Regular content streaming
