@@ -1,4 +1,4 @@
-name: Agent Mode Issue Screenshot Analysis
+name: Agent Mode Asset Analysis
 on:
   issue_comment:
     types: [created]
@@ -8,51 +8,17 @@ jobs:
     if: contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      # First step: Download assets and prepare file list
-      - name: Download GitHub assets
-        uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           download_github_assets: true
-          prompt: "Downloading GitHub assets..."
-
-      # Second step: Expand CLAUDE_ASSET_FILES and create file list
-      - name: Prepare asset file list
-        shell: bash
-        run: |
-          if [ -n "$CLAUDE_ASSET_FILES" ]; then
-            echo "ASSET_FILE_LIST<<EOF" >> $GITHUB_ENV
-            echo "$CLAUDE_ASSET_FILES" | tr ',' '\n' | while IFS= read -r file; do
-              [ -n "$file" ] && echo "- $file"
-            done >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
-            
-            echo "ASSET_COUNT<<EOF" >> $GITHUB_ENV
-            echo "$CLAUDE_ASSET_FILES" | tr ',' '\n' | grep -c . >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
-          else
-            echo "ASSET_FILE_LIST=No images found in this issue/PR" >> $GITHUB_ENV
-            echo "ASSET_COUNT=0" >> $GITHUB_ENV
-          fi
-
-      # Third step: Analyze images with expanded file list in prompt
-      - name: Analyze images
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            ## Image Analysis Task
+            Analyze the images from this GitHub issue/PR.
 
-            Please analyze the images that were downloaded from this GitHub issue/PR context.
+            The downloaded file paths are available in the CLAUDE_ASSET_FILES environment variable.
+            You can use bash commands to process this environment variable and access the files.
 
-            Downloaded files (${{ env.ASSET_COUNT }} total):
-            ${{ env.ASSET_FILE_LIST }}
+            For example, list the files with:
+            `echo $CLAUDE_ASSET_FILES | tr ',' '\n'`
 
-            For each file listed above:
-            1. Use the Read() tool to access the image file
-            2. Analyze the content and describe what you see
-            3. Provide insights about the image (UI elements, code snippets, diagrams, etc.)
-
-            Please provide a comprehensive analysis of all available images.
+            Then use the Read tool to analyze each file.
