@@ -223,6 +223,12 @@ describe("Agent Mode", () => {
       "/tmp/github-images/image-123.png,/tmp/github-images/image-456.jpg",
     );
 
+    // Verify core.exportVariable was called with correct arguments
+    expect(exportVariableSpy).toHaveBeenCalledWith(
+      "CLAUDE_ASSET_FILES",
+      "/tmp/github-images/image-123.png,/tmp/github-images/image-456.jpg",
+    );
+
     // Clean up
     delete process.env.CLAUDE_ASSET_FILES;
     if (originalDownload !== undefined) {

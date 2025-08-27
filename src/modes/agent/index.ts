@@ -143,9 +143,11 @@ export const agentMode: Mode = {
         // Set simple environment variable with comma-separated paths
         const downloadedPaths = Array.from(githubData.imageUrlMap.values());
         if (downloadedPaths.length > 0) {
-          process.env.CLAUDE_ASSET_FILES = downloadedPaths.join(",");
+          const concatDownloadedPaths = downloadedPaths.join(",");
+          process.env.CLAUDE_ASSET_FILES = concatDownloadedPaths;
+          core.exportVariable("CLAUDE_ASSET_FILES", concatDownloadedPaths);
           console.log(
-            `Exposed ${downloadedPaths.length} assets: ${process.env.CLAUDE_ASSET_FILES}`,
+            `Exposed ${downloadedPaths.length} assets: ${concatDownloadedPaths}`,
           );
         }
       } catch (error) {
