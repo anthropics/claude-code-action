@@ -43,7 +43,7 @@ RUN echo 'export PATH="/home/bun/.bun/bin:$PATH"' >> /home/claude/.bashrc && \
 COPY package.json ./
 COPY tsconfig.json ./
 COPY packages/worker/package.json ./packages/worker/
-COPY packages/core-runner/package.json ./packages/core-runner/
+COPY packages/shared/package.json ./packages/shared/
 COPY packages/dispatcher/package.json ./packages/dispatcher/
 COPY packages/orchestrator/package.json ./packages/orchestrator/
 
@@ -56,9 +56,9 @@ COPY scripts/ ./scripts/
 
 # TypeScript is already installed as a devDependency
 
-# Build the worker and core-runner packages
-WORKDIR /app/packages/core-runner
-RUN bun run build || echo "Warning: core-runner build had errors"
+# Build the shared and worker packages
+WORKDIR /app/packages/shared
+RUN bun run build || echo "Warning: shared build had errors"
 
 WORKDIR /app/packages/worker  
 RUN bun run build || echo "Warning: worker build had errors"
@@ -84,7 +84,8 @@ RUN mkdir -p /home/claude/.claude/projects && \
     chown -R claude:claude /home/claude && \
     chmod -R 755 /home/claude/.claude && \
     chmod +x /app/scripts/*.sh && \
-    echo 'export PATH="/home/claude/bin:$PATH"' >> /home/claude/.bashrc
+    echo 'export PATH="/home/claude/bin:$PATH"' >> /home/claude/.bashrc && \
+    chmod +x /app/packages/worker/dist/mcp/process-manager-server.js 2>/dev/null || true
 
 # Switch to non-root user
 USER claude
@@ -92,5 +93,5 @@ USER claude
 # Set working directory to worker
 WORKDIR /app/packages/worker
 
-# Start the process monitor in the background and then run the worker
-ENTRYPOINT ["/bin/bash", "-c", "/app/packages/worker/scripts/start-process-monitor.sh && exec bun run dist/index.js"]
+# Setup MCP server and then run the worker
+ENTRYPOINT ["/bin/bash", "-c", "/app/packages/worker/scripts/setup-mcp-server.sh && exec bun run dist/index.js"]

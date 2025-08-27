@@ -9,7 +9,7 @@ import type {
   ThreadSession
 } from "../types";
 import { QueueProducer, type WorkerDeploymentPayload, type ThreadMessagePayload } from "../queue/queue-producer";
-import { SessionManager } from "@claude-code-slack/core-runner";
+import { SessionUtils } from "@claude-code-slack/shared";
 import logger from "../logger";
 
 /**
@@ -296,12 +296,10 @@ export class SlackEventHandlers {
     const normalizedThreadTs = context.threadTs || context.messageTs;
     
     // Generate session key with normalized threadTs
-    const sessionKey = SessionManager.generateSessionKey({
+    const sessionKey = SessionUtils.generateSessionKey({
       platform: "slack",
       channelId: context.channelId,
       userId: context.userId,
-      userDisplayName: context.userDisplayName,
-      teamId: context.teamId,
       threadTs: normalizedThreadTs,
       messageTs: context.messageTs,
     });

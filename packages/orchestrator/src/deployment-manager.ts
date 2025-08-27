@@ -6,12 +6,16 @@ import {
   ErrorCode 
 } from './types';
 import { DatabasePool } from './database-pool';
+import { DatabaseManager } from './database-manager';
+import { SecretManager } from './secret-manager';
 
 export class DeploymentManager {
   private appsV1Api: k8s.AppsV1Api;
   private coreV1Api: k8s.CoreV1Api;
   private config: OrchestratorConfig;
   private dbPool: DatabasePool;
+  private databaseManager: DatabaseManager;
+  private secretManager: SecretManager;
 
   constructor(config: OrchestratorConfig, dbPool: DatabasePool) {
     this.config = config;
@@ -58,166 +62,15 @@ export class DeploymentManager {
     
     this.appsV1Api = kc.makeApiClient(k8s.AppsV1Api);
     this.coreV1Api = kc.makeApiClient(k8s.CoreV1Api);
-  }
-
-
-
-
-  /**
-   * Generate PostgreSQL username from user ID (one user per Slack user)
-   */
-  private generatePostgresUsername(userId: string, teamId?: string, threadId?: string): string {
-    // Create one PostgreSQL user per Slack user ID
-    const username = userId.toLowerCase().substring(0, 63); // PostgreSQL max username length
-    return username;
-  }
-
-  /**
-   * Generate random password for PostgreSQL user (URL-safe characters only)
-   */
-  private generateRandomPassword(): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let password = '';
-    for (let i = 0; i < 32; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
-  }
-
-  /**
-   * Create PostgreSQL user with isolated access to pgboss using RLS system
-   */
-  private async createPostgresUser(username: string, password: string): Promise<void> {
-    const client = await this.dbPool.getClient();
     
-    try {
-      console.log(`Creating isolated pgboss user: ${username}`);
-      
-      // Use the RLS-aware user creation function with just the username and password
-      const createdUsername = await client.query(
-        'SELECT create_isolated_pgboss_user($1, $2) as username',
-        [username, password]
-      );
-      
-      const actualUsername = createdUsername.rows[0]?.username;
-      if (actualUsername !== username) {
-        console.warn(`Username mismatch: expected ${username}, got ${actualUsername}`);
-      }
-      
-      console.log(`✅ Successfully ensured user ${username} has isolated pgboss access`);
-      
-    } catch (error) {
-      console.error(`Failed to create/update PostgreSQL user ${username}:`, error);
-      throw error;
-    } finally {
-      client.release();
-    }
+    // Initialize managers
+    this.databaseManager = new DatabaseManager(dbPool);
+    this.secretManager = new SecretManager(this.coreV1Api, config);
   }
 
-  /**
-   * Get existing password from secret or create new user credentials
-   */
-  private async getOrCreateUserCredentials(username: string): Promise<string> {
-    const secretName = `peerbot-user-secret-${username.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`;
-    
-    try {
-      // Try to read existing secret first
-      const existingSecret = await this.coreV1Api.readNamespacedSecret(secretName, this.config.kubernetes.namespace);
-      const existingPassword = Buffer.from(existingSecret.body.data?.['DB_PASSWORD'] || '', 'base64').toString();
-      
-      if (existingPassword) {
-        console.log(`Found existing secret for user ${username}, using existing credentials`);
-        return existingPassword;
-      }
-    } catch (error) {
-      // Secret doesn't exist, will create new credentials
-      console.log(`Secret ${secretName} does not exist, creating new credentials`);
-    }
-    
-    // Generate new credentials
-    const password = this.generateRandomPassword();
-    console.log(`Creating new credentials for user ${username}`);
-    await this.createPostgresUser(username, password);
-    await this.createUserSecret(username, password);
-    return password;
-  }
 
-  /**
-   * Update existing Kubernetes secret with new PostgreSQL credentials
-   */
-  private async updateUserSecret(secretName: string, username: string, password: string): Promise<void> {
-    try {
-      const secretData = {
-        'DATABASE_URL': Buffer.from(`postgres://${username}:${password}@peerbot-postgresql:5432/peerbot`).toString('base64'),
-        'DB_USERNAME': Buffer.from(username).toString('base64'),
-        'DB_PASSWORD': Buffer.from(password).toString('base64')
-      };
 
-      const secretPatch = {
-        data: secretData
-      };
 
-      await this.coreV1Api.patchNamespacedSecret(secretName, this.config.kubernetes.namespace, secretPatch);
-      console.log(`✅ Updated secret: ${secretName}`);
-    } catch (error) {
-      throw new OrchestratorError(
-        ErrorCode.DEPLOYMENT_CREATE_FAILED,
-        `Failed to update user secret: ${error instanceof Error ? error.message : String(error)}`,
-        { username, secretName, error },
-        true
-      );
-    }
-  }
-
-  /**
-   * Create Kubernetes secret with PostgreSQL credentials
-   */
-  private async createUserSecret(username: string, password: string): Promise<void> {
-    const secretName = `peerbot-user-secret-${username.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`;
-    
-    try {
-      // Check if secret already exists
-      try {
-        await this.coreV1Api.readNamespacedSecret(secretName, this.config.kubernetes.namespace);
-        console.log(`Secret ${secretName} already exists`);
-        return;
-      } catch (error) {
-        // Secret doesn't exist, create it
-      }
-
-      const secretData = {
-        'DATABASE_URL': Buffer.from(`postgres://${username}:${password}@peerbot-postgresql:5432/peerbot`).toString('base64'),
-        'DB_USERNAME': Buffer.from(username).toString('base64'),
-        'DB_PASSWORD': Buffer.from(password).toString('base64')
-      };
-
-      const secret = {
-        apiVersion: 'v1',
-        kind: 'Secret',
-        metadata: {
-          name: secretName,
-          namespace: this.config.kubernetes.namespace,
-          labels: {
-            'app.kubernetes.io/name': 'peerbot',
-            'app.kubernetes.io/component': 'worker',
-            'peerbot/managed-by': 'orchestrator'
-          }
-        },
-        type: 'Opaque',
-        data: secretData
-      };
-
-      await this.coreV1Api.createNamespacedSecret(this.config.kubernetes.namespace, secret);
-      console.log(`✅ Created secret: ${secretName}`);
-    } catch (error) {
-      throw new OrchestratorError(
-        ErrorCode.DEPLOYMENT_CREATE_FAILED,
-        `Failed to create user secret: ${error instanceof Error ? error.message : String(error)}`,
-        { username, secretName, error },
-        true
-      );
-    }
-  }
 
   /**
    * Create worker deployment for handling messages
@@ -227,12 +80,13 @@ export class DeploymentManager {
     
     try {
       // Always ensure user credentials exist first
-      const username = this.generatePostgresUsername(userId, teamId, threadId);
+      const username = this.databaseManager.generatePostgresUsername(userId);
       
       console.log(`Ensuring PostgreSQL user and secret for ${username}...`);
       
       // Check if secret already exists and get existing password, or generate new one
-      await this.getOrCreateUserCredentials(username);
+      await this.secretManager.getOrCreateUserCredentials(username, 
+        (username: string, password: string) => this.databaseManager.createPostgresUser(username, password));
 
       // Check if deployment already exists
       try {
@@ -459,13 +313,13 @@ export class DeploymentManager {
   }
 
   /**
-   * Enforce maximum deployment limit by removing oldest inactive deployments (FIXED VERSION)
+   * Reconcile deployments: unified method for cleanup and resource management
    */
-  async enforceMaxDeploymentLimit(): Promise<void> {
+  async reconcileDeployments(): Promise<void> {
     try {
-      const maxDeployments = this.config.worker.maxDeployments || 10;
+      console.log('🔄 Starting deployment reconciliation...');
       
-      // Get actual deployments from Kubernetes (not just database records)
+      // Get all worker deployments from Kubernetes
       const k8sDeployments = await this.appsV1Api.listNamespacedDeployment(
         this.config.kubernetes.namespace,
         undefined,
@@ -476,146 +330,183 @@ export class DeploymentManager {
       );
 
       const activeDeployments = k8sDeployments.body.items || [];
-      console.log(`📊 Found ${activeDeployments.length} actual worker deployments in Kubernetes`);
+      console.log(`📊 Found ${activeDeployments.length} worker deployments to reconcile`);
       
-      if (activeDeployments.length <= maxDeployments) {
-        console.log(`✅ Current deployments (${activeDeployments.length}) within limit (${maxDeployments})`);
+      if (activeDeployments.length === 0) {
+        console.log('✅ No deployments to reconcile');
         return;
       }
 
-      // Get deployment activity from database to determine which to delete
-      const client = await this.dbPool.getClient();
-      let deploymentActivity: Map<string, Date>;
-      try {
-        const activityQuery = `
-          SELECT DISTINCT 
-            data->>'threadId' as thread_id,
-            MAX(created_on) as last_activity
-          FROM pgboss.job
-          WHERE name LIKE 'thread_message_%'
-            AND created_on > NOW() - INTERVAL '24 hours'
-          GROUP BY data->>'threadId'
-        `;
-        const result = await client.query(activityQuery);
-        deploymentActivity = new Map(
-          result.rows.map(row => [row.thread_id, new Date(row.last_activity)])
-        );
-      } finally {
-        client.release();
-      }
-
-      // Sort deployments by last activity (oldest first) or creation time if no activity
-      const deploymentsWithActivity = activeDeployments.map((deployment: any) => {
+      const now = Date.now();
+      const idleThresholdMinutes = this.config.worker.idleCleanupMinutes;
+      const maxDeployments = this.config.worker.maxDeployments || 20;
+      
+      // Analyze all deployments
+      const deploymentAnalysis = activeDeployments.map((deployment: any) => {
         const deploymentName = deployment.metadata?.name || '';
-        const threadId = deploymentName.replace('peerbot-worker-', '');
-        const lastActivity = deploymentActivity.get(threadId);
-        const creationTime = deployment.metadata?.creationTimestamp ? 
-          new Date(deployment.metadata.creationTimestamp) : new Date();
+        const deploymentId = deploymentName.replace('peerbot-worker-', '');
+        
+        // Get last activity from annotations or fallback to creation time
+        const lastActivityStr = deployment.metadata?.annotations?.['peerbot.io/last-activity'] ||
+                               deployment.metadata?.annotations?.['peerbot.io/created'] ||
+                               deployment.metadata?.creationTimestamp;
+        
+        const lastActivity = lastActivityStr ? new Date(lastActivityStr) : new Date();
+        const minutesIdle = (now - lastActivity.getTime()) / (1000 * 60);
+        const daysSinceActivity = minutesIdle / (60 * 24);
+        const replicas = deployment.spec?.replicas || 0;
         
         return {
-          deployment,
-          threadId,
-          lastActivity: lastActivity || creationTime,
-          deploymentName
+          deploymentName,
+          deploymentId,
+          lastActivity,
+          minutesIdle,
+          daysSinceActivity,
+          replicas,
+          isIdle: minutesIdle >= idleThresholdMinutes,
+          isVeryOld: daysSinceActivity >= 7
         };
-      }).sort((a: any, b: any) => a.lastActivity.getTime() - b.lastActivity.getTime());
-
-      const excessCount = activeDeployments.length - maxDeployments;
-      const deploymentsToDelete = deploymentsWithActivity.slice(0, excessCount);
+      }).sort((a, b) => a.lastActivity.getTime() - b.lastActivity.getTime()); // Oldest first
       
-      console.log(`🧹 Need to remove ${excessCount} excess deployments (current: ${activeDeployments.length}, max: ${maxDeployments})`);
+      let processedCount = 0;
       
-      let actuallyDeleted = 0;
-      for (const { deploymentName, lastActivity } of deploymentsToDelete) {
-        console.log(`🧹 Removing excess deployment: ${deploymentName} (last activity: ${lastActivity.toISOString()})`);
+      // Process each deployment based on its state
+      for (const analysis of deploymentAnalysis) {
+        const { deploymentName, deploymentId, minutesIdle, daysSinceActivity, replicas, isIdle, isVeryOld } = analysis;
         
-        try {
-          await this.appsV1Api.deleteNamespacedDeployment(
-            deploymentName,
-            this.config.kubernetes.namespace
-          );
-          actuallyDeleted++;
-          console.log(`✅ Successfully deleted deployment: ${deploymentName}`);
-        } catch (error: any) {
-          if (error.statusCode === 404) {
-            console.log(`⚠️  Deployment ${deploymentName} not found (already deleted)`);
-          } else {
-            console.error(`Failed to delete deployment ${deploymentName}:`, error);
+        if (isVeryOld) {
+          // Delete very old deployments (>= 7 days)
+          console.log(`🗑️  Deleting very old deployment: ${deploymentName} (${daysSinceActivity.toFixed(1)} days old)`);
+          try {
+            await this.deleteWorkerDeployment(deploymentId);
+            processedCount++;
+            console.log(`✅ Deleted old deployment: ${deploymentName}`);
+          } catch (error) {
+            console.error(`❌ Failed to delete deployment ${deploymentName}:`, error);
+          }
+        } else if (isIdle && replicas > 0) {
+          // Scale down idle deployments
+          console.log(`⏸️  Scaling down idle deployment: ${deploymentName} (idle ${minutesIdle.toFixed(1)}min)`);
+          try {
+            await this.scaleDeployment(deploymentName, 0);
+            processedCount++;
+            console.log(`✅ Scaled down deployment: ${deploymentName}`);
+          } catch (error) {
+            console.error(`❌ Failed to scale down deployment ${deploymentName}:`, error);
           }
         }
       }
       
-      if (actuallyDeleted > 0) {
-        console.log(`🧹 Idle deployment cleanup completed. Cleaned up ${actuallyDeleted} deployments.`);
+      // Check if we exceed max deployments (after cleanup)
+      const remainingDeployments = deploymentAnalysis.filter(d => !d.isVeryOld);
+      if (remainingDeployments.length > maxDeployments) {
+        const excessCount = remainingDeployments.length - maxDeployments;
+        console.log(`⚠️  Too many deployments (${remainingDeployments.length} > ${maxDeployments}), cleaning up ${excessCount} oldest`);
+        
+        const deploymentsToDelete = remainingDeployments.slice(0, excessCount);
+        for (const { deploymentName, deploymentId } of deploymentsToDelete) {
+          console.log(`🧹 Removing excess deployment: ${deploymentName}`);
+          try {
+            await this.deleteWorkerDeployment(deploymentId);
+            processedCount++;
+            console.log(`✅ Removed excess deployment: ${deploymentName}`);
+          } catch (error) {
+            console.error(`❌ Failed to remove deployment ${deploymentName}:`, error);
+          }
+        }
       }
+      
+      console.log(`🔄 Deployment reconciliation completed. Processed ${processedCount} deployments.`);
+      
     } catch (error) {
-      console.error('Failed to enforce deployment limit:', error);
+      console.error('Error during deployment reconciliation:', error instanceof Error ? error.message : String(error));
     }
   }
 
   /**
-   * Find idle deployments from the database
+   * Update deployment activity annotation
+   */
+  async updateDeploymentActivity(deploymentName: string): Promise<void> {
+    try {
+      const timestamp = new Date().toISOString();
+      const patch = {
+        metadata: {
+          annotations: {
+            'peerbot.io/last-activity': timestamp
+          }
+        }
+      };
+
+      await this.appsV1Api.patchNamespacedDeployment(
+        deploymentName,
+        this.config.kubernetes.namespace,
+        patch
+      );
+      
+      console.log(`✅ Updated activity timestamp for deployment: ${deploymentName}`);
+    } catch (error) {
+      console.error(`❌ Failed to update activity for deployment ${deploymentName}:`, error instanceof Error ? error.message : String(error));
+      // Don't throw - activity tracking should not block message processing
+    }
+  }
+
+  /**
+   * Find idle deployments using K8s annotations
    */
   async findIdleDeployments(): Promise<Array<{
     deploymentId: string;
-    userId: string;
     lastActivity: Date;
     minutesIdle: number;
-    messageCount: number;
   }>> {
-    const client = await this.dbPool.getClient();
     try {
-      const query = `
-        WITH deployment_last_activity AS (
-          SELECT 
-            COALESCE(
-              SUBSTRING(data->>'gitBranch' FROM 'claude/session-([0-9.-]+)'),
-              data->>'threadTs'
-            ) as deployment_id,
-            data->>'userId' as user_id,
-            MAX(created_on) as last_activity,
-            COUNT(*) as message_count
-          FROM pgboss.job
-          WHERE name = 'thread_response'
-            AND data->>'gitBranch' IS NOT NULL
-          GROUP BY 
-            COALESCE(
-              SUBSTRING(data->>'gitBranch' FROM 'claude/session-([0-9.-]+)'),
-              data->>'threadTs'
-            ),
-            data->>'userId'
-        ),
-        idle_deployments AS (
-          SELECT 
-            deployment_id,
-            user_id,
-            last_activity,
-            message_count,
-            EXTRACT(EPOCH FROM (NOW() - last_activity))/60 as minutes_idle
-          FROM deployment_last_activity
-          WHERE last_activity < NOW() - INTERVAL '${this.config.worker.idleCleanupMinutes} minutes'
-        )
-        SELECT 
-          deployment_id,
-          user_id,
-          last_activity,
-          minutes_idle,
-          message_count
-        FROM idle_deployments
-        ORDER BY last_activity ASC;
-      `;
+      // Get all worker deployments from Kubernetes
+      const k8sDeployments = await this.appsV1Api.listNamespacedDeployment(
+        this.config.kubernetes.namespace,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'app.kubernetes.io/component=worker'
+      );
 
-      const result = await client.query(query);
+      const activeDeployments = k8sDeployments.body.items || [];
+      const idleDeployments: Array<{
+        deploymentId: string;
+        lastActivity: Date;
+        minutesIdle: number;
+      }> = [];
       
-      return result.rows.map(row => ({
-        deploymentId: row.deployment_id,
-        userId: row.user_id,
-        lastActivity: row.last_activity,
-        minutesIdle: parseFloat(row.minutes_idle),
-        messageCount: parseInt(row.message_count)
-      }));
-    } finally {
-      client.release();
+      const now = Date.now();
+
+      for (const deployment of activeDeployments) {
+        const deploymentName = deployment.metadata?.name || '';
+        const deploymentId = deploymentName.replace('peerbot-worker-', '');
+        
+        // Get last activity from annotations or fallback to creation time
+        const lastActivityStr = deployment.metadata?.annotations?.['peerbot.io/last-activity'] ||
+                               deployment.metadata?.annotations?.['peerbot.io/created'] ||
+                               deployment.metadata?.creationTimestamp;
+        
+        if (!lastActivityStr) continue;
+        
+        const lastActivity = new Date(lastActivityStr);
+        const minutesIdle = (now - lastActivity.getTime()) / (1000 * 60);
+        
+        // Only include deployments that are actually idle
+        if (minutesIdle >= this.config.worker.idleCleanupMinutes) {
+          idleDeployments.push({
+            deploymentId,
+            lastActivity,
+            minutesIdle
+          });
+        }
+      }
+      
+      return idleDeployments.sort((a, b) => a.lastActivity.getTime() - b.lastActivity.getTime()); // Oldest first
+      
+    } catch (error) {
+      console.error('Error finding idle deployments:', error instanceof Error ? error.message : String(error));
+      return [];
     }
   }
 
@@ -705,185 +596,4 @@ export class DeploymentManager {
     }
   }
 
-  /**
-   * Clean up idle deployments based on configuration
-   */
-  async cleanupIdleDeployments(): Promise<void> {
-    try {
-      console.log(`🧹 Starting idle deployment cleanup (threshold: ${this.config.worker.idleCleanupMinutes} minutes)`);
-      
-      // First, clean up deployments found in database with activity records
-      const idleDeployments = await this.findIdleDeployments();
-      
-      // Second, check for orphaned Kubernetes deployments without database records
-      const orphanedDeployments = await this.findOrphanedDeployments();
-      
-      const totalDeployments = idleDeployments.length + orphanedDeployments.length;
-      
-      if (totalDeployments === 0) {
-        console.log('✅ No idle deployments found to clean up');
-        return;
-      }
-
-      console.log(`📊 Found ${totalDeployments} idle deployments to clean up (${idleDeployments.length} from database, ${orphanedDeployments.length} orphaned):`);
-      
-      // Clean up deployments from database activity
-      for (const deployment of idleDeployments) {
-        console.log(`  - ${deployment.deploymentId} (user: ${deployment.userId}, idle: ${deployment.minutesIdle.toFixed(1)}min, messages: ${deployment.messageCount})`);
-        
-        try {
-          // First check if the deployment actually exists in Kubernetes
-          const deploymentExists = await this.checkWorkerDeploymentExists(deployment.deploymentId);
-          if (deploymentExists) {
-            await this.deleteWorkerDeployment(deployment.deploymentId);
-            console.log(`✅ Successfully cleaned up deployment: ${deployment.deploymentId}`);
-          } else {
-            console.log(`⚠️  Deployment ${deployment.deploymentId} already deleted, skipping`);
-          }
-        } catch (error) {
-          console.error(`❌ Failed to clean up deployment ${deployment.deploymentId}:`, error instanceof Error ? error.message : String(error));
-        }
-      }
-      
-      // Clean up orphaned deployments
-      for (const deployment of orphanedDeployments) {
-        console.log(`  - ${deployment.deploymentId} (orphaned, age: ${deployment.ageMinutes.toFixed(1)}min)`);
-        
-        try {
-          // First check if the deployment actually exists in Kubernetes
-          const deploymentExists = await this.checkWorkerDeploymentExists(deployment.deploymentId);
-          if (deploymentExists) {
-            await this.deleteWorkerDeployment(deployment.deploymentId);
-            console.log(`✅ Successfully cleaned up orphaned deployment: ${deployment.deploymentId}`);
-          } else {
-            console.log(`⚠️  Orphaned deployment ${deployment.deploymentId} already deleted, skipping`);
-          }
-        } catch (error) {
-          console.error(`❌ Failed to clean up orphaned deployment ${deployment.deploymentId}:`, error instanceof Error ? error.message : String(error));
-        }
-      }
-      
-      console.log(`🧹 Idle deployment cleanup completed. Cleaned up ${totalDeployments} deployments.`);
-      
-    } catch (error) {
-      console.error('Error during worker deployment cleanup:', error instanceof Error ? error.message : String(error));
-      // Don't throw the error - let the cleanup continue on next interval
-    }
-  }
-
-  /**
-   * Find orphaned Kubernetes deployments that exist but have no database records
-   */
-  async findOrphanedDeployments(): Promise<Array<{
-    deploymentId: string;
-    ageMinutes: number;
-  }>> {
-    try {
-      // Get all worker deployments from Kubernetes
-      const k8sDeployments = await this.appsV1Api.listNamespacedDeployment(
-        this.config.kubernetes.namespace,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        'app.kubernetes.io/component=worker'
-      );
-
-      const activeDeployments = k8sDeployments.body.items || [];
-      const orphanedDeployments: Array<{ deploymentId: string; ageMinutes: number }> = [];
-      
-      // Get all deployment IDs that have database records
-      const client = await this.dbPool.getClient();
-      let knownDeploymentIds: Set<string>;
-      try {
-        const query = `
-          SELECT DISTINCT 
-            COALESCE(
-              SUBSTRING(data->>'gitBranch' FROM 'claude/session-([0-9.-]+)'),
-              data->>'threadTs'
-            ) as deployment_id
-          FROM pgboss.job
-          WHERE name = 'thread_response'
-            AND data->>'gitBranch' IS NOT NULL
-        `;
-        const result = await client.query(query);
-        knownDeploymentIds = new Set(result.rows.map(row => row.deployment_id).filter(Boolean));
-      } finally {
-        client.release();
-      }
-
-      // Check each Kubernetes deployment
-      for (const deployment of activeDeployments) {
-        const deploymentName = deployment.metadata?.name || '';
-        const deploymentId = deploymentName.replace('peerbot-worker-', '');
-        const creationTime = deployment.metadata?.creationTimestamp ? new Date(deployment.metadata.creationTimestamp) : new Date();
-        const ageMinutes = (Date.now() - creationTime.getTime()) / (1000 * 60);
-        
-        // If deployment is older than threshold and not in database, it's orphaned
-        if (ageMinutes > this.config.worker.idleCleanupMinutes && !knownDeploymentIds.has(deploymentId)) {
-          orphanedDeployments.push({ deploymentId, ageMinutes });
-        }
-      }
-      
-      return orphanedDeployments.sort((a, b) => b.ageMinutes - a.ageMinutes); // Oldest first
-      
-    } catch (error) {
-      console.error('Error finding orphaned deployments:', error instanceof Error ? error.message : String(error));
-      return [];
-    }
-  }
-
-
-  /**
-   * Find all active deployments ordered by oldest last activity (to delete oldest first)
-   */
-  async findAllDeploymentsByActivity(): Promise<Array<{
-    deploymentId: string;
-    userId: string;
-    lastActivity: Date;
-    messageCount: number;
-  }>> {
-    const client = await this.dbPool.getClient();
-    try {
-      const query = `
-        WITH deployment_last_activity AS (
-          SELECT 
-            COALESCE(
-              SUBSTRING(data->>'gitBranch' FROM 'claude/session-([0-9.-]+)'),
-              data->>'threadTs'
-            ) as deployment_id,
-            data->>'userId' as user_id,
-            MAX(created_on) as last_activity,
-            COUNT(*) as message_count
-          FROM pgboss.job
-          WHERE name = 'thread_response'
-            AND data->>'gitBranch' IS NOT NULL
-          GROUP BY 
-            COALESCE(
-              SUBSTRING(data->>'gitBranch' FROM 'claude/session-([0-9.-]+)'),
-              data->>'threadTs'
-            ),
-            data->>'userId'
-        )
-        SELECT 
-          deployment_id,
-          user_id,
-          last_activity,
-          message_count
-        FROM deployment_last_activity
-        ORDER BY last_activity ASC;
-      `;
-
-      const result = await client.query(query);
-      
-      return result.rows.map(row => ({
-        deploymentId: row.deployment_id,
-        userId: row.user_id,
-        lastActivity: row.last_activity,
-        messageCount: parseInt(row.message_count)
-      }));
-    } finally {
-      client.release();
-    }
-  }
 }

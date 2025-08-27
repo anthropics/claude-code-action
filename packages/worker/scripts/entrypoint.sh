@@ -125,6 +125,22 @@ if command -v claude >/dev/null 2>&1; then
     else
         echo "  ⚠️ Warning: Claude CLI help test failed"
     fi
+    
+    # Setup MCP server configuration for Claude Code
+    echo "🔧 Configuring MCP servers for Claude Code..."
+    if [ -f "/app/packages/worker/mcp-config.json" ]; then
+        mkdir -p /home/claude/.claude
+        cp /app/packages/worker/mcp-config.json /home/claude/.claude/settings.mcp.json
+        echo "  ✅ MCP server configuration deployed to /home/claude/.claude/settings.mcp.json"
+        
+        # Also ensure the MCP server is executable
+        if [ -f "/app/packages/worker/dist/mcp/process-manager-server.js" ]; then
+            chmod +x /app/packages/worker/dist/mcp/process-manager-server.js
+            echo "  ✅ MCP server made executable"
+        fi
+    else
+        echo "  ⚠️ Warning: MCP config file not found"
+    fi
 else
     echo "  ❌ Error: Claude CLI not found in PATH"
     echo "  PATH: $PATH"

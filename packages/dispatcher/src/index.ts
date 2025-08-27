@@ -424,9 +424,9 @@ async function main() {
         repository: process.env.GITHUB_REPOSITORY, // Optional override repository URL
       },
       claude: {
-        allowedTools: process.env.ALLOWED_TOOLS,
+        allowedTools: process.env.ALLOWED_TOOLS?.split(','),
         model: process.env.MODEL,
-        timeoutMinutes: process.env.TIMEOUT_MINUTES,
+        timeoutMinutes: process.env.TIMEOUT_MINUTES ? Number(process.env.TIMEOUT_MINUTES) : undefined,
       },
       sessionTimeoutMinutes: parseInt(process.env.SESSION_TIMEOUT_MINUTES || "5"),
       logLevel: process.env.LOG_LEVEL as any || LogLevel.INFO,

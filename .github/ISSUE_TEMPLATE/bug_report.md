@@ -26,11 +26,5 @@ If applicable, add screenshots to help explain your problem.
 **Workflow yml file**
 If it's not sensitive, consider including a paste of your full Claude workflow.yml file.
 
-**API Provider**
-
-[ ] Anthropic First-Party API (default)
-[ ] AWS Bedrock
-[ ] GCP Vertex
-
 **Additional context**
 Add any other context about the problem here.

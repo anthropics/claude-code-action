@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "process-manager": {
+      "command": "node",
+      "args": ["/app/packages/worker/dist/mcp/process-manager-server.js"],
+      "description": "Process management MCP server for background tasks"
+    }
+  }
+}

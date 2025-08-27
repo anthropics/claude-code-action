@@ -243,7 +243,7 @@ async function runTest(messages, timeout = 30000) {
   
   console.log(`🧪 Peerbot ${testType}`);
   console.log('📤 Sending as: PeerQA');
-  console.log(`🎯 Target: @${TARGET_BOT_USERNAME}`);
+  console.log(`🎯 Target: <@${TARGET_BOT_USERNAME}>`);
   if (!isSingleMessage) {
     console.log(`📝 Messages: ${messages.length}`);
   }
@@ -256,7 +256,7 @@ async function runTest(messages, timeout = 30000) {
     for (let i = 0; i < messages.length; i++) {
       const prompt = messages[i];
       const isFirstMessage = i === 0;
-      const message = `@${TARGET_BOT_USERNAME} ${prompt}`;
+      const message = `<@${TARGET_BOT_USERNAME}> ${prompt}`;
       
       if (messages.length > 1) {
         console.log(`📨 Sending message ${i + 1}/${messages.length}${isFirstMessage ? ' (initial)' : ' (thread)'}...`);

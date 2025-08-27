@@ -1,0 +1,110 @@
+{
+  "name": "Claude Code Slack Bot Development",
+  "dockerFile": "Dockerfile",
+  
+  // Features to add to the dev container
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+      "kubectl": "latest",
+      "helm": "latest",
+      "minikube": "none"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "18"
+    },
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+
+  // Configure tool-specific properties
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-docker",
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-typescript-next",
+        "github.copilot",
+        "github.copilot-chat"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "typescript.updateImportsOnFileMove.enabled": "always",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+      }
+    }
+  },
+
+  // Port forwarding
+  "forwardPorts": [3000, 3001, 3002, 5432, 5433, 8080, 8081],
+  "portsAttributes": {
+    "3000": {
+      "label": "Slack App",
+      "onAutoForward": "notify"
+    },
+    "3001": {
+      "label": "Dispatcher (Skaffold)",
+      "onAutoForward": "notify"
+    },
+    "3002": {
+      "label": "Dispatcher Service",
+      "onAutoForward": "notify"
+    },
+    "5432": {
+      "label": "PostgreSQL (Internal)",
+      "onAutoForward": "silent"
+    },
+    "5433": {
+      "label": "PostgreSQL (Forwarded)",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "Health Check",
+      "onAutoForward": "silent"
+    },
+    "8081": {
+      "label": "Orchestrator",
+      "onAutoForward": "notify"
+    }
+  },
+
+  // Environment variables
+  "containerEnv": {
+    "CLAUDE_API_KEY": "${localEnv:CLAUDE_API_KEY}",
+    "SLACK_BOT_TOKEN": "${localEnv:SLACK_BOT_TOKEN}",
+    "SLACK_SIGNING_SECRET": "${localEnv:SLACK_SIGNING_SECRET}",
+    "SLACK_APP_TOKEN": "${localEnv:SLACK_APP_TOKEN}",
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
+    "ENABLE_MCP": "true"
+  },
+
+  // Mounts
+  "mounts": [
+    "source=${localWorkspaceFolder}/.env,target=/workspace/.env,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/.env.qa,target=/workspace/.env.qa,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube,type=bind,consistency=cached",
+    "source=claude-code-slack-node-modules,target=/workspace/node_modules,type=volume"
+  ],
+
+  // Run commands after container is created
+  "postCreateCommand": "/workspace/.devcontainer/post-create.sh",
+
+  // Run commands when container starts
+  "postStartCommand": "echo '🚀 DevContainer ready! Run \"make dev\" to start development'",
+
+  // User to run as
+  "remoteUser": "vscode",
+
+  // Additional runtime arguments
+  "runArgs": [
+    "--cap-add=SYS_PTRACE",
+    "--security-opt", "seccomp=unconfined",
+    "--privileged"
+  ],
+
+  // Workspace settings
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+}

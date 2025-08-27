@@ -19,10 +19,10 @@ Peerbot is a Kubernetes-native Slack bot that provides AI-powered coding assista
 - **Queue Consumer**: [`src/queue-consumer.ts`](packages/orchestrator/src/queue-consumer.ts) - PostgreSQL/pgboss job processing
 
 ### 🔧 Worker ([`packages/worker/`](packages/worker/))
-**Responsibilities**: Claude CLI execution, GitHub integration, progress streaming, background process management
+**Responsibilities**: Claude CLI execution, GitHub integration, progress streaming, MCP process management
 - **Claude Integration**: [`src/claude-worker.ts`](packages/worker/src/claude-worker.ts) - Claude CLI execution and streaming
 - **Queue Integration**: [`src/queue-integration.ts`](packages/worker/src/queue-integration.ts) - Job processing and status updates
-- **Background Process Management**: [`scripts/process-manager.sh`](packages/worker/scripts/process-manager.sh) - Persistent process lifecycle management
+- **MCP Process Server**: [`mcp/process-manager-server.ts`](packages/worker/mcp/process-manager-server.ts) - MCP-based process lifecycle management
 
 ## Queue System
 

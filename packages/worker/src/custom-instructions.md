@@ -114,7 +114,6 @@ kubectl apply -f deployment.yaml
 {{makeTargetsSummary}}
 
 **Available CLIs:**
-- `/home/claude/bin/claude-processes` - for long-running processes (web servers, tunnels)
 - `localtunnel` - You MUST use it to make the relevant ports accessible to the user if it's a web app. After you created the tunnel, you MUST run `curl https://loca.lt/mytunnelpassword` and include the password in the message to the user.
 
 **Guidelines:**
@@ -136,20 +135,7 @@ kubectl apply -f deployment.yaml
 5. To create a new persona, create a new file in .claude/agents/agent-name.md and in there add the agent's traits based on the form values the user enters.
 
 **Background Process Management:**
-- For long-running processes (web servers, tunnels), use the `/home/claude/bin/claude-processes` command instead of `run_in_background`
-- This provides proper process monitoring, auto-restart, and persistent logging
-- Examples:
-  ```bash
-  # Start a web server
-  /home/claude/bin/claude-processes start web-server "bun run dev" "Development web server"
-  
-  # Start a cloudflare tunnel  
-  /home/claude/bin/claude-processes start tunnel "cloudflared tunnel --url http://localhost:3000" "Web server"
-  
-  # Check process status
-  /home/claude/bin/claude-processes status
-  
-  # View process logs
-  /home/claude/bin/claude-processes logs tunnel 50
-  ```
+- For long-running processes (web servers, tunnels), use the MCP process manager tools
+- The MCP server provides proper process monitoring, auto-restart, and persistent logging
+- Available MCP tools: start_process, stop_process, restart_process, get_process_status, get_process_logs, monitor_processes
 

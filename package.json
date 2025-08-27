@@ -6,9 +6,9 @@
     "peerbot": "./bin/peerbot"
   },
   "workspaces": [
-    "packages/core-runner",
     "packages/dispatcher",
-    "packages/orchestrator",
+    "packages/orchestrator", 
+    "packages/shared",
     "packages/worker"
   ],
   "scripts": {

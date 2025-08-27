@@ -137,8 +137,8 @@ export class QueueConsumer {
         );
         console.log(`✅ Created deployment: ${deploymentName}`);
 
-        // Enforce deployment limit after creating new deployment
-        await this.deploymentManager.enforceMaxDeploymentLimit();
+        // Reconcile deployments after creating new one
+        await this.deploymentManager.reconcileDeployments();
 
       } else {
         // Existing thread - ensure deployment is scaled to 1
@@ -153,8 +153,8 @@ export class QueueConsumer {
           await this.deploymentManager.createWorkerDeployment(data.userId, data.threadId, teamId, data);
           console.log(`✅ Recreated deployment: ${deploymentName}`);
 
-          // Enforce deployment limit after recreating deployment
-          await this.deploymentManager.enforceMaxDeploymentLimit();
+          // Reconcile deployments after recreating
+          await this.deploymentManager.reconcileDeployments();
         }
       }
 
@@ -173,6 +173,9 @@ export class QueueConsumer {
           await this.sendToWorkerQueue(data, deploymentName);
         }
       );
+
+      // Update deployment activity annotation for simplified tracking
+      await this.deploymentManager.updateDeploymentActivity(deploymentName);
 
       console.log(`✅ Message job ${jobId} completed successfully`);
       

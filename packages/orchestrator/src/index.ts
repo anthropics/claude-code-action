@@ -29,7 +29,7 @@ class PeerbotOrchestrator {
 
   async start(): Promise<void> {
     try {
-      console.log('🚀 Starting Peerbot Orchestrator with simple deployment scaling...');
+      console.log('🚀 Starting Peerbot Orchestrator with simplified deployment management...');
 
       // Test database connection
       await this.testDatabaseConnection();
@@ -226,24 +226,18 @@ class PeerbotOrchestrator {
   private setupIdleCleanup(): void {
     console.log(`🧹 Setting up worker cleanup (${this.config.worker.idleCleanupMinutes}min threshold, 1min interval)`);
     
-    // Run initial cleanup
-    this.deploymentManager.cleanupIdleDeployments().catch(error => {
-      console.error('❌ Initial cleanup failed:', error);
-    });
-    
-    // Run initial deployment limit enforcement
-    this.deploymentManager.enforceMaxDeploymentLimit().catch(error => {
-      console.error('❌ Initial deployment limit enforcement failed:', error);
+    // Run initial deployment reconciliation
+    this.deploymentManager.reconcileDeployments().catch(error => {
+      console.error('❌ Initial deployment reconciliation failed:', error);
     });
 
     // Set up periodic cleanup every minute for more responsive cleanup
     this.cleanupInterval = setInterval(async () => {
       try {
-        console.log('🧹 Running worker deployment cleanup task...');
-        await this.deploymentManager.cleanupIdleDeployments();
-        await this.deploymentManager.enforceMaxDeploymentLimit();
+        console.log('🔄 Running deployment reconciliation...');
+        await this.deploymentManager.reconcileDeployments();
       } catch (error) {
-        console.error('Error during periodic cleanup - will retry on next interval:', error instanceof Error ? error.message : String(error));
+        console.error('Error during deployment reconciliation - will retry on next interval:', error instanceof Error ? error.message : String(error));
         // Don't exit process - just log the error and continue
       }
     }, 60 * 1000); // 1 minute in milliseconds

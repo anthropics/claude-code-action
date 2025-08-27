@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import * as Sentry from "@sentry/node";
-import { ClaudeSessionRunner } from "@claude-code-slack/core-runner";
+import { ClaudeSessionRunner } from "./core";
 import { WorkspaceManager } from "./workspace-setup";
 import { QueueIntegration } from "./queue-integration";
 import { parseClaudeOutput } from "./claude-output-parser";
