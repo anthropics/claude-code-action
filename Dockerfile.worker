@@ -24,9 +24,10 @@ RUN apt-get update && apt-get install -y \
 RUN curl -L "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64" -o /usr/local/bin/cloudflared && \
     chmod +x /usr/local/bin/cloudflared
 
-# Create a non-root user with home directory
+# Create a non-root user with home directory and sudo access
 RUN addgroup --gid 1001 claude && \
-    adduser --system --uid 1001 --ingroup claude --home /home/claude claude
+    adduser --system --uid 1001 --ingroup claude --home /home/claude claude && \
+    echo 'claude ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 # Install Claude Code CLI globally and make it accessible to all users
 RUN bun install -g @anthropic-ai/claude-code@1.0.59 && \

@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@claude-code-slack/core-runner": "workspace:*",
-    "@kubernetes/client-node": "^1.0.0",
+    "@kubernetes/client-node": "^1.3.0",
     "@octokit/rest": "^21.1.1",
     "@slack/bolt": "^3.22.0",
     "@slack/web-api": "^7.6.0",

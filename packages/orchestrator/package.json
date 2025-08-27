@@ -11,9 +11,9 @@
   },
   "dependencies": {
     "@kubernetes/client-node": "^0.21.0",
+    "dotenv": "^17.2.1",
     "pg": "^8.11.5",
-    "pg-boss": "^10.0.4",
-    "dotenv": "^17.2.1"
+    "pg-boss": "^10.0.4"
   },
   "devDependencies": {
     "@types/pg": "^8.11.6",

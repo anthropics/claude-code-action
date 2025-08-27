@@ -1,8 +1,0 @@
-apiVersion: networking.gke.io/v1
-kind: ManagedCertificate
-metadata:
-  name: peerbot-cert
-  namespace: peerbot
-spec:
-  domains:
-  - slack.peerbot.ai

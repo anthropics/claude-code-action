@@ -36,6 +36,22 @@ export class QueueConsumer {
       await this.pgBoss.start();
       this.isRunning = true;
 
+      // Set up pgboss RLS policies now that pgboss has initialized
+      try {
+        const pool = (this.pgBoss as any).pool;
+        if (pool) {
+          const client = await pool.connect();
+          try {
+            await client.query('SELECT setup_pgboss_rls_on_demand()');
+            console.log('✅ pgboss RLS policies configured');
+          } finally {
+            client.release();
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️  Failed to setup pgboss RLS:', error instanceof Error ? error.message : String(error));
+      }
+
       // Create the messages queue if it doesn't exist
       await this.pgBoss.createQueue('messages');
       console.log('✅ Created/verified messages queue');
@@ -218,8 +234,10 @@ export class QueueConsumer {
   private async cleanupIdleWorkerDeployments(): Promise<void> {
     try {
       // Get all worker deployments
-      const k8sApi = new k8s.AppsV1Api();
-      const { body } = await k8sApi.listNamespacedDeployment(
+      const kc = new k8s.KubeConfig();
+      kc.loadFromDefault();
+      const k8sApi = kc.makeApiClient(k8s.AppsV1Api);
+      const response = await k8sApi.listNamespacedDeployment(
         'peerbot',
         undefined,
         undefined,
@@ -227,6 +245,7 @@ export class QueueConsumer {
         undefined,
         'app.kubernetes.io/component=worker'
       );
+      const body = response.body;
 
       const now = Date.now();
       const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -254,12 +273,7 @@ export class QueueConsumer {
             try {
               await k8sApi.deleteNamespacedDeployment(
                 deployment.metadata.name,
-                'peerbot',
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                'Background'
+                'peerbot'
               );
               console.log(`✅ Successfully cleaned up deployment: ${deployment.metadata.name}`);
             } catch (deleteError) {
@@ -278,8 +292,10 @@ export class QueueConsumer {
    */
   private async isWorkerDeploymentIdle(deploymentName: string): Promise<boolean> {
     try {
-      const coreApi = new k8s.CoreV1Api();
-      const { body: pods } = await coreApi.listNamespacedPod(
+      const kc = new k8s.KubeConfig();
+      kc.loadFromDefault();
+      const coreApi = kc.makeApiClient(k8s.CoreV1Api);
+      const response = await coreApi.listNamespacedPod(
         'peerbot',
         undefined,
         undefined,
@@ -287,6 +303,7 @@ export class QueueConsumer {
         undefined,
         `app=${deploymentName}`
       );
+      const pods = response.body;
 
       // If no pods exist, deployment is idle
       if (pods.items.length === 0) {
@@ -316,6 +333,7 @@ export class QueueConsumer {
       return false;
     }
   }
+
 
   /**
    * Get queue statistics

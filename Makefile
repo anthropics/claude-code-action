@@ -55,4 +55,6 @@ test:
 clean:
 	@echo "🧹 Destroying..."
 	@skaffold delete --namespace=peerbot || true
+	@kubectl delete deployment -n peerbot --all || true
+	@kubectl delete pod -n peerbot --all || true
 	@echo "✅ Deployment destroyed"

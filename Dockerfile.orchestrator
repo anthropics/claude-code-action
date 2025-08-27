@@ -1,4 +1,4 @@
-# Dockerfile for Orchestrator
+# Dockerfile for Orchestrator - Force rebuild for simplified username Aug 26
 FROM oven/bun:1.2.9
 
 # Install required packages for Kubernetes client and curl for health checks

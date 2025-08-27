@@ -96,7 +96,7 @@ export class WorkspaceManager {
       
       const { stderr } = await execAsync(
         `git clone "${authenticatedUrl}" "${targetDirectory}"`,
-        { timeout: 60000 } // 1 minute timeout
+        { timeout: 180000 } // 3 minute timeout for slow repositories
       );
       
       if (stderr && !stderr.includes("Cloning into")) {
@@ -106,9 +106,22 @@ export class WorkspaceManager {
       logger.info("Repository cloned successfully");
       
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isTimeout = errorMessage.includes('killed') && errorMessage.includes('SIGTERM');
+      const is404 = errorMessage.includes('Repository not found') || errorMessage.includes('not found');
+      
+      let userFriendlyMessage = `Failed to clone repository ${repositoryUrl}.`;
+      if (isTimeout) {
+        userFriendlyMessage += ' The repository took too long to clone (timeout after 3 minutes). This could indicate a very large repository or network issues.';
+      } else if (is404) {
+        userFriendlyMessage += ' The repository does not exist or you do not have access to it.';
+      } else {
+        userFriendlyMessage += ` Error: ${errorMessage}`;
+      }
+      
       throw new WorkspaceError(
         "cloneRepository",
-        `Failed to clone repository ${repositoryUrl}`,
+        userFriendlyMessage,
         error as Error
       );
     }

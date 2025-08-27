@@ -75,36 +75,6 @@ export class DatabasePool {
     }
   }
 
-  /**
-   * Create user-specific database credentials for worker isolation
-   */
-  async createUserCredentials(userId: string, password: string): Promise<void> {
-    try {
-      await this.query(`SELECT create_user_role($1, $2)`, [userId, password]);
-    } catch (error) {
-      throw new OrchestratorError(
-        ErrorCode.USER_CREDENTIALS_CREATE_FAILED,
-        `Failed to create user credentials for ${userId}: ${error instanceof Error ? error.message : String(error)}`,
-        { userId },
-        true
-      );
-    }
-  }
-
-  /**
-   * Check if user credentials exist
-   */
-  async userCredentialsExist(userId: string): Promise<boolean> {
-    try {
-      const result = await this.query(
-        `SELECT 1 FROM pg_roles WHERE rolname = $1`,
-        [`user_${userId.replace(/[^a-zA-Z0-9]/g, '_')}`]
-      );
-      return result.rows.length > 0;
-    } catch (error) {
-      throw OrchestratorError.fromDatabaseError(error);
-    }
-  }
 
   /**
    * Get user configuration from database

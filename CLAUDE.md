@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 - You MUST only do what has been asked; nothing more, nothing less. You can check logs with k8s to understand the recent behavior the user is asking for.
-- Anytime you make changes in the code that should be tested, you MUST run ./test-bot.js "Relevant prompt" --timeout [based on complexity change by default 10] and make sure it works properly. If the script fails, you MUST fix it.
+- Anytime you make changes in the code that should be tested, you MUST run ./test-bot.js "Relevant prompt" --timeout [based on complexity change by default 10] and make sure it works properly. If the script fails (including getting stuck at "Starting environment setup"), you MUST fix it.
 - If you create ephemeral files, you MUST delete them when you're done with them.
 - Always use Skaffold to build and run the Slack bot.
 - NEVER create files unless they're absolutely necessary for achieving your goal. Instead try to run the code on the fly for testing reasons.

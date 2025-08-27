@@ -450,7 +450,7 @@ export class ThreadResponseConsumer {
         logger.error("Bot is not in the channel");
       } else if (error.data?.error === "invalid_blocks" || error.data?.error === "msg_too_long") {
         // These are Slack validation errors - retrying won't help
-        logger.error(`Slack validation error: ${error.data?.error}`);
+        logger.error(`Slack validation error: ${JSON.stringify(error)}`);
         
         // Try to send a simple error message with raw content for recovery
         try {
@@ -460,7 +460,7 @@ export class ThreadResponseConsumer {
             ? content.substring(0, maxContentLength) + '\n...[truncated]'
             : content;
           
-          const errorMessage = `❌ *Error occurred while updating message*\n\n*Error:* ${error.data?.error || error.message}\n\nThe response may be too long or contain invalid formatting.\n\n*Raw Content:*\n\`\`\`\n${truncatedContent}\n\`\`\``;
+          const errorMessage = `❌ *Error occurred while updating message*\n\n*Error:* ${error.data?.error||""}${error.message || ""}\n\nThe response may be too long or contain invalid formatting.\n\n*Raw Content:*\n\`\`\`\n${truncatedContent}\n\`\`\``;
           
           await this.slackClient.chat.update({
             channel: channelId,

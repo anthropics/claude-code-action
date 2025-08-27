@@ -21,27 +21,39 @@ export class DeploymentManager {
     try {
       // Try in-cluster config first, then fall back to default
       if (process.env.KUBERNETES_SERVICE_HOST) {
-        kc.loadFromCluster();
-        console.log('✅ Loaded in-cluster Kubernetes config');
+        try {
+          kc.loadFromCluster();
+          console.log('✅ Loaded in-cluster Kubernetes config');
+        } catch (clusterError) {
+          console.log('⚠️  In-cluster config failed, trying default config');
+          kc.loadFromDefault();
+          console.log('✅ Loaded default Kubernetes config as fallback');
+        }
       } else {
         kc.loadFromDefault();
         console.log('✅ Loaded default Kubernetes config');
       }
+      
+      // For development environments, disable TLS verification to avoid certificate issues
+      if (process.env.NODE_ENV === 'development' || 
+          process.env.KUBERNETES_SERVICE_HOST?.includes('127.0.0.1') ||
+          process.env.KUBERNETES_SERVICE_HOST?.includes('192.168') ||
+          process.env.KUBERNETES_SERVICE_HOST?.includes('localhost')) {
+        const cluster = kc.getCurrentCluster();
+        if (cluster && cluster.skipTLSVerify !== true) {
+          console.log('🔧 Development environment detected, disabling TLS verification');
+          (cluster as any).skipTLSVerify = true;
+        }
+      }
+      
     } catch (error) {
       console.error('❌ Failed to load Kubernetes config:', error);
-      // Try to load default config as fallback
-      try {
-        kc.loadFromDefault();
-        console.log('✅ Loaded default Kubernetes config as fallback');
-      } catch (fallbackError) {
-        console.error('❌ Failed to load fallback Kubernetes config:', fallbackError);
-        throw new OrchestratorError(
-          ErrorCode.DEPLOYMENT_CREATE_FAILED,
-          `Failed to initialize Kubernetes client: ${error instanceof Error ? error.message : String(error)}`,
-          { error, fallbackError },
-          true
-        );
-      }
+      throw new OrchestratorError(
+        ErrorCode.DEPLOYMENT_CREATE_FAILED,
+        `Failed to initialize Kubernetes client: ${error instanceof Error ? error.message : String(error)}`,
+        { error },
+        true
+      );
     }
     
     this.appsV1Api = kc.makeApiClient(k8s.AppsV1Api);
@@ -50,13 +62,14 @@ export class DeploymentManager {
 
 
 
+
   /**
-   * Generate PostgreSQL username in format: slack_[workspaceid]_[userid] (lowercase)
+   * Generate PostgreSQL username from user ID (one user per Slack user)
    */
-  private generatePostgresUsername(userId: string, teamId?: string): string {
-    const workspaceId = teamId || 'unknown';
-    
-    return `slack_${workspaceId}_${userId}`.toLowerCase();
+  private generatePostgresUsername(userId: string, teamId?: string, threadId?: string): string {
+    // Create one PostgreSQL user per Slack user ID
+    const username = userId.toLowerCase().substring(0, 63); // PostgreSQL max username length
+    return username;
   }
 
   /**
@@ -72,47 +85,26 @@ export class DeploymentManager {
   }
 
   /**
-   * Create PostgreSQL user with isolated access to pgboss using new RLS system
+   * Create PostgreSQL user with isolated access to pgboss using RLS system
    */
   private async createPostgresUser(username: string, password: string): Promise<void> {
     const client = await this.dbPool.getClient();
     
     try {
-      // Check if new RLS function exists, if not fall back to old method
-      const functionExists = await client.query(
-        'SELECT 1 FROM pg_proc WHERE proname = $1',
-        ['create_isolated_pgboss_user']
+      console.log(`Creating isolated pgboss user: ${username}`);
+      
+      // Use the RLS-aware user creation function with just the username and password
+      const createdUsername = await client.query(
+        'SELECT create_isolated_pgboss_user($1, $2) as username',
+        [username, password]
       );
       
-      if (functionExists.rows.length > 0) {
-        // Extract user ID and team ID from username (format: slack_teamid_userid)
-        const usernameParts = username.split('_');
-        if (usernameParts.length < 3 || usernameParts[0] !== 'slack') {
-          throw new Error(`Invalid username format: ${username}. Expected format: slack_teamid_userid`);
-        }
-        
-        const teamId = usernameParts[1];
-        const userId = usernameParts.slice(2).join('_'); // Handle user IDs with underscores
-        
-        console.log(`Creating isolated pgboss user: ${username} (team: ${teamId}, user: ${userId})`);
-        
-        // Use the new RLS-aware user creation function
-        const createdUsername = await client.query(
-          'SELECT create_isolated_pgboss_user($1, $2, $3) as username',
-          [userId, teamId, password]
-        );
-        
-        const actualUsername = createdUsername.rows[0]?.username;
-        if (actualUsername !== username) {
-          console.warn(`Username mismatch: expected ${username}, got ${actualUsername}`);
-        }
-        
-        console.log(`✅ Successfully ensured user ${username} has isolated pgboss access`);
-      } else {
-        // Fall back to old method temporarily
-        console.log(`RLS function not found, using legacy user creation for: ${username}`);
-        await this.createPostgresUserLegacy(username, password);
+      const actualUsername = createdUsername.rows[0]?.username;
+      if (actualUsername !== username) {
+        console.warn(`Username mismatch: expected ${username}, got ${actualUsername}`);
       }
+      
+      console.log(`✅ Successfully ensured user ${username} has isolated pgboss access`);
       
     } catch (error) {
       console.error(`Failed to create/update PostgreSQL user ${username}:`, error);
@@ -121,44 +113,59 @@ export class DeploymentManager {
       client.release();
     }
   }
-  
+
   /**
-   * Legacy method for creating PostgreSQL users (fallback)
+   * Get existing password from secret or create new user credentials
    */
-  private async createPostgresUserLegacy(username: string, password: string): Promise<void> {
-    const client = await this.dbPool.getClient();
-    const schemaName = `user_${username.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  private async getOrCreateUserCredentials(username: string): Promise<string> {
+    const secretName = `peerbot-user-secret-${username.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`;
     
     try {
-      // Check if user already exists
-      const userExists = await client.query(
-        'SELECT 1 FROM pg_user WHERE usename = $1',
-        [username]
-      );
+      // Try to read existing secret first
+      const existingSecret = await this.coreV1Api.readNamespacedSecret(secretName, this.config.kubernetes.namespace);
+      const existingPassword = Buffer.from(existingSecret.body.data?.['DB_PASSWORD'] || '', 'base64').toString();
       
-      if (userExists.rows.length === 0) {
-        // Create user with password
-        await client.query(`CREATE USER "${username}" WITH PASSWORD '${password}' NOCREATEDB NOCREATEROLE`);
-        console.log(`Created PostgreSQL user: ${username}`);
-        
-        // Create isolated schema for user
-        await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}" AUTHORIZATION "${username}"`);
-        console.log(`Created schema: ${schemaName}`);
-        
-        // Set default search path to user schema and pgboss
-        await client.query(`ALTER USER "${username}" SET search_path TO "${schemaName}", pgboss`);
-        
-        // Grant limited pgboss permissions - only for their own jobs
-        await client.query(`GRANT USAGE ON SCHEMA pgboss TO "${username}"`);
-        await client.query(`GRANT SELECT, INSERT, UPDATE ON pgboss.job TO "${username}"`);
-        await client.query(`GRANT USAGE ON ALL SEQUENCES IN SCHEMA pgboss TO "${username}"`);
-        
-        console.log(`Created legacy user setup for: ${username}`);
-      } else {
-        console.log(`PostgreSQL user already exists: ${username}`);
+      if (existingPassword) {
+        console.log(`Found existing secret for user ${username}, using existing credentials`);
+        return existingPassword;
       }
-    } finally {
-      client.release();
+    } catch (error) {
+      // Secret doesn't exist, will create new credentials
+      console.log(`Secret ${secretName} does not exist, creating new credentials`);
+    }
+    
+    // Generate new credentials
+    const password = this.generateRandomPassword();
+    console.log(`Creating new credentials for user ${username}`);
+    await this.createPostgresUser(username, password);
+    await this.createUserSecret(username, password);
+    return password;
+  }
+
+  /**
+   * Update existing Kubernetes secret with new PostgreSQL credentials
+   */
+  private async updateUserSecret(secretName: string, username: string, password: string): Promise<void> {
+    try {
+      const secretData = {
+        'DATABASE_URL': Buffer.from(`postgres://${username}:${password}@peerbot-postgresql:5432/peerbot`).toString('base64'),
+        'DB_USERNAME': Buffer.from(username).toString('base64'),
+        'DB_PASSWORD': Buffer.from(password).toString('base64')
+      };
+
+      const secretPatch = {
+        data: secretData
+      };
+
+      await this.coreV1Api.patchNamespacedSecret(secretName, this.config.kubernetes.namespace, secretPatch);
+      console.log(`✅ Updated secret: ${secretName}`);
+    } catch (error) {
+      throw new OrchestratorError(
+        ErrorCode.DEPLOYMENT_CREATE_FAILED,
+        `Failed to update user secret: ${error instanceof Error ? error.message : String(error)}`,
+        { username, secretName, error },
+        true
+      );
     }
   }
 
@@ -220,12 +227,12 @@ export class DeploymentManager {
     
     try {
       // Always ensure user credentials exist first
-      const username = this.generatePostgresUsername(userId, teamId);
-      const password = this.generateRandomPassword();
+      const username = this.generatePostgresUsername(userId, teamId, threadId);
       
       console.log(`Ensuring PostgreSQL user and secret for ${username}...`);
-      await this.createPostgresUser(username, password);
-      await this.createUserSecret(username, password);
+      
+      // Check if secret already exists and get existing password, or generate new one
+      await this.getOrCreateUserCredentials(username);
 
       // Check if deployment already exists
       try {
@@ -322,7 +329,7 @@ export class DeploymentManager {
                 },
                 {
                   name: 'REPOSITORY_URL',
-                  value: messageData?.platformMetadata?.repositoryUrl || process.env.DEFAULT_REPOSITORY_URL || 'https://github.com/default/repo'
+                  value: messageData?.platformMetadata?.repositoryUrl || process.env.GITHUB_REPOSITORY || 'https://github.com/anthropics/claude-code-examples'
                 },
                 {
                   name: 'ORIGINAL_MESSAGE_TS',
@@ -404,7 +411,7 @@ export class DeploymentManager {
   async scaleDeployment(deploymentName: string, replicas: number): Promise<void> {
     try {
       const deployment = await this.appsV1Api.readNamespacedDeployment(
-        deploymentName, 
+        deploymentName,
         this.config.kubernetes.namespace
       );
       
@@ -428,67 +435,97 @@ export class DeploymentManager {
   }
 
   /**
-   * Enforce maximum deployment limit by removing oldest inactive deployments
+   * Enforce maximum deployment limit by removing oldest inactive deployments (FIXED VERSION)
    */
   async enforceMaxDeploymentLimit(): Promise<void> {
-    const client = await this.dbPool.getClient();
     try {
       const maxDeployments = this.config.worker.maxDeployments || 10;
       
-      // Query active threads from database
-      const activeThreadsQuery = `
-        SELECT DISTINCT 
-          data->>'threadId' as thread_id,
-          data->>'userId' as user_id,
-          MIN(created_on) as first_activity,
-          MAX(created_on) as last_activity,
-          COUNT(*) as message_count
-        FROM pgboss.job
-        WHERE name LIKE 'thread_message_%'
-          AND created_on > NOW() - INTERVAL '24 hours'
-        GROUP BY data->>'threadId', data->>'userId'
-        ORDER BY MAX(created_on) ASC
-        LIMIT $1 OFFSET $2
-      `;
+      // Get actual deployments from Kubernetes (not just database records)
+      const k8sDeployments = await this.appsV1Api.listNamespacedDeployment(
+        this.config.kubernetes.namespace,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'app.kubernetes.io/component=worker'
+      );
+
+      const activeDeployments = k8sDeployments.body.items || [];
+      console.log(`📊 Found ${activeDeployments.length} actual worker deployments in Kubernetes`);
       
-      // Get total active threads count
-      const countResult = await client.query(`
-        SELECT COUNT(DISTINCT data->>'threadId') as total
-        FROM pgboss.job
-        WHERE name LIKE 'thread_message_%'
-          AND created_on > NOW() - INTERVAL '24 hours'
-      `);
-      
-      const totalThreads = parseInt(countResult.rows[0]?.total || '0');
-      
-      if (totalThreads > maxDeployments) {
-        const excessCount = totalThreads - maxDeployments;
+      if (activeDeployments.length <= maxDeployments) {
+        console.log(`✅ Current deployments (${activeDeployments.length}) within limit (${maxDeployments})`);
+        return;
+      }
+
+      // Get deployment activity from database to determine which to delete
+      const client = await this.dbPool.getClient();
+      let deploymentActivity: Map<string, Date>;
+      try {
+        const activityQuery = `
+          SELECT DISTINCT 
+            data->>'threadId' as thread_id,
+            MAX(created_on) as last_activity
+          FROM pgboss.job
+          WHERE name LIKE 'thread_message_%'
+            AND created_on > NOW() - INTERVAL '24 hours'
+          GROUP BY data->>'threadId'
+        `;
+        const result = await client.query(activityQuery);
+        deploymentActivity = new Map(
+          result.rows.map(row => [row.thread_id, new Date(row.last_activity)])
+        );
+      } finally {
+        client.release();
+      }
+
+      // Sort deployments by last activity (oldest first) or creation time if no activity
+      const deploymentsWithActivity = activeDeployments.map((deployment: any) => {
+        const deploymentName = deployment.metadata?.name || '';
+        const threadId = deploymentName.replace('peerbot-worker-', '');
+        const lastActivity = deploymentActivity.get(threadId);
+        const creationTime = deployment.metadata?.creationTimestamp ? 
+          new Date(deployment.metadata.creationTimestamp) : new Date();
         
-        // Get oldest threads to delete
-        const threadsToDelete = await client.query(activeThreadsQuery, [excessCount, 0]);
+        return {
+          deployment,
+          threadId,
+          lastActivity: lastActivity || creationTime,
+          deploymentName
+        };
+      }).sort((a: any, b: any) => a.lastActivity.getTime() - b.lastActivity.getTime());
+
+      const excessCount = activeDeployments.length - maxDeployments;
+      const deploymentsToDelete = deploymentsWithActivity.slice(0, excessCount);
+      
+      console.log(`🧹 Need to remove ${excessCount} excess deployments (current: ${activeDeployments.length}, max: ${maxDeployments})`);
+      
+      let actuallyDeleted = 0;
+      for (const { deploymentName, lastActivity } of deploymentsToDelete) {
+        console.log(`🧹 Removing excess deployment: ${deploymentName} (last activity: ${lastActivity.toISOString()})`);
         
-        for (const thread of threadsToDelete.rows) {
-          const deploymentName = `peerbot-worker-${thread.thread_id}`;
-          console.log(`🧹 Removing excess deployment: ${deploymentName} (last activity: ${thread.last_activity})`);
-          
-          try {
-            await this.appsV1Api.deleteNamespacedDeployment(
-              deploymentName,
-              this.config.kubernetes.namespace
-            );
-          } catch (error: any) {
-            if (error.statusCode !== 404) {
-              console.error(`Failed to delete deployment ${deploymentName}:`, error);
-            }
+        try {
+          await this.appsV1Api.deleteNamespacedDeployment(
+            deploymentName,
+            this.config.kubernetes.namespace
+          );
+          actuallyDeleted++;
+          console.log(`✅ Successfully deleted deployment: ${deploymentName}`);
+        } catch (error: any) {
+          if (error.statusCode === 404) {
+            console.log(`⚠️  Deployment ${deploymentName} not found (already deleted)`);
+          } else {
+            console.error(`Failed to delete deployment ${deploymentName}:`, error);
           }
         }
-        
-        console.log(`✅ Removed ${threadsToDelete.rows.length} excess deployments`);
+      }
+      
+      if (actuallyDeleted > 0) {
+        console.log(`🧹 Idle deployment cleanup completed. Cleaned up ${actuallyDeleted} deployments.`);
       }
     } catch (error) {
       console.error('Failed to enforce deployment limit:', error);
-    } finally {
-      client.release();
     }
   }
 
@@ -793,4 +830,8 @@ export class DeploymentManager {
       client.release();
     }
   }
-}
+}// Updated k8s client Tue Aug 26 23:32:16 BST 2025
+// OrbStack fix Tue Aug 26 23:37:07 BST 2025
+// Universal K8s fix Tue Aug 26 23:38:35 BST 2025
+// All K8s clients upgraded Tue Aug 26 23:42:51 BST 2025
+// Force rebuild Wed Aug 27 01:30:06 BST 2025

@@ -14,13 +14,13 @@
   },
   "dependencies": {
     "@claude-code-slack/core-runner": "workspace:*",
-    "@kubernetes/client-node": "^1.0.0",
+    "@kubernetes/client-node": "^1.3.0",
     "@octokit/rest": "^21.1.1",
     "node-fetch": "^3.3.2",
-    "winston": "^3.17.0",
-    "zod": "^3.24.4",
+    "pg": "^8.11.3",
     "pg-boss": "^10.0.2",
-    "pg": "^8.11.3"
+    "winston": "^3.17.0",
+    "zod": "^3.24.4"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

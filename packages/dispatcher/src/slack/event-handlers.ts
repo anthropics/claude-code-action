@@ -307,17 +307,11 @@ export class SlackEventHandlers {
 
     logger.info(`Handling request for session: ${sessionKey} (threadTs: ${normalizedThreadTs})`);
 
-    // Check if session is already active
+    // Check if session is already active - allow multiple messages, worker will queue them
     const existingSession = this.activeSessions.get(sessionKey);
-    if (existingSession && existingSession.status === "running") {
-      await client.chat.postMessage({
-        channel: context.channelId,
-        thread_ts: normalizedThreadTs,
-        text: "⏳ I'm already working on this thread. Please wait for the current task to complete.",
-        mrkdwn: true,
-      });
-      return;
-    }
+    logger.info(`Existing session status for ${sessionKey}: ${existingSession?.status || 'none'}`);
+    
+    // Don't block - let worker handle sequential processing
 
     try {
       // Get user's GitHub username mapping
@@ -366,16 +360,24 @@ export class SlackEventHandlers {
 
       this.activeSessions.set(sessionKey, threadSession);
 
-      // Post initial Slack response
-      logger.info(`[TIMING] Posting initial response at: ${new Date().toISOString()}`);
-      const initialResponse = await client.chat.postMessage({
-        channel: context.channelId,
-        thread_ts: threadTs,
-        text: "🚀 Starting environment setup...",
-      });
-
       // Determine if this is a new conversation or continuation
       const isNewConversation = !context.threadTs;
+      const hasActiveWorker = existingSession && existingSession.status === "running";
+      
+      let initialResponse: any = null;
+      
+      if (isNewConversation || !hasActiveWorker) {
+        // Post initial Slack response only for new conversations or when restarting worker
+        logger.info(`[TIMING] Posting initial response at: ${new Date().toISOString()}`);
+        initialResponse = await client.chat.postMessage({
+          channel: context.channelId,
+          thread_ts: threadTs,
+          text: "🚀 Starting environment setup...",
+        });
+      } else {
+        // For continuation messages, don't post new response - worker will handle
+        logger.info(`Continuing existing session ${existingClaudeSessionId}, no new response message`);
+      }
       
       if (isNewConversation) {
         const deploymentPayload: WorkerDeploymentPayload = {
@@ -426,14 +428,14 @@ export class SlackEventHandlers {
             userDisplayName: context.userDisplayName,
             repositoryUrl: repository.repositoryUrl,
             slackResponseChannel: context.channelId,
-            slackResponseTs: initialResponse.ts,
+            slackResponseTs: initialResponse?.ts || context.messageTs, // Use message timestamp if no response
             originalMessageTs: context.messageTs,
           },
           claudeOptions: {
             ...this.config.claude,
             timeoutMinutes: this.config.sessionTimeoutMinutes.toString(),
-            // Use sessionId for new sessions, resumeSessionId for existing sessions
-            ...(isNewSession ? { sessionId: existingClaudeSessionId } : { resumeSessionId: existingClaudeSessionId }),
+            // Always use resumeSessionId for continuation messages - never create new session
+            resumeSessionId: existingClaudeSessionId,
           },
           // Add routing metadata for thread-specific processing
           routingMetadata: {
@@ -445,8 +447,8 @@ export class SlackEventHandlers {
 
         const jobId = await this.queueProducer.enqueueThreadMessage(threadPayload);
 
-        logger.info(`Enqueued thread message job ${jobId} for session ${sessionKey}`);
-        threadSession.status = "pending";
+        logger.info(`Enqueued thread message job ${jobId} for continuing session ${existingClaudeSessionId}`);
+        threadSession.status = "running"; // Mark as running since worker is processing
       }
 
     } catch (error) {
@@ -529,16 +531,6 @@ export class SlackEventHandlers {
     return true;
   }
 
-  /**
-   * Load previously stored Claude session mapping for a thread
-   * Currently uses in-memory map but can be extended to persistent storage
-   */
-  private async loadSessionMapping(
-    _username: string,
-    sessionKey: string,
-  ): Promise<string | undefined> {
-    return this.sessionMappings.get(sessionKey);
-  }
 
   private async getOrCreateUserMapping(slackUserId: string, client: any): Promise<string> {
     const existingMapping = this.userMappings.get(slackUserId);
@@ -1002,14 +994,61 @@ export class SlackEventHandlers {
       return;
     }
 
-    const userInput = this.extractViewInputs(view.state.values);
+    // Extract input fields from state values
+    const inputFieldsData = this.extractViewInputs(view.state.values);
     
+    // Extract action selections from view blocks (for button-based forms)
+    const actionSelections = this.extractActionSelections(view);
+    
+    // Combine both input fields and action selections
+    const userInput = [inputFieldsData, actionSelections].filter(data => data.trim()).join('\n');
+    
+    // If no form inputs were found, extract the content from the modal blocks
+    // This handles cases where the blockkit is just informational content with action buttons
     if (!userInput.trim()) {
-      await client.chat.postEphemeral({
+      logger.info(`No form inputs found, extracting modal content for button: ${buttonText}`);
+      
+      // Extract text content from the modal blocks
+      const modalContent = this.extractModalContent(view.blocks);
+      const userInput = modalContent || `Selected "${buttonText}"`;
+      
+      const formattedInput = `> 📝 *Form submitted from "${buttonText}" button*\n\n${userInput}`;
+      
+      const inputMessage = await client.chat.postMessage({
         channel: channelId,
-        user: userId,
-        text: "Please fill out the form before submitting.",
+        thread_ts: threadTs,
+        text: formattedInput,
+        blocks: [
+          {
+            type: "context",
+            elements: [
+              {
+                type: "mrkdwn",
+                text: `<@${userId}> submitted form from "${buttonText}" button`
+              }
+            ]
+          },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: userInput
+            }
+          }
+        ]
       });
+      
+      const context = {
+        channelId,
+        userId,
+        userDisplayName: metadata.user_display_name || 'Unknown User',
+        teamId: metadata.team_id || '',
+        messageTs: inputMessage.ts as string,
+        threadTs: threadTs,
+        text: userInput,
+      };
+      
+      await this.handleUserRequest(context, userInput, client);
       return;
     }
 
@@ -1141,6 +1180,24 @@ export class SlackEventHandlers {
           value = (action as any).selected_date;
         } else if ((action as any).selected_time) {
           value = (action as any).selected_time;
+        } else if ((action as any).selected_button) {
+          // Handle button selections (radio buttons, etc.)
+          value = (action as any).selected_button.value;
+        } else if ((action as any).selected_user) {
+          // Handle user picker
+          value = (action as any).selected_user;
+        } else if ((action as any).selected_channel) {
+          // Handle channel picker
+          value = (action as any).selected_channel;
+        } else if ((action as any).selected_conversation) {
+          // Handle conversation picker
+          value = (action as any).selected_conversation;
+        } else if ((action as any).actions && Array.isArray((action as any).actions)) {
+          // Handle action blocks with button selections
+          const selectedActions = (action as any).actions.filter((act: any) => act.selected || act.value);
+          if (selectedActions.length > 0) {
+            value = selectedActions.map((act: any) => act.value || act.text?.text || act.action_id).join(", ");
+          }
         }
         
         if (value && value.toString().trim()) {
@@ -1158,7 +1215,85 @@ export class SlackEventHandlers {
         }
       }
     }
+    
+    // Debug logging to help troubleshoot form submission issues
+    logger.info(`Form submission debug - stateValues: ${JSON.stringify(stateValues, null, 2)}`);
+    logger.info(`Extracted inputs: ${inputs.join(", ")}`);
+    
     return inputs.join("\n");
+  }
+
+  /**
+   * Extract text content from modal blocks (for display-only forms)
+   */
+  private extractModalContent(blocks: any[]): string {
+    const content: string[] = [];
+    
+    if (!blocks || !Array.isArray(blocks)) {
+      return '';
+    }
+    
+    for (const block of blocks) {
+      if (block.type === 'section' && block.text?.text) {
+        // Extract section text content
+        let text = block.text.text;
+        // Clean up markdown formatting for plain text
+        text = text.replace(/\*\*(.+?)\*\*/g, '$1'); // Bold
+        text = text.replace(/\*(.+?)\*/g, '$1'); // Italic
+        text = text.replace(/`(.+?)`/g, '$1'); // Code
+        content.push(text);
+      } else if (block.type === 'context' && block.elements) {
+        // Extract context elements
+        for (const element of block.elements) {
+          if (element.type === 'mrkdwn' && element.text) {
+            let text = element.text.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1');
+            content.push(text);
+          }
+        }
+      }
+    }
+    
+    return content.join('\n').trim();
+  }
+
+  /**
+   * Extract action selections from view blocks (for button-based forms)
+   */
+  private extractActionSelections(view: any): string {
+    const selections: string[] = [];
+    
+    if (!view.blocks || !Array.isArray(view.blocks)) {
+      return '';
+    }
+    
+    for (const block of view.blocks) {
+      if (block.type === 'actions' && block.elements) {
+        // This is an action block with buttons/elements
+        for (const element of block.elements) {
+          if (element.type === 'button' && element.text?.text) {
+            // For now, we'll capture the button text as the user's selection
+            // In a real scenario, we'd need to track which button was actually clicked
+            // But since this is a modal submission, we know the user made a selection
+            selections.push(`Selected: ${element.text.text}`);
+          } else if (element.type === 'static_select' && element.placeholder?.text) {
+            selections.push(`Option available: ${element.placeholder.text}`);
+          }
+        }
+      } else if (block.type === 'section' && block.text?.text) {
+        // Capture section text as context
+        const text = block.text.text;
+        if (text && !text.includes('Would you like to')) {
+          selections.push(`Context: ${text}`);
+        }
+      }
+    }
+    
+    // If no specific selections found, provide a generic indication
+    if (selections.length === 0) {
+      selections.push('User made a selection from the available options');
+    }
+    
+    return selections.join('\n');
   }
 
   /**

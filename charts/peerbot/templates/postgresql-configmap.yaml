@@ -7,30 +7,85 @@ metadata:
     {{- include "peerbot.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
 data:
-  01-init-pgboss.sql: |
-    -- Create pgboss schema and user
-    CREATE SCHEMA IF NOT EXISTS pgboss;
-    
-    -- Grant permissions to main user
-    GRANT ALL PRIVILEGES ON SCHEMA pgboss TO {{ .Values.postgresql.username }};
-    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA pgboss TO {{ .Values.postgresql.username }};
-    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA pgboss TO {{ .Values.postgresql.username }};
-    
-    -- Set default privileges for future objects
-    ALTER DEFAULT PRIVILEGES IN SCHEMA pgboss GRANT ALL ON TABLES TO {{ .Values.postgresql.username }};
-    ALTER DEFAULT PRIVILEGES IN SCHEMA pgboss GRANT ALL ON SEQUENCES TO {{ .Values.postgresql.username }};
-    
   02-init-schema.sql: |
-    -- Load the main schema migration
+    -- Load the initial schema migration
     \i /docker-entrypoint-initdb.d/schema-001_initial_schema.sql
-    \i /docker-entrypoint-initdb.d/schema-002_queue_tables.sql
-    \i /docker-entrypoint-initdb.d/schema-003_pgboss_rls_fix.sql
+    
+  03-setup-pgboss-post-init.sql: |
+    -- This script sets up pgboss RLS after pgboss initializes its tables
+    -- It will be automatically executed when pgboss tables are created
+    
+    -- Function to set up pgboss RLS when called
+    CREATE OR REPLACE FUNCTION setup_pgboss_rls_on_demand()
+    RETURNS VOID AS $$
+    BEGIN
+        -- Check if pgboss.job table exists
+        IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'pgboss' AND table_name = 'job') THEN
+            RAISE NOTICE 'pgboss.job table does not exist yet, skipping RLS setup';
+            RETURN;
+        END IF;
+        
+        -- Enable RLS on pgboss.job table
+        ALTER TABLE pgboss.job ENABLE ROW LEVEL SECURITY;
+        
+        -- Drop any existing policies
+        DROP POLICY IF EXISTS user_job_isolation ON pgboss.job;
+        
+        -- Create case-insensitive RLS policy for pgboss jobs
+        CREATE POLICY user_job_isolation ON pgboss.job
+        FOR ALL 
+        USING (
+            -- Allow superusers and system accounts full access
+            current_user = 'postgres' 
+            OR pg_has_role(current_user, 'postgres', 'MEMBER')
+            OR current_user LIKE 'peerbot_%'
+            OR
+            -- User can access jobs with their user ID in data (case-insensitive)
+            (data ? 'userId' AND UPPER(data->>'userId') = UPPER(current_user))
+            OR
+            -- User can access thread messages for their deployments (case-insensitive)
+            (name LIKE 'thread_message_%' AND 
+             name LIKE 'thread_message_peerbot-worker-%' AND
+             data ? 'userId' AND 
+             UPPER(data->>'userId') = UPPER(current_user))
+            OR
+            -- Allow access to jobs without user context (system jobs)
+            (NOT (data ? 'userId'))
+        )
+        WITH CHECK (
+            -- Same conditions for INSERT/UPDATE
+            current_user = 'postgres' 
+            OR pg_has_role(current_user, 'postgres', 'MEMBER')
+            OR current_user LIKE 'peerbot_%'
+            OR
+            (data ? 'userId' AND UPPER(data->>'userId') = UPPER(current_user))
+            OR
+            (name LIKE 'thread_message_%' AND 
+             name LIKE 'thread_message_peerbot-worker-%' AND
+             data ? 'userId' AND 
+             UPPER(data->>'userId') = UPPER(current_user))
+            OR
+            (NOT (data ? 'userId'))
+        );
+
+        -- Create trigger to automatically set user context
+        DROP TRIGGER IF EXISTS ensure_user_context_trigger ON pgboss.job;
+        CREATE TRIGGER ensure_user_context_trigger
+            BEFORE INSERT OR UPDATE ON pgboss.job
+            FOR EACH ROW
+            EXECUTE FUNCTION ensure_job_user_context();
+
+        -- Add indexes for better RLS performance
+        CREATE INDEX IF NOT EXISTS idx_pgboss_job_user_id ON pgboss.job((data->>'userId')) WHERE data ? 'userId';
+        CREATE INDEX IF NOT EXISTS idx_pgboss_job_name_userid ON pgboss.job(name, (data->>'userId')) WHERE data ? 'userId';
+
+        -- Add comment explaining the RLS setup
+        COMMENT ON POLICY user_job_isolation ON pgboss.job IS 
+        'Case-insensitive RLS policy that compares job data userId directly with current database user';
+        
+        RAISE NOTICE 'pgboss RLS policies configured successfully';
+    END;
+    $$ LANGUAGE plpgsql;
     
   schema-001_initial_schema.sql: |
 {{ .Files.Get "../../db/migrations/001_initial_schema.sql" | indent 4 }}
-    
-  schema-002_queue_tables.sql: |
-{{ .Files.Get "../../db/migrations/002_queue_tables.sql" | indent 4 }}
-    
-  schema-003_pgboss_rls_fix.sql: |
-{{ .Files.Get "../../db/migrations/003_pgboss_rls_fix.sql" | indent 4 }}

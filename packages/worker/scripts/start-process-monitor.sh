@@ -34,5 +34,12 @@ EOF
 
 chmod +x /home/claude/bin/claude-processes
 
+# Also create a symlink in /usr/local/bin for global access (if we have permission)
+if [ -w /usr/local/bin ]; then
+    ln -sf /home/claude/bin/claude-processes /usr/local/bin/claude-processes
+else
+    echo "⚠️  Cannot create global symlink, claude-processes available at /home/claude/bin/claude-processes"
+fi
+
 echo "✅ Process monitor initialized"
 echo "💡 Use 'claude-processes' command to manage background processes"

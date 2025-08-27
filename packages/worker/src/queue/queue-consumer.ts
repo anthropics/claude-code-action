@@ -29,6 +29,11 @@ export interface ThreadMessagePayload {
   };
 }
 
+interface QueuedMessage {
+  payload: ThreadMessagePayload;
+  timestamp: number;
+}
+
 export class WorkerQueueConsumer {
   private pgBoss: PgBoss;
   private isRunning = false;
@@ -37,6 +42,8 @@ export class WorkerQueueConsumer {
   private userId: string;
   private deploymentName: string;
   private targetThreadId?: string;
+  private messageQueue: QueuedMessage[] = [];
+  private currentSessionId: string | null = null;
 
   constructor(
     connectionString: string,
@@ -165,52 +172,21 @@ export class WorkerQueueConsumer {
       return; // Skip this message - wrong user
     }
 
-    if (this.isProcessing) {
-      logger.warn("Already processing a message, requeueing...");
-      throw new Error("Worker busy - message will be retried");
+    // Add message to queue
+    this.messageQueue.push({
+      payload: actualData,
+      timestamp: Date.now()
+    });
+    
+    logger.info(`Message queued. Queue length: ${this.messageQueue.length}, isProcessing: ${this.isProcessing}`);
+    
+    // If not currently processing, start sequential processing
+    if (!this.isProcessing) {
+      await this.processQueueSequentially();
     }
-
-    this.isProcessing = true;
-    const jobId = 'worker-processed'; // Can't extract ID from serialized format
-
-    try {
-      logger.info(`Processing thread message job ${jobId} for user ${actualData.userId}, thread ${actualData.threadId}`);
-
-      // User context should be set by orchestrator as environment variable  
-      // The DATABASE_URL should already contain user-specific credentials
-      if (!process.env.USER_ID) {
-        logger.warn(`USER_ID not set in environment, using userId from payload: ${actualData.userId}`);
-        process.env.USER_ID = actualData.userId;
-      }
-
-      // Convert queue payload to WorkerConfig format
-      const workerConfig = this.payloadToWorkerConfig(actualData);
-
-      // Create and execute worker
-      this.currentWorker = new ClaudeWorker(workerConfig);
-      await this.currentWorker.execute();
-      
-      logger.info(`✅ Successfully processed user queue message job ${jobId}`);
-
-    } catch (error) {
-      logger.error(`❌ Failed to process user queue message job ${jobId}:`, error);
-      
-      // Re-throw to let pgboss handle retry logic
-      throw error;
-      
-    } finally {
-      // Cleanup worker instance
-      if (this.currentWorker) {
-        try {
-          await this.currentWorker.cleanup();
-        } catch (cleanupError) {
-          logger.error("Error during worker cleanup:", cleanupError);
-        }
-        this.currentWorker = null;
-      }
-      
-      this.isProcessing = false;
-    }
+    
+    // Message successfully queued - pgBoss job completes immediately
+    logger.info('Message successfully added to processing queue');
   }
 
   /**
@@ -307,6 +283,95 @@ export class WorkerQueueConsumer {
       targetThreadId: this.targetThreadId,
       queueName: this.getThreadQueueName(),
     };
+  }
+
+  /**
+   * Process all messages in queue sequentially
+   */
+  private async processQueueSequentially(): Promise<void> {
+    this.isProcessing = true;
+    
+    try {
+      while (this.messageQueue.length > 0) {
+        // Get all messages to process together
+        const messagesToProcess = [...this.messageQueue];
+        this.messageQueue = []; // Clear queue
+        
+        logger.info(`Processing batch of ${messagesToProcess.length} messages sequentially`);
+        
+        // Sort by timestamp to ensure correct order
+        messagesToProcess.sort((a, b) => a.timestamp - b.timestamp);
+        
+        await this.processBatchedMessages(messagesToProcess);
+      }
+    } catch (error) {
+      logger.error('Error during sequential message processing:', error);
+      throw error;
+    } finally {
+      this.isProcessing = false;
+    }
+  }
+
+  /**
+   * Process a batch of messages using session resumption
+   */
+  private async processBatchedMessages(messages: QueuedMessage[]): Promise<void> {
+    if (messages.length === 0) return;
+    
+    const firstMessage = messages[0]!; // We know it exists since length > 0
+    const isFirstSession = !this.currentSessionId;
+    
+    try {
+      // Set environment variables from first message
+      if (!process.env.USER_ID) {
+        logger.warn(`USER_ID not set in environment, using userId from payload: ${firstMessage.payload.userId}`);
+        process.env.USER_ID = firstMessage.payload.userId;
+      }
+
+      // Convert to worker config
+      let workerConfig: WorkerConfig;
+      
+      if (isFirstSession) {
+        // First message in thread - create new session
+        workerConfig = this.payloadToWorkerConfig(firstMessage.payload);
+        this.currentSessionId = workerConfig.sessionId || workerConfig.resumeSessionId || `session-${firstMessage.payload.threadId}`;
+        logger.info(`Starting new Claude session: ${this.currentSessionId}`);
+      } else {
+        // Resume existing session with combined messages
+        const combinedText = messages.map(m => m.payload.messageText).join('\\n\\n');
+        const combinedPayload = {
+          ...firstMessage.payload,
+          messageText: combinedText
+        };
+        
+        workerConfig = this.payloadToWorkerConfig(combinedPayload);
+        // Override with resume session ID
+        workerConfig.resumeSessionId = this.currentSessionId!;
+        workerConfig.sessionId = undefined; // Don't create new session
+        
+        logger.info(`Resuming Claude session: ${this.currentSessionId} with ${messages.length} combined messages`);
+      }
+
+      // Create and execute worker
+      this.currentWorker = new ClaudeWorker(workerConfig);
+      await this.currentWorker.execute();
+      
+      logger.info(`✅ Successfully processed batch of ${messages.length} messages`);
+
+    } catch (error) {
+      logger.error(`❌ Failed to process message batch:`, error);
+      throw error;
+    } finally {
+      // Cleanup worker instance
+      if (this.currentWorker) {
+        try {
+          await this.currentWorker.cleanup();
+        } catch (cleanupError) {
+          logger.error("Error during worker cleanup:", cleanupError);
+        }
+        this.currentWorker = null;
+      }
+    }
   }
 
   /**
