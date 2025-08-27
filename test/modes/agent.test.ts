@@ -168,7 +168,7 @@ describe("Agent Mode", () => {
     expect(callArgs[1]).toContain("--mcp-config");
   });
 
-  test("downloads GitHub assets when enabled for entity context", async () => {
+  test("automatically downloads GitHub assets for entity context", async () => {
     // Mock the fetchGitHubData function
     const mockImageMap = new Map([
       [
@@ -195,10 +195,6 @@ describe("Agent Mode", () => {
       eventName: "issue_comment",
       inputs: { prompt: "Analyze images" },
     });
-
-    // Set download assets environment variable
-    const originalDownload = process.env.DOWNLOAD_GITHUB_ASSETS;
-    process.env.DOWNLOAD_GITHUB_ASSETS = "true";
 
     const mockOctokit = {} as any;
 
@@ -231,44 +227,30 @@ describe("Agent Mode", () => {
 
     // Clean up
     delete process.env.CLAUDE_ASSET_FILES;
-    if (originalDownload !== undefined) {
-      process.env.DOWNLOAD_GITHUB_ASSETS = originalDownload;
-    } else {
-      delete process.env.DOWNLOAD_GITHUB_ASSETS;
-    }
     fetchSpy.mockRestore();
   });
 
-  test("skips asset download when disabled", async () => {
+  test("skips asset download for non-entity contexts", async () => {
     const fetchSpy = spyOn(fetcher, "fetchGitHubData");
 
-    const entityContext = createMockContext({
-      eventName: "issue_comment",
-      inputs: { prompt: "Analyze images" },
+    // Create an automation context (workflow_dispatch)
+    const automationContext = createMockAutomationContext({
+      eventName: "workflow_dispatch",
+      inputs: { prompt: "Analyze something" },
     });
-
-    // Ensure download assets is disabled (default)
-    const originalDownload = process.env.DOWNLOAD_GITHUB_ASSETS;
-    process.env.DOWNLOAD_GITHUB_ASSETS = "false";
 
     const mockOctokit = {} as any;
 
     await agentMode.prepare({
-      context: entityContext,
+      context: automationContext,
       octokit: mockOctokit,
       githubToken: "test-token",
     });
 
-    // Verify fetchGitHubData was NOT called
+    // Verify fetchGitHubData was NOT called for automation contexts
     expect(fetchSpy).toHaveBeenCalledTimes(0);
     expect(process.env.CLAUDE_ASSET_FILES).toBeUndefined();
 
-    // Clean up
-    if (originalDownload !== undefined) {
-      process.env.DOWNLOAD_GITHUB_ASSETS = originalDownload;
-    } else {
-      delete process.env.DOWNLOAD_GITHUB_ASSETS;
-    }
     fetchSpy.mockRestore();
   });
 
@@ -282,10 +264,6 @@ describe("Agent Mode", () => {
       eventName: "issue_comment",
       inputs: { prompt: "Analyze images" },
     });
-
-    // Set download assets environment variable
-    const originalDownload = process.env.DOWNLOAD_GITHUB_ASSETS;
-    process.env.DOWNLOAD_GITHUB_ASSETS = "true";
 
     const mockOctokit = {} as any;
 
@@ -303,12 +281,6 @@ describe("Agent Mode", () => {
     );
     expect(process.env.CLAUDE_ASSET_FILES).toBeUndefined();
 
-    // Clean up
-    if (originalDownload !== undefined) {
-      process.env.DOWNLOAD_GITHUB_ASSETS = originalDownload;
-    } else {
-      delete process.env.DOWNLOAD_GITHUB_ASSETS;
-    }
     fetchSpy.mockRestore();
     consoleSpy.mockRestore();
   });

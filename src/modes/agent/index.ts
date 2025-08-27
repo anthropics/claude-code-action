@@ -124,10 +124,8 @@ export const agentMode: Mode = {
     // Append user's claude_args (which may have more --mcp-config flags)
     claudeArgs = `${claudeArgs} ${userClaudeArgs}`.trim();
 
-    // Download GitHub assets if requested
-    const shouldDownload = process.env.DOWNLOAD_GITHUB_ASSETS === "true";
-
-    if (shouldDownload && isEntityContext(context)) {
+    // Download GitHub assets automatically for entity contexts
+    if (isEntityContext(context)) {
       console.log("Downloading GitHub assets for agent mode...");
 
       try {

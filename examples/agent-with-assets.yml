@@ -11,11 +11,11 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          download_github_assets: true
           prompt: |
             Analyze the images from this GitHub issue/PR.
 
-            The downloaded file paths are available in the CLAUDE_ASSET_FILES environment variable.
+            GitHub assets (images, attachments) are automatically downloaded and available 
+            in the CLAUDE_ASSET_FILES environment variable.
             You can use bash commands to process this environment variable and access the files.
 
             For example, list the files with:
