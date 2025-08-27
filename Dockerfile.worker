@@ -20,9 +20,17 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /bin/bash /bin/sh
 
-# Install cloudflared
-RUN curl -L "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64" -o /usr/local/bin/cloudflared && \
-    chmod +x /usr/local/bin/cloudflared
+# Install cloudflared (architecture-aware with verification)
+RUN ARCH=$(uname -m) && \
+    echo "Detected architecture: $ARCH" && \
+    if [ "$ARCH" = "x86_64" ]; then CLOUDFLARED_ARCH="amd64"; \
+    elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then CLOUDFLARED_ARCH="arm64"; \
+    else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
+    echo "Downloading cloudflared for: $CLOUDFLARED_ARCH" && \
+    curl -L "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CLOUDFLARED_ARCH}" -o /usr/local/bin/cloudflared && \
+    chmod +x /usr/local/bin/cloudflared && \
+    echo "Verifying cloudflared binary..." && \
+    /usr/local/bin/cloudflared version
 
 # Create a non-root user with home directory and sudo access
 RUN addgroup --gid 1001 claude && \

@@ -361,7 +361,8 @@ export class SlackEventHandlers {
       this.activeSessions.set(sessionKey, threadSession);
 
       // Determine if this is a new conversation or continuation
-      const isNewConversation = !context.threadTs;
+      // For the first message in any thread (including DMs), always create new session
+      const isNewConversation = !context.threadTs || isNewSession;
       const hasActiveWorker = existingSession && existingSession.status === "running";
       
       let initialResponse: any = null;
@@ -402,8 +403,8 @@ export class SlackEventHandlers {
             allowedTools: this.config.claude.allowedTools,
             model: this.config.claude.model,
             timeoutMinutes: this.config.sessionTimeoutMinutes.toString(),
-            // Use sessionId for new sessions, resumeSessionId for existing sessions
-            ...(isNewSession ? { sessionId: existingClaudeSessionId } : { resumeSessionId: existingClaudeSessionId }),
+            // Use sessionId for new conversations, resumeSessionId for continuation messages
+            ...(isNewConversation ? { sessionId: existingClaudeSessionId } : { resumeSessionId: existingClaudeSessionId }),
           },
         };
 
@@ -434,8 +435,8 @@ export class SlackEventHandlers {
           claudeOptions: {
             ...this.config.claude,
             timeoutMinutes: this.config.sessionTimeoutMinutes.toString(),
-            // Always use resumeSessionId for continuation messages - never create new session
-            resumeSessionId: existingClaudeSessionId,
+            // Use sessionId for new conversations, resumeSessionId for continuation messages
+            ...(isNewConversation ? { sessionId: existingClaudeSessionId } : { resumeSessionId: existingClaudeSessionId }),
           },
           // Add routing metadata for thread-specific processing
           routingMetadata: {

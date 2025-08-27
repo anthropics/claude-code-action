@@ -2,6 +2,7 @@
 
 import PgBoss from "pg-boss";
 import { WebClient } from "@slack/web-api";
+import { randomUUID } from "crypto";
 import type { GitHubRepositoryManager } from "../github/repository-manager";
 // Simple blockkit detection and conversion for now
 function processMarkdownAndBlockkit(content: string): { text: string; blocks: any[] } {
@@ -39,7 +40,7 @@ function processMarkdownAndBlockkit(content: string): { text: string; blocks: an
           actionButtons.push({
             type: "button",
             text: { type: "plain_text", text: metadata.action },
-            action_id: `blockkit_form_${Date.now()}`,
+            action_id: `blockkit_form_${randomUUID()}`,
             value: JSON.stringify({ blocks: parsed.blocks || [parsed] })
           });
           processedContent = processedContent.replace(fullMatch, '');

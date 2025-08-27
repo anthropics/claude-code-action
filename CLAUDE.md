@@ -28,6 +28,10 @@ The bot updates automatically when running `make dev` - no manual steps needed!
 - Rate limiting is disabled in local development (dispatcher.disableRateLimit: true in values-local.yaml)
 - To manually rebuild worker image if needed: `docker build -f Dockerfile.worker -t claude-worker:latest .`
 
+## k3s Setup
+
+For k3s clusters, configure Docker runtime support to avoid image pull issues: run `sudo /tmp/setup-k3s-docker.sh` to install cri-dockerd and configure k3s to use Docker daemon for local images.
+
 ## Persistent Storage
 
 Worker pods now use persistent volumes for data storage:

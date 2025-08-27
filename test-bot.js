@@ -7,6 +7,20 @@ const path = require('path');
 console.log('🔧 Loading test configuration...');
 require('dotenv').config({ path: path.join(__dirname, '.env.qa') });
 const QA_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+const TARGET_BOT_USERNAME = process.env.TARGET_BOT_USERNAME;
+
+// Validate required environment variables
+if (!TARGET_BOT_USERNAME) {
+  console.error('❌ TARGET_BOT_USERNAME environment variable is required');
+  console.error('Please set TARGET_BOT_USERNAME in your .env.qa file');
+  process.exit(1);
+}
+
+if (!QA_BOT_TOKEN) {
+  console.error('❌ SLACK_BOT_TOKEN environment variable is required');
+  console.error('Please set SLACK_BOT_TOKEN in your .env.qa file');
+  process.exit(1);
+}
 
 async function makeSlackRequest(method, body) {
   return new Promise((resolve, reject) => {
@@ -62,11 +76,8 @@ async function waitForBotResponse(channel, afterTimestamp, timeout = 30000) {
         limit: 10
       });
       
-      // Look for bot messages
-      const botMessages = history.messages.filter(msg => 
-        msg.bot_id || // any bot message
-        (msg.user && msg.user === 'U097WU1GMLJ') // PeerCloud bot user ID
-      );
+      // Look for bot messages (any message with bot_id)
+      const botMessages = history.messages.filter(msg => msg.bot_id);
       
       if (botMessages.length > 0) {
         return botMessages;
@@ -232,7 +243,7 @@ async function runTest(messages, timeout = 30000) {
   
   console.log(`🧪 Peerbot ${testType}`);
   console.log('📤 Sending as: PeerQA');
-  console.log('🎯 Target: @peercloud (U097WU1GMLJ)');
+  console.log(`🎯 Target: @${TARGET_BOT_USERNAME}`);
   if (!isSingleMessage) {
     console.log(`📝 Messages: ${messages.length}`);
   }
@@ -245,7 +256,7 @@ async function runTest(messages, timeout = 30000) {
     for (let i = 0; i < messages.length; i++) {
       const prompt = messages[i];
       const isFirstMessage = i === 0;
-      const message = `<@U097WU1GMLJ> ${prompt}`;
+      const message = `@${TARGET_BOT_USERNAME} ${prompt}`;
       
       if (messages.length > 1) {
         console.log(`📨 Sending message ${i + 1}/${messages.length}${isFirstMessage ? ' (initial)' : ' (thread)'}...`);
