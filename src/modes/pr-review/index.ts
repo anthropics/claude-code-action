@@ -1,3 +1,4 @@
+import * as core from "@actions/core";
 import type { Mode, ModeOptions, ModeResult } from "../types";
 import { checkHumanActor } from "../../github/validation/actor";
 import { createInitialComment } from "../../github/operations/comments/create-initial";
@@ -71,6 +72,8 @@ export const prReviewMode: Mode = {
   },
 
   getAllowedTools() {
+    // PR review mode builds its tool configuration directly in prepare()
+    // This method is kept for interface compliance but not used
     return [];
   },
 
@@ -141,6 +144,67 @@ export const prReviewMode: Mode = {
       context,
     });
 
+    // Build claude_args for PR review mode with all required tools
+    // PR review mode includes all base tools plus review-specific tools
+    const prReviewModeTools = [
+      "Edit",
+      "MultiEdit",
+      "Glob",
+      "Grep",
+      "LS",
+      "Read",
+      "Write",
+      "mcp__github_comment__update_claude_comment",
+    ];
+
+    // Add PR review specific tools - always enabled for PR review mode
+    prReviewModeTools.push(
+      "mcp__github_review__submit_pr_review",
+      "mcp__github_review__create_pending_review",
+      "mcp__github_review__add_review_comment",
+    );
+
+    // Add git commands when not using commit signing
+    if (!context.inputs.useCommitSigning) {
+      prReviewModeTools.push(
+        "Bash(git add:*)",
+        "Bash(git commit:*)",
+        "Bash(git push:*)",
+        "Bash(git status:*)",
+        "Bash(git diff:*)",
+        "Bash(git log:*)",
+        "Bash(git rm:*)",
+      );
+    } else {
+      // When using commit signing, use MCP file ops tools
+      prReviewModeTools.push(
+        "mcp__github_file_ops__commit_files",
+        "mcp__github_file_ops__delete_files",
+      );
+    }
+
+    // Note: GitHub Actions tools are not included by default in PR review mode
+    // They can be added via custom claude_args if needed
+
+    const userClaudeArgs = process.env.CLAUDE_ARGS || "";
+
+    // Build complete claude_args with multiple --mcp-config flags
+    let claudeArgs = "";
+
+    // Add our GitHub servers config
+    const escapedOurConfig = ourMcpConfig.replace(/'/g, "'\\''");
+    claudeArgs = `--mcp-config '${escapedOurConfig}'`;
+
+    // Add required tools for PR review mode
+    claudeArgs += ` --allowedTools "${prReviewModeTools.join(",")}"`;
+
+    // Append user's claude_args (which may have more --mcp-config flags)
+    if (userClaudeArgs) {
+      claudeArgs += ` ${userClaudeArgs}`;
+    }
+
+    core.setOutput("claude_args", claudeArgs.trim());
+
     return {
       commentId,
       branchInfo: branchInfo,
@@ -152,13 +216,13 @@ export const prReviewMode: Mode = {
     context: PreparedContext,
     githubData: FetchDataResult,
     useCommitSigning: boolean = false,
-    allowPrReviews: boolean = false,
+    _allowPrReviews: boolean = false,
   ): string {
     return generatePrReviewPrompt(
       context,
       githubData,
       useCommitSigning,
-      allowPrReviews,
+      true, // PR review mode always enables PR review tools
       context.prompt, // Custom prompt injection
     );
   },
