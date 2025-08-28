@@ -72,7 +72,7 @@ export const createMockAutomationContext = (
 
   const mergedInputs = overrides.inputs
     ? { ...defaultInputs, ...overrides.inputs }
-    : defaultInputs;
+    : { ...defaultInputs };
 
   return { ...baseContext, ...overrides, inputs: mergedInputs };
 };
