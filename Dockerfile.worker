@@ -20,6 +20,17 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /bin/bash /bin/sh
 
+# Install cloudflared for multiple architectures
+RUN ARCH=$(dpkg --print-architecture) && \
+    case ${ARCH} in \
+        amd64) CF_ARCH="amd64" ;; \
+        arm64) CF_ARCH="arm64" ;; \
+        armhf) CF_ARCH="arm" ;; \
+        *) CF_ARCH="amd64" ;; \
+    esac && \
+    curl -L "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CF_ARCH}" -o /usr/local/bin/cloudflared && \
+    chmod +x /usr/local/bin/cloudflared
+
 # Create a non-root user with home directory and sudo access
 RUN addgroup --gid 1001 claude && \
     adduser --system --uid 1001 --ingroup claude --home /home/claude claude && \
