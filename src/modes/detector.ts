@@ -25,7 +25,7 @@ export function detectMode(context: GitHubContext): AutoDetectedMode {
     }
   }
 
-  // Check for PR review requests (pr_review mode)
+  // Check for PR review requests FIRST (pr_review mode takes precedence over agent mode)
   if (isEntityContext(context) && isPullRequestReviewRequestedEvent(context)) {
     const reviewerTrigger = context.inputs?.reviewerTrigger;
     if (reviewerTrigger) {
@@ -37,6 +37,11 @@ export function detectMode(context: GitHubContext): AutoDetectedMode {
         return "pr_review";
       }
     }
+  }
+
+  // If prompt is provided and not a PR review, use agent mode for direct execution
+  if (context.inputs?.prompt) {
+    return "agent";
   }
 
   // Check for @claude mentions (tag mode)
