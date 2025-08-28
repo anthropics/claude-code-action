@@ -2,6 +2,7 @@ import type { GitHubContext } from "../github/context";
 import {
   isEntityContext,
   isIssueCommentEvent,
+  isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
 } from "../github/context";
 import { checkContainsTrigger } from "../github/validation/trigger";
@@ -18,6 +19,7 @@ export function detectMode(context: GitHubContext): AutoDetectedMode {
   if (isEntityContext(context)) {
     if (
       isIssueCommentEvent(context) ||
+      isPullRequestReviewEvent(context) ||
       isPullRequestReviewCommentEvent(context)
     ) {
       if (checkContainsTrigger(context)) {
