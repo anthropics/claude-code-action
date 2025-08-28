@@ -132,18 +132,6 @@ export const prReviewMode: Mode = {
 
     await createPrompt(this, modeContext, githubData, context);
 
-    // Get our GitHub MCP servers config
-    const ourMcpConfig = await prepareMcpConfig({
-      githubToken,
-      owner: context.repository.owner,
-      repo: context.repository.repo,
-      branch: branchInfo.currentBranch,
-      baseBranch: branchInfo.baseBranch,
-      claudeCommentId: commentId.toString(),
-      allowedTools: [],
-      context,
-    });
-
     // Build claude_args for PR review mode with all required tools
     // PR review mode includes all base tools plus review-specific tools
     const prReviewModeTools = [
@@ -185,6 +173,18 @@ export const prReviewMode: Mode = {
 
     // Note: GitHub Actions tools are not included by default in PR review mode
     // They can be added via custom claude_args if needed
+
+    // Get our GitHub MCP servers config - pass the review tools so they get detected
+    const ourMcpConfig = await prepareMcpConfig({
+      githubToken,
+      owner: context.repository.owner,
+      repo: context.repository.repo,
+      branch: branchInfo.currentBranch,
+      baseBranch: branchInfo.baseBranch,
+      claudeCommentId: commentId.toString(),
+      allowedTools: prReviewModeTools,
+      context,
+    });
 
     const userClaudeArgs = process.env.CLAUDE_ARGS || "";
 
