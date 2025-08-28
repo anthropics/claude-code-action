@@ -34,7 +34,7 @@ describe("generatePrompt", () => {
     }),
   };
 
-  // Create a mock agent mode that passes through prompts
+  // Create a mock agent mode that returns the prompt directly
   const mockAgentMode: Mode = {
     name: "agent",
     description: "Agent mode",
@@ -43,7 +43,7 @@ describe("generatePrompt", () => {
     getAllowedTools: () => [],
     getDisallowedTools: () => [],
     shouldCreateTrackingComment: () => false,
-    generatePrompt: (context) => context.prompt || "",
+    generatePrompt: (context) => context.prompt || "No prompt provided",
     prepare: async () => ({
       commentId: undefined,
       branchInfo: {
@@ -441,7 +441,7 @@ describe("generatePrompt", () => {
       mockAgentMode,
     );
 
-    // v1.0: Variables are NOT substituted - prompt is passed as-is to Claude Code
+    // Agent mode: Variables are NOT substituted - prompt is passed as-is to Claude Code
     expect(prompt).toContain("Repository: $REPOSITORY");
     expect(prompt).toContain("PR: $PR_NUMBER");
     expect(prompt).toContain("Title: $PR_TITLE");

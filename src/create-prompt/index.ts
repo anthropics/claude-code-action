@@ -557,14 +557,8 @@ export function generatePrompt(
   mode: Mode,
   allowPrReviews: boolean = false,
 ): string {
-  // v1.0: Simply pass through the prompt to Claude Code
-  const prompt = context.prompt || "";
-
-  if (prompt) {
-    return prompt;
-  }
-
-  // Otherwise use the mode's default prompt generator
+  // Always use the mode's generatePrompt method
+  // Each mode can decide how to handle custom prompts
   return mode.generatePrompt(
     context,
     githubData,
