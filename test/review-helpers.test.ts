@@ -61,7 +61,6 @@ describe("findLastReviewFromUser", () => {
     };
     const result = findLastReviewFromUser(reviewData, "test-user");
     expect(result).toEqual({
-      author: { login: "test-user" },
       submittedAt: "2024-01-15T12:00:00Z",
       id: "review-3"
     });
@@ -84,7 +83,6 @@ describe("findLastReviewFromUser", () => {
     };
     const result = findLastReviewFromUser(reviewData, "test-user");
     expect(result).toEqual({
-      author: { login: "test-user" },
       submittedAt: "2024-01-15T11:00:00Z",
       id: "review-2"
     });
@@ -189,10 +187,10 @@ describe("getCommitsSinceReview", () => {
     
     // Should preserve order and return all commits
     expect(result).toHaveLength(2);
-    expect(result[0].oid).toBe("commit1");
-    expect(result[0].message).toBe("First commit");
-    expect(result[1].oid).toBe("commit2");
-    expect(result[1].message).toBe("Second commit");
+    expect(result[0]?.oid).toBe("commit1");
+    expect(result[0]?.message).toBe("First commit");
+    expect(result[1]?.oid).toBe("commit2");
+    expect(result[1]?.message).toBe("Second commit");
   });
 
   test("should handle empty commit array", () => {

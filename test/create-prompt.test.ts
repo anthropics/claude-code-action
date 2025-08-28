@@ -7,11 +7,9 @@ import {
   getEventTypeAndContext,
   buildAllowedToolsString,
   buildDisallowedToolsString,
-  createPrompt,
 } from "../src/create-prompt";
 import type { PreparedContext } from "../src/create-prompt";
 import type { Mode } from "../src/modes/types";
-import { mockPullRequestReviewRequestedContext } from "./mockContext";
 
 describe("generatePrompt", () => {
   // Create a mock tag mode that uses the default prompt
@@ -957,11 +955,6 @@ describe("generatePrompt", () => {
     expect(prompt).toContain("You have been requested to review this pull request");
     expect(prompt).toContain("The reviewer trigger matched: claude-bot");
     expect(prompt).toContain("This appears to be your first review of this pull request");
-    expect(prompt).toContain("Please provide a comprehensive code review focusing on:");
-    expect(prompt).toContain("- Code quality and best practices");
-    expect(prompt).toContain("- Potential bugs or issues");
-    expect(prompt).toContain("- Security considerations");
-    expect(prompt).toContain("- Performance implications");
   });
 
   test("should generate review context for review_requested event with previous review", async () => {

@@ -170,7 +170,12 @@ export const agentMode: Mode = {
     };
   },
 
-  generatePrompt(context: PreparedContext): string {
+  generatePrompt(
+    context: PreparedContext,
+    _githubData?: any,
+    _useCommitSigning?: boolean,
+    _allowPrReviews?: boolean,
+  ): string {
     // Inject GitHub context as environment variables
     if (context.githubContext) {
       const envVars = extractGitHubContext(context.githubContext);
@@ -178,7 +183,6 @@ export const agentMode: Mode = {
         core.exportVariable(key, value);
       }
     }
-
     // Agent mode uses prompt field
     if (context.prompt) {
       return context.prompt;

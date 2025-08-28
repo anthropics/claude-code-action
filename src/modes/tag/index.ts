@@ -185,11 +185,13 @@ export const tagMode: Mode = {
     context: PreparedContext,
     githubData: FetchDataResult,
     useCommitSigning: boolean,
+    allowPrReviews: boolean = false,
   ): string {
     const defaultPrompt = generateDefaultPrompt(
       context,
       githubData,
       useCommitSigning,
+      allowPrReviews,
     );
 
     // If a custom prompt is provided, inject it into the tag mode prompt

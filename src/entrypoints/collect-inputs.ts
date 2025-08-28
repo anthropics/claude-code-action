@@ -30,6 +30,7 @@ export function collectActionInputsPresence(): void {
     sticky_comment_app_bot_name: "claude",
     use_commit_signing: "false",
     experimental_allowed_domains: "",
+    allow_pr_reviews: "false",
   };
 
   const allInputsJson = process.env.ALL_INPUTS;

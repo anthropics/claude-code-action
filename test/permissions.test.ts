@@ -72,6 +72,7 @@ describe("checkWritePermissions", () => {
       useCommitSigning: false,
       allowedBots: "",
       trackProgress: false,
+      allowPrReviews: false,
     },
   });
 

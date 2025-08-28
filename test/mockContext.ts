@@ -28,6 +28,7 @@ const defaultInputs = {
   useCommitSigning: false,
   allowedBots: "",
   trackProgress: false,
+  allowPrReviews: false,
 };
 
 const defaultRepository = {

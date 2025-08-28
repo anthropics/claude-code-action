@@ -288,7 +288,7 @@ describe("parseEnvVarsWithContext", () => {
         result.eventData.eventAction === "review_requested"
       ) {
         expect(result.eventData.prNumber).toBe("789");
-        expect(result.eventData.requestedReviewer).toBe("claude-bot");
+        expect((result.eventData as any).requestedReviewer).toBe("claude-bot");
         expect(result.eventData.baseBranch).toBe("main");
         expect(result.eventData.claudeBranch).toBe("claude/pr-789-20240101-1200");
       }

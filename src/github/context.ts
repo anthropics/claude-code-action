@@ -79,6 +79,7 @@ type BaseContext = {
     allowedBots: string;
     stickyCommentAppBotId: number;
     stickyCommentAppBotName: string;
+    allowPrReviews: boolean;
     trackProgress: boolean;
   };
 };
@@ -134,6 +135,7 @@ export function parseGitHubContext(): GitHubContext {
       ),
       stickyCommentAppBotName:
         process.env.STICKY_COMMENT_APP_BOT_NAME ?? "claude",
+      allowPrReviews: process.env.ALLOW_PR_REVIEWS === "true",
     },
   };
 

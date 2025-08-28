@@ -65,6 +65,7 @@ export type Mode = {
     context: PreparedContext,
     githubData: FetchDataResult,
     useCommitSigning: boolean,
+    allowPrReviews?: boolean,
   ): string;
 
   /**

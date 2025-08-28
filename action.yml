@@ -92,6 +92,10 @@ inputs:
     description: "Restrict network access to these domains only (newline-separated). If not set, no restrictions are applied. Provider domains are auto-detected."
     required: false
     default: ""
+  allow_pr_reviews:
+    description: "Enable Claude to submit formal PR reviews (APPROVE/REQUEST_CHANGES/COMMENT). SECURITY WARNING: This allows Claude to approve pull requests. Only enable if you understand the implications."
+    required: false
+    default: "false"
   path_to_claude_code_executable:
     description: "Optional path to a custom Claude Code executable. If provided, skips automatic installation and uses this executable instead. WARNING: Using an older version may cause problems if the action begins taking advantage of new Claude Code features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
     required: false
@@ -161,6 +165,7 @@ runs:
         TRACK_PROGRESS: ${{ inputs.track_progress }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         CLAUDE_ARGS: ${{ inputs.claude_args }}
+        ALLOW_PR_REVIEWS: ${{ inputs.allow_pr_reviews }}
         ALL_INPUTS: ${{ toJson(inputs) }}
 
     - name: Install Base Action Dependencies
