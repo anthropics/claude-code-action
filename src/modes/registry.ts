@@ -8,10 +8,11 @@
 import type { Mode, ModeName } from "./types";
 import { tagMode } from "./tag";
 import { agentMode } from "./agent";
+import { prReviewMode } from "./pr-review";
 import type { GitHubContext } from "../github/context";
 import { detectMode, type AutoDetectedMode } from "./detector";
 
-export const VALID_MODES = ["tag", "agent"] as const;
+export const VALID_MODES = ["tag", "agent", "pr_review"] as const;
 
 /**
  * All available modes in v1.0
@@ -19,6 +20,7 @@ export const VALID_MODES = ["tag", "agent"] as const;
 const modes = {
   tag: tagMode,
   agent: agentMode,
+  pr_review: prReviewMode,
 } as const satisfies Record<AutoDetectedMode, Mode>;
 
 /**
@@ -49,6 +51,6 @@ export function getMode(context: GitHubContext): Mode {
  * @returns True if the name is a valid mode name
  */
 export function isValidMode(name: string): name is ModeName {
-  const validModes = ["tag", "agent"];
+  const validModes = ["tag", "agent", "pr_review"];
   return validModes.includes(name);
 }

@@ -290,7 +290,9 @@ describe("parseEnvVarsWithContext", () => {
         expect(result.eventData.prNumber).toBe("789");
         expect((result.eventData as any).requestedReviewer).toBe("claude-bot");
         expect(result.eventData.baseBranch).toBe("main");
-        expect(result.eventData.claudeBranch).toBe("claude/pr-789-20240101-1200");
+        expect(result.eventData.claudeBranch).toBe(
+          "claude/pr-789-20240101-1200",
+        );
       }
     });
 
@@ -328,7 +330,9 @@ describe("parseEnvVarsWithContext", () => {
       ) {
         expect(result.eventData.prNumber).toBe("456");
         expect(result.eventData.baseBranch).toBe("main");
-        expect(result.eventData.claudeBranch).toBe("claude/pr-456-20240101-1200");
+        expect(result.eventData.claudeBranch).toBe(
+          "claude/pr-456-20240101-1200",
+        );
       }
     });
   });

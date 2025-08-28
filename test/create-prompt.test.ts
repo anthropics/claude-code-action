@@ -952,9 +952,13 @@ describe("generatePrompt", () => {
     );
 
     expect(prompt).toContain("<review_request_context>");
-    expect(prompt).toContain("You have been requested to review this pull request");
+    expect(prompt).toContain(
+      "You have been requested to review this pull request",
+    );
     expect(prompt).toContain("The reviewer trigger matched: claude-bot");
-    expect(prompt).toContain("This appears to be your first review of this pull request");
+    expect(prompt).toContain(
+      "This appears to be your first review of this pull request",
+    );
   });
 
   test("should generate review context for review_requested event with previous review", async () => {
@@ -979,7 +983,9 @@ describe("generatePrompt", () => {
     );
 
     expect(prompt).toContain("<review_request_context>");
-    expect(prompt).toContain("You have been requested to review this pull request");
+    expect(prompt).toContain(
+      "You have been requested to review this pull request",
+    );
     expect(prompt).toContain("The reviewer trigger matched: reviewer1");
     expect(prompt).toContain("Your last review was submitted on");
     expect(prompt).toContain("Review ID: review1");
@@ -1007,7 +1013,9 @@ describe("generatePrompt", () => {
     );
 
     expect(prompt).not.toContain("<review_request_context>");
-    expect(prompt).not.toContain("You have been requested to review this pull request");
+    expect(prompt).not.toContain(
+      "You have been requested to review this pull request",
+    );
   });
 });
 
@@ -1403,6 +1411,6 @@ describe("buildDisallowedToolsString", () => {
 // Integration tests are covered by the comprehensive unit tests above
 // The review_requested feature is thoroughly tested through:
 // 1. getEventTypeAndContext tests
-// 2. prompt generation with review context tests  
+// 2. prompt generation with review context tests
 // 3. prepareContext tests for review_requested
 // 4. helper function tests (findLastReviewFromUser, getCommitsSinceReview)

@@ -6,10 +6,11 @@ import {
   isPullRequestEvent,
   isIssuesEvent,
   isPullRequestReviewEvent,
+  isPullRequestReviewRequestedEvent,
 } from "../github/context";
 import { checkContainsTrigger } from "../github/validation/trigger";
 
-export type AutoDetectedMode = "tag" | "agent";
+export type AutoDetectedMode = "tag" | "agent" | "pr_review";
 
 export function detectMode(context: GitHubContext): AutoDetectedMode {
   // Validate track_progress usage
@@ -24,7 +25,21 @@ export function detectMode(context: GitHubContext): AutoDetectedMode {
     }
   }
 
-  // Comment events (current behavior - unchanged)
+  // Check for PR review requests (pr_review mode)
+  if (isEntityContext(context) && isPullRequestReviewRequestedEvent(context)) {
+    const reviewerTrigger = context.inputs?.reviewerTrigger;
+    if (reviewerTrigger) {
+      const triggerUser = reviewerTrigger.replace(/^@/, "");
+      const requestedReviewerUsername =
+        (context.payload as any).requested_reviewer?.login || "";
+
+      if (triggerUser && requestedReviewerUsername === triggerUser) {
+        return "pr_review";
+      }
+    }
+  }
+
+  // Check for @claude mentions (tag mode)
   if (isEntityContext(context)) {
     if (
       isIssueCommentEvent(context) ||
@@ -76,6 +91,8 @@ export function getModeDescription(mode: AutoDetectedMode): string {
       return "Interactive mode triggered by @claude mentions";
     case "agent":
       return "Direct automation mode for explicit prompts";
+    case "pr_review":
+      return "Pull request review mode triggered by review requests";
     default:
       return "Unknown mode";
   }
@@ -109,7 +126,7 @@ function validateTrackProgressEvent(context: GitHubContext): void {
 }
 
 export function shouldUseTrackingComment(mode: AutoDetectedMode): boolean {
-  return mode === "tag";
+  return mode === "tag" || mode === "pr_review";
 }
 
 export function getDefaultPromptForMode(
@@ -121,6 +138,8 @@ export function getDefaultPromptForMode(
       return undefined;
     case "agent":
       return context.inputs?.prompt;
+    case "pr_review":
+      return context.inputs?.prompt; // Custom prompt can be injected
     default:
       return undefined;
   }

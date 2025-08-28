@@ -24,6 +24,7 @@ import type { CommonFields, PreparedContext, EventData } from "./types";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import type { Mode, ModeContext } from "../modes/types";
 export type { CommonFields, PreparedContext } from "./types";
+export { generatePrReviewPrompt } from "./pr-review-prompt";
 
 // Helper function to find the last review from a specific user
 export function findLastReviewFromUser(
@@ -556,7 +557,20 @@ export function generatePrompt(
   mode: Mode,
   allowPrReviews: boolean = false,
 ): string {
-  return mode.generatePrompt(context, githubData, useCommitSigning, allowPrReviews);
+  // v1.0: Simply pass through the prompt to Claude Code
+  const prompt = context.prompt || "";
+
+  if (prompt) {
+    return prompt;
+  }
+
+  // Otherwise use the mode's default prompt generator
+  return mode.generatePrompt(
+    context,
+    githubData,
+    useCommitSigning,
+    allowPrReviews,
+  );
 }
 
 /**
@@ -739,12 +753,12 @@ Your task is to analyze the context, understand the request, and provide helpful
 
 IMPORTANT CLARIFICATIONS:
 - When asked to "review" code, read the code and provide review feedback (do not implement changes unless explicitly asked)${
-  eventData.isPR
-    ? allowPrReviews
-      ? "\n- For PR reviews: Submit your formal review using mcp__github_review__submit_pr_review with the appropriate event type (COMMENT/REQUEST_CHANGES/APPROVE). For detailed feedback, also use mcp__github_review__add_review_comment to add inline comments on specific lines. Focus on providing comprehensive review feedback."
-      : "\n- For PR reviews: Your review will be posted when you update the comment. Focus on providing comprehensive review feedback."
-    : ""
-}${eventData.isPR && eventData.baseBranch ? `\n- When comparing PR changes, use 'origin/${eventData.baseBranch}' as the base reference (NOT 'main' or 'master')` : ""}
+    eventData.isPR
+      ? allowPrReviews
+        ? "\n- For PR reviews: Submit your formal review using mcp__github_review__submit_pr_review with the appropriate event type (COMMENT/REQUEST_CHANGES/APPROVE). For detailed feedback, also use mcp__github_review__add_review_comment to add inline comments on specific lines. Focus on providing comprehensive review feedback."
+        : "\n- For PR reviews: Your review will be posted when you update the comment. Focus on providing comprehensive review feedback."
+      : ""
+  }${eventData.isPR && eventData.baseBranch ? `\n- When comparing PR changes, use 'origin/${eventData.baseBranch}' as the base reference (NOT 'main' or 'master')` : ""}
 - Your console outputs and tool results are NOT visible to the user
 - ALL communication happens through your GitHub comment - that's how users see your feedback, answers, and progress. your normal responses are not seen.
 
@@ -849,17 +863,17 @@ ${eventData.eventName === "issue_comment" || eventData.eventName === "pull_reque
 Important Notes:
 - All communication must happen through GitHub PR comments.
 - Never create new comments. ${
-  allowPrReviews && eventData.isPR
-    ? "For PR reviews, use mcp__github_review__submit_pr_review (and optionally mcp__github_review__add_review_comment for inline feedback). For other updates, use mcp__github_comment__update_claude_comment."
-    : "Only update the existing comment using mcp__github_comment__update_claude_comment."
-}
+    allowPrReviews && eventData.isPR
+      ? "For PR reviews, use mcp__github_review__submit_pr_review (and optionally mcp__github_review__add_review_comment for inline feedback). For other updates, use mcp__github_comment__update_claude_comment."
+      : "Only update the existing comment using mcp__github_comment__update_claude_comment."
+  }
 - This includes ALL responses: code reviews, answers to questions, progress updates, and final results.${
-  eventData.isPR
-    ? allowPrReviews
-      ? `\n- PR CRITICAL: For formal PR reviews, you MUST use mcp__github_review__submit_pr_review to submit your review. For other communication, use mcp__github_comment__update_claude_comment. Do NOT just respond with a normal response, the user will not see it.`
-      : `\n- PR CRITICAL: After reading files and forming your response, you MUST post it by calling mcp__github_comment__update_claude_comment. Do NOT just respond with a normal response, the user will not see it.`
-    : ""
-}
+    eventData.isPR
+      ? allowPrReviews
+        ? `\n- PR CRITICAL: For formal PR reviews, you MUST use mcp__github_review__submit_pr_review to submit your review. For other communication, use mcp__github_comment__update_claude_comment. Do NOT just respond with a normal response, the user will not see it.`
+        : `\n- PR CRITICAL: After reading files and forming your response, you MUST post it by calling mcp__github_comment__update_claude_comment. Do NOT just respond with a normal response, the user will not see it.`
+      : ""
+  }
 - You communicate exclusively by editing your single comment - not through any other means.
 - Use this spinner HTML when work is in progress: <img src="https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f" width="14px" height="14px" style="vertical-align: middle; margin-left: 4px;" />
 ${eventData.isPR && !eventData.claudeBranch ? `- Always push to the existing branch when triggered on a PR.` : `- IMPORTANT: You are already on the correct branch (${eventData.claudeBranch || "the created branch"}). Never create new branches when triggered on issues or closed/merged PRs.`}
@@ -891,24 +905,24 @@ What You CAN Do:
 - Perform code reviews and provide detailed feedback (without implementing unless asked)
 - Implement code changes (simple to moderate complexity) when explicitly requested
 - Create pull requests for changes to human-authored code${
-  allowPrReviews && eventData.isPR
-    ? `
+    allowPrReviews && eventData.isPR
+      ? `
 - Submit formal GitHub PR reviews (COMMENT, REQUEST_CHANGES, APPROVE)
 - Approve or request changes on pull requests when appropriate`
-    : ""
-}
+      : ""
+  }
 - Smart branch handling:
   - When triggered on an issue: Always create a new branch
   - When triggered on an open PR: Always push directly to the existing PR branch
   - When triggered on a closed PR: Create a new branch
 
 What You CANNOT Do:${
-  allowPrReviews && eventData.isPR
-    ? ""
-    : `
+    allowPrReviews && eventData.isPR
+      ? ""
+      : `
 - Submit formal GitHub PR reviews
 - Approve pull requests (for security reasons)`
-}
+  }
 - Post multiple comments (you only update your initial comment)
 - Execute commands outside the repository context${useCommitSigning ? "\n- Run arbitrary Bash commands (unless explicitly allowed via allowed_tools configuration)" : ""}
 - Perform branch operations (cannot merge branches, rebase, or perform other git operations beyond creating and pushing commits)

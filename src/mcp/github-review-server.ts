@@ -40,9 +40,7 @@ server.tool(
     commit_id: z
       .string()
       .optional()
-      .describe(
-        "Specific commit SHA to review (defaults to latest commit)",
-      ),
+      .describe("Specific commit SHA to review (defaults to latest commit)"),
   },
   async ({ event, body, commit_id }) => {
     try {
@@ -59,10 +57,11 @@ server.tool(
       const octokit = createOctokit(githubToken).rest;
 
       // Validate that body is provided for events that require it
-      if ((event === "REQUEST_CHANGES" || event === "COMMENT") && !body.trim()) {
-        throw new Error(
-          `A review body is required for ${event} events`,
-        );
+      if (
+        (event === "REQUEST_CHANGES" || event === "COMMENT") &&
+        !body.trim()
+      ) {
+        throw new Error(`A review body is required for ${event} events`);
       }
 
       // Sanitize the review body to remove any potential GitHub tokens
@@ -299,9 +298,7 @@ server.tool(
     commit_id: z
       .string()
       .optional()
-      .describe(
-        "Specific commit SHA to review (defaults to latest commit)",
-      ),
+      .describe("Specific commit SHA to review (defaults to latest commit)"),
   },
   async ({ body, commit_id }) => {
     try {

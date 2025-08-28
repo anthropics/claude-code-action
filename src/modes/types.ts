@@ -3,7 +3,7 @@ import type { PreparedContext } from "../create-prompt/types";
 import type { FetchDataResult } from "../github/data/fetcher";
 import type { Octokits } from "../github/api/client";
 
-export type ModeName = "tag" | "agent";
+export type ModeName = "tag" | "agent" | "pr_review";
 
 export type ModeContext = {
   mode: ModeName;
@@ -27,6 +27,7 @@ export type ModeData = {
  * Current modes include:
  * - 'tag': Interactive mode triggered by @claude mentions
  * - 'agent': Direct automation mode triggered by explicit prompts
+ * - 'pr_review': Pull request review mode triggered by review requests
  */
 export type Mode = {
   name: ModeName;
