@@ -46,24 +46,25 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
-            
+
             Please review this pull request with a focus on:
             - Code quality and best practices
             - Potential bugs or issues
             - Security implications
             - Performance considerations
-            
+
             Note: The PR branch is already checked out in the current working directory.
-            
+
             Use `gh pr comment` for top-level feedback.
             Use `mcp__github_inline_comment__create_inline_comment` to highlight specific code issues.
             Only post GitHub comments - don't submit review text as messages.
-            
+
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
 ```
 
 **Key Configuration:**
+
 - Triggers on `opened` and `synchronize` (new commits)
 - Always include `REPO` and `PR NUMBER` for context
 - Specify tools for commenting and reviewing
@@ -85,9 +86,9 @@ on:
   pull_request:
     types: [opened, synchronize]
     paths:
-      - 'src/auth/**'
-      - 'src/api/**'
-      - 'config/security.yml'
+      - "src/auth/**"
+      - "src/api/**"
+      - "config/security.yml"
 
 jobs:
   security-review:
@@ -107,24 +108,25 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
-            
+
             This PR modifies critical authentication or API files.
-            
+
             Please provide a security-focused review with emphasis on:
             - Authentication and authorization flows
             - Input validation and sanitization
             - SQL injection or XSS vulnerabilities
             - API security best practices
-            
+
             Note: The PR branch is already checked out.
-            
+
             Post detailed security findings as PR comments.
-            
+
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*)"
 ```
 
 **Key Configuration:**
+
 - `paths:` filter triggers only for specific file changes
 - Custom prompt emphasizes security for sensitive areas
 - Useful for compliance or security reviews
@@ -165,23 +167,24 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
             CONTRIBUTOR: ${{ github.event.pull_request.user.login }}
-            
+
             This is a first-time contribution from @${{ github.event.pull_request.user.login }}.
-            
+
             Please provide a comprehensive review focusing on:
             - Compliance with project coding standards
             - Proper test coverage (unit and integration)
             - Documentation for new features
             - Potential breaking changes
             - License header requirements
-            
+
             Be welcoming but thorough in your review. Use inline comments for code-specific feedback.
-            
+
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr view:*)"
 ```
 
 **Key Configuration:**
+
 - `if:` condition targets specific contributor types
 - Includes contributor username in context
 - Emphasis on onboarding and standards
@@ -220,41 +223,42 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
-            
+
             Review this PR against our team checklist:
-            
+
             ## Code Quality
             - [ ] Code follows our style guide
             - [ ] No commented-out code
             - [ ] Meaningful variable names
             - [ ] DRY principle followed
-            
+
             ## Testing
             - [ ] Unit tests for new functions
             - [ ] Integration tests for new endpoints
             - [ ] Edge cases covered
             - [ ] Test coverage > 80%
-            
+
             ## Documentation
             - [ ] README updated if needed
             - [ ] API docs updated
             - [ ] Inline comments for complex logic
             - [ ] CHANGELOG.md updated
-            
+
             ## Security
             - [ ] No hardcoded credentials
             - [ ] Input validation implemented
             - [ ] Proper error handling
             - [ ] No sensitive data in logs
-            
+
             For each item, check if it's satisfied and comment on any that need attention.
             Post a summary comment with checklist results.
-            
+
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*)"
 ```
 
 **Key Configuration:**
+
 - Structured checklist in prompt
 - Systematic review approach
 - Team-specific criteria
@@ -273,8 +277,8 @@ jobs:
 name: Weekly Maintenance
 on:
   schedule:
-    - cron: '0 0 * * 0'  # Every Sunday at midnight
-  workflow_dispatch:      # Manual trigger option
+    - cron: "0 0 * * 0" # Every Sunday at midnight
+  workflow_dispatch: # Manual trigger option
 
 jobs:
   maintenance:
@@ -294,23 +298,24 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
             REPO: ${{ github.repository }}
-            
+
             Perform weekly repository maintenance:
-            
+
             1. Check for outdated dependencies in package.json
             2. Scan for security vulnerabilities using `npm audit`
             3. Review open issues older than 90 days
             4. Check for TODO comments in recent commits
             5. Verify README.md examples still work
-            
+
             Create a single issue summarizing any findings.
             If critical security issues are found, also comment on open PRs.
-            
+
           claude_args: |
             --allowedTools "Read,Bash(npm:*),Bash(gh issue:*),Bash(git:*)"
 ```
 
 **Key Configuration:**
+
 - `schedule:` for automated runs
 - `workflow_dispatch:` for manual triggering
 - Comprehensive tool permissions for analysis
@@ -347,23 +352,24 @@ jobs:
             TITLE: ${{ github.event.issue.title }}
             BODY: ${{ github.event.issue.body }}
             AUTHOR: ${{ github.event.issue.user.login }}
-            
+
             Analyze this new issue and:
             1. Determine if it's a bug report, feature request, or question
             2. Assess priority (critical, high, medium, low)
             3. Suggest appropriate labels
             4. Check if it duplicates existing issues
-            
+
             Based on your analysis, add the appropriate labels using:
             `gh issue edit [number] --add-label "label1,label2"`
-            
+
             If it appears to be a duplicate, post a comment mentioning the original issue.
-            
+
           claude_args: |
             --allowedTools "Bash(gh issue:*),Bash(gh search:*)"
 ```
 
 **Key Configuration:**
+
 - Triggered on new issues
 - Issue context in prompt
 - Label management capabilities
@@ -384,8 +390,8 @@ on:
   pull_request:
     types: [opened, synchronize]
     paths:
-      - 'src/api/**/*.ts'
-      - 'src/routes/**/*.ts'
+      - "src/api/**/*.ts"
+      - "src/routes/**/*.ts"
 
 jobs:
   doc-sync:
@@ -406,22 +412,23 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
-            
+
             This PR modifies API endpoints. Please:
-            
+
             1. Review the API changes in src/api and src/routes
             2. Update API.md to document any new or changed endpoints
             3. Ensure OpenAPI spec is updated if needed
             4. Update example requests/responses
-            
+
             Use standard REST API documentation format.
             Commit any documentation updates to this PR branch.
-            
+
           claude_args: |
             --allowedTools "Read,Write,Edit,Bash(git:*)"
 ```
 
 **Key Configuration:**
+
 - Path-specific trigger
 - Write permissions for doc updates
 - Git tools for committing
@@ -461,9 +468,9 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
-            
+
             Perform a comprehensive security review:
-            
+
             ## OWASP Top 10 Analysis
             - SQL Injection vulnerabilities
             - Cross-Site Scripting (XSS)
@@ -475,22 +482,23 @@ jobs:
             - Cross-Site Request Forgery (CSRF)
             - Using Components with Known Vulnerabilities
             - Insufficient Logging & Monitoring
-            
+
             ## Additional Security Checks
             - Hardcoded secrets or credentials
             - Insecure cryptographic practices
             - Unsafe deserialization
             - Server-Side Request Forgery (SSRF)
             - Race conditions or TOCTOU issues
-            
+
             Rate severity as: CRITICAL, HIGH, MEDIUM, LOW, or NONE.
             Post detailed findings with recommendations.
-            
+
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*)"
 ```
 
 **Key Configuration:**
+
 - Security-focused prompt structure
 - OWASP alignment
 - Severity rating system
@@ -528,14 +536,14 @@ jobs:
         id: tracking
         run: |
           COMMENT_BODY="## 🤖 Claude Code Review in Progress
-          
+
           - [ ] Analyzing code changes
           - [ ] Checking for security issues
           - [ ] Verifying test coverage
           - [ ] Reviewing documentation
-          
+
           *Status: Starting review...*"
-          
+
           COMMENT_ID=$(gh pr comment ${{ github.event.pull_request.number }} \
             --body "$COMMENT_BODY" --repo ${{ github.repository }} \
             --json id --jq .id)
@@ -550,19 +558,19 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
             TRACKING COMMENT ID: ${{ steps.tracking.outputs.comment_id }}
-            
+
             Review this PR. After each major step, update the tracking comment:
-            
+
             1. After analyzing changes: 
                `gh pr comment edit --comment-id [ID] --body "Updated status with analysis complete"`
-            
+
             2. After security check:
                Mark security checkbox as [x]
-            
+
             3. Continue for each checklist item
-            
+
             Final comment should summarize findings.
-            
+
           claude_args: |
             --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*)"
 
@@ -579,6 +587,7 @@ jobs:
 ```
 
 **Key Configuration:**
+
 - Manual tracking comment creation
 - Pass comment ID to Claude for updates
 - Handles completion status
@@ -590,6 +599,7 @@ jobs:
 ## Tips for All Solutions
 
 ### Always Include GitHub Context
+
 ```yaml
 prompt: |
   REPO: ${{ github.repository }}
@@ -598,12 +608,14 @@ prompt: |
 ```
 
 ### Common Tool Permissions
+
 - **PR Comments**: `Bash(gh pr comment:*)`
 - **Inline Comments**: `mcp__github_inline_comment__create_inline_comment`
 - **File Operations**: `Read,Write,Edit`
 - **Git Operations**: `Bash(git:*)`
 
 ### Best Practices
+
 - Be specific in your prompts
 - Include expected output format
 - Set clear success criteria

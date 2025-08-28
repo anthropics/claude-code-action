@@ -36,7 +36,7 @@ This command will guide you through setting up the GitHub app and required secre
 Looking for specific automation patterns? Check our **[Solutions Guide](./docs/solutions.md)** for complete working examples including:
 
 - **🔍 Automatic PR Code Review** - Full review automation
-- **📂 Path-Specific Reviews** - Trigger on critical file changes  
+- **📂 Path-Specific Reviews** - Trigger on critical file changes
 - **👥 External Contributor Reviews** - Special handling for new contributors
 - **📝 Custom Review Checklists** - Enforce team standards
 - **🔄 Scheduled Maintenance** - Automated repository health checks

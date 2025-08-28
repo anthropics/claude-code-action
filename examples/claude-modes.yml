@@ -47,10 +47,10 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             BRANCH: ${{ github.ref_name }}
-            
+
             Check for outdated dependencies and security vulnerabilities.
             Create an issue if any critical problems are found.
-            
+
           claude_args: |
             --allowedTools "Read,Bash(npm:*),Bash(gh issue:*)"
           # Automation mode (auto-detected when prompt provided):

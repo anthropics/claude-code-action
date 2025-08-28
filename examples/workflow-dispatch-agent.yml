@@ -34,7 +34,7 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             BRANCH: ${{ github.ref_name }}
-            
+
             Analyze the latest commit in this repository.
 
             ${{ github.event.inputs.analysis_type == 'summarize-commit' && 'Task: Provide a clear, concise summary of what changed in the latest commit. Include the commit message, files changed, and the purpose of the changes.' || '' }}

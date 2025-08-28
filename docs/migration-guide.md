@@ -77,7 +77,7 @@ The following inputs have been deprecated and replaced:
     prompt: |
       REPO: ${{ github.repository }}
       PR NUMBER: ${{ github.event.pull_request.number }}
-      
+
       Review this PR for security issues
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     claude_args: |
@@ -108,9 +108,9 @@ The following inputs have been deprecated and replaced:
     prompt: |
       REPO: ${{ github.repository }}
       PR NUMBER: ${{ github.event.pull_request.number }}
-      
+
       Analyze this pull request focusing on security vulnerabilities in the changed files.
-      
+
       Note: The PR branch is already checked out in the current working directory.
 ```
 
