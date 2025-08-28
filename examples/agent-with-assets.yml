@@ -1,0 +1,24 @@
+name: Agent Mode Asset Analysis
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  analyze:
+    if: contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Analyze the images from this GitHub issue/PR.
+
+            GitHub assets (images, attachments) are automatically downloaded and available 
+            in the CLAUDE_ASSET_FILES environment variable.
+            You can use bash commands to process this environment variable and access the files.
+
+            For example, list the files with:
+            `echo $CLAUDE_ASSET_FILES | tr ',' '\n'`
+
+            Then use the Read tool to analyze each file.

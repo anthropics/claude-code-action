@@ -211,3 +211,20 @@ Upload a screenshot of a bug and ask Claude to fix it:
 ```
 
 Claude can see and analyze images, making it easy to fix visual bugs or UI issues.
+
+### Analyze Images with GitHub Assets
+
+For automation workflows that need to analyze images from GitHub issues or PRs, GitHub assets (images, attachments) are automatically downloaded when running in entity contexts (issue comments, pull requests, etc.):
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    prompt: |
+      Analyze any images attached to this issue/PR.
+
+      GitHub assets are automatically downloaded and available via CLAUDE_ASSET_FILES environment variable.
+      Use the Read tool to access and analyze each image file.
+```
+
+Images from GitHub issues and PRs are automatically downloaded and made available to Claude through the `CLAUDE_ASSET_FILES` environment variable when running in entity contexts.
