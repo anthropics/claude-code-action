@@ -82,6 +82,10 @@ export async function prepareMcpConfig(
       tool.startsWith("mcp__github_ci__"),
     );
 
+    const hasGitHubReviewTools = allowedToolsList.some((tool) =>
+      tool.startsWith("mcp__github_review__"),
+    );
+
     const baseMcpConfig: { mcpServers: Record<string, unknown> } = {
       mcpServers: {},
     };
@@ -153,12 +157,12 @@ export async function prepareMcpConfig(
       };
     }
 
-    // Include review server for PRs when PR reviews are explicitly enabled
+    // Include review server for PRs when PR reviews are explicitly enabled OR when review tools are requested
     if (
       isEntityContext(context) &&
       context.isPR &&
-      context.inputs.allowPrReviews &&
-      (hasGitHubMcpTools || hasInlineCommentTools)
+      (context.inputs.allowPrReviews || hasGitHubReviewTools) &&
+      (hasGitHubMcpTools || hasInlineCommentTools || hasGitHubReviewTools)
     ) {
       baseMcpConfig.mcpServers.github_review = {
         command: "bun",
