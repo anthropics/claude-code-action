@@ -974,6 +974,8 @@ export async function createPrompt(
     console.log(promptContent);
     console.log("=======================");
 
+    core.setOutput("prompt", promptContent);
+
     // Write the prompt file
     await writeFile(
       `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts/claude-prompt.txt`,
