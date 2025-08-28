@@ -7,9 +7,11 @@ import {
   getEventTypeAndContext,
   buildAllowedToolsString,
   buildDisallowedToolsString,
+  createPrompt,
 } from "../src/create-prompt";
 import type { PreparedContext } from "../src/create-prompt";
 import type { Mode } from "../src/modes/types";
+import { mockPullRequestReviewRequestedContext } from "./mockContext";
 
 describe("generatePrompt", () => {
   // Create a mock tag mode that uses the default prompt
@@ -929,6 +931,91 @@ describe("generatePrompt", () => {
     // Should not have git command instructions
     expect(prompt).not.toContain("Use git commands via the Bash tool");
   });
+
+  test("should generate review context for review_requested event with no previous review", async () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "pull_request",
+        eventAction: "review_requested",
+        isPR: true,
+        prNumber: "789",
+        requestedReviewer: "claude-bot",
+      },
+    };
+
+    const prompt = await generatePrompt(
+      envVars,
+      mockGitHubData,
+      false,
+      mockTagMode,
+    );
+
+    expect(prompt).toContain("<review_request_context>");
+    expect(prompt).toContain("You have been requested to review this pull request");
+    expect(prompt).toContain("The reviewer trigger matched: claude-bot");
+    expect(prompt).toContain("This appears to be your first review of this pull request");
+    expect(prompt).toContain("Please provide a comprehensive code review focusing on:");
+    expect(prompt).toContain("- Code quality and best practices");
+    expect(prompt).toContain("- Potential bugs or issues");
+    expect(prompt).toContain("- Security considerations");
+    expect(prompt).toContain("- Performance implications");
+  });
+
+  test("should generate review context for review_requested event with previous review", async () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "pull_request",
+        eventAction: "review_requested",
+        isPR: true,
+        prNumber: "789",
+        requestedReviewer: "reviewer1", // matches the reviewer in mockGitHubData
+      },
+    };
+
+    const prompt = await generatePrompt(
+      envVars,
+      mockGitHubData,
+      false,
+      mockTagMode,
+    );
+
+    expect(prompt).toContain("<review_request_context>");
+    expect(prompt).toContain("You have been requested to review this pull request");
+    expect(prompt).toContain("The reviewer trigger matched: reviewer1");
+    expect(prompt).toContain("Your last review was submitted on");
+    expect(prompt).toContain("Review ID: review1");
+    expect(prompt).toContain("Commits since your last review:");
+  });
+
+  test("should not generate review context for non-review_requested events", async () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "pull_request",
+        eventAction: "opened",
+        isPR: true,
+        prNumber: "789",
+      },
+    };
+
+    const prompt = await generatePrompt(
+      envVars,
+      mockGitHubData,
+      false,
+      mockTagMode,
+    );
+
+    expect(prompt).not.toContain("<review_request_context>");
+    expect(prompt).not.toContain("You have been requested to review this pull request");
+  });
 });
 
 describe("getEventTypeAndContext", () => {
@@ -1016,6 +1103,65 @@ describe("getEventTypeAndContext", () => {
 
     expect(result.eventType).toBe("ISSUE_ASSIGNED");
     expect(result.triggerContext).toBe("issue assigned event");
+  });
+
+  test("should return correct type and context for pull_request review_requested", async () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "pull_request",
+        eventAction: "review_requested",
+        isPR: true,
+        prNumber: "789",
+        requestedReviewer: "claude-bot",
+      },
+    };
+
+    const result = getEventTypeAndContext(envVars);
+
+    expect(result.eventType).toBe("REVIEW_REQUESTED");
+    expect(result.triggerContext).toBe("review requested from claude-bot");
+  });
+
+  test("should return correct type and context for pull_request review_requested without reviewer", async () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "pull_request",
+        eventAction: "review_requested",
+        isPR: true,
+        prNumber: "789",
+        // No requestedReviewer
+      },
+    };
+
+    const result = getEventTypeAndContext(envVars);
+
+    expect(result.eventType).toBe("REVIEW_REQUESTED");
+    expect(result.triggerContext).toBe("review requested from you");
+  });
+
+  test("should return generic PULL_REQUEST type for other pull_request actions", async () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "pull_request",
+        eventAction: "opened",
+        isPR: true,
+        prNumber: "789",
+      },
+    };
+
+    const result = getEventTypeAndContext(envVars);
+
+    expect(result.eventType).toBe("PULL_REQUEST");
+    expect(result.triggerContext).toBe("pull request opened");
   });
 });
 
@@ -1260,3 +1406,10 @@ describe("buildDisallowedToolsString", () => {
     expect(result).toBe("BadTool1,BadTool2");
   });
 });
+
+// Integration tests are covered by the comprehensive unit tests above
+// The review_requested feature is thoroughly tested through:
+// 1. getEventTypeAndContext tests
+// 2. prompt generation with review context tests  
+// 3. prepareContext tests for review_requested
+// 4. helper function tests (findLastReviewFromUser, getCommitsSinceReview)

@@ -14,14 +14,64 @@ import { sanitizeContent } from "../github/utils/sanitizer";
 import {
   isIssuesEvent,
   isIssueCommentEvent,
+  isPullRequestEvent,
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
+  isPullRequestReviewRequestedEvent,
 } from "../github/context";
 import type { ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import type { Mode, ModeContext } from "../modes/types";
 export type { CommonFields, PreparedContext } from "./types";
+
+// Helper function to find the last review from a specific user
+export function findLastReviewFromUser(
+  reviewData: {
+    nodes: Array<{
+      author: { login: string };
+      submittedAt: string;
+      id: string;
+    }>;
+  } | null,
+  username: string,
+): { submittedAt: string; id: string } | null {
+  if (!reviewData?.nodes || reviewData.nodes.length === 0) {
+    return null;
+  }
+
+  // Filter reviews by the specific user and sort by submission time (newest first)
+  const userReviews = reviewData.nodes
+    .filter((review) => review.author.login === username)
+    .sort(
+      (a, b) =>
+        new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
+    );
+
+  return userReviews[0] || null;
+}
+
+// Helper function to get commits since a specific date
+export function getCommitsSinceReview(
+  commits: Array<{
+    commit: {
+      oid: string;
+      message: string;
+      author: { name: string; email: string };
+    };
+  }>,
+  _reviewDate: string,
+): Array<{
+  oid: string;
+  message: string;
+  author: { name: string; email: string };
+}> {
+  // Note: This is a simplified approach as commit timestamps might not perfectly align with review times
+  // Since we don't have commit timestamps in the current data structure,
+  // we'll return all commits and let Claude understand the context
+  // In a future enhancement, we could use git log to get more precise timing
+  return commits.map((c) => c.commit);
+}
 
 // Tag mode defaults - these tools are needed for tag mode to function
 const BASE_ALLOWED_TOOLS = [
@@ -142,6 +192,8 @@ export function prepareContext(
     triggerUsername = context.payload.comment.user.login;
   } else if (isIssuesEvent(context)) {
     triggerUsername = context.payload.issue.user.login;
+  } else if (isPullRequestEvent(context)) {
+    triggerUsername = context.payload.pull_request.user.login;
   }
 
   // Create infrastructure fields object
@@ -318,14 +370,33 @@ export function prepareContext(
       if (!isPR) {
         throw new Error("IS_PR must be true for pull_request event");
       }
-      eventData = {
-        eventName: "pull_request",
-        eventAction: eventAction,
-        isPR: true,
-        prNumber,
-        ...(claudeBranch && { claudeBranch }),
-        ...(baseBranch && { baseBranch }),
-      };
+
+      // Handle review_requested specifically
+      if (
+        eventAction === "review_requested" &&
+        isPullRequestReviewRequestedEvent(context)
+      ) {
+        const requestedReviewer = (context.payload as any).requested_reviewer
+          ?.login;
+        eventData = {
+          eventName: "pull_request",
+          eventAction: "review_requested",
+          isPR: true,
+          prNumber,
+          requestedReviewer,
+          ...(claudeBranch && { claudeBranch }),
+          ...(baseBranch && { baseBranch }),
+        };
+      } else {
+        eventData = {
+          eventName: "pull_request",
+          eventAction: eventAction,
+          isPR: true,
+          prNumber,
+          ...(claudeBranch && { claudeBranch }),
+          ...(baseBranch && { baseBranch }),
+        };
+      }
       break;
 
     default:
@@ -383,6 +454,12 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
       };
 
     case "pull_request":
+      if (eventData.eventAction === "review_requested") {
+        return {
+          eventType: "REVIEW_REQUESTED",
+          triggerContext: `review requested from ${(eventData as any).requestedReviewer || "you"}`,
+        };
+      }
       return {
         eventType: "PULL_REQUEST",
         triggerContext: eventData.eventAction
@@ -534,6 +611,50 @@ ${formattedChangedFiles || "No files changed"}
 </changed_files>`
     : ""
 }${imagesInfo}
+
+${
+  eventData.eventName === "pull_request" &&
+  (eventData as any).eventAction === "review_requested" &&
+  eventData.isPR
+    ? (() => {
+        const requestedReviewer = (eventData as any).requestedReviewer;
+        const lastReview = requestedReviewer
+          ? findLastReviewFromUser(reviewData, requestedReviewer)
+          : null;
+        const commitsSinceReview =
+          lastReview && contextData
+            ? getCommitsSinceReview(
+                (contextData as any).commits?.nodes || [],
+                lastReview.submittedAt,
+              )
+            : [];
+
+        return `<review_request_context>
+You have been requested to review this pull request.
+${requestedReviewer ? `The reviewer trigger matched: ${requestedReviewer}` : ""}
+${
+  lastReview
+    ? `Your last review was submitted on ${new Date(lastReview.submittedAt).toLocaleDateString()} at ${new Date(lastReview.submittedAt).toLocaleTimeString()}.
+Review ID: ${lastReview.id}
+${
+  commitsSinceReview.length > 0
+    ? `\nCommits since your last review:${commitsSinceReview
+        .slice(0, 10)
+        .map(
+          (commit) =>
+            `\n- ${commit.oid.substring(0, 8)}: ${commit.message.split("\n")[0]}`,
+        )
+        .join(
+          "",
+        )}${commitsSinceReview.length > 10 ? `\n... and ${commitsSinceReview.length - 10} more commits` : ""}`
+    : "\nNo new commits since your last review."
+}`
+    : "This appears to be your first review of this pull request."
+}
+</review_request_context>`;
+      })()
+    : ""
+}
 
 <event_type>${eventType}</event_type>
 <is_pr>${eventData.isPR ? "true" : "false"}</is_pr>

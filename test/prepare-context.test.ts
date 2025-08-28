@@ -10,6 +10,7 @@ import {
   mockPullRequestCommentContext,
   mockPullRequestReviewContext,
   mockPullRequestReviewCommentContext,
+  mockPullRequestReviewRequestedContext,
 } from "./mockContext";
 
 const BASE_ENV = {
@@ -267,6 +268,68 @@ describe("parseEnvVarsWithContext", () => {
           "claude/issue-123-20240101-1200",
         ),
       ).toThrow("ASSIGNEE_TRIGGER is required for issue assigned event");
+    });
+  });
+
+  describe("pull_request event", () => {
+    test("should parse pull_request review_requested event correctly", () => {
+      const result = prepareContext(
+        mockPullRequestReviewRequestedContext,
+        "12345",
+        "main",
+        "claude/pr-789-20240101-1200",
+      );
+
+      expect(result.eventData.eventName).toBe("pull_request");
+      expect(result.eventData.isPR).toBe(true);
+      expect(result.triggerUsername).toBe("feature-dev");
+      if (
+        result.eventData.eventName === "pull_request" &&
+        result.eventData.eventAction === "review_requested"
+      ) {
+        expect(result.eventData.prNumber).toBe("789");
+        expect(result.eventData.requestedReviewer).toBe("claude-bot");
+        expect(result.eventData.baseBranch).toBe("main");
+        expect(result.eventData.claudeBranch).toBe("claude/pr-789-20240101-1200");
+      }
+    });
+
+    test("should parse generic pull_request event correctly", () => {
+      const mockGenericPRContext = createMockContext({
+        eventName: "pull_request",
+        eventAction: "opened",
+        isPR: true,
+        entityNumber: 456,
+        actor: "testuser",
+        payload: {
+          action: "opened",
+          pull_request: {
+            number: 456,
+            title: "Test PR",
+            body: "Test PR body",
+            user: { login: "testuser" },
+          },
+        } as any,
+      });
+
+      const result = prepareContext(
+        mockGenericPRContext,
+        "12345",
+        "main",
+        "claude/pr-456-20240101-1200",
+      );
+
+      expect(result.eventData.eventName).toBe("pull_request");
+      expect(result.eventData.isPR).toBe(true);
+      expect(result.triggerUsername).toBe("testuser");
+      if (
+        result.eventData.eventName === "pull_request" &&
+        result.eventData.eventAction === "opened"
+      ) {
+        expect(result.eventData.prNumber).toBe("456");
+        expect(result.eventData.baseBranch).toBe("main");
+        expect(result.eventData.claudeBranch).toBe("claude/pr-456-20240101-1200");
+      }
     });
   });
 
