@@ -139,7 +139,11 @@ For a comprehensive guide on migrating from v0.x to v1.0, including step-by-step
 ```yaml
 - uses: anthropics/claude-code-action@v1
   with:
-    prompt: "Update the API documentation"
+    prompt: |
+      REPO: ${{ github.repository }}
+      PR NUMBER: ${{ github.event.pull_request.number }}
+      
+      Update the API documentation to reflect changes in this PR
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     claude_args: |
       --model claude-4-0-sonnet-20250805

@@ -2,6 +2,15 @@
 
 These examples show how to configure Claude to act automatically based on GitHub events. When you provide a `prompt` input, the action automatically runs in agent mode without requiring manual @mentions. Without a `prompt`, it runs in interactive mode, responding to @claude mentions.
 
+## Mode Detection & Tracking Comments
+
+The action automatically detects which mode to use based on your configuration:
+
+- **Interactive Mode** (no `prompt` input): Responds to @claude mentions, creates tracking comments with progress indicators
+- **Automation Mode** (with `prompt` input): Executes immediately, **does not create tracking comments**
+
+> **Note**: In v1, automation mode (agent mode) intentionally does not create tracking comments to reduce noise in automated workflows. If you need progress tracking in automation mode, see our [DIY Progress Tracking solution](solutions.md#diy-progress-tracking-in-agent-mode).
+
 ## Supported GitHub Events
 
 This action supports the following GitHub events ([learn more GitHub event triggers](https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows)):

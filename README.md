@@ -31,8 +31,25 @@ This command will guide you through setting up the GitHub app and required secre
 - You must be a repository admin to install the GitHub app and add secrets
 - This quickstart method is only available for direct Anthropic API users. For AWS Bedrock or Google Vertex AI setup, see [docs/cloud-providers.md](./docs/cloud-providers.md).
 
+## 📚 Solutions & Use Cases
+
+Looking for specific automation patterns? Check our **[Solutions Guide](./docs/solutions.md)** for complete working examples including:
+
+- **🔍 Automatic PR Code Review** - Full review automation
+- **📂 Path-Specific Reviews** - Trigger on critical file changes  
+- **👥 External Contributor Reviews** - Special handling for new contributors
+- **📝 Custom Review Checklists** - Enforce team standards
+- **🔄 Scheduled Maintenance** - Automated repository health checks
+- **🏷️ Issue Triage & Labeling** - Automatic categorization
+- **📖 Documentation Sync** - Keep docs updated with code changes
+- **🔒 Security-Focused Reviews** - OWASP-aligned security analysis
+- **📊 DIY Progress Tracking** - Create tracking comments in automation mode
+
+Each solution includes complete working examples, configuration details, and expected outcomes.
+
 ## Documentation
 
+- **[Solutions Guide](./docs/solutions.md)** - **🎯 Ready-to-use automation patterns**
 - **[Migration Guide](./docs/migration-guide.md)** - **⭐ Upgrading from v0.x to v1.0**
 - [Setup Guide](./docs/setup.md) - Manual setup, custom GitHub apps, and security best practices
 - [Usage Guide](./docs/usage.md) - Basic usage, workflow configuration, and input parameters

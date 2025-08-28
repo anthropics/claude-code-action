@@ -74,12 +74,18 @@ The following inputs have been deprecated and replaced:
 ```yaml
 - uses: anthropics/claude-code-action@v1
   with:
-    prompt: "Review this PR for security issues"
+    prompt: |
+      REPO: ${{ github.repository }}
+      PR NUMBER: ${{ github.event.pull_request.number }}
+      
+      Review this PR for security issues
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     claude_args: |
       --model claude-4-0-sonnet-20250805
       --allowedTools Edit,Read,Write
 ```
+
+> **⚠️ Important**: For PR reviews, always include the repository and PR context in your prompt. This ensures Claude knows which PR to review.
 
 ### Custom Template with Variables
 
@@ -100,9 +106,15 @@ The following inputs have been deprecated and replaced:
 - uses: anthropics/claude-code-action@v1
   with:
     prompt: |
-      Analyze PR #${{ github.event.pull_request.number }} in ${{ github.repository }}
-      Focus on security vulnerabilities in the changed files
+      REPO: ${{ github.repository }}
+      PR NUMBER: ${{ github.event.pull_request.number }}
+      
+      Analyze this pull request focusing on security vulnerabilities in the changed files.
+      
+      Note: The PR branch is already checked out in the current working directory.
 ```
+
+> **💡 Tip**: While you can access GitHub context variables in your prompt, it's recommended to use the standard `REPO:` and `PR NUMBER:` format for consistency.
 
 ### Environment Variables
 
