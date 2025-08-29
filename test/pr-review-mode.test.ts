@@ -6,7 +6,7 @@ describe("PR Review Mode Detection", () => {
   test("should detect pr_review mode for review_requested event with matching reviewer", () => {
     const context = mockPullRequestReviewRequestedContext;
     const detectedMode = detectMode(context);
-    
+
     expect(detectedMode).toBe("pr_review");
   });
 
@@ -18,9 +18,9 @@ describe("PR Review Mode Detection", () => {
         prompt: "Focus on security and performance issues",
       },
     };
-    
+
     const detectedMode = detectMode(contextWithPrompt);
-    
+
     expect(detectedMode).toBe("pr_review");
   });
 
@@ -32,9 +32,9 @@ describe("PR Review Mode Detection", () => {
         reviewerTrigger: "@different-bot",
       },
     };
-    
+
     const detectedMode = detectMode(contextWithDifferentReviewer);
-    
+
     expect(detectedMode).toBe("agent"); // Should fall back to agent mode
   });
 
@@ -46,9 +46,9 @@ describe("PR Review Mode Detection", () => {
         reviewerTrigger: "",
       },
     };
-    
+
     const detectedMode = detectMode(contextWithoutTrigger);
-    
+
     expect(detectedMode).toBe("agent"); // Should fall back to agent mode
   });
 });

@@ -114,13 +114,21 @@ Please follow these custom instructions while conducting your review, in additio
   // Build the review tools information
   const reviewToolsInfo = allowPrReviews
     ? `<review_tool_info>
-IMPORTANT: You have been provided with PR review tools to submit formal GitHub reviews:
-- mcp__github_review__submit_pr_review: Submit a PR review with APPROVE, REQUEST_CHANGES, or COMMENT event
+IMPORTANT: You have been provided with TWO DISTINCT types of tools:
+
+**PR Review Tools (for formal GitHub reviews):**
+- mcp__github_review__submit_pr_review: Submit a formal PR review with APPROVE, REQUEST_CHANGES, or COMMENT event
 - mcp__github_review__add_review_comment: Add inline comments on specific lines with actionable feedback and code suggestions (automatically batched into a pending review)
+- mcp__github_review__resolve_review_thread: Resolve previous review comment threads with optional explanatory comment
+
+**Tracking Comment Tool (for status updates only):**
+- mcp__github_comment__update_claude_comment: Update your tracking comment to show task completion status and review summary
 
 Review workflow:
 1. Simple review: Use mcp__github_review__submit_pr_review directly with overall feedback
 2. Comprehensive review: Use mcp__github_review__add_review_comment for specific line feedback (comments are automatically batched), then mcp__github_review__submit_pr_review to submit the complete review
+3. Follow-up review: Use mcp__github_review__resolve_review_thread to resolve outdated conversations from previous reviews
+4. Status update: After submitting your formal review, use mcp__github_comment__update_claude_comment to update the tracking comment with task completion status
 
 Tool usage example for mcp__github_review__submit_pr_review (short summary only):
 {
@@ -142,11 +150,41 @@ Tool usage example for mcp__github_review__add_review_comment with code suggesti
   "body": "This could be simplified using optional chaining:\\n\\n\`\`\`suggestion\\nreturn user?.profile?.name || 'Anonymous';\\n\`\`\`"
 }
 
+Tool usage example for mcp__github_review__resolve_review_thread:
+{
+  "threadId": "RT_kwDOExample123",
+  "body": "Fixed in latest commit"
+}
+
 IMPORTANT: Use mcp__github_review__add_review_comment for:
 - Highlighting actionable feedback on specific lines of code
 - Providing critical information about bugs, security issues, or performance problems
 - Suggesting concrete improvements with code suggestions using \`\`\`suggestion blocks
 - Pointing out best practices violations or potential issues in specific code sections
+
+IMPORTANT: Use mcp__github_review__resolve_review_thread for:
+- Resolving previous review comment threads that are no longer applicable
+- Closing conversations where the issue has been addressed
+- Adding context when resolving threads (e.g., "Fixed in commit abc123", "No longer applicable after refactoring")
+
+IMPORTANT: Use mcp__github_review__submit_pr_review for:
+- Submitting your formal GitHub review with your decision (APPROVE, REQUEST_CHANGES, or COMMENT)
+- Providing a brief overall assessment and rationale for your review decision
+- This creates the official review record on the PR
+
+IMPORTANT: Use mcp__github_comment__update_claude_comment for:
+- Updating the tracking comment to show task completion status
+- Providing a checklist of what was reviewed
+- Confirming that the review has been completed
+- This is NOT part of the formal review - it's just status tracking
+
+When to update your tracking comment:
+- After completing initial analysis
+- After reviewing each major file or component
+- After adding inline review comments
+- Before submitting the formal review
+- After submitting the formal review to confirm completion
+- Anytime you complete a significant review task
 
 Note: When you use add_review_comment, a pending review is automatically created. All subsequent comments are added to this pending review until you submit it with submit_pr_review. The inline comments appear directly on the diff view, making them highly visible and actionable for developers.
 
@@ -198,22 +236,40 @@ Your task is to conduct a thorough pull request review. Here's how to approach i
 
 ## Review Process:
 
-1. **Initial Analysis**: 
+1. **Create a Todo List**:
+   - Use your tracking comment to maintain a detailed task list for the review
+   - Format todos as a checklist (- [ ] for incomplete, - [x] for complete)
+   - Update the comment using mcp__github_comment__update_claude_comment as you complete each task
+   - Include tasks like:
+     - [ ] Initial Analysis - Understanding PR purpose and scope
+     - [ ] Code Review - Examining changes for quality and issues
+     - [ ] Security Check - Looking for vulnerabilities
+     - [ ] Performance Review - Checking for performance implications
+     - [ ] Best Practices - Verifying adherence to standards
+     - [ ] Submit Formal Review - Submitting GitHub review decision
+     - [ ] Update Summary - Final status confirmation
+   - This tracking is separate from your formal review - it's for progress visibility
+
+2. **Initial Analysis**: 
    - Read the PR description and understand the purpose of the changes
    - Review the changed files to understand the scope of modifications
    - Note any existing comments or previous review feedback
+   - Mark this task complete in your tracking comment: - [x] Initial Analysis
 
-2. **Code Review**:
+3. **Code Review**:
    - Examine each changed file for code quality, logic, and potential issues
    - Look for bugs, security vulnerabilities, performance issues, or style problems
    - Check for proper error handling, edge cases, and test coverage
    - Verify that the implementation matches the PR description
+   - Update your tracking comment as you complete each aspect
 
-3. **Provide Feedback**:
+4. **Provide Feedback**:
    ${
      allowPrReviews
-       ? `- Use mcp__github_review__add_review_comment for specific line-by-line feedback
-   - Use mcp__github_review__submit_pr_review with:
+       ? `- Use mcp__github_review__add_review_comment for specific line-by-line feedback on the code
+   - Use mcp__github_review__resolve_review_thread to resolve outdated conversations from previous reviews
+   - Update your tracking comment after adding review comments to show progress
+   - Use mcp__github_review__submit_pr_review to submit your formal GitHub review with:
      - APPROVE: If the changes look good with no significant issues
      - REQUEST_CHANGES: If there are important issues that need to be addressed  
      - COMMENT: For general feedback or questions without blocking approval`
@@ -222,15 +278,25 @@ Your task is to conduct a thorough pull request review. Here's how to approach i
    - Be specific about issues and suggest solutions where possible`
    }
 
-4. **Review Guidelines**:
+5. **Review Guidelines**:
    - Be constructive and respectful in your feedback
    - Explain the "why" behind your suggestions
    - Consider the broader impact of changes on the codebase
    - Balance thoroughness with practicality
    - Acknowledge good practices and improvements
+   - Keep your tracking comment updated to show review progress
 
-5. **Final Steps**:
-   - Always update your GitHub comment to show the review status
+6. **Final Steps**:
+   ${
+     allowPrReviews
+       ? `- Mark "Submit Formal Review" task as in progress in your tracking comment
+   - Submit your formal review using mcp__github_review__submit_pr_review with your decision
+   - Mark "Submit Formal Review" task as complete: - [x] Submit Formal Review
+   - Update your tracking comment one final time to confirm all review tasks are complete
+   - The tracking comment should show all tasks marked as complete when done`
+       : `- Update your tracking comment with final review feedback using mcp__github_comment__update_claude_comment
+   - Ensure all review tasks show as complete in your checklist`
+   }
    - Summarize your overall assessment of the pull request${
      customPrompt
        ? `

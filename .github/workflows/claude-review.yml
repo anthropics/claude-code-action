@@ -20,7 +20,7 @@ jobs:
       - name: Auto review PR
         uses: anthropics/claude-code-action@main
         with:
-          direct_prompt: |
+          prompt: |
             Please review this PR. Look at the changes and provide thoughtful feedback on:
             - Code quality and best practices
             - Potential bugs or issues
@@ -30,4 +30,5 @@ jobs:
 
             Be constructive and specific in your feedback. Give inline comments where applicable.
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          allowed_tools: "mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review,mcp__github__get_pull_request_diff"
+          claude_args: |
+            --allowedTools "mcp__github_review__create_pending_review,mcp__github_review__add_review_comment,mcp__github_review__submit_pr_review"

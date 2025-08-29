@@ -174,6 +174,123 @@ server.tool(
 );
 
 server.tool(
+  "resolve_review_thread",
+  "Resolve a pull request review thread (conversation) with an optional comment. Requires Contents: Read/Write permissions.",
+  {
+    threadId: z
+      .string()
+      .describe(
+        "The GraphQL thread ID to resolve (different from REST comment IDs). Get this from review thread queries.",
+      ),
+    body: z
+      .string()
+      .optional()
+      .describe(
+        "Optional comment to add when resolving the thread (e.g., 'Fixed in latest commit', 'No longer applicable')",
+      ),
+  },
+  async ({ threadId, body }) => {
+    try {
+      const githubToken = process.env.GITHUB_TOKEN;
+
+      if (!githubToken) {
+        throw new Error("GITHUB_TOKEN environment variable is required");
+      }
+
+      const octokit = createOctokit(githubToken);
+
+      // If a comment is provided, add it to the thread first
+      if (body && body.trim()) {
+        const sanitizedBody = sanitizeContent(body);
+        
+        // Add a reply to the review thread
+        try {
+          await octokit.graphql(`
+            mutation($threadId: ID!, $body: String!) {
+              addPullRequestReviewThreadReply(input: {
+                pullRequestReviewThreadId: $threadId
+                body: $body
+              }) {
+                comment {
+                  id
+                }
+              }
+            }
+          `, {
+            threadId,
+            body: sanitizedBody,
+          });
+        } catch (replyError) {
+          console.warn("Failed to add reply before resolving thread:", replyError);
+          // Continue with resolution even if reply fails
+        }
+      }
+
+      // Resolve the thread
+      const result = await octokit.graphql(`
+        mutation($threadId: ID!) {
+          resolveReviewThread(input: {
+            threadId: $threadId
+          }) {
+            thread {
+              id
+              isResolved
+            }
+          }
+        }
+      `, {
+        threadId,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                success: true,
+                thread_id: threadId,
+                is_resolved: result.resolveReviewThread.thread.isResolved,
+                message: `Review thread resolved successfully${body ? " with comment" : ""}`,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      // Provide more helpful error messages for common issues
+      let helpMessage = "";
+      if (errorMessage.includes("Resource not accessible by integration")) {
+        helpMessage =
+          "\n\nThis usually means insufficient permissions. The resolveReviewThread mutation requires Contents: Read/Write permissions, not just Pull Requests permissions.";
+      } else if (errorMessage.includes("Could not resolve to a node")) {
+        helpMessage =
+          "\n\nThis usually means the thread ID is invalid or the thread doesn't exist. Make sure you're using the GraphQL thread ID, not a REST API comment ID.";
+      } else if (errorMessage.includes("Not Found")) {
+        helpMessage =
+          "\n\nThis usually means the thread doesn't exist or you don't have access to it.";
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error resolving review thread: ${errorMessage}${helpMessage}`,
+          },
+        ],
+        error: errorMessage,
+        isError: true,
+      };
+    }
+  },
+);
+
+server.tool(
   "add_review_comment",
   "Add an inline comment to a PR review on specific lines in a file (automatically creates a pending review if needed)",
   {
