@@ -459,14 +459,6 @@ export function generatePrompt(
   useCommitSigning: boolean,
   mode: Mode,
 ): string {
-  // v1.0: Simply pass through the prompt to Claude Code
-  const prompt = context.prompt || "";
-
-  if (prompt) {
-    return prompt;
-  }
-
-  // Otherwise use the mode's default prompt generator
   return mode.generatePrompt(context, githubData, useCommitSigning);
 }
 
