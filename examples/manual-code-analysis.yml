@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 2 # Need at least 2 commits to analyze the latest
 
       - name: Run Claude Analysis
-        uses: anthropics/claude-code-action@v1-dev
+        uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |

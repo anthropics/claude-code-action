@@ -9,7 +9,7 @@ The action automatically detects which mode to use based on your configuration:
 - **Interactive Mode** (no `prompt` input): Responds to @claude mentions, creates tracking comments with progress indicators
 - **Automation Mode** (with `prompt` input): Executes immediately, **does not create tracking comments**
 
-> **Note**: In v1, automation mode (agent mode) intentionally does not create tracking comments to reduce noise in automated workflows. If you need progress tracking in automation mode, see our [DIY Progress Tracking solution](solutions.md#diy-progress-tracking-in-agent-mode).
+> **Note**: In v1, automation mode intentionally does not create tracking comments by default to reduce noise in automated workflows. If you need progress tracking, use the `track_progress: true` input parameter.
 
 ## Supported GitHub Events
 

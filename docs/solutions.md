@@ -12,7 +12,6 @@ This guide provides complete, ready-to-use solutions for common automation scena
 - [Issue Auto-Triage and Labeling](#issue-auto-triage-and-labeling)
 - [Documentation Sync on API Changes](#documentation-sync-on-api-changes)
 - [Security-Focused PR Reviews](#security-focused-pr-reviews)
-- [DIY Progress Tracking](#diy-progress-tracking-in-agent-mode)
 
 ---
 
@@ -20,7 +19,7 @@ This guide provides complete, ready-to-use solutions for common automation scena
 
 **When to use:** Automatically review every PR opened or updated in your repository.
 
-**Complete Example:**
+### Basic Example (No Tracking)
 
 ```yaml
 name: Claude Auto Review
@@ -71,6 +70,61 @@ jobs:
 - PR branch is pre-checked out
 
 **Expected Output:** Claude posts review comments directly to the PR with inline annotations where appropriate.
+
+### Enhanced Example (With Progress Tracking)
+
+Want visual progress tracking for PR reviews? Use `track_progress: true` to get tracking comments like in v0.x:
+
+```yaml
+name: Claude Auto Review with Tracking
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true  # ✨ Enables tracking comments
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Please review this pull request with a focus on:
+            - Code quality and best practices
+            - Potential bugs or issues
+            - Security implications
+            - Performance considerations
+            
+            Provide detailed feedback using inline comments for specific issues.
+
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+```
+
+**Benefits of Progress Tracking:**
+
+- **Visual Progress Indicators**: Shows "In progress" status with checkboxes
+- **Preserves Full Context**: Automatically includes all PR details, comments, and attachments
+- **Migration-Friendly**: Perfect for teams moving from v0.x who miss tracking comments
+- **Works with Custom Prompts**: Your prompt becomes custom instructions while maintaining GitHub context
+
+**Expected Output:** 
+1. Claude creates a tracking comment: "Claude Code is reviewing this pull request..."
+2. Updates the comment with progress checkboxes as it works
+3. Posts detailed review feedback with inline annotations
+4. Updates tracking comment to "Completed" when done
 
 ---
 
@@ -465,6 +519,8 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Optional: Add track_progress: true for visual progress tracking during security reviews
+          # track_progress: true
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
@@ -504,95 +560,6 @@ jobs:
 - Severity rating system
 
 **Expected Output:** Detailed security analysis with prioritized findings.
-
----
-
-## DIY Progress Tracking in Agent Mode
-
-**When to use:** Create manual tracking comments in automation workflows (agent mode doesn't create them automatically).
-
-**Complete Example:**
-
-```yaml
-name: Custom Tracking
-on:
-  pull_request:
-    types: [opened, synchronize]
-
-jobs:
-  review-with-tracking:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      # Create initial tracking comment
-      - name: Create Tracking Comment
-        id: tracking
-        run: |
-          COMMENT_BODY="## 🤖 Claude Code Review in Progress
-
-          - [ ] Analyzing code changes
-          - [ ] Checking for security issues
-          - [ ] Verifying test coverage
-          - [ ] Reviewing documentation
-
-          *Status: Starting review...*"
-
-          COMMENT_ID=$(gh pr comment ${{ github.event.pull_request.number }} \
-            --body "$COMMENT_BODY" --repo ${{ github.repository }} \
-            --json id --jq .id)
-          echo "comment_id=$COMMENT_ID" >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: |
-            REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
-            TRACKING COMMENT ID: ${{ steps.tracking.outputs.comment_id }}
-
-            Review this PR. After each major step, update the tracking comment:
-
-            1. After analyzing changes: 
-               `gh pr comment edit --comment-id [ID] --body "Updated status with analysis complete"`
-
-            2. After security check:
-               Mark security checkbox as [x]
-
-            3. Continue for each checklist item
-
-            Final comment should summarize findings.
-
-          claude_args: |
-            --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*)"
-
-      # Update tracking comment on completion
-      - name: Complete Tracking Comment
-        if: always()
-        run: |
-          gh pr comment edit --comment-id ${{ steps.tracking.outputs.comment_id }} \
-            --body "## ✅ Claude Code Review Complete
-            
-            Review has finished. Check the full review comments above."
-        env:
-          GH_TOKEN: ${{ github.token }}
-```
-
-**Key Configuration:**
-
-- Manual tracking comment creation
-- Pass comment ID to Claude for updates
-- Handles completion status
-
-**Expected Output:** Visual progress tracking even in agent mode.
 
 ---
 

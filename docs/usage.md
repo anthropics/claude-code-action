@@ -52,6 +52,7 @@ jobs:
 | `anthropic_api_key`            | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                           | No\*     | -         |
 | `claude_code_oauth_token`      | Claude Code OAuth token (alternative to anthropic_api_key)                                                           | No\*     | -         |
 | `prompt`                       | Instructions for Claude. Can be a direct prompt or custom template for automation workflows                          | No       | -         |
+| `track_progress`               | Force tag mode with tracking comments. Only works with specific PR/issue events. Preserves GitHub context            | No       | `false`   |
 | `claude_args`                  | Additional arguments to pass directly to Claude CLI (e.g., `--max-turns 10 --model claude-4-0-sonnet-20250805`)      | No       | ""        |
 | `base_branch`                  | The base branch to use for creating new branches (e.g., 'main', 'develop')                                           | No       | -         |
 | `use_sticky_comment`           | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                          | No       | `false`   |

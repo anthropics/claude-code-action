@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
 
       - name: Triage issue with Claude
-        uses: anthropics/claude-code-action@v1-dev
+        uses: anthropics/claude-code-action@v1
         with:
           prompt: |
             You're an issue triage assistant for GitHub issues. Your task is to analyze the issue and select appropriate labels from the provided list.

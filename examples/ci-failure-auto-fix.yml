@@ -1,4 +1,4 @@
-name: Auto Fix CI Failures (Signed Commits)
+name: Auto Fix CI Failures
 
 on:
   workflow_run:
@@ -14,11 +14,11 @@ permissions:
   id-token: write # Required for OIDC token exchange
 
 jobs:
-  auto-fix-signed:
+  auto-fix:
     if: |
       github.event.workflow_run.conclusion == 'failure' &&
       github.event.workflow_run.pull_requests[0] &&
-      !startsWith(github.event.workflow_run.head_branch, 'claude-auto-fix-ci-signed-')
+      !startsWith(github.event.workflow_run.head_branch, 'claude-auto-fix-ci-')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -28,13 +28,17 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate fix branch name
+      - name: Setup git identity
+        run: |
+          git config --global user.email "claude[bot]@users.noreply.github.com"
+          git config --global user.name "claude[bot]"
+
+      - name: Create fix branch
         id: branch
         run: |
-          BRANCH_NAME="claude-auto-fix-ci-signed-${{ github.event.workflow_run.head_branch }}-${{ github.run_id }}"
+          BRANCH_NAME="claude-auto-fix-ci-${{ github.event.workflow_run.head_branch }}-${{ github.run_id }}"
+          git checkout -b "$BRANCH_NAME"
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          # Don't create branch locally - MCP tools will create it via API
-          echo "Generated branch name: $BRANCH_NAME (will be created by MCP tools)"
 
       - name: Get CI failure details
         id: failure_details
@@ -74,15 +78,12 @@ jobs:
               errorLogs: errorLogs
             };
 
-      - name: Fix CI failures with Claude (Signed Commits)
+      - name: Fix CI failures with Claude
         id: claude
-        uses: anthropics/claude-code-action@v1-dev
-        env:
-          CLAUDE_BRANCH: ${{ steps.branch.outputs.branch_name }}
-          BASE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        uses: anthropics/claude-code-action@v1
         with:
           prompt: |
-            /fix-ci-signed 
+            /fix-ci 
             Failed CI Run: ${{ fromJSON(steps.failure_details.outputs.result).runUrl }}
             Failed Jobs: ${{ join(fromJSON(steps.failure_details.outputs.result).failedJobs, ', ') }}
             PR Number: ${{ github.event.workflow_run.pull_requests[0].number }}
@@ -93,5 +94,4 @@ jobs:
             Error logs:
             ${{ toJSON(fromJSON(steps.failure_details.outputs.result).errorLogs) }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          use_commit_signing: true
-          claude_args: "--allowedTools 'Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(bun:*),Bash(npm:*),Bash(npx:*),Bash(gh:*),mcp__github_file_ops__commit_files,mcp__github_file_ops__delete_files'"
+          claude_args: "--allowedTools 'Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(bun:*),Bash(npm:*),Bash(npx:*),Bash(gh:*)'"

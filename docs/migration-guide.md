@@ -87,6 +87,60 @@ The following inputs have been deprecated and replaced:
 
 > **⚠️ Important**: For PR reviews, always include the repository and PR context in your prompt. This ensures Claude knows which PR to review.
 
+### Automation with Progress Tracking (New in v1.0)
+
+**Missing the tracking comments from v0.x agent mode?** The new `track_progress` input brings them back!
+
+In v1.0, automation mode (with `prompt` input) doesn't create tracking comments by default to reduce noise. However, if you need progress visibility, you can use the `track_progress` feature:
+
+**Before (v0.x with tracking):**
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    mode: "agent"
+    direct_prompt: "Review this PR for security issues"
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+**After (v1.0 with tracking):**
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    track_progress: true  # Forces tag mode with tracking comments
+    prompt: |
+      REPO: ${{ github.repository }}
+      PR NUMBER: ${{ github.event.pull_request.number }}
+      
+      Review this PR for security issues
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+#### Benefits of `track_progress`
+
+1. **Preserves GitHub Context**: Automatically includes all PR/issue details, comments, and attachments
+2. **Brings Back Tracking Comments**: Creates progress indicators just like v0.x agent mode
+3. **Works with Custom Prompts**: Your `prompt` is injected as custom instructions while maintaining context
+
+#### Supported Events for `track_progress`
+
+The `track_progress` input only works with these GitHub events:
+
+**Pull Request Events:**
+- `opened` - New PR created
+- `synchronize` - PR updated with new commits
+- `ready_for_review` - Draft PR marked as ready
+- `reopened` - Previously closed PR reopened
+
+**Issue Events:**
+- `opened` - New issue created
+- `edited` - Issue title or body modified
+- `labeled` - Label added to issue
+- `assigned` - Issue assigned to user
+
+> **Note**: Using `track_progress: true` with unsupported events will cause an error.
+
 ### Custom Template with Variables
 
 **Before (v0.x):**
@@ -256,6 +310,7 @@ You can also pass MCP configuration from a file:
 - [ ] Convert `disallowed_tools` to `claude_args` with `--disallowedTools`
 - [ ] Move `claude_env` to `settings` JSON format
 - [ ] Move `mcp_config` to `claude_args` with `--mcp-config`
+- [ ] **Optional**: Add `track_progress: true` if you need tracking comments in automation mode
 - [ ] Test workflow in a non-production environment
 
 ## Getting Help
