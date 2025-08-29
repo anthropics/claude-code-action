@@ -161,9 +161,11 @@ describe("Agent Mode", () => {
 
     // Note: We can't easily test file creation in this unit test,
     // but we can verify the method completes without errors
-    // Agent mode now includes MCP config even with empty user args
+    // With our conditional MCP logic, agent mode with no allowed tools
+    // should not include any MCP config
     const callArgs = setOutputSpy.mock.calls[0];
     expect(callArgs[0]).toBe("claude_args");
-    expect(callArgs[1]).toContain("--mcp-config");
+    // Should be empty or just whitespace when no MCP servers are included
+    expect(callArgs[1]).not.toContain("--mcp-config");
   });
 });
