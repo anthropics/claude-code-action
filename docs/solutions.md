@@ -96,7 +96,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          track_progress: true  # ✨ Enables tracking comments
+          track_progress: true # ✨ Enables tracking comments
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
@@ -106,7 +106,7 @@ jobs:
             - Potential bugs or issues
             - Security implications
             - Performance considerations
-            
+
             Provide detailed feedback using inline comments for specific issues.
 
           claude_args: |
@@ -120,7 +120,8 @@ jobs:
 - **Migration-Friendly**: Perfect for teams moving from v0.x who miss tracking comments
 - **Works with Custom Prompts**: Your prompt becomes custom instructions while maintaining GitHub context
 
-**Expected Output:** 
+**Expected Output:**
+
 1. Claude creates a tracking comment: "Claude Code is reviewing this pull request..."
 2. Updates the comment with progress checkboxes as it works
 3. Posts detailed review feedback with inline annotations

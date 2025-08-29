@@ -108,11 +108,11 @@ In v1.0, automation mode (with `prompt` input) doesn't create tracking comments 
 ```yaml
 - uses: anthropics/claude-code-action@v1
   with:
-    track_progress: true  # Forces tag mode with tracking comments
+    track_progress: true # Forces tag mode with tracking comments
     prompt: |
       REPO: ${{ github.repository }}
       PR NUMBER: ${{ github.event.pull_request.number }}
-      
+
       Review this PR for security issues
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -128,12 +128,14 @@ In v1.0, automation mode (with `prompt` input) doesn't create tracking comments 
 The `track_progress` input only works with these GitHub events:
 
 **Pull Request Events:**
+
 - `opened` - New PR created
 - `synchronize` - PR updated with new commits
 - `ready_for_review` - Draft PR marked as ready
 - `reopened` - Previously closed PR reopened
 
 **Issue Events:**
+
 - `opened` - New issue created
 - `edited` - Issue title or body modified
 - `labeled` - Label added to issue
