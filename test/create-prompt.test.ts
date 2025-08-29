@@ -34,6 +34,27 @@ describe("generatePrompt", () => {
     }),
   };
 
+  // Create a mock agent mode that passes through prompts
+  const mockAgentMode: Mode = {
+    name: "agent",
+    description: "Agent mode",
+    shouldTrigger: () => true,
+    prepareContext: (context) => ({ mode: "agent", githubContext: context }),
+    getAllowedTools: () => [],
+    getDisallowedTools: () => [],
+    shouldCreateTrackingComment: () => false,
+    generatePrompt: (context) => context.prompt || "",
+    prepare: async () => ({
+      commentId: undefined,
+      branchInfo: {
+        baseBranch: "main",
+        currentBranch: "main",
+        claudeBranch: undefined,
+      },
+      mcpConfig: "{}",
+    }),
+  };
+
   const mockGitHubData = {
     contextData: {
       title: "Test PR",
@@ -376,10 +397,10 @@ describe("generatePrompt", () => {
       envVars,
       mockGitHubData,
       false,
-      mockTagMode,
+      mockAgentMode,
     );
 
-    // v1.0: Prompt is passed through as-is
+    // Agent mode: Prompt is passed through as-is
     expect(prompt).toBe("Simple prompt for reviewing PR");
     expect(prompt).not.toContain("You are Claude, an AI assistant");
   });
@@ -417,7 +438,7 @@ describe("generatePrompt", () => {
       envVars,
       mockGitHubData,
       false,
-      mockTagMode,
+      mockAgentMode,
     );
 
     // v1.0: Variables are NOT substituted - prompt is passed as-is to Claude Code
@@ -465,10 +486,10 @@ describe("generatePrompt", () => {
       envVars,
       issueGitHubData,
       false,
-      mockTagMode,
+      mockAgentMode,
     );
 
-    // v1.0: Prompt is passed through as-is
+    // Agent mode: Prompt is passed through as-is
     expect(prompt).toBe("Review issue and provide feedback");
   });
 
@@ -490,10 +511,10 @@ describe("generatePrompt", () => {
       envVars,
       mockGitHubData,
       false,
-      mockTagMode,
+      mockAgentMode,
     );
 
-    // v1.0: No substitution - passed as-is
+    // Agent mode: No substitution - passed as-is
     expect(prompt).toBe(
       "PR: $PR_NUMBER, Issue: $ISSUE_NUMBER, Comment: $TRIGGER_COMMENT",
     );
