@@ -63,6 +63,9 @@ export async function prepareMcpConfig(
   try {
     const allowedToolsList = allowedTools || [];
 
+    // Detect if we're in agent mode (explicit prompt provided)
+    const isAgentMode = !!context.inputs?.prompt;
+
     const hasGitHubMcpTools = allowedToolsList.some((tool) =>
       tool.startsWith("mcp__github__"),
     );
@@ -71,26 +74,40 @@ export async function prepareMcpConfig(
       tool.startsWith("mcp__github_inline_comment__"),
     );
 
+    const hasGitHubCommentTools = allowedToolsList.some((tool) =>
+      tool.startsWith("mcp__github_comment__"),
+    );
+
+    const hasGitHubCITools = allowedToolsList.some((tool) =>
+      tool.startsWith("mcp__github_ci__"),
+    );
+
     const baseMcpConfig: { mcpServers: Record<string, unknown> } = {
       mcpServers: {},
     };
 
-    // Always include comment server for updating Claude comments
-    baseMcpConfig.mcpServers.github_comment = {
-      command: "bun",
-      args: [
-        "run",
-        `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-comment-server.ts`,
-      ],
-      env: {
-        GITHUB_TOKEN: githubToken,
-        REPO_OWNER: owner,
-        REPO_NAME: repo,
-        ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
-        GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
-        GITHUB_API_URL: GITHUB_API_URL,
-      },
-    };
+    // Include comment server:
+    // - Always in tag mode (for updating Claude comments)
+    // - Only with explicit tools in agent mode
+    const shouldIncludeCommentServer = !isAgentMode || hasGitHubCommentTools;
+
+    if (shouldIncludeCommentServer) {
+      baseMcpConfig.mcpServers.github_comment = {
+        command: "bun",
+        args: [
+          "run",
+          `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-comment-server.ts`,
+        ],
+        env: {
+          GITHUB_TOKEN: githubToken,
+          REPO_OWNER: owner,
+          REPO_NAME: repo,
+          ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
+          GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
+          GITHUB_API_URL: GITHUB_API_URL,
+        },
+      };
+    }
 
     // Include file ops server when commit signing is enabled
     if (context.inputs.useCommitSigning) {
@@ -136,10 +153,17 @@ export async function prepareMcpConfig(
       };
     }
 
-    // CI server is included when we have a workflow token and context is a PR
+    // CI server is included when:
+    // - In tag mode: when we have a workflow token and context is a PR
+    // - In agent mode: same conditions PLUS explicit CI tools in allowedTools
     const hasWorkflowToken = !!process.env.DEFAULT_WORKFLOW_TOKEN;
+    const shouldIncludeCIServer =
+      (!isAgentMode || hasGitHubCITools) &&
+      isEntityContext(context) &&
+      context.isPR &&
+      hasWorkflowToken;
 
-    if (isEntityContext(context) && context.isPR && hasWorkflowToken) {
+    if (shouldIncludeCIServer) {
       // Verify the token actually has actions:read permission
       const actuallyHasPermission = await checkActionsReadPermission(
         process.env.DEFAULT_WORKFLOW_TOKEN || "",
