@@ -23,6 +23,9 @@ const server = new McpServer({
   version: "0.0.1",
 });
 
+// Track the current pending review ID across tool calls
+let currentPendingReviewId: number | null = null;
+
 server.tool(
   "submit_pr_review",
   "Submit a pull request review with APPROVE, REQUEST_CHANGES, or COMMENT event",
@@ -73,16 +76,52 @@ server.tool(
         pull_number,
       });
 
-      const params: Parameters<typeof octokit.rest.pulls.createReview>[0] = {
-        owner,
-        repo,
-        pull_number,
-        body: sanitizedBody,
-        event,
-        commit_id: commit_id || pr.data.head.sha,
-      };
+      let result;
 
-      const result = await octokit.rest.pulls.createReview(params);
+      // If we have a pending review with comments, submit it
+      if (currentPendingReviewId) {
+        try {
+          result = await octokit.rest.pulls.submitReview({
+            owner,
+            repo,
+            pull_number,
+            review_id: currentPendingReviewId,
+            body: sanitizedBody,
+            event,
+          });
+          // Clear the pending review ID after submission
+          currentPendingReviewId = null;
+        } catch (submitError) {
+          // If submitting the existing review fails, try creating a new one
+          console.error(
+            "Failed to submit pending review, creating new one:",
+            submitError,
+          );
+          currentPendingReviewId = null;
+
+          const params: Parameters<typeof octokit.rest.pulls.createReview>[0] =
+            {
+              owner,
+              repo,
+              pull_number,
+              body: sanitizedBody,
+              event,
+              commit_id: commit_id || pr.data.head.sha,
+            };
+          result = await octokit.rest.pulls.createReview(params);
+        }
+      } else {
+        // No pending review, create and submit a new one
+        const params: Parameters<typeof octokit.rest.pulls.createReview>[0] = {
+          owner,
+          repo,
+          pull_number,
+          body: sanitizedBody,
+          event,
+          commit_id: commit_id || pr.data.head.sha,
+        };
+        result = await octokit.rest.pulls.createReview(params);
+      }
 
       return {
         content: [
@@ -136,7 +175,7 @@ server.tool(
 
 server.tool(
   "add_review_comment",
-  "Add an inline comment to a pending PR review on specific lines in a file",
+  "Add an inline comment to a PR review on specific lines in a file (automatically creates a pending review if needed)",
   {
     path: z
       .string()
@@ -211,6 +250,26 @@ server.tool(
         pull_number,
       });
 
+      // If we don't have a pending review, create one first
+      if (!currentPendingReviewId) {
+        try {
+          const pendingReview = await octokit.rest.pulls.createReview({
+            owner,
+            repo,
+            pull_number,
+            commit_id: commit_id || pr.data.head.sha,
+            // No event means it stays in PENDING state
+          });
+          currentPendingReviewId = pendingReview.data.id;
+          console.log(
+            `Created pending review with ID: ${currentPendingReviewId}`,
+          );
+        } catch (error) {
+          console.error("Failed to create pending review:", error);
+          // Continue anyway - the comment might still work
+        }
+      }
+
       const params: Parameters<
         typeof octokit.rest.pulls.createReviewComment
       >[0] = {
@@ -246,7 +305,7 @@ server.tool(
                 html_url: result.data.html_url,
                 path: result.data.path,
                 line: result.data.line || result.data.original_line,
-                message: `Review comment created successfully on ${path}${isSingleLine ? ` at line ${line}` : ` from line ${startLine} to ${line}`}`,
+                message: `Review comment added to ${currentPendingReviewId ? "pending review" : "PR"} on ${path}${isSingleLine ? ` at line ${line}` : ` from line ${startLine} to ${line}`}`,
               },
               null,
               2,
@@ -276,104 +335,6 @@ server.tool(
           {
             type: "text",
             text: `Error creating review comment: ${errorMessage}${helpMessage}`,
-          },
-        ],
-        error: errorMessage,
-        isError: true,
-      };
-    }
-  },
-);
-
-server.tool(
-  "create_pending_review",
-  "Create a draft/pending PR review without submitting it (allows for adding comments before final submission)",
-  {
-    body: z
-      .string()
-      .optional()
-      .describe(
-        "Optional review comment body (supports markdown). Can be added later before submission.",
-      ),
-    commit_id: z
-      .string()
-      .optional()
-      .describe("Specific commit SHA to review (defaults to latest commit)"),
-  },
-  async ({ body, commit_id }) => {
-    try {
-      const githubToken = process.env.GITHUB_TOKEN;
-
-      if (!githubToken) {
-        throw new Error("GITHUB_TOKEN environment variable is required");
-      }
-
-      const owner = REPO_OWNER;
-      const repo = REPO_NAME;
-      const pull_number = parseInt(PR_NUMBER, 10);
-
-      const octokit = createOctokit(githubToken).rest;
-
-      const pr = await octokit.pulls.get({
-        owner,
-        repo,
-        pull_number,
-      });
-
-      // Sanitize the review body if provided
-      const sanitizedBody = body ? sanitizeContent(body) : "";
-
-      const params: Parameters<typeof octokit.rest.pulls.createReview>[0] = {
-        owner,
-        repo,
-        pull_number,
-        commit_id: commit_id || pr.data.head.sha,
-        ...(sanitizedBody && { body: sanitizedBody }),
-        // Not setting 'event' leaves the review in PENDING state
-      };
-
-      const result = await octokit.rest.pulls.createReview(params);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                success: true,
-                review_id: result.data.id,
-                html_url: result.data.html_url,
-                state: result.data.state,
-                message: `Draft PR review created successfully. Use submit_pr_review to finalize with APPROVE, REQUEST_CHANGES, or COMMENT.`,
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      // Provide more helpful error messages for common issues
-      let helpMessage = "";
-      if (errorMessage.includes("Validation Failed")) {
-        helpMessage =
-          "\n\nThis usually means the PR has already been merged, closed, or there's an issue with the commit SHA.";
-      } else if (errorMessage.includes("Not Found")) {
-        helpMessage =
-          "\n\nThis usually means the PR number or repository is incorrect.";
-      } else if (errorMessage.includes("Forbidden")) {
-        helpMessage =
-          "\n\nThis usually means you don't have permission to create reviews on this repository.";
-      }
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error creating pending PR review: ${errorMessage}${helpMessage}`,
           },
         ],
         error: errorMessage,

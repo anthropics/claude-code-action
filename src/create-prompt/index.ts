@@ -138,7 +138,6 @@ export function buildAllowedToolsString(
   if (allowPrReviews) {
     baseTools.push(
       "mcp__github_review__submit_pr_review",
-      "mcp__github_review__create_pending_review",
       "mcp__github_review__add_review_comment",
     );
   }
@@ -710,25 +709,33 @@ ${
     ? `<review_tool_info>
 IMPORTANT: You have been provided with PR review tools to submit formal GitHub reviews:
 - mcp__github_review__submit_pr_review: Submit a PR review with APPROVE, REQUEST_CHANGES, or COMMENT event
-- mcp__github_review__create_pending_review: Create a draft review before submission
-- mcp__github_review__add_review_comment: Add inline comments to specific lines in files during review
+- mcp__github_review__add_review_comment: Add inline comments on specific lines with actionable feedback and code suggestions (automatically batched into a pending review)
 
-Review workflow options:
+Review workflow:
 1. Simple review: Use mcp__github_review__submit_pr_review directly with overall feedback
-2. Comprehensive review: Use mcp__github_review__add_review_comment for specific line feedback, then mcp__github_review__submit_pr_review for final submission
+2. Comprehensive review: Use mcp__github_review__add_review_comment for specific line feedback (comments are automatically batched), then mcp__github_review__submit_pr_review to submit the complete review
 
-Tool usage example for mcp__github_review__submit_pr_review:
+Tool usage example for mcp__github_review__submit_pr_review (short summary only):
 {
   "event": "COMMENT|REQUEST_CHANGES|APPROVE",
-  "body": "Your review feedback here"
+  "body": "Brief overall assessment and rationale for your review decision"
 }
 
-Tool usage example for mcp__github_review__add_review_comment:
+Tool usage example for mcp__github_review__add_review_comment (inline comment with actionable feedback):
 {
   "path": "src/file.js",
   "line": 42,
-  "body": "Consider using const instead of let here"
+  "body": "Consider using const instead of let here since this value is never reassigned"
 }
+
+Tool usage example with code suggestion:
+{
+  "path": "src/utils.js",
+  "line": 15,
+  "body": "This could be simplified using optional chaining:\\n\\n\`\`\`suggestion\\nreturn user?.profile?.name || 'Anonymous';\\n\`\`\`"
+}
+
+IMPORTANT: Use mcp__github_review__add_review_comment for highlighting actionable feedback, critical issues, and providing code suggestions on specific lines.
 
 Use COMMENT for general feedback, REQUEST_CHANGES to request changes, or APPROVE to approve the PR.
 </review_tool_info>`

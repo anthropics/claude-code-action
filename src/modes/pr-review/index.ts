@@ -148,7 +148,6 @@ export const prReviewMode: Mode = {
     // Add PR review specific tools - always enabled for PR review mode
     prReviewModeTools.push(
       "mcp__github_review__submit_pr_review",
-      "mcp__github_review__create_pending_review",
       "mcp__github_review__add_review_comment",
     );
 
