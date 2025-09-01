@@ -1,4 +1,5 @@
 import { GITHUB_SERVER_URL } from "../api/config";
+import { getWorkingMessagePattern } from "../../utils/assistant-branding";
 
 export type ExecutionDetails = {
   cost_usd?: number;
@@ -80,8 +81,8 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   } = input;
 
   // Extract content from the original comment body
-  // First, remove the "Claude Code is working…" or "Claude Code is working..." message
-  const workingPattern = /Claude Code is working[…\.]{1,3}(?:\s*<img[^>]*>)?/i;
+  // First, remove the working message (e.g., "Claude Code is working…")
+  const workingPattern = getWorkingMessagePattern();
   let bodyContent = originalBody.replace(workingPattern, "").trim();
 
   // Check if there's a PR link in the content

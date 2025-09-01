@@ -47,6 +47,10 @@ inputs:
     description: "Whether to use Node.js dependency caching (set to true only for Node.js projects with lock files)"
     required: false
     default: "false"
+  assistant_name:
+    description: "Name to use for the AI assistant in user-facing messages. Defaults to 'Claude'."
+    required: false
+    default: "Claude"
   path_to_claude_code_executable:
     description: "Optional path to a custom Claude Code executable. If provided, skips automatic installation and uses this executable instead. WARNING: Using an older version may cause problems if the action begins taking advantage of new Claude Code features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
     required: false

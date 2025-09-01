@@ -26,6 +26,34 @@ const server = new McpServer({
 // Track the current pending review ID across tool calls
 let currentPendingReviewId: number | null = null;
 
+// Helper function to find existing pending review
+async function findPendingReview(
+  octokit: any,
+  owner: string,
+  repo: string,
+  pull_number: number,
+): Promise<number | null> {
+  try {
+    const reviews = await octokit.rest.pulls.listReviews({
+      owner,
+      repo,
+      pull_number,
+    });
+    
+    // Find a pending review from the current user
+    const pendingReview = reviews.data.find(
+      (review: any) => review.state === "PENDING"
+    );
+    
+    if (pendingReview) {
+      return pendingReview.id;
+    }
+  } catch (error) {
+    console.error("Failed to find pending review:", error);
+  }
+  return null;
+}
+
 server.tool(
   "submit_pr_review",
   "Submit a pull request review with APPROVE, REQUEST_CHANGES, or COMMENT event",
@@ -78,6 +106,16 @@ server.tool(
 
       let result;
 
+      // If we don't have a pending review ID cached, try to find one
+      if (!currentPendingReviewId) {
+        currentPendingReviewId = await findPendingReview(
+          octokit,
+          owner,
+          repo,
+          pull_number,
+        );
+      }
+      
       // If we have a pending review with comments, submit it
       if (currentPendingReviewId) {
         try {
@@ -227,7 +265,14 @@ server.tool(
       }
 
       // Resolve the thread
-      const result = await octokit.graphql(`
+      const result = await octokit.graphql<{
+        resolveReviewThread: {
+          thread: {
+            id: string;
+            isResolved: boolean;
+          };
+        };
+      }>(`
         mutation($threadId: ID!) {
           resolveReviewThread(input: {
             threadId: $threadId
@@ -367,23 +412,53 @@ server.tool(
         pull_number,
       });
 
-      // If we don't have a pending review, create one first
+      // If we don't have a pending review, try to find or create one
       if (!currentPendingReviewId) {
-        try {
-          const pendingReview = await octokit.rest.pulls.createReview({
-            owner,
-            repo,
-            pull_number,
-            commit_id: commit_id || pr.data.head.sha,
-            // No event means it stays in PENDING state
-          });
-          currentPendingReviewId = pendingReview.data.id;
+        // First, check if there's an existing pending review
+        currentPendingReviewId = await findPendingReview(
+          octokit,
+          owner,
+          repo,
+          pull_number,
+        );
+        
+        if (currentPendingReviewId) {
           console.log(
-            `Created pending review with ID: ${currentPendingReviewId}`,
+            `Found existing pending review with ID: ${currentPendingReviewId}`,
           );
-        } catch (error) {
-          console.error("Failed to create pending review:", error);
-          // Continue anyway - the comment might still work
+        } else {
+          // Try to create a new pending review
+          try {
+            const newReview = await octokit.rest.pulls.createReview({
+              owner,
+              repo,
+              pull_number,
+              commit_id: commit_id || pr.data.head.sha,
+              // No event means it stays in PENDING state
+            });
+            currentPendingReviewId = newReview.data.id;
+            console.log(
+              `Created new pending review with ID: ${currentPendingReviewId}`,
+            );
+          } catch (error: any) {
+            // If creation fails due to existing pending review, try to find it again
+            if (error.message?.includes("user_id can only have one pending review")) {
+              currentPendingReviewId = await findPendingReview(
+                octokit,
+                owner,
+                repo,
+                pull_number,
+              );
+              if (currentPendingReviewId) {
+                console.log(
+                  `Found existing pending review after creation failed: ${currentPendingReviewId}`,
+                );
+              }
+            } else {
+              console.error("Failed to create pending review:", error);
+            }
+            // Continue anyway - the comment might still work
+          }
         }
       }
 

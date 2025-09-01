@@ -1,8 +1,13 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeAll } from "bun:test";
 import {
   updateCommentBody,
   type CommentUpdateInput,
 } from "../src/github/operations/comment-logic";
+import { setupDefaultTestBranding } from "./test-utils";
+
+beforeAll(() => {
+  setupDefaultTestBranding();
+});
 
 describe("updateCommentBody", () => {
   const baseInput = {

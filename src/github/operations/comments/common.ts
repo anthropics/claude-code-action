@@ -1,4 +1,5 @@
 import { GITHUB_SERVER_URL } from "../../api/config";
+import { getWorkingMessage } from "../../../utils/assistant-branding";
 
 export const SPINNER_HTML =
   '<img src="https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f" width="14px" height="14px" style="vertical-align: middle; margin-left: 4px;" />';
@@ -25,7 +26,7 @@ export function createCommentBody(
   jobRunLink: string,
   branchLink: string = "",
 ): string {
-  return `Claude Code is working… ${SPINNER_HTML}
+  return `${getWorkingMessage()} ${SPINNER_HTML}
 
 I'll analyze this and get back to you.
 

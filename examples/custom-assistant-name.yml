@@ -1,0 +1,33 @@
+name: Custom Assistant Name Example
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+
+permissions:
+  id-token: write
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  claude:
+    if: >
+      (github.event.issue.pull_request != null || github.event_name == 'pull_request') ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@myai')) ||
+      (github.event_name == 'issues' && contains(github.event.issue.body, '@myai'))
+    runs-on: ubuntu-latest
+    name: My AI Assistant
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run My AI Assistant
+        uses: anthropics/claude-code-action@v1
+        with:
+          assistant_name: "MyAI"  # Custom assistant name - will appear in comments and PR titles
+          trigger_phrase: "@myai"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

@@ -2,6 +2,7 @@
 
 import { readFileSync, existsSync } from "fs";
 import { exit } from "process";
+import { getReportHeader } from "../utils/assistant-branding";
 
 export type ToolUse = {
   type: string;
@@ -343,7 +344,7 @@ export function groupTurnsNaturally(data: Turn[]): GroupedContent[] {
 }
 
 export function formatGroupedContent(groupedContent: GroupedContent[]): string {
-  let markdown = "## Claude Code Report\n\n";
+  let markdown = `${getReportHeader()}\n\n`;
 
   for (const item of groupedContent) {
     const itemType = item.type;

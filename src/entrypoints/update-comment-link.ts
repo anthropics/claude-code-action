@@ -13,6 +13,7 @@ import {
 } from "../github/context";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import { checkAndCommitOrDeleteBranch } from "../github/operations/branch-cleanup";
+import { getPRTitleTemplate, getPRBodyTemplate } from "../utils/assistant-branding";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 
 async function run() {
@@ -135,10 +136,10 @@ async function run() {
           ) {
             const entityType = context.isPR ? "PR" : "Issue";
             const prTitle = encodeURIComponent(
-              `${entityType} #${context.entityNumber}: Changes from Claude`,
+              getPRTitleTemplate(entityType, context.entityNumber),
             );
             const prBody = encodeURIComponent(
-              `This PR addresses ${entityType.toLowerCase()} #${context.entityNumber}\n\nGenerated with [Claude Code](https://claude.ai/code)`,
+              getPRBodyTemplate(entityType, context.entityNumber),
             );
             const prUrl = `${serverUrl}/${owner}/${repo}/compare/${baseBranch}...${claudeBranch}?quick_pull=1&title=${prTitle}&body=${prBody}`;
             prLink = `\n[Create a PR](${prUrl})`;

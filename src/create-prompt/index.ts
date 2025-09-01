@@ -23,6 +23,7 @@ import type { ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import type { Mode, ModeContext } from "../modes/types";
+import { getSignatureTemplate } from "../utils/assistant-branding";
 export type { CommonFields, PreparedContext } from "./types";
 export { generatePrReviewPrompt } from "./pr-review-prompt";
 
@@ -662,7 +663,7 @@ You have been requested to review this pull request.
 ${requestedReviewer ? `The reviewer trigger matched: ${requestedReviewer}` : ""}
 ${
   lastReview
-    ? `Your last review was submitted on ${new Date(lastReview.submittedAt).toLocaleDateString()} at ${new Date(lastReview.submittedAt).toLocaleTimeString()}.
+    ? `Your last review was submitted on ${new Date(lastReview.submittedAt).toISOString()} at ${new Date(lastReview.submittedAt).toLocaleTimeString()}.
 Review ID: ${lastReview.id}
 ${
   commitsSinceReview.length > 0
@@ -840,7 +841,7 @@ ${eventData.eventName === "issue_comment" || eventData.eventName === "pull_reque
         - The body should include:
           - A clear description of the changes
           - Reference to the original ${eventData.isPR ? "PR" : "issue"}
-          - The signature: "Generated with [Claude Code](https://claude.ai/code)"
+          - The signature: "${getSignatureTemplate()}"
         - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"`
           : ""
       }

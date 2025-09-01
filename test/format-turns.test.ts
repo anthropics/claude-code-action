@@ -1,4 +1,4 @@
-import { expect, test, describe } from "bun:test";
+import { expect, test, describe, beforeAll } from "bun:test";
 import { readFileSync } from "fs";
 import { join } from "path";
 import {
@@ -12,6 +12,11 @@ import {
   type ToolUse,
   type ToolResult,
 } from "../src/entrypoints/format-turns";
+import { getTestBrandingValues, setupDefaultTestBranding } from "./test-utils";
+
+beforeAll(() => {
+  setupDefaultTestBranding();
+});
 
 describe("detectContentType", () => {
   test("detects JSON objects", () => {
@@ -287,7 +292,8 @@ describe("formatGroupedContent", () => {
 
     const result = formatGroupedContent(groupedContent);
 
-    expect(result).toContain("## Claude Code Report");
+    const { reportHeader } = getTestBrandingValues();
+    expect(result).toContain(reportHeader);
     expect(result).toContain("## 🚀 System Initialization");
     expect(result).toContain("**Available Tools:** 3 tools loaded");
   });
@@ -361,7 +367,8 @@ describe("formatGroupedContent", () => {
 describe("formatTurnsFromData", () => {
   test("handles empty data", () => {
     const result = formatTurnsFromData([]);
-    expect(result).toBe("## Claude Code Report\n\n");
+    const { reportHeader } = getTestBrandingValues();
+    expect(result).toBe(`${reportHeader}\n\n`);
   });
 
   test("formats complete conversation", () => {
@@ -408,7 +415,8 @@ describe("formatTurnsFromData", () => {
 
     const result = formatTurnsFromData(data);
 
-    expect(result).toContain("## Claude Code Report");
+    const { reportHeader } = getTestBrandingValues();
+    expect(result).toContain(reportHeader);
     expect(result).toContain("## 🚀 System Initialization");
     expect(result).toContain("I'll help you");
     expect(result).toContain("### 🔧 `read_file`");

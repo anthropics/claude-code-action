@@ -78,7 +78,7 @@ You have been requested to review this pull request.
 ${requestedReviewer ? `The reviewer trigger matched: ${requestedReviewer}` : ""}
 ${
   lastReview
-    ? `Your last review was submitted on ${new Date(lastReview.submittedAt).toLocaleDateString()} at ${new Date(lastReview.submittedAt).toLocaleTimeString()}.
+    ? `Your last review was submitted on ${new Date(lastReview.submittedAt).toISOString()} at ${new Date(lastReview.submittedAt).toLocaleTimeString()}.
 Review ID: ${lastReview.id}
 ${
   commitsSinceReview.length > 0
@@ -116,19 +116,24 @@ Please follow these custom instructions while conducting your review, in additio
     ? `<review_tool_info>
 IMPORTANT: You have been provided with TWO DISTINCT types of tools:
 
-**PR Review Tools (for formal GitHub reviews):**
+**PR Review Tools (for ALL review feedback and decisions):**
 - mcp__github_review__submit_pr_review: Submit a formal PR review with APPROVE, REQUEST_CHANGES, or COMMENT event
 - mcp__github_review__add_review_comment: Add inline comments on specific lines with actionable feedback and code suggestions (automatically batched into a pending review)
 - mcp__github_review__resolve_review_thread: Resolve previous review comment threads with optional explanatory comment
 
-**Tracking Comment Tool (for status updates only):**
-- mcp__github_comment__update_claude_comment: Update your tracking comment to show task completion status and review summary
+**Tracking Comment Tool (for task status ONLY - NOT for review feedback):**
+- mcp__github_comment__update_claude_comment: Update your tracking comment EXCLUSIVELY to show task completion status (the checklist)
+
+CRITICAL: When formal review tools are available:
+- ALL review feedback, suggestions, and assessments MUST go through the formal review tools
+- The tracking comment (mcp__github_comment__update_claude_comment) is ONLY for updating the task checklist
+- DO NOT put review feedback in the tracking comment - it belongs in the formal review
 
 Review workflow:
 1. Simple review: Use mcp__github_review__submit_pr_review directly with overall feedback
 2. Comprehensive review: Use mcp__github_review__add_review_comment for specific line feedback (comments are automatically batched), then mcp__github_review__submit_pr_review to submit the complete review
 3. Follow-up review: Use mcp__github_review__resolve_review_thread to resolve outdated conversations from previous reviews
-4. Status update: After submitting your formal review, use mcp__github_comment__update_claude_comment to update the tracking comment with task completion status
+4. Status update: Use mcp__github_comment__update_claude_comment ONLY to update the task checklist (- [x] markings)
 
 Tool usage example for mcp__github_review__submit_pr_review (short summary only):
 {
@@ -173,18 +178,18 @@ IMPORTANT: Use mcp__github_review__submit_pr_review for:
 - This creates the official review record on the PR
 
 IMPORTANT: Use mcp__github_comment__update_claude_comment for:
-- Updating the tracking comment to show task completion status
-- Providing a checklist of what was reviewed
-- Confirming that the review has been completed
-- This is NOT part of the formal review - it's just status tracking
+- Updating the task checklist ONLY (marking items as - [x] complete)
+- Showing progress through the review process
+- DO NOT include review feedback, suggestions, or assessments here
+- This is purely for task tracking - ALL review content goes in the formal review
 
 When to update your tracking comment:
-- After completing initial analysis
-- After reviewing each major file or component
-- After adding inline review comments
-- Before submitting the formal review
-- After submitting the formal review to confirm completion
-- Anytime you complete a significant review task
+- After completing initial analysis (mark task as complete)
+- After reviewing each major file or component (mark task as complete)
+- After adding inline review comments (mark task as complete)
+- Before submitting the formal review (mark task as in progress)
+- After submitting the formal review (mark task as complete)
+- ONLY update with checkbox status changes, no review content
 
 Note: When you use add_review_comment, a pending review is automatically created. All subsequent comments are added to this pending review until you submit it with submit_pr_review. The inline comments appear directly on the diff view, making them highly visible and actionable for developers.
 
@@ -237,9 +242,9 @@ Your task is to conduct a thorough pull request review. Here's how to approach i
 ## Review Process:
 
 1. **Create a Todo List**:
-   - Use your tracking comment to maintain a detailed task list for the review
+   - Use your tracking comment to maintain a task checklist ONLY (no review content)
    - Format todos as a checklist (- [ ] for incomplete, - [x] for complete)
-   - Update the comment using mcp__github_comment__update_claude_comment as you complete each task
+   - Update ONLY the checkbox status using mcp__github_comment__update_claude_comment
    - Include tasks like:
      - [ ] Initial Analysis - Understanding PR purpose and scope
      - [ ] Code Review - Examining changes for quality and issues
@@ -247,8 +252,7 @@ Your task is to conduct a thorough pull request review. Here's how to approach i
      - [ ] Performance Review - Checking for performance implications
      - [ ] Best Practices - Verifying adherence to standards
      - [ ] Submit Formal Review - Submitting GitHub review decision
-     - [ ] Update Summary - Final status confirmation
-   - This tracking is separate from your formal review - it's for progress visibility
+   - CRITICAL: This tracking comment is ONLY for checkboxes - ALL review feedback goes in the formal review
 
 2. **Initial Analysis**: 
    - Read the PR description and understand the purpose of the changes
@@ -268,11 +272,12 @@ Your task is to conduct a thorough pull request review. Here's how to approach i
      allowPrReviews
        ? `- Use mcp__github_review__add_review_comment for specific line-by-line feedback on the code
    - Use mcp__github_review__resolve_review_thread to resolve outdated conversations from previous reviews
-   - Update your tracking comment after adding review comments to show progress
+   - Update your tracking comment ONLY to mark tasks as complete (checkbox status only)
    - Use mcp__github_review__submit_pr_review to submit your formal GitHub review with:
      - APPROVE: If the changes look good with no significant issues
      - REQUEST_CHANGES: If there are important issues that need to be addressed  
-     - COMMENT: For general feedback or questions without blocking approval`
+     - COMMENT: For general feedback or questions without blocking approval
+   - Remember: ALL review feedback goes in the formal review, NOT in the tracking comment`
        : `- Update your tracking comment with review feedback using mcp__github_comment__update_claude_comment
    - Provide both positive feedback and constructive criticism
    - Be specific about issues and suggest solutions where possible`
@@ -284,20 +289,20 @@ Your task is to conduct a thorough pull request review. Here's how to approach i
    - Consider the broader impact of changes on the codebase
    - Balance thoroughness with practicality
    - Acknowledge good practices and improvements
-   - Keep your tracking comment updated to show review progress
+   - Keep your tracking comment updated with checkbox status only (no review content)
 
 6. **Final Steps**:
    ${
      allowPrReviews
-       ? `- Mark "Submit Formal Review" task as in progress in your tracking comment
-   - Submit your formal review using mcp__github_review__submit_pr_review with your decision
+       ? `- Mark "Submit Formal Review" task as in progress in your tracking comment (checkbox only)
+   - Submit your formal review using mcp__github_review__submit_pr_review with your decision and ALL feedback
    - Mark "Submit Formal Review" task as complete: - [x] Submit Formal Review
-   - Update your tracking comment one final time to confirm all review tasks are complete
-   - The tracking comment should show all tasks marked as complete when done`
+   - Final tracking comment should ONLY show completed checkboxes, no review content
+   - Remember: Your review assessment and feedback belong in the formal review, not the tracking comment`
        : `- Update your tracking comment with final review feedback using mcp__github_comment__update_claude_comment
    - Ensure all review tasks show as complete in your checklist`
    }
-   - Summarize your overall assessment of the pull request${
+   - Put your overall assessment in the formal review (if available) or tracking comment (if not)${
      customPrompt
        ? `
    - Ensure your review addresses the custom instructions provided above`
