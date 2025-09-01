@@ -1,6 +1,7 @@
 import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
 import { $ } from "bun";
+import { getAutoCommitMessage } from "../../utils/assistant-branding";
 
 export async function checkAndCommitOrDeleteBranch(
   octokit: Octokits,
@@ -69,7 +70,7 @@ export async function checkAndCommitOrDeleteBranch(
 
               // Commit with a descriptive message
               const runId = process.env.GITHUB_RUN_ID || "unknown";
-              const commitMessage = `Auto-commit: Save uncommitted changes from Claude\n\nRun ID: ${runId}`;
+              const commitMessage = getAutoCommitMessage(runId);
               await $`git commit -m ${commitMessage}`;
 
               // Push the changes

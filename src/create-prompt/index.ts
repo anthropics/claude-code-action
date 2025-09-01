@@ -23,7 +23,7 @@ import type { ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import type { Mode, ModeContext } from "../modes/types";
-import { getSignatureTemplate } from "../utils/assistant-branding";
+import { getSignatureTemplate, getSystemPromptPrefix, getAssistantReference } from "../utils/assistant-branding";
 export type { CommonFields, PreparedContext } from "./types";
 export { generatePrReviewPrompt } from "./pr-review-prompt";
 
@@ -611,7 +611,7 @@ Images have been downloaded from GitHub comments and saved to disk. Their file p
     ? formatBody(contextData.body, imageUrlMap)
     : "No description provided";
 
-  let promptContent = `You are Claude, an AI assistant designed to help with GitHub issues and pull requests. Think carefully as you analyze the context and respond appropriately. Here's the context for your current task:
+  let promptContent = `${getSystemPromptPrefix()} designed to help with GitHub issues and pull requests. Think carefully as you analyze the context and respond appropriately. Here's the context for your current task:
 
 <formatted_context>
 ${formattedContext}
@@ -858,7 +858,7 @@ ${eventData.eventName === "issue_comment" || eventData.eventName === "pull_reque
 5. Final Update:
    - Always update the GitHub comment to reflect the current todo state.
    - When all todos are completed, remove the spinner and add a brief summary of what was accomplished, and what was not done.
-   - Note: If you see previous Claude comments with headers like "**Claude finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
+   - Note: If you see previous ${getAssistantReference()} comments with headers like "**${getAssistantReference()} finished @user's task**" followed by "---", do not include this in your comment. The system adds this automatically.
    - If you changed any files locally, you must update them in the remote branch via ${useCommitSigning ? "mcp__github_file_ops__commit_files" : "git commands (add, commit, push)"} before saying that you're done.
    ${eventData.claudeBranch ? `- If you created anything in your branch, your comment must include the PR URL with prefilled title and body mentioned above.` : ""}
 

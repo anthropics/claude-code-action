@@ -9,6 +9,7 @@ import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
 import { retryWithBackoff } from "../utils/retry";
+import { getCommitPermissionError } from "../utils/assistant-branding";
 
 type GitHubRef = {
   object: {
@@ -389,9 +390,7 @@ server.tool(
             // Provide a more helpful error message for 403 permission errors
             if (updateRefResponse.status === 403) {
               const permissionError = new Error(
-                `Permission denied: Unable to push commits to branch '${branch}'. ` +
-                  `Please rebase your branch from the main/master branch to allow Claude to commit.\n\n` +
-                  `Original error: ${errorText}`,
+                getCommitPermissionError(branch, errorText),
               );
               throw permissionError;
             }
@@ -603,9 +602,7 @@ server.tool(
             if (updateRefResponse.status === 403) {
               console.log("Received 403 error, will retry...");
               const permissionError = new Error(
-                `Permission denied: Unable to push commits to branch '${branch}'. ` +
-                  `Please rebase your branch from the main/master branch to allow Claude to commit.\n\n` +
-                  `Original error: ${errorText}`,
+                getCommitPermissionError(branch, errorText),
               );
               throw permissionError;
             }

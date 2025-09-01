@@ -1,5 +1,5 @@
 import { GITHUB_SERVER_URL } from "../api/config";
-import { getWorkingMessagePattern } from "../../utils/assistant-branding";
+import { getWorkingMessagePattern, getErrorHeader, getSuccessHeader } from "../../utils/assistant-branding";
 
 export type ExecutionDetails = {
   cost_usd?: number;
@@ -102,7 +102,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   }
 
   // Calculate duration string if available
-  let durationStr = "";
+  let durationStr: string | undefined = undefined;
   if (executionDetails?.duration_ms !== undefined) {
     const totalSeconds = Math.round(executionDetails.duration_ms / 1000);
     const minutes = Math.floor(totalSeconds / 60);
@@ -114,22 +114,14 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   let header = "";
 
   if (actionFailed) {
-    header = "**Claude encountered an error";
-    if (durationStr) {
-      header += ` after ${durationStr}`;
-    }
-    header += "**";
+    header = getErrorHeader(durationStr);
   } else {
     // Get the username from triggerUsername or extract from content
     const usernameMatch = bodyContent.match(/@([a-zA-Z0-9-]+)/);
-    const username =
-      triggerUsername || (usernameMatch ? usernameMatch[1] : "user");
+    const username: string =
+      triggerUsername ?? (usernameMatch?.[1] ?? "user");
 
-    header = `**Claude finished @${username}'s task`;
-    if (durationStr) {
-      header += ` in ${durationStr}`;
-    }
-    header += "**";
+    header = getSuccessHeader(username, durationStr);
   }
 
   // Add links section

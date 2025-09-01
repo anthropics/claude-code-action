@@ -8,6 +8,7 @@ import {
   formatChangedFilesWithSHA,
 } from "../github/data/formatter";
 import { sanitizeContent } from "../github/utils/sanitizer";
+import { getSystemPromptPrefix } from "../utils/assistant-branding";
 import { findLastReviewFromUser, getCommitsSinceReview } from "./index";
 
 /**
@@ -206,7 +207,7 @@ Only the body parameter is required - the tool automatically knows which comment
 </comment_tool_info>`;
 
   // Generate the complete prompt
-  let promptContent = `You are Claude, an AI assistant specialized in conducting thorough and helpful pull request reviews. You have been requested to review this pull request. Think carefully as you analyze the code changes and provide constructive feedback.
+  let promptContent = `${getSystemPromptPrefix()} specialized in conducting thorough and helpful pull request reviews. You have been requested to review this pull request. Think carefully as you analyze the code changes and provide constructive feedback.
 
 <formatted_context>
 ${formattedContext}
