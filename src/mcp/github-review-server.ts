@@ -484,7 +484,40 @@ server.tool(
         params.line = line;
       }
 
-      const result = await octokit.rest.pulls.createReviewComment(params);
+      let result;
+      try {
+        result = await octokit.rest.pulls.createReviewComment(params);
+      } catch (commentError: any) {
+        // If comment creation fails due to pending review issue, try to find/create review again
+        if (commentError.message?.includes("user_id can only have one pending review")) {
+          // Clear the cached review ID and retry finding/creating
+          currentPendingReviewId = null;
+          
+          // Try to find existing pending review
+          currentPendingReviewId = await findPendingReview(
+            octokit,
+            owner,
+            repo,
+            pull_number,
+          );
+          
+          if (!currentPendingReviewId) {
+            // Create a new pending review
+            const newReview = await octokit.rest.pulls.createReview({
+              owner,
+              repo,
+              pull_number,
+              commit_id: commit_id || pr.data.head.sha,
+            });
+            currentPendingReviewId = newReview.data.id;
+          }
+          
+          // Retry the comment creation
+          result = await octokit.rest.pulls.createReviewComment(params);
+        } else {
+          throw commentError;
+        }
+      }
 
       return {
         content: [
