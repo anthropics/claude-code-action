@@ -2,8 +2,28 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import * as Sentry from "@sentry/node";
 import { createOctokit } from "../github/api/client";
 import { sanitizeContent } from "../github/utils/sanitizer";
+
+// Initialize Sentry for error tracking
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.GITHUB_ACTIONS ? "github-actions" : "development",
+    initialScope: {
+      tags: {
+        service: "github-review-server",
+        repository: `${process.env.REPO_OWNER}/${process.env.REPO_NAME}`,
+        pr_number: process.env.PR_NUMBER,
+        github_actor: process.env.GITHUB_ACTOR,
+        github_run_id: process.env.GITHUB_RUN_ID,
+      },
+    },
+  });
+} else {
+  console.warn("SENTRY_DSN not provided - error tracking disabled");
+}
 
 // Get repository and PR information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -11,9 +31,11 @@ const REPO_NAME = process.env.REPO_NAME;
 const PR_NUMBER = process.env.PR_NUMBER;
 
 if (!REPO_OWNER || !REPO_NAME || !PR_NUMBER) {
-  console.error(
-    "Error: REPO_OWNER, REPO_NAME, and PR_NUMBER environment variables are required",
+  const error = new Error(
+    "REPO_OWNER, REPO_NAME, and PR_NUMBER environment variables are required",
   );
+  console.error("Error:", error.message);
+  Sentry.captureException(error);
   process.exit(1);
 }
 
@@ -66,6 +88,19 @@ async function findPendingReview(
     console.log(`No pending review found for user ${currentUser.login} (ID: ${currentUser.id})`);
   } catch (error) {
     console.error("Failed to find pending review:", error);
+    
+    // Capture error with context in Sentry
+    Sentry.withScope((scope) => {
+      scope.setTag("operation", "find_pending_review");
+      scope.setContext("repository", {
+        owner,
+        repo,
+        pull_number,
+      });
+      scope.setLevel("error");
+      Sentry.captureException(error);
+    });
+    
     // Re-throw to make the error visible
     throw error;
   }
@@ -202,6 +237,24 @@ server.tool(
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
+      // Capture submit_pr_review errors with context
+      Sentry.withScope((scope) => {
+        scope.setTag("operation", "submit_pr_review");
+        scope.setContext("repository", {
+          owner: REPO_OWNER,
+          repo: REPO_NAME,
+          pull_number: parseInt(PR_NUMBER, 10),
+        });
+        scope.setContext("review_details", {
+          event,
+          body: body?.substring(0, 100) + (body && body.length > 100 ? "..." : ""), // Truncate for privacy
+          commit_id,
+          cached_review_id: currentPendingReviewId,
+        });
+        scope.setLevel("error");
+        Sentry.captureException(error instanceof Error ? error : new Error(errorMessage));
+      });
+
       // Provide more helpful error messages for common issues
       let helpMessage = "";
       if (errorMessage.includes("Validation Failed")) {
@@ -326,6 +379,23 @@ server.tool(
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
+      // Capture resolve_review_thread errors with context
+      Sentry.withScope((scope) => {
+        scope.setTag("operation", "resolve_review_thread");
+        scope.setContext("repository", {
+          owner: REPO_OWNER,
+          repo: REPO_NAME,
+          pull_number: parseInt(PR_NUMBER, 10),
+        });
+        scope.setContext("thread_details", {
+          thread_id: threadId,
+          has_body: !!body,
+          body_preview: body?.substring(0, 50) + (body && body.length > 50 ? "..." : ""), // Truncate for privacy
+        });
+        scope.setLevel("error");
+        Sentry.captureException(error instanceof Error ? error : new Error(errorMessage));
+      });
+
       // Provide more helpful error messages for common issues
       let helpMessage = "";
       if (errorMessage.includes("Resource not accessible by integration")) {
@@ -397,16 +467,17 @@ server.tool(
       ),
   },
   async ({ path, body, line, startLine, side, commit_id }) => {
+    // Declare variables outside try block so they're available in catch
+    const owner = REPO_OWNER;
+    const repo = REPO_NAME;
+    const pull_number = parseInt(PR_NUMBER, 10);
+    
     try {
       const githubToken = process.env.GITHUB_TOKEN;
 
       if (!githubToken) {
         throw new Error("GITHUB_TOKEN environment variable is required");
       }
-
-      const owner = REPO_OWNER;
-      const repo = REPO_NAME;
-      const pull_number = parseInt(PR_NUMBER, 10);
 
       const octokit = createOctokit(githubToken);
 
@@ -458,6 +529,24 @@ server.tool(
           console.error("Error message:", error.message);
           console.error("Full error:", JSON.stringify(error, null, 2));
           
+          // Capture the "one pending review" error with rich context
+          Sentry.withScope((scope) => {
+            scope.setTag("operation", "create_pending_review");
+            scope.setTag("error_type", error.message?.includes("user_id can only have one pending review") ? "duplicate_pending_review" : "unknown");
+            scope.setContext("repository", {
+              owner,
+              repo,
+              pull_number,
+            });
+            scope.setContext("review_creation", {
+              commit_id: commit_id || pr.data.head.sha,
+              cached_review_id: currentPendingReviewId,
+              error_message: error.message,
+            });
+            scope.setLevel("warning");
+            Sentry.captureException(error);
+          });
+          
           // If creation fails due to existing pending review, find it again
           if (error.message?.includes("user_id can only have one pending review")) {
             console.log("Detected existing pending review during creation, searching again...");
@@ -469,14 +558,33 @@ server.tool(
                 pull_number,
               );
               if (!currentPendingReviewId) {
-                throw new Error("Failed to find existing pending review that should exist");
+                const findError = new Error("Failed to find existing pending review that should exist");
+                Sentry.withScope((scope) => {
+                  scope.setTag("operation", "find_pending_review_after_creation_failure");
+                  scope.setContext("original_error", { message: error.message });
+                  scope.setLevel("error");
+                  Sentry.captureException(findError);
+                });
+                throw findError;
               }
               console.log(
                 `Found existing pending review after creation failed: ${currentPendingReviewId}`,
               );
             } catch (findError) {
               console.error("Error finding pending review after creation failure:", findError);
-              throw new Error(`Could not find or create pending review. Original error: ${error.message}. Find error: ${findError}`);
+              const compositeError = new Error(`Could not find or create pending review. Original error: ${error.message}. Find error: ${findError}`);
+              
+              Sentry.withScope((scope) => {
+                scope.setTag("operation", "find_pending_review_composite_failure");
+                scope.setContext("errors", {
+                  original_error: error.message,
+                  find_error: findError instanceof Error ? findError.message : String(findError),
+                });
+                scope.setLevel("error");
+                Sentry.captureException(compositeError);
+              });
+              
+              throw compositeError;
             }
           } else {
             throw error;
@@ -534,6 +642,26 @@ server.tool(
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
+
+      // Capture add_review_comment errors with full context
+      Sentry.withScope((scope) => {
+        scope.setTag("operation", "add_review_comment");
+        scope.setContext("repository", {
+          owner,
+          repo,
+          pull_number,
+        });
+        scope.setContext("comment_details", {
+          path,
+          line,
+          startLine,
+          side,
+          commit_id,
+          cached_review_id: currentPendingReviewId,
+        });
+        scope.setLevel("error");
+        Sentry.captureException(error instanceof Error ? error : new Error(errorMessage));
+      });
 
       // Provide more helpful error messages for common issues
       let helpMessage = "";
