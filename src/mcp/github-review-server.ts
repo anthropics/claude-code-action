@@ -40,14 +40,20 @@ async function findPendingReview(
       pull_number,
     });
     
-    // Find a pending review from the current user
+    // Get current authenticated user
+    const { data: currentUser } = await octokit.rest.users.getAuthenticated();
+    
+    // Find a pending review from the current user specifically
     const pendingReview = reviews.data.find(
-      (review: any) => review.state === "PENDING"
+      (review: any) => review.state === "PENDING" && review.user.id === currentUser.id
     );
     
     if (pendingReview) {
+      console.log(`Found existing pending review: ${pendingReview.id} from user ${currentUser.login}`);
       return pendingReview.id;
     }
+    
+    console.log(`No pending review found for user ${currentUser.login}`);
   } catch (error) {
     console.error("Failed to find pending review:", error);
   }
@@ -412,54 +418,53 @@ server.tool(
         pull_number,
       });
 
-      // If we don't have a pending review, try to find or create one
+      // Ensure we have a pending review for this comment
+      // Always refresh the pending review state to avoid stale data
+      currentPendingReviewId = await findPendingReview(
+        octokit,
+        owner,
+        repo,
+        pull_number,
+      );
+      
       if (!currentPendingReviewId) {
-        // First, check if there's an existing pending review
-        currentPendingReviewId = await findPendingReview(
-          octokit,
-          owner,
-          repo,
-          pull_number,
-        );
-        
-        if (currentPendingReviewId) {
+        // Try to create a new pending review
+        try {
+          const newReview = await octokit.rest.pulls.createReview({
+            owner,
+            repo,
+            pull_number,
+            commit_id: commit_id || pr.data.head.sha,
+            // No event means it stays in PENDING state
+          });
+          currentPendingReviewId = newReview.data.id;
           console.log(
-            `Found existing pending review with ID: ${currentPendingReviewId}`,
+            `Created new pending review with ID: ${currentPendingReviewId}`,
           );
-        } else {
-          // Try to create a new pending review
-          try {
-            const newReview = await octokit.rest.pulls.createReview({
+        } catch (error: any) {
+          // If creation fails due to existing pending review, find it again
+          if (error.message?.includes("user_id can only have one pending review")) {
+            console.log("Detected existing pending review during creation, searching again...");
+            currentPendingReviewId = await findPendingReview(
+              octokit,
               owner,
               repo,
               pull_number,
-              commit_id: commit_id || pr.data.head.sha,
-              // No event means it stays in PENDING state
-            });
-            currentPendingReviewId = newReview.data.id;
-            console.log(
-              `Created new pending review with ID: ${currentPendingReviewId}`,
             );
-          } catch (error: any) {
-            // If creation fails due to existing pending review, try to find it again
-            if (error.message?.includes("user_id can only have one pending review")) {
-              currentPendingReviewId = await findPendingReview(
-                octokit,
-                owner,
-                repo,
-                pull_number,
-              );
-              if (currentPendingReviewId) {
-                console.log(
-                  `Found existing pending review after creation failed: ${currentPendingReviewId}`,
-                );
-              }
-            } else {
-              console.error("Failed to create pending review:", error);
+            if (!currentPendingReviewId) {
+              throw new Error("Failed to find existing pending review that should exist");
             }
-            // Continue anyway - the comment might still work
+            console.log(
+              `Found existing pending review after creation failed: ${currentPendingReviewId}`,
+            );
+          } else {
+            throw error;
           }
         }
+      } else {
+        console.log(
+          `Using existing pending review with ID: ${currentPendingReviewId}`,
+        );
       }
 
       const params: Parameters<
@@ -484,40 +489,7 @@ server.tool(
         params.line = line;
       }
 
-      let result;
-      try {
-        result = await octokit.rest.pulls.createReviewComment(params);
-      } catch (commentError: any) {
-        // If comment creation fails due to pending review issue, try to find/create review again
-        if (commentError.message?.includes("user_id can only have one pending review")) {
-          // Clear the cached review ID and retry finding/creating
-          currentPendingReviewId = null;
-          
-          // Try to find existing pending review
-          currentPendingReviewId = await findPendingReview(
-            octokit,
-            owner,
-            repo,
-            pull_number,
-          );
-          
-          if (!currentPendingReviewId) {
-            // Create a new pending review
-            const newReview = await octokit.rest.pulls.createReview({
-              owner,
-              repo,
-              pull_number,
-              commit_id: commit_id || pr.data.head.sha,
-            });
-            currentPendingReviewId = newReview.data.id;
-          }
-          
-          // Retry the comment creation
-          result = await octokit.rest.pulls.createReviewComment(params);
-        } else {
-          throw commentError;
-        }
-      }
+      const result = await octokit.rest.pulls.createReviewComment(params);
 
       return {
         content: [
