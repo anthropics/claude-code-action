@@ -1,7 +1,11 @@
 /**
  * Test utilities for assistant branding tests
  */
-import { getReportHeader, getWorkingMessage, getSignatureTemplate } from "../src/utils/assistant-branding";
+import {
+  getReportHeader,
+  getWorkingMessage,
+  getSignatureTemplate,
+} from "../src/utils/assistant-branding";
 
 /**
  * Set up test environment with a specific assistant name
@@ -40,5 +44,5 @@ export function setupDefaultTestBranding() {
  */
 export function getTestWorkingPattern() {
   const assistantName = process.env.ASSISTANT_NAME || "Claude";
-  return new RegExp(`${assistantName} Code is working[…\\.]{0,3}`, 'i');
+  return new RegExp(`${assistantName} Code is working[…\\.]{0,3}`, "i");
 }

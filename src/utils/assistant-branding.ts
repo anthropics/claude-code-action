@@ -41,21 +41,33 @@ export function getReportHeader(): string {
  * Get the pattern for matching working messages in comments (for cleaning up)
  */
 export function getWorkingMessagePattern(): RegExp {
-  const assistantProductName = getAssistantProductName().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`${assistantProductName} is working[…\\.]{1,3}(?:\\s*<img[^>]*>)?`, 'i');
+  const assistantProductName = getAssistantProductName().replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+  return new RegExp(
+    `${assistantProductName} is working[…\\.]{1,3}(?:\\s*<img[^>]*>)?`,
+    "i",
+  );
 }
 
 /**
  * Get PR title template for changes from assistant
  */
-export function getPRTitleTemplate(entityType: string, entityNumber: number): string {
+export function getPRTitleTemplate(
+  entityType: string,
+  entityNumber: number,
+): string {
   return `${entityType} #${entityNumber}: Changes from ${getAssistantName()}`;
 }
 
 /**
  * Get PR body template for generated PRs
  */
-export function getPRBodyTemplate(entityType: string, entityNumber: number): string {
+export function getPRBodyTemplate(
+  entityType: string,
+  entityNumber: number,
+): string {
   return `This PR addresses ${entityType.toLowerCase()} #${entityNumber}\n\n${getSignatureTemplate()}`;
 }
 
@@ -74,7 +86,10 @@ export function getErrorHeader(durationStr?: string): string {
 /**
  * Get success header for comment updates when action succeeds
  */
-export function getSuccessHeader(username: string, durationStr?: string): string {
+export function getSuccessHeader(
+  username: string,
+  durationStr?: string,
+): string {
   let header = `**${getAssistantName()} finished @${username}'s task`;
   if (durationStr) {
     header += ` in ${durationStr}`;
@@ -93,10 +108,15 @@ export function getSystemPromptPrefix(): string {
 /**
  * Get permission error message for git operations
  */
-export function getCommitPermissionError(branch: string, errorText: string): string {
-  return `Permission denied: Unable to push commits to branch '${branch}'. ` +
+export function getCommitPermissionError(
+  branch: string,
+  errorText: string,
+): string {
+  return (
+    `Permission denied: Unable to push commits to branch '${branch}'. ` +
     `Please rebase your branch from the main/master branch to allow ${getAssistantName()} to commit.\n\n` +
-    `Original error: ${errorText}`;
+    `Original error: ${errorText}`
+  );
 }
 
 /**

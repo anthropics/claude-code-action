@@ -55,40 +55,79 @@ async function findPendingReview(
   repo: string,
   pull_number: number,
 ): Promise<number | null> {
+  let currentUser: any = null;
+  let reviews: any = null;
+
   try {
-    console.log(`Searching for pending reviews on PR #${pull_number} in ${owner}/${repo}`);
-    
-    const reviews = await octokit.rest.pulls.listReviews({
+    console.log(
+      `Searching for pending reviews on PR #${pull_number} in ${owner}/${repo}`,
+    );
+
+    reviews = await octokit.rest.pulls.listReviews({
       owner,
       repo,
       pull_number,
     });
-    
+
     console.log(`Found ${reviews.data.length} total reviews`);
-    
+
     // Get current authenticated user
-    const { data: currentUser } = await octokit.rest.users.getAuthenticated();
-    console.log(`Current authenticated user: ${currentUser.login} (ID: ${currentUser.id})`);
-    
-    // Log all reviews for debugging
-    reviews.data.forEach((review: any, index: number) => {
-      console.log(`Review ${index + 1}: ID=${review.id}, State=${review.state}, User=${review.user.login} (ID=${review.user.id})`);
-    });
-    
-    // Find a pending review from the current user specifically
-    const pendingReview = reviews.data.find(
-      (review: any) => review.state === "PENDING" && review.user.id === currentUser.id
+    const userResponse = await octokit.rest.users.getAuthenticated();
+    currentUser = userResponse.data;
+    console.log(
+      `Current authenticated user: ${currentUser.login} (ID: ${currentUser.id})`,
     );
-    
-    if (pendingReview) {
-      console.log(`Found existing pending review: ${pendingReview.id} from user ${currentUser.login}`);
-      return pendingReview.id;
+
+    // Log all reviews for debugging with enhanced user ID information
+    reviews.data.forEach((review: any, index: number) => {
+      console.log(
+        `Review ${index + 1}: ID=${review.id}, State=${review.state}, User=${review.user.login} (ID=${review.user.id}, Type=${typeof review.user.id})`,
+      );
+    });
+
+    console.log(
+      `Looking for reviews from current user: ${currentUser.login} (ID=${currentUser.id}, Type=${typeof currentUser.id})`,
+    );
+
+    // Find a review that blocks creating a new review from the current user
+    // This includes PENDING reviews and other states that haven't been submitted
+    const blockingReview = reviews.data.find((review: any) => {
+      // Check multiple user ID comparison methods due to potential type mismatches
+      const userIdMatch =
+        review.user.id === currentUser.id ||
+        review.user.id == currentUser.id || // Loose equality for type coercion
+        String(review.user.id) === String(currentUser.id); // String comparison
+
+      const loginMatch = review.user.login === currentUser.login; // Backup comparison
+
+      // States that would block creating a new review
+      // GitHub only allows one pending review per user per PR
+      const blockingStates = ["PENDING"];
+
+      const isBlocking = blockingStates.includes(review.state);
+
+      if (userIdMatch || loginMatch) {
+        console.log(
+          `Found review from current user: ID=${review.id}, State=${review.state}, UserIdMatch=${userIdMatch}, LoginMatch=${loginMatch}, IsBlocking=${isBlocking}`,
+        );
+      }
+
+      return (userIdMatch || loginMatch) && isBlocking;
+    });
+
+    if (blockingReview) {
+      console.log(
+        `Found existing blocking review: ${blockingReview.id} (State: ${blockingReview.state}) from user ${currentUser.login}`,
+      );
+      return blockingReview.id;
     }
-    
-    console.log(`No pending review found for user ${currentUser.login} (ID: ${currentUser.id})`);
+
+    console.log(
+      `No blocking review found for user ${currentUser.login} (ID: ${currentUser.id})`,
+    );
   } catch (error) {
     console.error("Failed to find pending review:", error);
-    
+
     // Capture error with context in Sentry
     Sentry.withScope((scope) => {
       scope.setTag("operation", "find_pending_review");
@@ -97,10 +136,24 @@ async function findPendingReview(
         repo,
         pull_number,
       });
+      scope.setContext("user_detection", {
+        current_user_id: currentUser?.id,
+        current_user_id_type: typeof currentUser?.id,
+        current_user_login: currentUser?.login,
+        total_reviews: reviews?.data?.length || 0,
+        review_details:
+          reviews?.data?.map((r: any) => ({
+            id: r.id,
+            state: r.state,
+            user_id: r.user.id,
+            user_id_type: typeof r.user.id,
+            user_login: r.user.login,
+          })) || [],
+      });
       scope.setLevel("error");
       Sentry.captureException(error);
     });
-    
+
     // Re-throw to make the error visible
     throw error;
   }
@@ -168,7 +221,7 @@ server.tool(
           pull_number,
         );
       }
-      
+
       // If we have a pending review with comments, submit it
       if (currentPendingReviewId) {
         try {
@@ -247,12 +300,15 @@ server.tool(
         });
         scope.setContext("review_details", {
           event,
-          body: body?.substring(0, 100) + (body && body.length > 100 ? "..." : ""), // Truncate for privacy
+          body:
+            body?.substring(0, 100) + (body && body.length > 100 ? "..." : ""), // Truncate for privacy
           commit_id,
           cached_review_id: currentPendingReviewId,
         });
         scope.setLevel("error");
-        Sentry.captureException(error instanceof Error ? error : new Error(errorMessage));
+        Sentry.captureException(
+          error instanceof Error ? error : new Error(errorMessage),
+        );
       });
 
       // Provide more helpful error messages for common issues
@@ -311,10 +367,11 @@ server.tool(
       // If a comment is provided, add it to the thread first
       if (body && body.trim()) {
         const sanitizedBody = sanitizeContent(body);
-        
+
         // Add a reply to the review thread
         try {
-          await octokit.graphql(`
+          await octokit.graphql(
+            `
             mutation($threadId: ID!, $body: String!) {
               addPullRequestReviewThreadReply(input: {
                 pullRequestReviewThreadId: $threadId
@@ -325,12 +382,17 @@ server.tool(
                 }
               }
             }
-          `, {
-            threadId,
-            body: sanitizedBody,
-          });
+          `,
+            {
+              threadId,
+              body: sanitizedBody,
+            },
+          );
         } catch (replyError) {
-          console.warn("Failed to add reply before resolving thread:", replyError);
+          console.warn(
+            "Failed to add reply before resolving thread:",
+            replyError,
+          );
           // Continue with resolution even if reply fails
         }
       }
@@ -343,7 +405,8 @@ server.tool(
             isResolved: boolean;
           };
         };
-      }>(`
+      }>(
+        `
         mutation($threadId: ID!) {
           resolveReviewThread(input: {
             threadId: $threadId
@@ -354,9 +417,11 @@ server.tool(
             }
           }
         }
-      `, {
-        threadId,
-      });
+      `,
+        {
+          threadId,
+        },
+      );
 
       return {
         content: [
@@ -390,10 +455,13 @@ server.tool(
         scope.setContext("thread_details", {
           thread_id: threadId,
           has_body: !!body,
-          body_preview: body?.substring(0, 50) + (body && body.length > 50 ? "..." : ""), // Truncate for privacy
+          body_preview:
+            body?.substring(0, 50) + (body && body.length > 50 ? "..." : ""), // Truncate for privacy
         });
         scope.setLevel("error");
-        Sentry.captureException(error instanceof Error ? error : new Error(errorMessage));
+        Sentry.captureException(
+          error instanceof Error ? error : new Error(errorMessage),
+        );
       });
 
       // Provide more helpful error messages for common issues
@@ -471,7 +539,7 @@ server.tool(
     const owner = REPO_OWNER;
     const repo = REPO_NAME;
     const pull_number = parseInt(PR_NUMBER, 10);
-    
+
     try {
       const githubToken = process.env.GITHUB_TOKEN;
 
@@ -509,7 +577,7 @@ server.tool(
         repo,
         pull_number,
       );
-      
+
       if (!currentPendingReviewId) {
         // Try to create a new pending review
         try {
@@ -528,11 +596,18 @@ server.tool(
           console.error("Error creating pending review:", error);
           console.error("Error message:", error.message);
           console.error("Full error:", JSON.stringify(error, null, 2));
-          
+
           // Capture the "one pending review" error with rich context
           Sentry.withScope((scope) => {
             scope.setTag("operation", "create_pending_review");
-            scope.setTag("error_type", error.message?.includes("user_id can only have one pending review") ? "duplicate_pending_review" : "unknown");
+            scope.setTag(
+              "error_type",
+              error.message?.includes(
+                "user_id can only have one pending review",
+              )
+                ? "duplicate_pending_review"
+                : "unknown",
+            );
             scope.setContext("repository", {
               owner,
               repo,
@@ -543,13 +618,22 @@ server.tool(
               cached_review_id: currentPendingReviewId,
               error_message: error.message,
             });
+            // Add context about the detection failure
+            scope.setContext("detection_failure", {
+              note: "findPendingReview returned null but GitHub says pending review exists",
+              should_find_review_on_retry: true,
+            });
             scope.setLevel("warning");
             Sentry.captureException(error);
           });
-          
+
           // If creation fails due to existing pending review, find it again
-          if (error.message?.includes("user_id can only have one pending review")) {
-            console.log("Detected existing pending review during creation, searching again...");
+          if (
+            error.message?.includes("user_id can only have one pending review")
+          ) {
+            console.log(
+              "Detected existing pending review during creation, searching again...",
+            );
             try {
               currentPendingReviewId = await findPendingReview(
                 octokit,
@@ -558,10 +642,17 @@ server.tool(
                 pull_number,
               );
               if (!currentPendingReviewId) {
-                const findError = new Error("Failed to find existing pending review that should exist");
+                const findError = new Error(
+                  "Failed to find existing pending review that should exist",
+                );
                 Sentry.withScope((scope) => {
-                  scope.setTag("operation", "find_pending_review_after_creation_failure");
-                  scope.setContext("original_error", { message: error.message });
+                  scope.setTag(
+                    "operation",
+                    "find_pending_review_after_creation_failure",
+                  );
+                  scope.setContext("original_error", {
+                    message: error.message,
+                  });
                   scope.setLevel("error");
                   Sentry.captureException(findError);
                 });
@@ -571,19 +662,30 @@ server.tool(
                 `Found existing pending review after creation failed: ${currentPendingReviewId}`,
               );
             } catch (findError) {
-              console.error("Error finding pending review after creation failure:", findError);
-              const compositeError = new Error(`Could not find or create pending review. Original error: ${error.message}. Find error: ${findError}`);
-              
+              console.error(
+                "Error finding pending review after creation failure:",
+                findError,
+              );
+              const compositeError = new Error(
+                `Could not find or create pending review. Original error: ${error.message}. Find error: ${findError}`,
+              );
+
               Sentry.withScope((scope) => {
-                scope.setTag("operation", "find_pending_review_composite_failure");
+                scope.setTag(
+                  "operation",
+                  "find_pending_review_composite_failure",
+                );
                 scope.setContext("errors", {
                   original_error: error.message,
-                  find_error: findError instanceof Error ? findError.message : String(findError),
+                  find_error:
+                    findError instanceof Error
+                      ? findError.message
+                      : String(findError),
                 });
                 scope.setLevel("error");
                 Sentry.captureException(compositeError);
               });
-              
+
               throw compositeError;
             }
           } else {
@@ -660,7 +762,9 @@ server.tool(
           cached_review_id: currentPendingReviewId,
         });
         scope.setLevel("error");
-        Sentry.captureException(error instanceof Error ? error : new Error(errorMessage));
+        Sentry.captureException(
+          error instanceof Error ? error : new Error(errorMessage),
+        );
       });
 
       // Provide more helpful error messages for common issues

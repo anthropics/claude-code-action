@@ -23,7 +23,11 @@ import type { ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import type { Mode, ModeContext } from "../modes/types";
-import { getSignatureTemplate, getSystemPromptPrefix, getAssistantReference } from "../utils/assistant-branding";
+import {
+  getSignatureTemplate,
+  getSystemPromptPrefix,
+  getAssistantReference,
+} from "../utils/assistant-branding";
 export type { CommonFields, PreparedContext } from "./types";
 export { generatePrReviewPrompt } from "./pr-review-prompt";
 

@@ -13,7 +13,10 @@ import {
 } from "../github/context";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import { checkAndCommitOrDeleteBranch } from "../github/operations/branch-cleanup";
-import { getPRTitleTemplate, getPRBodyTemplate } from "../utils/assistant-branding";
+import {
+  getPRTitleTemplate,
+  getPRBodyTemplate,
+} from "../utils/assistant-branding";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 
 async function run() {

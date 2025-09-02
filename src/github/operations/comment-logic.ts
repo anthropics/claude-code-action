@@ -1,5 +1,9 @@
 import { GITHUB_SERVER_URL } from "../api/config";
-import { getWorkingMessagePattern, getErrorHeader, getSuccessHeader } from "../../utils/assistant-branding";
+import {
+  getWorkingMessagePattern,
+  getErrorHeader,
+  getSuccessHeader,
+} from "../../utils/assistant-branding";
 
 export type ExecutionDetails = {
   cost_usd?: number;
@@ -118,8 +122,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   } else {
     // Get the username from triggerUsername or extract from content
     const usernameMatch = bodyContent.match(/@([a-zA-Z0-9-]+)/);
-    const username: string =
-      triggerUsername ?? (usernameMatch?.[1] ?? "user");
+    const username: string = triggerUsername ?? usernameMatch?.[1] ?? "user";
 
     header = getSuccessHeader(username, durationStr);
   }
