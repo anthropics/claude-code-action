@@ -34,14 +34,24 @@ async function findPendingReview(
   pull_number: number,
 ): Promise<number | null> {
   try {
+    console.log(`Searching for pending reviews on PR #${pull_number} in ${owner}/${repo}`);
+    
     const reviews = await octokit.rest.pulls.listReviews({
       owner,
       repo,
       pull_number,
     });
     
+    console.log(`Found ${reviews.data.length} total reviews`);
+    
     // Get current authenticated user
     const { data: currentUser } = await octokit.rest.users.getAuthenticated();
+    console.log(`Current authenticated user: ${currentUser.login} (ID: ${currentUser.id})`);
+    
+    // Log all reviews for debugging
+    reviews.data.forEach((review: any, index: number) => {
+      console.log(`Review ${index + 1}: ID=${review.id}, State=${review.state}, User=${review.user.login} (ID=${review.user.id})`);
+    });
     
     // Find a pending review from the current user specifically
     const pendingReview = reviews.data.find(
@@ -53,9 +63,11 @@ async function findPendingReview(
       return pendingReview.id;
     }
     
-    console.log(`No pending review found for user ${currentUser.login}`);
+    console.log(`No pending review found for user ${currentUser.login} (ID: ${currentUser.id})`);
   } catch (error) {
     console.error("Failed to find pending review:", error);
+    // Re-throw to make the error visible
+    throw error;
   }
   return null;
 }
@@ -442,21 +454,30 @@ server.tool(
             `Created new pending review with ID: ${currentPendingReviewId}`,
           );
         } catch (error: any) {
+          console.error("Error creating pending review:", error);
+          console.error("Error message:", error.message);
+          console.error("Full error:", JSON.stringify(error, null, 2));
+          
           // If creation fails due to existing pending review, find it again
           if (error.message?.includes("user_id can only have one pending review")) {
             console.log("Detected existing pending review during creation, searching again...");
-            currentPendingReviewId = await findPendingReview(
-              octokit,
-              owner,
-              repo,
-              pull_number,
-            );
-            if (!currentPendingReviewId) {
-              throw new Error("Failed to find existing pending review that should exist");
+            try {
+              currentPendingReviewId = await findPendingReview(
+                octokit,
+                owner,
+                repo,
+                pull_number,
+              );
+              if (!currentPendingReviewId) {
+                throw new Error("Failed to find existing pending review that should exist");
+              }
+              console.log(
+                `Found existing pending review after creation failed: ${currentPendingReviewId}`,
+              );
+            } catch (findError) {
+              console.error("Error finding pending review after creation failure:", findError);
+              throw new Error(`Could not find or create pending review. Original error: ${error.message}. Find error: ${findError}`);
             }
-            console.log(
-              `Found existing pending review after creation failed: ${currentPendingReviewId}`,
-            );
           } else {
             throw error;
           }
