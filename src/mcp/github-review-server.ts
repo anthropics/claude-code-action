@@ -88,6 +88,7 @@ async function findPendingReview(
     console.log(
       `Looking for reviews from current user: ${currentUser.login} (ID=${currentUser.id}, Type=${typeof currentUser.id})`,
     );
+    console.log(`🔍 [DEBUG] Using ENHANCED review detection logic with multiple comparison methods`);
 
     // Find a review that blocks creating a new review from the current user
     // This includes PENDING reviews and other states that haven't been submitted
@@ -119,12 +120,14 @@ async function findPendingReview(
       console.log(
         `Found existing blocking review: ${blockingReview.id} (State: ${blockingReview.state}) from user ${currentUser.login}`,
       );
+      console.log(`🔍 [DEBUG] ENHANCED detection SUCCEEDED - returning review ID: ${blockingReview.id}`);
       return blockingReview.id;
     }
 
     console.log(
       `No blocking review found for user ${currentUser.login} (ID: ${currentUser.id})`,
     );
+    console.log(`🔍 [DEBUG] ENHANCED detection FAILED - no blocking reviews found`);
   } catch (error) {
     console.error("Failed to find pending review:", error);
 
@@ -571,12 +574,14 @@ server.tool(
 
       // Ensure we have a pending review for this comment
       // Always refresh the pending review state to avoid stale data
+      console.log(`🔍 [DEBUG] Searching for pending reviews before adding comment...`);
       currentPendingReviewId = await findPendingReview(
         octokit,
         owner,
         repo,
         pull_number,
       );
+      console.log(`🔍 [DEBUG] findPendingReview returned: ${currentPendingReviewId}`);
 
       if (!currentPendingReviewId) {
         // Try to create a new pending review
@@ -709,6 +714,31 @@ server.tool(
         side: side || "RIGHT",
         commit_id: commit_id || pr.data.head.sha,
       };
+      
+      // If we have a pending review, we need to work around GitHub's constraint:
+      // GitHub doesn't allow creating standalone review comments when a pending review exists.
+      // Solution: Submit the pending review first, then create the standalone comment.
+      if (currentPendingReviewId) {
+        console.log(`🔗 [DEBUG] Found pending review ${currentPendingReviewId} - submitting it first to avoid API constraint`);
+        
+        try {
+          // Submit the pending review with a minimal comment
+          await octokit.rest.pulls.submitReview({
+            owner,
+            repo,
+            pull_number,
+            review_id: currentPendingReviewId,
+            event: "COMMENT",
+            body: "Review submitted to enable additional comments.",
+          });
+          console.log(`✅ [DEBUG] Successfully submitted pending review ${currentPendingReviewId}`);
+        } catch (submitError: any) {
+          console.warn(`⚠️ [DEBUG] Failed to submit pending review: ${submitError.message}`);
+          // Continue with the comment creation attempt anyway
+        }
+      } else {
+        console.log(`⚠️ [DEBUG] Creating standalone review comment (no pending review found)`);
+      }
 
       if (isSingleLine) {
         // Single-line comment
@@ -733,7 +763,7 @@ server.tool(
                 html_url: result.data.html_url,
                 path: result.data.path,
                 line: result.data.line || result.data.original_line,
-                message: `Review comment added to ${currentPendingReviewId ? "pending review" : "PR"} on ${path}${isSingleLine ? ` at line ${line}` : ` from line ${startLine} to ${line}`}`,
+                message: `Review comment added to PR on ${path}${isSingleLine ? ` at line ${line}` : ` from line ${startLine} to ${line}`}${currentPendingReviewId ? " (submitted existing pending review first)" : ""}`,
               },
               null,
               2,
