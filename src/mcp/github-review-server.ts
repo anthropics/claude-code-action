@@ -48,6 +48,18 @@ const server = new McpServer({
 // Track the current pending review ID across tool calls
 let currentPendingReviewId: number | null = null;
 
+// Buffer for review comments that will be submitted together with the review
+interface BufferedComment {
+  path: string;
+  body: string;
+  line?: number;
+  start_line?: number;
+  side: "LEFT" | "RIGHT";
+  commit_id?: string;
+}
+
+let commentBuffer: BufferedComment[] = [];
+
 // Helper function to find existing pending review
 async function findPendingReview(
   octokit: any,
@@ -213,6 +225,18 @@ server.tool(
         pull_number,
       });
 
+      // Prepare comments array from buffer for the GitHub API
+      // Note: GitHub's createReview API expects a slightly different format
+      const comments = commentBuffer.map(comment => ({
+        path: comment.path,
+        body: comment.body,
+        line: comment.line,
+        start_line: comment.start_line,
+        side: comment.side || "RIGHT",
+      }));
+
+      console.log(`📦 [DEBUG] Submitting review with ${comments.length} buffered comments`);
+
       let result;
 
       // If we don't have a pending review ID cached, try to find one
@@ -254,6 +278,7 @@ server.tool(
               body: sanitizedBody,
               event,
               commit_id: commit_id || pr.data.head.sha,
+              comments: comments.length > 0 ? comments : undefined,
             };
           result = await octokit.rest.pulls.createReview(params);
         }
@@ -266,9 +291,15 @@ server.tool(
           body: sanitizedBody,
           event,
           commit_id: commit_id || pr.data.head.sha,
+          comments: comments.length > 0 ? comments : undefined,
         };
         result = await octokit.rest.pulls.createReview(params);
       }
+
+      // Clear the comment buffer after successful submission
+      const submittedCount = commentBuffer.length;
+      commentBuffer = [];
+      console.log(`🧹 [DEBUG] Cleared comment buffer after submitting ${submittedCount} comments`);
 
       return {
         content: [
@@ -281,7 +312,8 @@ server.tool(
                 html_url: result.data.html_url,
                 state: result.data.state,
                 event,
-                message: `PR review submitted successfully with ${event} state`,
+                comments_submitted: submittedCount,
+                message: `PR review submitted successfully with ${event} state${submittedCount > 0 ? ` and ${submittedCount} comment${submittedCount !== 1 ? 's' : ''}` : ''}`,
               },
               null,
               2,
@@ -703,54 +735,25 @@ server.tool(
         );
       }
 
-      const params: Parameters<
-        typeof octokit.rest.pulls.createReviewComment
-      >[0] = {
-        owner,
-        repo,
-        pull_number,
-        body: sanitizedBody,
+      // Log whether we have a pending review to add comments to
+      if (currentPendingReviewId) {
+        console.log(`📝 [DEBUG] Will buffer comment for pending review ${currentPendingReviewId}`);
+      } else {
+        console.log(`📝 [DEBUG] Will buffer comment (no pending review yet)`);
+      }
+
+      // Buffer the comment instead of creating it immediately
+      const comment: BufferedComment = {
         path,
+        body: sanitizedBody,
+        line: isSingleLine ? line : line, // For multi-line, 'line' is the end line
+        start_line: !isSingleLine ? startLine : undefined,
         side: side || "RIGHT",
         commit_id: commit_id || pr.data.head.sha,
       };
-      
-      // If we have a pending review, we need to work around GitHub's constraint:
-      // GitHub doesn't allow creating standalone review comments when a pending review exists.
-      // Solution: Submit the pending review first, then create the standalone comment.
-      if (currentPendingReviewId) {
-        console.log(`🔗 [DEBUG] Found pending review ${currentPendingReviewId} - submitting it first to avoid API constraint`);
-        
-        try {
-          // Submit the pending review with a minimal comment
-          await octokit.rest.pulls.submitReview({
-            owner,
-            repo,
-            pull_number,
-            review_id: currentPendingReviewId,
-            event: "COMMENT",
-            body: "Review submitted to enable additional comments.",
-          });
-          console.log(`✅ [DEBUG] Successfully submitted pending review ${currentPendingReviewId}`);
-        } catch (submitError: any) {
-          console.warn(`⚠️ [DEBUG] Failed to submit pending review: ${submitError.message}`);
-          // Continue with the comment creation attempt anyway
-        }
-      } else {
-        console.log(`⚠️ [DEBUG] Creating standalone review comment (no pending review found)`);
-      }
 
-      if (isSingleLine) {
-        // Single-line comment
-        params.line = line;
-      } else {
-        // Multi-line comment
-        params.start_line = startLine;
-        params.start_side = side || "RIGHT";
-        params.line = line;
-      }
-
-      const result = await octokit.rest.pulls.createReviewComment(params);
+      commentBuffer.push(comment);
+      console.log(`✅ [DEBUG] Comment buffered. Total buffered comments: ${commentBuffer.length}`);
 
       return {
         content: [
@@ -759,11 +762,11 @@ server.tool(
             text: JSON.stringify(
               {
                 success: true,
-                comment_id: result.data.id,
-                html_url: result.data.html_url,
-                path: result.data.path,
-                line: result.data.line || result.data.original_line,
-                message: `Review comment added to PR on ${path}${isSingleLine ? ` at line ${line}` : ` from line ${startLine} to ${line}`}${currentPendingReviewId ? " (submitted existing pending review first)" : ""}`,
+                buffered: true,
+                total_buffered: commentBuffer.length,
+                path: path,
+                line: isSingleLine ? line : `${startLine}-${line}`,
+                message: `Comment buffered for ${path}${isSingleLine ? ` at line ${line}` : ` from line ${startLine} to ${line}`}. Will be submitted with PR review.`,
               },
               null,
               2,
@@ -821,6 +824,67 @@ server.tool(
         isError: true,
       };
     }
+  },
+);
+
+// Helper tool to inspect buffered comments
+server.tool(
+  "list_buffered_comments",
+  "List all comments currently buffered for the next review submission",
+  {},
+  async () => {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              total: commentBuffer.length,
+              comments: commentBuffer.map((c, i) => ({
+                index: i,
+                path: c.path,
+                line: c.start_line ? `${c.start_line}-${c.line}` : c.line,
+                side: c.side,
+                preview: c.body.substring(0, 100) + (c.body.length > 100 ? "..." : ""),
+              })),
+              message: commentBuffer.length > 0 
+                ? `${commentBuffer.length} comment${commentBuffer.length !== 1 ? 's' : ''} buffered for next review submission`
+                : "No comments buffered",
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    };
+  },
+);
+
+// Helper tool to clear the comment buffer
+server.tool(
+  "clear_comment_buffer",
+  "Clear all buffered comments without submitting them",
+  {},
+  async () => {
+    const clearedCount = commentBuffer.length;
+    commentBuffer = [];
+    
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              success: true,
+              cleared: clearedCount,
+              message: `Cleared ${clearedCount} buffered comment${clearedCount !== 1 ? 's' : ''}`,
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    };
   },
 );
 
