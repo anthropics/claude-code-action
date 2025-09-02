@@ -31,4 +31,4 @@ jobs:
             Be constructive and specific in your feedback. Give inline comments where applicable.
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
-            --allowedTools "mcp__github_review__create_pending_review,mcp__github_review__add_review_comment,mcp__github_review__submit_pr_review"
+            --allowedTools "mcp__github_review__add_review_comment,mcp__github_review__submit_pr_review"

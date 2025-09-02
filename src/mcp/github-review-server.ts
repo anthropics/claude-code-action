@@ -396,7 +396,7 @@ server.tool(
       const repo = REPO_NAME;
       const pull_number = parseInt(PR_NUMBER, 10);
 
-      const octokit = createOctokit(githubToken).rest;
+      const octokit = createOctokit(githubToken);
 
       // Sanitize the comment body to remove any potential GitHub tokens
       const sanitizedBody = sanitizeContent(body);
@@ -412,7 +412,7 @@ server.tool(
       // If both startLine and line are provided, it's a multi-line comment
       const isSingleLine = !startLine;
 
-      const pr = await octokit.pulls.get({
+      const pr = await octokit.rest.pulls.get({
         owner,
         repo,
         pull_number,
