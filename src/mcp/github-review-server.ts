@@ -249,9 +249,39 @@ server.tool(
         );
       }
 
-      // If we have a pending review with comments, submit it
+      // If we have a pending review, we need to handle it carefully
       if (currentPendingReviewId) {
         try {
+          // CRITICAL FIX: If we have buffered comments, we need to add them to the 
+          // existing pending review BEFORE submitting, since submitReview doesn't accept comments
+          if (comments.length > 0) {
+            console.log(`📝 [DEBUG] Adding ${comments.length} buffered comments to existing pending review ${currentPendingReviewId}`);
+            
+            // Add each buffered comment to the existing pending review
+            for (const comment of comments) {
+              try {
+                await octokit.rest.pulls.createReviewComment({
+                  owner,
+                  repo,
+                  pull_number,
+                  body: comment.body,
+                  commit_id: commit_id || pr.data.head.sha,
+                  path: comment.path,
+                  line: comment.line,
+                  start_line: comment.start_line,
+                  side: comment.side,
+                  // CRITICAL: Link to existing pending review
+                  pull_request_review_id: currentPendingReviewId,
+                });
+                console.log(`✅ [DEBUG] Added comment to pending review: ${comment.path}:${comment.line || comment.start_line}`);
+              } catch (commentError) {
+                console.error(`❌ [DEBUG] Failed to add comment to pending review:`, commentError);
+                // Don't throw here - we'll try to submit the review anyway
+              }
+            }
+          }
+
+          // Now submit the pending review (with all comments attached)
           result = await octokit.rest.pulls.submitReview({
             owner,
             repo,
@@ -260,6 +290,8 @@ server.tool(
             body: sanitizedBody,
             event,
           });
+          console.log(`✅ [DEBUG] Successfully submitted existing pending review ${currentPendingReviewId} with ${comments.length} comments`);
+          
           // Clear the pending review ID after submission
           currentPendingReviewId = null;
         } catch (submitError) {
@@ -604,145 +636,9 @@ server.tool(
         pull_number,
       });
 
-      // Ensure we have a pending review for this comment
-      // Always refresh the pending review state to avoid stale data
-      console.log(`🔍 [DEBUG] Searching for pending reviews before adding comment...`);
-      currentPendingReviewId = await findPendingReview(
-        octokit,
-        owner,
-        repo,
-        pull_number,
-      );
-      console.log(`🔍 [DEBUG] findPendingReview returned: ${currentPendingReviewId}`);
-
-      if (!currentPendingReviewId) {
-        // Try to create a new pending review
-        try {
-          const newReview = await octokit.rest.pulls.createReview({
-            owner,
-            repo,
-            pull_number,
-            commit_id: commit_id || pr.data.head.sha,
-            // No event means it stays in PENDING state
-          });
-          currentPendingReviewId = newReview.data.id;
-          console.log(
-            `Created new pending review with ID: ${currentPendingReviewId}`,
-          );
-        } catch (error: any) {
-          console.error("Error creating pending review:", error);
-          console.error("Error message:", error.message);
-          console.error("Full error:", JSON.stringify(error, null, 2));
-
-          // Capture the "one pending review" error with rich context
-          Sentry.withScope((scope) => {
-            scope.setTag("operation", "create_pending_review");
-            scope.setTag(
-              "error_type",
-              error.message?.includes(
-                "user_id can only have one pending review",
-              )
-                ? "duplicate_pending_review"
-                : "unknown",
-            );
-            scope.setContext("repository", {
-              owner,
-              repo,
-              pull_number,
-            });
-            scope.setContext("review_creation", {
-              commit_id: commit_id || pr.data.head.sha,
-              cached_review_id: currentPendingReviewId,
-              error_message: error.message,
-            });
-            // Add context about the detection failure
-            scope.setContext("detection_failure", {
-              note: "findPendingReview returned null but GitHub says pending review exists",
-              should_find_review_on_retry: true,
-            });
-            scope.setLevel("warning");
-            Sentry.captureException(error);
-          });
-
-          // If creation fails due to existing pending review, find it again
-          if (
-            error.message?.includes("user_id can only have one pending review")
-          ) {
-            console.log(
-              "Detected existing pending review during creation, searching again...",
-            );
-            try {
-              currentPendingReviewId = await findPendingReview(
-                octokit,
-                owner,
-                repo,
-                pull_number,
-              );
-              if (!currentPendingReviewId) {
-                const findError = new Error(
-                  "Failed to find existing pending review that should exist",
-                );
-                Sentry.withScope((scope) => {
-                  scope.setTag(
-                    "operation",
-                    "find_pending_review_after_creation_failure",
-                  );
-                  scope.setContext("original_error", {
-                    message: error.message,
-                  });
-                  scope.setLevel("error");
-                  Sentry.captureException(findError);
-                });
-                throw findError;
-              }
-              console.log(
-                `Found existing pending review after creation failed: ${currentPendingReviewId}`,
-              );
-            } catch (findError) {
-              console.error(
-                "Error finding pending review after creation failure:",
-                findError,
-              );
-              const compositeError = new Error(
-                `Could not find or create pending review. Original error: ${error.message}. Find error: ${findError}`,
-              );
-
-              Sentry.withScope((scope) => {
-                scope.setTag(
-                  "operation",
-                  "find_pending_review_composite_failure",
-                );
-                scope.setContext("errors", {
-                  original_error: error.message,
-                  find_error:
-                    findError instanceof Error
-                      ? findError.message
-                      : String(findError),
-                });
-                scope.setLevel("error");
-                Sentry.captureException(compositeError);
-              });
-
-              throw compositeError;
-            }
-          } else {
-            throw error;
-          }
-        }
-      } else {
-        console.log(
-          `Using existing pending review with ID: ${currentPendingReviewId}`,
-        );
-      }
-
-      // Log whether we have a pending review to add comments to
-      if (currentPendingReviewId) {
-        console.log(`📝 [DEBUG] Will buffer comment for pending review ${currentPendingReviewId}`);
-      } else {
-        console.log(`📝 [DEBUG] Will buffer comment (no pending review yet)`);
-      }
-
       // Buffer the comment instead of creating it immediately
+      // No need to create pending reviews - comments will be submitted in submit_pr_review
+      console.log(`📝 [DEBUG] Buffering comment - will be submitted with PR review`);
       const comment: BufferedComment = {
         path,
         body: sanitizedBody,
