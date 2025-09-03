@@ -10,10 +10,10 @@ export function getAssistantName(): string {
 }
 
 /**
- * Get the assistant product name (usually "<AssistantName> Code")
+ * Get the assistant product name from environment variable, defaulting to "Claude Code"
  */
 export function getAssistantProductName(): string {
-  return `${getAssistantName()} Code`;
+  return process.env.ASSISTANT_PRODUCT_NAME || "Claude Code";
 }
 
 /**

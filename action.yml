@@ -100,6 +100,10 @@ inputs:
     description: "Name to use for the AI assistant in user-facing messages (e.g., comments, PR titles). Defaults to 'Claude'."
     required: false
     default: "Claude"
+  assistant_product_name:
+    description: "Product name to use for the AI assistant in user-facing messages (e.g., signatures, branding). Defaults to 'Claude Code'."
+    required: false
+    default: "Claude Code"
   path_to_claude_code_executable:
     description: "Optional path to a custom Claude Code executable. If provided, skips automatic installation and uses this executable instead. WARNING: Using an older version may cause problems if the action begins taking advantage of new Claude Code features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
     required: false
@@ -171,6 +175,7 @@ runs:
         CLAUDE_ARGS: ${{ inputs.claude_args }}
         ALLOW_PR_REVIEWS: ${{ inputs.allow_pr_reviews }}
         ASSISTANT_NAME: ${{ inputs.assistant_name }}
+        ASSISTANT_PRODUCT_NAME: ${{ inputs.assistant_product_name }}
         ALL_INPUTS: ${{ toJson(inputs) }}
 
     - name: Install Base Action Dependencies
@@ -221,6 +226,7 @@ runs:
         INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ github.action_path }}/slash-commands
         INPUT_ACTION_INPUTS_PRESENT: ${{ steps.prepare.outputs.action_inputs_present }}
         INPUT_ASSISTANT_NAME: ${{ inputs.assistant_name }}
+        INPUT_ASSISTANT_PRODUCT_NAME: ${{ inputs.assistant_product_name }}
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
 
@@ -281,6 +287,7 @@ runs:
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
         TRACK_PROGRESS: ${{ inputs.track_progress }}
         ASSISTANT_NAME: ${{ inputs.assistant_name }}
+        ASSISTANT_PRODUCT_NAME: ${{ inputs.assistant_product_name }}
 
     - name: Display Claude Code Report
       if: steps.prepare.outputs.contains_trigger == 'true' && steps.claude-code.outputs.execution_file != ''
