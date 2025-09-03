@@ -117,9 +117,9 @@ Please follow these custom instructions while conducting your review, in additio
     ? `<review_tool_info>
 IMPORTANT: You have been provided with TWO DISTINCT types of tools:
 
-**PR Review Tools (for ALL review feedback and decisions):**
+**PR Review Tools:**
 - mcp__github_review__submit_pr_review: Submit a formal PR review with APPROVE, REQUEST_CHANGES, or COMMENT event
-- mcp__github_review__add_review_comment: Add inline comments on specific lines with actionable feedback and code suggestions (automatically batched into a pending review)
+- mcp__github_inline_comment__create_inline_comment: Add inline comments on specific lines with actionable feedback and code suggestions
 - mcp__github_review__resolve_review_thread: Resolve previous review comment threads with optional explanatory comment
 
 **Tracking Comment Tool (for task status ONLY - NOT for review feedback):**
@@ -132,7 +132,7 @@ CRITICAL: When formal review tools are available:
 
 Review workflow:
 1. Simple review: Use mcp__github_review__submit_pr_review directly with overall feedback
-2. Comprehensive review: Use mcp__github_review__add_review_comment for specific line feedback (comments are automatically batched), then mcp__github_review__submit_pr_review to submit the complete review
+2. Comprehensive review: Use mcp__github_inline_comment__create_inline_comment for specific line feedback, then mcp__github_review__submit_pr_review to submit the formal review verdict
 3. Follow-up review: Use mcp__github_review__resolve_review_thread to resolve outdated conversations from previous reviews
 4. Status update: Use mcp__github_comment__update_claude_comment ONLY to update the task checklist (- [x] markings)
 
@@ -142,14 +142,14 @@ Tool usage example for mcp__github_review__submit_pr_review (short summary only)
   "body": "Brief overall assessment and rationale for your review decision"
 }
 
-Tool usage example for mcp__github_review__add_review_comment (inline comment with actionable feedback):
+Tool usage example for mcp__github_inline_comment__create_inline_comment (inline comment with actionable feedback):
 {
   "path": "src/file.js", 
   "line": 42,
   "body": "Consider using const instead of let here since this value is never reassigned"
 }
 
-Tool usage example for mcp__github_review__add_review_comment with code suggestion:
+Tool usage example for mcp__github_inline_comment__create_inline_comment with code suggestion:
 {
   "path": "src/utils.js",
   "line": 15,
@@ -162,7 +162,7 @@ Tool usage example for mcp__github_review__resolve_review_thread:
   "body": "Fixed in latest commit"
 }
 
-IMPORTANT: Use mcp__github_review__add_review_comment for:
+IMPORTANT: Use mcp__github_inline_comment__create_inline_comment for:
 - Highlighting actionable feedback on specific lines of code
 - Providing critical information about bugs, security issues, or performance problems
 - Suggesting concrete improvements with code suggestions using \`\`\`suggestion blocks
@@ -192,7 +192,7 @@ When to update your tracking comment:
 - After submitting the formal review (mark task as complete)
 - ONLY update with checkbox status changes, no review content
 
-Note: When you use add_review_comment, a pending review is automatically created. All subsequent comments are added to this pending review until you submit it with submit_pr_review. The inline comments appear directly on the diff view, making them highly visible and actionable for developers.
+Note: Inline comments created with create_inline_comment appear immediately on the diff view, making them highly visible and actionable for developers. The formal review submission with submit_pr_review provides your overall assessment.
 
 Use COMMENT for general feedback, REQUEST_CHANGES to request changes, or APPROVE to approve the PR.
 </review_tool_info>`
@@ -271,7 +271,7 @@ Your task is to conduct a thorough pull request review. Here's how to approach i
 4. **Provide Feedback**:
    ${
      allowPrReviews
-       ? `- Use mcp__github_review__add_review_comment for specific line-by-line feedback on the code
+       ? `- Use mcp__github_inline_comment__create_inline_comment for specific line-by-line feedback on the code
    - Use mcp__github_review__resolve_review_thread to resolve outdated conversations from previous reviews
    - Update your tracking comment ONLY to mark tasks as complete (checkbox status only)
    - Use mcp__github_review__submit_pr_review to submit your formal GitHub review with:

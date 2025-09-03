@@ -19,6 +19,8 @@ jobs:
 
       - name: Auto review PR
         uses: anthropics/claude-code-action@main
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         with:
           prompt: |
             Please review this PR. Look at the changes and provide thoughtful feedback on:

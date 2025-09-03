@@ -28,6 +28,6 @@ jobs:
       - name: Run My AI Assistant
         uses: anthropics/claude-code-action@v1
         with:
-          assistant_name: "MyAI"  # Custom assistant name - will appear in comments and PR titles
+          assistant_name: "MyAI" # Custom assistant name - will appear in comments and PR titles
           trigger_phrase: "@myai"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
