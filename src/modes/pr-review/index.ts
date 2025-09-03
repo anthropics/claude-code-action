@@ -150,6 +150,7 @@ export const prReviewMode: Mode = {
       "mcp__github_review__submit_pr_review",
       "mcp__github_review__add_review_comment",
       "mcp__github_review__resolve_review_thread",
+      "mcp__github_inline_comment__create_inline_comment",
     );
 
     // Add git commands when not using commit signing

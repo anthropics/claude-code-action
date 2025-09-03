@@ -18,14 +18,7 @@ export function detectMode(context: GitHubContext): AutoDetectedMode {
     validateTrackProgressEvent(context);
   }
 
-  // If track_progress is set for PR/issue events, force tag mode
-  if (context.inputs.trackProgress && isEntityContext(context)) {
-    if (isPullRequestEvent(context) || isIssuesEvent(context)) {
-      return "tag";
-    }
-  }
-
-  // Check for PR review requests FIRST (pr_review mode takes precedence over agent mode)
+  // Check for PR review requests FIRST (pr_review mode takes precedence over track_progress)
   if (isEntityContext(context) && isPullRequestReviewRequestedEvent(context)) {
     const reviewerTrigger = context.inputs?.reviewerTrigger;
     if (reviewerTrigger) {
@@ -36,6 +29,13 @@ export function detectMode(context: GitHubContext): AutoDetectedMode {
       if (triggerUser && requestedReviewerUsername === triggerUser) {
         return "pr_review";
       }
+    }
+  }
+
+  // If track_progress is set for PR/issue events, force tag mode (but after checking PR review requests)
+  if (context.inputs.trackProgress && isEntityContext(context)) {
+    if (isPullRequestEvent(context) || isIssuesEvent(context)) {
+      return "tag";
     }
   }
 
