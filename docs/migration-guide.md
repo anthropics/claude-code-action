@@ -14,18 +14,19 @@ This guide helps you migrate from Claude Code Action v0.x to v1.0. The new versi
 
 The following inputs have been deprecated and replaced:
 
-| Deprecated Input      | Replacement                      | Notes                                         |
-| --------------------- | -------------------------------- | --------------------------------------------- |
-| `mode`                | Auto-detected                    | Action automatically chooses based on context |
-| `direct_prompt`       | `prompt`                         | Direct drop-in replacement                    |
-| `override_prompt`     | `prompt`                         | Use GitHub context variables instead          |
-| `custom_instructions` | `claude_args: --system-prompt`   | Move to CLI arguments                         |
-| `max_turns`           | `claude_args: --max-turns`       | Use CLI format                                |
-| `model`               | `claude_args: --model`           | Specify via CLI                               |
-| `allowed_tools`       | `claude_args: --allowedTools`    | Use CLI format                                |
-| `disallowed_tools`    | `claude_args: --disallowedTools` | Use CLI format                                |
-| `claude_env`          | `settings` with env object       | Use settings JSON                             |
-| `mcp_config`          | `claude_args: --mcp-config`      | Pass MCP config via CLI arguments             |
+| Deprecated Input      | Replacement                          | Notes                                         |
+| --------------------- | ------------------------------------ | --------------------------------------------- |
+| `mode`                | Auto-detected                        | Action automatically chooses based on context |
+| `direct_prompt`       | `prompt`                             | Direct drop-in replacement                    |
+| `override_prompt`     | `prompt`                             | Use GitHub context variables instead          |
+| `custom_instructions` | `claude_args: --system-prompt`       | Move to CLI arguments                         |
+| `max_turns`           | `claude_args: --max-turns`           | Use CLI format                                |
+| `model`               | `claude_args: --model`               | Specify via CLI                               |
+| `allowed_tools`       | `claude_args: --allowedTools`        | Use CLI format                                |
+| `disallowed_tools`    | `claude_args: --disallowedTools`     | Use CLI format                                |
+| `claude_env`          | `settings` with env object           | Use settings JSON                             |
+| `mcp_config`          | `claude_args: --mcp-config`          | Pass MCP config via CLI arguments             |
+| `timeout_minutes`     | Use GitHub Actions `timeout-minutes` | Configure at job level instead of input level |
 
 ## Migration Examples
 
@@ -198,6 +199,30 @@ The `track_progress` input only works with these GitHub events:
       }
 ```
 
+### Timeout Configuration
+
+**Before (v0.x):**
+
+```yaml
+- uses: anthropics/claude-code-action@beta
+  with:
+    timeout_minutes: 30
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+**After (v1.0):**
+
+```yaml
+jobs:
+  claude-task:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30 # Moved to job level
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
 ## How Mode Detection Works
 
 The action now automatically detects the appropriate mode:
@@ -312,6 +337,7 @@ You can also pass MCP configuration from a file:
 - [ ] Convert `disallowed_tools` to `claude_args` with `--disallowedTools`
 - [ ] Move `claude_env` to `settings` JSON format
 - [ ] Move `mcp_config` to `claude_args` with `--mcp-config`
+- [ ] Replace `timeout_minutes` with GitHub Actions `timeout-minutes` at job level
 - [ ] **Optional**: Add `track_progress: true` if you need tracking comments in automation mode
 - [ ] Test workflow in a non-production environment
 
