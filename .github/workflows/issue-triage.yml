@@ -97,7 +97,7 @@ jobs:
           EOF
 
       - name: Run Claude Code for Issue Triage
-        uses: anthropics/claude-code-base-action@v1
+        uses: anthropics/claude-code-action@v1
         with:
           prompt: $(cat /tmp/claude-prompts/triage-prompt.txt)
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
