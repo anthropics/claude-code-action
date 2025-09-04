@@ -73,6 +73,14 @@ inputs:
     description: "Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands"
     required: false
     default: "false"
+  bot_id:
+    description: "GitHub user ID to use for git operations (defaults to Claude's bot ID)"
+    required: false
+    default: "41898282" # Claude's bot ID - see src/github/constants.ts
+  bot_name:
+    description: "GitHub username to use for git operations (defaults to Claude's bot name)"
+    required: false
+    default: "claude[bot]"
   track_progress:
     description: "Force tag mode with tracking comments for pull_request and issue events. Only applicable to pull_request (opened, synchronize, ready_for_review, reopened) and issue (opened, edited, labeled, assigned) events."
     required: false
@@ -144,6 +152,8 @@ runs:
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
+        BOT_ID: ${{ inputs.bot_id }}
+        BOT_NAME: ${{ inputs.bot_name }}
         TRACK_PROGRESS: ${{ inputs.track_progress }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         CLAUDE_ARGS: ${{ inputs.claude_args }}

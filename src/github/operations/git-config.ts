@@ -17,7 +17,7 @@ type GitUser = {
 export async function configureGitAuth(
   githubToken: string,
   context: GitHubContext,
-  user: GitUser | null,
+  user: GitUser,
 ) {
   console.log("Configuring git authentication for non-signing mode");
 
@@ -28,20 +28,14 @@ export async function configureGitAuth(
       ? "users.noreply.github.com"
       : `users.noreply.${serverUrl.hostname}`;
 
-  // Configure git user based on the comment creator
+  // Configure git user
   console.log("Configuring git user...");
-  if (user) {
-    const botName = user.login;
-    const botId = user.id;
-    console.log(`Setting git user as ${botName}...`);
-    await $`git config user.name "${botName}"`;
-    await $`git config user.email "${botId}+${botName}@${noreplyDomain}"`;
-    console.log(`✓ Set git user as ${botName}`);
-  } else {
-    console.log("No user data in comment, using default bot user");
-    await $`git config user.name "github-actions[bot]"`;
-    await $`git config user.email "41898282+github-actions[bot]@${noreplyDomain}"`;
-  }
+  const botName = user.login;
+  const botId = user.id;
+  console.log(`Setting git user as ${botName}...`);
+  await $`git config user.name "${botName}"`;
+  await $`git config user.email "${botId}+${botName}@${noreplyDomain}"`;
+  console.log(`✓ Set git user as ${botName}`);
 
   // Remove the authorization header that actions/checkout sets
   console.log("Removing existing git authentication headers...");

@@ -89,8 +89,14 @@ export const tagMode: Mode = {
 
     // Configure git authentication if not using commit signing
     if (!context.inputs.useCommitSigning) {
+      // Use bot_id and bot_name from inputs directly
+      const user = {
+        login: context.inputs.botName,
+        id: parseInt(context.inputs.botId),
+      };
+
       try {
-        await configureGitAuth(githubToken, context, commentData.user);
+        await configureGitAuth(githubToken, context, user);
       } catch (error) {
         console.error("Failed to configure git authentication:", error);
         throw error;

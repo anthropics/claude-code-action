@@ -77,22 +77,16 @@ export const agentMode: Mode = {
     return false;
   },
 
-  async prepare({
-    context,
-    githubToken,
-    octokit,
-  }: ModeOptions): Promise<ModeResult> {
+  async prepare({ context, githubToken }: ModeOptions): Promise<ModeResult> {
     // Configure git authentication for agent mode (same as tag mode)
     if (!context.inputs.useCommitSigning) {
-      try {
-        // Get the authenticated user (will be claude[bot] when using Claude App token)
-        const { data: authenticatedUser } =
-          await octokit.rest.users.getAuthenticated();
-        const user = {
-          login: authenticatedUser.login,
-          id: authenticatedUser.id,
-        };
+      // Use bot_id and bot_name from inputs directly
+      const user = {
+        login: context.inputs.botName,
+        id: parseInt(context.inputs.botId),
+      };
 
+      try {
         // Use the shared git configuration function
         await configureGitAuth(githubToken, context, user);
       } catch (error) {

@@ -28,6 +28,33 @@ permissions:
 
 The OIDC token is required in order for the Claude GitHub app to function. If you wish to not use the GitHub app, you can instead provide a `github_token` input to the action for Claude to operate with. See the [Claude Code permissions documentation][perms] for more.
 
+### Why am I getting '403 Resource not accessible by integration' errors?
+
+This error occurs when the action tries to fetch the authenticated user information using a GitHub App installation token. GitHub App tokens have limited access and cannot access the `/user` endpoint, which causes this 403 error.
+
+**Solution**: The action now includes `bot_id` and `bot_name` inputs that default to Claude's bot credentials. This avoids the need to fetch user information from the API.
+
+For the default claude[bot]:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    # bot_id and bot_name have sensible defaults, no need to specify
+```
+
+For custom bots, specify both:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    bot_id: "12345678" # Your bot's GitHub user ID
+    bot_name: "my-bot" # Your bot's username
+```
+
+This issue typically only affects agent/automation mode workflows. Interactive workflows (with @claude mentions) don't encounter this issue as they use the comment author's information.
+
 ## Claude's Capabilities and Limitations
 
 ### Why won't Claude update workflow files when I ask it to?

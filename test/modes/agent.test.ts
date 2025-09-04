@@ -1,13 +1,23 @@
-import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
+import {
+  describe,
+  test,
+  expect,
+  beforeEach,
+  afterEach,
+  spyOn,
+  mock,
+} from "bun:test";
 import { agentMode } from "../../src/modes/agent";
 import type { GitHubContext } from "../../src/github/context";
 import { createMockContext, createMockAutomationContext } from "../mockContext";
 import * as core from "@actions/core";
+import * as gitConfig from "../../src/github/operations/git-config";
 
 describe("Agent Mode", () => {
   let mockContext: GitHubContext;
   let exportVariableSpy: any;
   let setOutputSpy: any;
+  let configureGitAuthSpy: any;
 
   beforeEach(() => {
     mockContext = createMockAutomationContext({
@@ -17,13 +27,22 @@ describe("Agent Mode", () => {
       () => {},
     );
     setOutputSpy = spyOn(core, "setOutput").mockImplementation(() => {});
+    // Mock configureGitAuth to prevent actual git commands from running
+    configureGitAuthSpy = spyOn(
+      gitConfig,
+      "configureGitAuth",
+    ).mockImplementation(async () => {
+      // Do nothing - prevent actual git config modifications
+    });
   });
 
   afterEach(() => {
     exportVariableSpy?.mockClear();
     setOutputSpy?.mockClear();
+    configureGitAuthSpy?.mockClear();
     exportVariableSpy?.mockRestore();
     setOutputSpy?.mockRestore();
+    configureGitAuthSpy?.mockRestore();
   });
 
   test("agent mode has correct properties", () => {
@@ -113,7 +132,22 @@ describe("Agent Mode", () => {
     // Set CLAUDE_ARGS environment variable
     process.env.CLAUDE_ARGS = "--model claude-sonnet-4 --max-turns 10";
 
-    const mockOctokit = {} as any;
+    const mockOctokit = {
+      rest: {
+        users: {
+          getAuthenticated: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345 },
+            }),
+          ),
+          getByUsername: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345 },
+            }),
+          ),
+        },
+      },
+    } as any;
     const result = await agentMode.prepare({
       context: contextWithCustomArgs,
       octokit: mockOctokit,
@@ -152,7 +186,22 @@ describe("Agent Mode", () => {
     // In v1-dev, we only have the unified prompt field
     contextWithPrompts.inputs.prompt = "Custom prompt content";
 
-    const mockOctokit = {} as any;
+    const mockOctokit = {
+      rest: {
+        users: {
+          getAuthenticated: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345 },
+            }),
+          ),
+          getByUsername: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345 },
+            }),
+          ),
+        },
+      },
+    } as any;
     await agentMode.prepare({
       context: contextWithPrompts,
       octokit: mockOctokit,
