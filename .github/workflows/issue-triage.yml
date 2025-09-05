@@ -11,6 +11,7 @@ jobs:
     permissions:
       contents: read
       issues: write
+      id-token: write
 
     steps:
       - name: Checkout repository
@@ -78,7 +79,7 @@ jobs:
           4. Select appropriate labels from the available labels list provided above:
              - Choose labels that accurately reflect the issue's nature
              - Be specific but comprehensive
-             - Select priority labels if you can determine urgency (high-priority, med-priority, or low-priority)
+             - IMPORTANT: Add a priority label (P1, P2, or P3) based on the label descriptions from gh label list
              - Consider platform labels (android, ios) if applicable
              - If you find similar issues using mcp__github__search_issues, consider using a "duplicate" label if appropriate. Only do so if the issue is a duplicate of another OPEN issue.
 
