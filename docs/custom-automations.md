@@ -21,7 +21,7 @@ This action supports the following GitHub events ([learn more GitHub event trigg
 - `issues` - When issues are opened or assigned
 - `pull_request_review` - When PR reviews are submitted
 - `pull_request_review_comment` - When comments are made on PR reviews
-- `repository_dispatch` - Custom events triggered via API (coming soon)
+- `repository_dispatch` - Custom events triggered via API
 - `workflow_dispatch` - Manual workflow triggers (coming soon)
 
 ## Automated Documentation Updates

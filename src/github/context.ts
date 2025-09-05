@@ -26,6 +26,20 @@ export type WorkflowDispatchEvent = {
   workflow: string;
 };
 
+export type RepositoryDispatchEvent = {
+  action: string;
+  client_payload?: Record<string, any>;
+  repository: {
+    name: string;
+    owner: {
+      login: string;
+    };
+  };
+  sender: {
+    login: string;
+  };
+};
+
 export type ScheduleEvent = {
   action?: never;
   schedule?: string;
@@ -48,6 +62,7 @@ const ENTITY_EVENT_NAMES = [
 
 const AUTOMATION_EVENT_NAMES = [
   "workflow_dispatch",
+  "repository_dispatch",
   "schedule",
   "workflow_run",
 ] as const;
@@ -95,10 +110,10 @@ export type ParsedGitHubContext = BaseContext & {
   isPR: boolean;
 };
 
-// Context for automation events (workflow_dispatch, schedule, workflow_run)
+// Context for automation events (workflow_dispatch, repository_dispatch, schedule, workflow_run)
 export type AutomationContext = BaseContext & {
   eventName: AutomationEventName;
-  payload: WorkflowDispatchEvent | ScheduleEvent | WorkflowRunEvent;
+  payload: WorkflowDispatchEvent | RepositoryDispatchEvent | ScheduleEvent | WorkflowRunEvent;
 };
 
 // Union type for all contexts
@@ -188,6 +203,13 @@ export function parseGitHubContext(): GitHubContext {
         ...commonFields,
         eventName: "workflow_dispatch",
         payload: context.payload as unknown as WorkflowDispatchEvent,
+      };
+    }
+    case "repository_dispatch": {
+      return {
+        ...commonFields,
+        eventName: "repository_dispatch",
+        payload: context.payload as unknown as RepositoryDispatchEvent,
       };
     }
     case "schedule": {
