@@ -107,8 +107,8 @@ describe("Agent Mode", () => {
 
     allEvents.forEach((eventName) => {
       const contextWithPrompt =
-        eventName === "workflow_dispatch" || 
-        eventName === "repository_dispatch" || 
+        eventName === "workflow_dispatch" ||
+        eventName === "repository_dispatch" ||
         eventName === "schedule"
           ? createMockAutomationContext({
               eventName,

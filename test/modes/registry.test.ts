@@ -76,7 +76,7 @@ describe("Mode Registry", () => {
         sender: { login: "automation-user" },
       },
     });
-    
+
     const mode = getMode(contextWithPayload);
     expect(mode).toBe(agentMode);
     expect(mode.name).toBe("agent");
