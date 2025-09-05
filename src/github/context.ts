@@ -113,7 +113,11 @@ export type ParsedGitHubContext = BaseContext & {
 // Context for automation events (workflow_dispatch, repository_dispatch, schedule, workflow_run)
 export type AutomationContext = BaseContext & {
   eventName: AutomationEventName;
-  payload: WorkflowDispatchEvent | RepositoryDispatchEvent | ScheduleEvent | WorkflowRunEvent;
+  payload:
+    | WorkflowDispatchEvent
+    | RepositoryDispatchEvent
+    | ScheduleEvent
+    | WorkflowRunEvent;
 };
 
 // Union type for all contexts
