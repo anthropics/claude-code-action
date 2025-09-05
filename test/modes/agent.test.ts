@@ -76,6 +76,11 @@ describe("Agent Mode", () => {
     });
     expect(agentMode.shouldTrigger(scheduleContext)).toBe(false);
 
+    const repositoryDispatchContext = createMockAutomationContext({
+      eventName: "repository_dispatch",
+    });
+    expect(agentMode.shouldTrigger(repositoryDispatchContext)).toBe(false);
+
     // Should NOT trigger for entity events without prompt
     const entityEvents = [
       "issue_comment",
@@ -92,6 +97,7 @@ describe("Agent Mode", () => {
     // Should trigger for ANY event when prompt is provided
     const allEvents = [
       "workflow_dispatch",
+      "repository_dispatch",
       "schedule",
       "issue_comment",
       "pull_request",
@@ -101,7 +107,9 @@ describe("Agent Mode", () => {
 
     allEvents.forEach((eventName) => {
       const contextWithPrompt =
-        eventName === "workflow_dispatch" || eventName === "schedule"
+        eventName === "workflow_dispatch" || 
+        eventName === "repository_dispatch" || 
+        eventName === "schedule"
           ? createMockAutomationContext({
               eventName,
               inputs: { prompt: "Do something" },

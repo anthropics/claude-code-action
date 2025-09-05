@@ -2,7 +2,11 @@ import { describe, test, expect } from "bun:test";
 import { getMode, isValidMode } from "../../src/modes/registry";
 import { agentMode } from "../../src/modes/agent";
 import { tagMode } from "../../src/modes/tag";
-import { createMockContext, createMockAutomationContext } from "../mockContext";
+import {
+  createMockContext,
+  createMockAutomationContext,
+  mockRepositoryDispatchContext,
+} from "../mockContext";
 
 describe("Mode Registry", () => {
   const mockContext = createMockContext({
@@ -46,6 +50,34 @@ describe("Mode Registry", () => {
 
   test("getMode auto-detects agent for schedule event", () => {
     const mode = getMode(mockScheduleContext);
+    expect(mode).toBe(agentMode);
+    expect(mode.name).toBe("agent");
+  });
+
+  test("getMode auto-detects agent for repository_dispatch event", () => {
+    const mode = getMode(mockRepositoryDispatchContext);
+    expect(mode).toBe(agentMode);
+    expect(mode.name).toBe("agent");
+  });
+
+  test("getMode auto-detects agent for repository_dispatch with client_payload", () => {
+    const contextWithPayload = createMockAutomationContext({
+      eventName: "repository_dispatch",
+      payload: {
+        action: "trigger-analysis",
+        client_payload: {
+          source: "external-system",
+          metadata: { priority: "high" },
+        },
+        repository: {
+          name: "test-repo",
+          owner: { login: "test-owner" },
+        },
+        sender: { login: "automation-user" },
+      },
+    });
+    
+    const mode = getMode(contextWithPayload);
     expect(mode).toBe(agentMode);
     expect(mode.name).toBe("agent");
   });

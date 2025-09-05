@@ -1,6 +1,7 @@
 import type {
   ParsedGitHubContext,
   AutomationContext,
+  RepositoryDispatchEvent,
 } from "../src/github/context";
 import type {
   IssuesEvent,
@@ -79,6 +80,33 @@ export const createMockAutomationContext = (
     : { ...defaultInputs };
 
   return { ...baseContext, ...overrides, inputs: mergedInputs };
+};
+
+export const mockRepositoryDispatchContext: AutomationContext = {
+  runId: "1234567890",
+  eventName: "repository_dispatch",
+  eventAction: undefined,
+  repository: defaultRepository,
+  actor: "automation-user",
+  payload: {
+    action: "trigger-analysis",
+    client_payload: {
+      source: "issue-detective",
+      issue_number: 42,
+      repository_name: "test-owner/test-repo",
+      analysis_type: "bug-report",
+    },
+    repository: {
+      name: "test-repo",
+      owner: {
+        login: "test-owner",
+      },
+    },
+    sender: {
+      login: "automation-user",
+    },
+  } as RepositoryDispatchEvent,
+  inputs: defaultInputs,
 };
 
 export const mockIssueOpenedContext: ParsedGitHubContext = {
