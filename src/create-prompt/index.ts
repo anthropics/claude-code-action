@@ -335,6 +335,7 @@ export function prepareContext(
   return {
     ...commonFields,
     eventData,
+    githubContext: context,
   };
 }
 
