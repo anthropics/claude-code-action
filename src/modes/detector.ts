@@ -44,6 +44,10 @@ export function detectMode(context: GitHubContext): AutoDetectedMode {
 
   // Issue events
   if (isEntityContext(context) && isIssuesEvent(context)) {
+    // If prompt is provided, use agent mode (same as PR events)
+    if (context.inputs.prompt) {
+      return "agent";
+    }
     // Check for @claude mentions or labels/assignees
     if (checkContainsTrigger(context)) {
       return "tag";

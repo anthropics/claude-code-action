@@ -113,6 +113,33 @@ describe("detectMode with enhanced routing", () => {
 
       expect(detectMode(context)).toBe("agent");
     });
+
+    it("should use agent mode for issues with explicit prompt", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "issues",
+        eventAction: "opened",
+        payload: { issue: { number: 1, body: "Test issue" } } as any,
+        entityNumber: 1,
+        isPR: false,
+        inputs: { ...baseContext.inputs, prompt: "Analyze this issue" },
+      };
+
+      expect(detectMode(context)).toBe("agent");
+    });
+
+    it("should use tag mode for issues with @claude mention and no prompt", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "issues",
+        eventAction: "opened",
+        payload: { issue: { number: 1, body: "@claude help" } } as any,
+        entityNumber: 1,
+        isPR: false,
+      };
+
+      expect(detectMode(context)).toBe("tag");
+    });
   });
 
   describe("Comment Events (unchanged behavior)", () => {
