@@ -74,10 +74,6 @@ export async function prepareMcpConfig(
       tool.startsWith("mcp__github_inline_comment__"),
     );
 
-    const hasGitHubCommentTools = allowedToolsList.some((tool) =>
-      tool.startsWith("mcp__github_comment__"),
-    );
-
     const hasGitHubCITools = allowedToolsList.some((tool) =>
       tool.startsWith("mcp__github_ci__"),
     );
@@ -89,7 +85,7 @@ export async function prepareMcpConfig(
     // Include comment server:
     // - Always in tag mode (for updating Claude comments)
     // - Only with explicit tools in agent mode
-    const shouldIncludeCommentServer = !isAgentMode || hasGitHubCommentTools;
+    const shouldIncludeCommentServer = !isAgentMode;
 
     if (shouldIncludeCommentServer) {
       baseMcpConfig.mcpServers.github_comment = {
