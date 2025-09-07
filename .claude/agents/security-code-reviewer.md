@@ -45,7 +45,7 @@ When reviewing code, you will:
 4. Consider both common vulnerabilities and context-specific threats
 5. Evaluate defense-in-depth measures
 
-**Output Format**
+**Review Structure:**
 Provide findings in order of severity (Critical, High, Medium, Low, Informational):
 
 - **Vulnerability Description**: Clear explanation of the security issue

@@ -35,8 +35,8 @@ When reviewing code, you will:
 - Analyze data structure choices for memory efficiency
 - Review file handles, database connections, and other resource cleanup
 
-**Output Format:**
-Provide your analysis in this structure:
+**Review Structure:**
+Provide your analysis in this format:
 
 1. **Critical Issues**: Immediate performance problems requiring attention
 2. **Optimization Opportunities**: Improvements that would yield measurable benefits
