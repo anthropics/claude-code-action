@@ -1,11 +1,11 @@
-name: PR Review with Progress Tracking
+name: PR Review
 
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
 
 jobs:
-  review-with-tracking:
+  review:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,8 +21,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-
-          track_progress: true
 
           prompt: "/review-pr REPO: ${{ github.repository }} PR_NUMBER: ${{ github.event.pull_request.number }}"
           claude_args: |
