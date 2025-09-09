@@ -102,7 +102,7 @@ function validateTrackProgressEvent(context: GitHubContext): void {
   ];
   if (!validEvents.includes(context.eventName)) {
     throw new Error(
-      `track_progress is only supported for pull_request and issue events. ` +
+      `track_progress is only supported for events: ${validEvents.join(", ")}. ` +
         `Current event: ${context.eventName}`,
     );
   }

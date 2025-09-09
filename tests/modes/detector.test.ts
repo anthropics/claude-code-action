@@ -200,7 +200,7 @@ describe("detectMode with enhanced routing", () => {
       };
 
       expect(() => detectMode(context)).toThrow(
-        /track_progress is only supported for pull_request and issue events/,
+        /track_progress is only supported /,
       );
     });
 
