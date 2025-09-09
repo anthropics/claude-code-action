@@ -19,7 +19,13 @@ export function detectMode(context: GitHubContext): AutoDetectedMode {
 
   // If track_progress is set for PR/issue events, force tag mode
   if (context.inputs.trackProgress && isEntityContext(context)) {
-    if (isPullRequestEvent(context) || isIssuesEvent(context)) {
+    if (
+      isPullRequestEvent(context) ||
+      isIssuesEvent(context) ||
+      isIssueCommentEvent(context) ||
+      isPullRequestReviewCommentEvent(context) ||
+      isPullRequestReviewEvent(context)
+    ) {
       return "tag";
     }
   }
@@ -87,7 +93,13 @@ export function getModeDescription(mode: AutoDetectedMode): string {
 
 function validateTrackProgressEvent(context: GitHubContext): void {
   // track_progress is only valid for pull_request and issue events
-  const validEvents = ["pull_request", "issues"];
+  const validEvents = [
+    "pull_request",
+    "issues",
+    "issue_comment",
+    "pull_request_review_comment",
+    "pull_request_review",
+  ];
   if (!validEvents.includes(context.eventName)) {
     throw new Error(
       `track_progress is only supported for pull_request and issue events. ` +
