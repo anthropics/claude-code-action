@@ -3,6 +3,7 @@ import { GITHUB_API_URL, GITHUB_SERVER_URL } from "../github/api/config";
 import type { GitHubContext } from "../github/context";
 import { isEntityContext } from "../github/context";
 import { Octokit } from "@octokit/rest";
+import type { AutoDetectedMode } from "../modes/detector";
 
 type PrepareConfigParams = {
   githubToken: string;
@@ -12,8 +13,8 @@ type PrepareConfigParams = {
   baseBranch: string;
   claudeCommentId?: string;
   allowedTools: string[];
+  mode: AutoDetectedMode;
   context: GitHubContext;
-  mode: "tag" | "agent";
 };
 
 async function checkActionsReadPermission(
@@ -65,7 +66,12 @@ export async function prepareMcpConfig(
   try {
     const allowedToolsList = allowedTools || [];
 
+    // Detect if we're in agent mode (explicit prompt provided)
     const isAgentMode = mode === "agent";
+
+    const hasGitHubCommentTools = allowedToolsList.some((tool) =>
+      tool.startsWith("mcp__github_comment__"),
+    );
 
     const hasGitHubMcpTools = allowedToolsList.some((tool) =>
       tool.startsWith("mcp__github__"),
@@ -86,7 +92,7 @@ export async function prepareMcpConfig(
     // Include comment server:
     // - Always in tag mode (for updating Claude comments)
     // - Only with explicit tools in agent mode
-    const shouldIncludeCommentServer = !isAgentMode;
+    const shouldIncludeCommentServer = !isAgentMode || hasGitHubCommentTools;
 
     if (shouldIncludeCommentServer) {
       baseMcpConfig.mcpServers.github_comment = {

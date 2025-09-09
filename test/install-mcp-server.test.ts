@@ -106,8 +106,8 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
-      context: mockContextWithSigning,
       mode: "tag",
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -130,8 +130,8 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: ["mcp__github__create_issue", "mcp__github__create_pr"],
-      context: mockContext,
       mode: "tag",
+      context: mockContext,
     });
 
     const parsed = JSON.parse(result);
@@ -151,8 +151,8 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: ["mcp__github_inline_comment__create_inline_comment"],
-      context: mockPRContext,
       mode: "tag",
+      context: mockPRContext,
     });
 
     const parsed = JSON.parse(result);
@@ -172,8 +172,8 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
-      context: mockContext,
       mode: "tag",
+      context: mockContext,
     });
 
     const parsed = JSON.parse(result);
@@ -193,8 +193,8 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
-      context: mockContextWithSigning,
       mode: "tag",
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -213,8 +213,8 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
-      context: mockContextWithSigning,
       mode: "tag",
+      context: mockContextWithSigning,
     });
 
     const parsed = JSON.parse(result);
@@ -231,8 +231,8 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
-      context: mockPRContext,
       mode: "tag",
+      context: mockPRContext,
     });
 
     const parsed = JSON.parse(result);
@@ -251,8 +251,8 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
-      context: mockContext,
       mode: "tag",
+      context: mockContext,
     });
 
     const parsed = JSON.parse(result);
@@ -269,8 +269,8 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: [],
-      context: mockPRContext,
       mode: "tag",
+      context: mockPRContext,
     });
 
     const parsed = JSON.parse(result);
