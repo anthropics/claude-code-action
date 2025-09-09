@@ -13,6 +13,7 @@ type PrepareConfigParams = {
   claudeCommentId?: string;
   allowedTools: string[];
   context: GitHubContext;
+  mode: "tag" | "agent";
 };
 
 async function checkActionsReadPermission(
@@ -59,12 +60,12 @@ export async function prepareMcpConfig(
     claudeCommentId,
     allowedTools,
     context,
+    mode,
   } = params;
   try {
     const allowedToolsList = allowedTools || [];
 
-    // Detect if we're in agent mode (explicit prompt provided)
-    const isAgentMode = !!context.inputs?.prompt;
+    const isAgentMode = mode === "agent";
 
     const hasGitHubMcpTools = allowedToolsList.some((tool) =>
       tool.startsWith("mcp__github__"),

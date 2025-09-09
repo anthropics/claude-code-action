@@ -136,6 +136,7 @@ export const agentMode: Mode = {
       claudeCommentId: undefined, // No tracking comment in agent mode
       allowedTools,
       context,
+      mode: "agent",
     });
 
     // Build final claude_args with multiple --mcp-config flags

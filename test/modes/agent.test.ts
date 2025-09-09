@@ -162,11 +162,11 @@ describe("Agent Mode", () => {
       githubToken: "test-token",
     });
 
-    // Verify claude_args includes MCP config and user args
+    // Verify claude_args includes user args (no MCP config in agent mode without allowed tools)
     const callArgs = setOutputSpy.mock.calls[0];
     expect(callArgs[0]).toBe("claude_args");
-    expect(callArgs[1]).toContain("--mcp-config");
-    expect(callArgs[1]).toContain("--model claude-sonnet-4 --max-turns 10");
+    expect(callArgs[1]).toBe("--model claude-sonnet-4 --max-turns 10");
+    expect(callArgs[1]).not.toContain("--mcp-config");
 
     // Verify return structure - should use "main" as fallback when no env vars set
     expect(result).toEqual({

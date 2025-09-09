@@ -122,6 +122,7 @@ export const tagMode: Mode = {
       claudeCommentId: commentId.toString(),
       allowedTools: [],
       context,
+      mode: "tag",
     });
 
     // Don't output mcp_config separately anymore - include in claude_args
