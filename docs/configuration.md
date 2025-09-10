@@ -343,3 +343,31 @@ Many individual input parameters have been consolidated into `claude_args` or `s
 | `mcp_config`          | Use `claude_args: "--mcp-config '{...}'"`                |
 | `direct_prompt`       | Use `prompt` input instead                               |
 | `override_prompt`     | Use `prompt` with GitHub context variables               |
+
+## Custom Executables for Specialized Environments
+
+For specialized environments like Nix, custom container setups, or other package management systems where the default installation doesn't work, you can provide your own executables:
+
+### Custom Claude Code Executable
+
+Use `path_to_claude_code_executable` to provide your own Claude Code binary instead of using the automatically installed version:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    path_to_claude_code_executable: "/path/to/custom/claude"
+    # ... other inputs
+```
+
+### Custom Bun Executable
+
+Use `path_to_bun_executable` to provide your own Bun runtime instead of the default installation:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    path_to_bun_executable: "/path/to/custom/bun"
+    # ... other inputs
+```
+
+**Important**: Using incompatible versions may cause the action to fail. Ensure your custom executables are compatible with the action's requirements.

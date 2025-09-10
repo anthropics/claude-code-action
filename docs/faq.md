@@ -213,6 +213,44 @@ Check the GitHub Action log for Claude's run for the full execution trace.
 
 The trigger uses word boundaries, so `@claude` must be a complete word. Variations like `@claude-bot`, `@claude!`, or `claude@mention` won't work unless you customize the `trigger_phrase`.
 
+### How can I use custom executables in specialized environments?
+
+For specialized environments like Nix, NixOS, or custom container setups where you need to provide your own executables:
+
+**Using a custom Claude Code executable:**
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    path_to_claude_code_executable: "/path/to/custom/claude"
+    # ... other inputs
+```
+
+**Using a custom Bun executable:**
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    path_to_bun_executable: "/path/to/custom/bun"
+    # ... other inputs
+```
+
+**Common use cases:**
+
+- Nix/NixOS environments where packages are managed differently
+- Docker containers with pre-installed executables
+- Custom build environments with specific version requirements
+- Debugging specific issues with particular versions
+
+**Important notes:**
+
+- Using an older Claude Code version may cause problems if the action uses newer features
+- Using an incompatible Bun version may cause runtime errors
+- The action will skip automatic installation when custom paths are provided
+- Ensure the custom executables are available in your GitHub Actions environment
+
 ## Best Practices
 
 1. **Always specify permissions explicitly** in your workflow file
