@@ -131,6 +131,7 @@ runs:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
         ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
+        ANTHROPIC_CUSTOM_HEADERS: ${{ env.ANTHROPIC_CUSTOM_HEADERS }}
         # Only set provider flags if explicitly true, since any value (including "false") is truthy
         CLAUDE_CODE_USE_BEDROCK: ${{ inputs.use_bedrock == 'true' && '1' || '' }}
         CLAUDE_CODE_USE_VERTEX: ${{ inputs.use_vertex == 'true' && '1' || '' }}
