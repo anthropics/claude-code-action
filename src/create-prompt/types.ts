@@ -78,13 +78,20 @@ type IssueLabeledEvent = {
   labelTrigger: string;
 };
 
-type PullRequestEvent = {
-  eventName: "pull_request";
+type PullRequestBaseEvent = {
   eventAction?: string; // opened, synchronize, etc.
   isPR: true;
   prNumber: string;
   claudeBranch?: string;
   baseBranch?: string;
+};
+
+type PullRequestEvent = PullRequestBaseEvent & {
+  eventName: "pull_request";
+};
+
+type PullRequestTargetEvent = PullRequestBaseEvent & {
+  eventName: "pull_request_target";
 };
 
 // Union type for all possible event types
@@ -96,7 +103,8 @@ export type EventData =
   | IssueOpenedEvent
   | IssueAssignedEvent
   | IssueLabeledEvent
-  | PullRequestEvent;
+  | PullRequestEvent
+  | PullRequestTargetEvent;
 
 // Combined type with separate eventData field
 export type PreparedContext = CommonFields & {
