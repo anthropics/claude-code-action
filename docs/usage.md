@@ -59,7 +59,6 @@ jobs:
 | `github_token`                   | GitHub token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!**                                                           | No       | -             |
 | `use_bedrock`                    | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                                                                                                    | No       | `false`       |
 | `use_vertex`                     | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API                                                                                                  | No       | `false`       |
-| `mcp_config`                     | Additional MCP configuration (JSON string) that merges with the built-in GitHub MCP servers                                                                                    | No       | ""            |
 | `assignee_trigger`               | The assignee username that triggers the action (e.g. @claude). Only used for issue assignment                                                                                  | No       | -             |
 | `label_trigger`                  | The label name that triggers the action when applied to an issue (e.g. "claude")                                                                                               | No       | -             |
 | `trigger_phrase`                 | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                                                                                  | No       | `@claude`     |
@@ -90,6 +89,7 @@ These inputs are deprecated and will be removed in a future version:
 | `fallback_model`      | **DEPRECATED**: Use `claude_args` with fallback configuration                                | Configure fallback in `claude_args` or `settings`              |
 | `allowed_tools`       | **DEPRECATED**: Use `claude_args` with `--allowedTools` instead                              | Use `claude_args: "--allowedTools Edit,Read,Write"`            |
 | `disallowed_tools`    | **DEPRECATED**: Use `claude_args` with `--disallowedTools` instead                           | Use `claude_args: "--disallowedTools WebSearch"`               |
+| `mcp_config`          | **DEPRECATED**: Use `claude_args` with `--mcp-config` instead                                | Use `claude_args: "--mcp-config '{...}'"`                      |
 | `claude_env`          | **DEPRECATED**: Use `settings` with env configuration                                        | Configure environment in `settings` JSON                       |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
