@@ -88,6 +88,7 @@ type BaseContext = {
     labelTrigger: string;
     baseBranch?: string;
     branchPrefix: string;
+    branchNameTemplate?: string;
     useStickyComment: boolean;
     useCommitSigning: boolean;
     botId: string;
@@ -143,6 +144,7 @@ export function parseGitHubContext(): GitHubContext {
       labelTrigger: process.env.LABEL_TRIGGER ?? "",
       baseBranch: process.env.BASE_BRANCH,
       branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
+      branchNameTemplate: process.env.BRANCH_NAME_TEMPLATE,
       useStickyComment: process.env.USE_STICKY_COMMENT === "true",
       useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
       botId: process.env.BOT_ID ?? String(CLAUDE_APP_BOT_ID),
