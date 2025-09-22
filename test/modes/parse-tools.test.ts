@@ -68,4 +68,20 @@ describe("parseAllowedTools", () => {
       "mcp__github_comment__update",
     ]);
   });
+
+  test("parses kebab-case --allowed-tools", () => {
+    const args = "--allowed-tools mcp__github__*,mcp__github_comment__*";
+    expect(parseAllowedTools(args)).toEqual([
+      "mcp__github__*",
+      "mcp__github_comment__*",
+    ]);
+  });
+
+  test("parses quoted kebab-case --allowed-tools", () => {
+    const args = '--allowed-tools "mcp__github__*,mcp__github_comment__*"';
+    expect(parseAllowedTools(args)).toEqual([
+      "mcp__github__*",
+      "mcp__github_comment__*",
+    ]);
+  });
 });
