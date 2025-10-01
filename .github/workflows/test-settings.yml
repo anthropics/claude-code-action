@@ -67,7 +67,7 @@ jobs:
         uses: ./base-action
         with:
           prompt: |
-            Use Bash to echo "This should not work"
+            Run the command `echo $HOME` to check the home directory path
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           settings: |
             {
@@ -163,7 +163,7 @@ jobs:
         uses: ./base-action
         with:
           prompt: |
-            Use Bash to echo "This should not work from file"
+            Run the command `echo $HOME` to check the home directory path
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           settings: "test-settings.json"
 
