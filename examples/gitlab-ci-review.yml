@@ -1,0 +1,14 @@
+stages:
+  - review
+
+claude_review:
+  stage: review
+  image: node:22
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  variables:
+    LOG_LEVEL: info
+  script:
+    - npm ci
+    - npx tsx src/entrypoints/gitlab-review.ts
+
