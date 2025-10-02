@@ -10,6 +10,10 @@ function formatMessage(level: LogLevel, message: string, metadata?: unknown) {
 
   const serialized = (() => {
     try {
+      // Handle Error objects specially since they don't JSON.stringify well
+      if (metadata instanceof Error) {
+        return `${metadata.message}${metadata.stack ? `\n${metadata.stack}` : ""}`;
+      }
       return JSON.stringify(metadata);
     } catch (error) {
       return String(metadata);

@@ -8,6 +8,14 @@ async function main() {
     await runGitLabPipeline();
   } catch (error) {
     logger.error("GitLab review workflow failed", error);
+    // Also log to stderr for visibility in CI
+    if (error instanceof Error) {
+      console.error("\nError details:");
+      console.error(`Message: ${error.message}`);
+      if (error.stack) {
+        console.error(`Stack:\n${error.stack}`);
+      }
+    }
     process.exitCode = 1;
   }
 }
