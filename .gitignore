@@ -2,3 +2,4 @@
 node_modules
 
 **/.claude/settings.local.json
+.env

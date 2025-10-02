@@ -32,7 +32,8 @@ export class GitLabClient {
     const url = `${this.baseUrl}/api/v4${path}`;
     const headers = new Headers(init.headers ?? undefined);
     headers.set("Content-Type", "application/json");
-    headers.set("Authorization", `Bearer ${this.token}`);
+    // Use PRIVATE-TOKEN for GitLab PATs/project tokens; Authorization: Bearer is for OAuth.
+    headers.set("PRIVATE-TOKEN", this.token);
 
     const response = await fetch(url, {
       ...init,
@@ -44,7 +45,7 @@ export class GitLabClient {
 
   async getProject(): Promise<GitLabProject> {
     const response = await this.request(`/projects/${encodeURIComponent(this.projectId)}`);
-    assertResponseOk(response, "Get project");
+    await assertResponseOk(response, "Get project");
     return (await response.json()) as GitLabProject;
   }
 
@@ -52,7 +53,7 @@ export class GitLabClient {
     const response = await this.request(
       `/projects/${encodeURIComponent(this.projectId)}/merge_requests/${iid}`,
     );
-    assertResponseOk(response, "Get merge request");
+    await assertResponseOk(response, "Get merge request");
     return (await response.json()) as GitLabMergeRequest;
   }
 
@@ -60,7 +61,7 @@ export class GitLabClient {
     const response = await this.request(
       `/projects/${encodeURIComponent(this.projectId)}/merge_requests/${iid}/changes`,
     );
-    assertResponseOk(response, "Get merge request changes");
+    await assertResponseOk(response, "Get merge request changes");
     return (await response.json()) as GitLabMergeRequestChanges;
   }
 
@@ -68,7 +69,7 @@ export class GitLabClient {
     const response = await this.request(
       `/projects/${encodeURIComponent(this.projectId)}/merge_requests/${iid}/discussions?per_page=100`,
     );
-    assertResponseOk(response, "Get merge request discussions");
+    await assertResponseOk(response, "Get merge request discussions");
     return (await response.json()) as GitLabDiscussion[];
   }
 
@@ -84,7 +85,7 @@ export class GitLabClient {
       },
     );
 
-    assertResponseOk(response, "Create discussion");
+    await assertResponseOk(response, "Create discussion");
     return (await response.json()) as GitLabDiscussion;
   }
 
@@ -97,7 +98,7 @@ export class GitLabClient {
       },
     );
 
-    assertResponseOk(response, "Create system note");
+    await assertResponseOk(response, "Create system note");
   }
 }
 

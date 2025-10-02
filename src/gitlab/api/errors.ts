@@ -7,10 +7,21 @@ export class GitLabError extends Error {
   }
 }
 
-export function assertResponseOk(response: Response, context: string) {
+export async function assertResponseOk(response: Response, context: string) {
   if (!response.ok) {
+    let detail = "";
+    try {
+      const data = await response.json();
+      detail = typeof data === "string" ? data : JSON.stringify(data);
+    } catch (_) {
+      try {
+        detail = await response.text();
+      } catch (_) {
+        // ignore
+      }
+    }
     throw new GitLabError(
-      `${context} failed with status ${response.status}: ${response.statusText}`,
+      `${context} failed: ${response.status} ${response.statusText}${detail ? ` — ${detail}` : ""}`,
       response.status,
     );
   }
