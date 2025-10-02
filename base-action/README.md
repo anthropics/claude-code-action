@@ -105,8 +105,11 @@ Add the following to your workflow file:
 | `use_bedrock`             | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                       | No       | 'false'                      |
 | `use_vertex`              | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API                     | No       | 'false'                      |
 | `use_node_cache`          | Whether to use Node.js dependency caching (set to true only for Node.js projects with lock files) | No       | 'false'                      |
+| `show_full_output`        | Show full JSON output (⚠️ WARNING: May expose secrets in logs - see Security section)             | No       | 'false'\*                    |
 
 \*Either `prompt` or `prompt_file` must be provided, but not both.
+
+\*\*Note: `show_full_output` is automatically enabled when GitHub Actions debug mode is active (when the `ACTIONS_STEP_DEBUG` secret is set to `true`).
 
 ## Outputs
 
@@ -484,6 +487,8 @@ This example shows how to use OIDC authentication with GCP Vertex AI:
 
 **⚠️ IMPORTANT: Never commit API keys directly to your repository! Always use GitHub Actions secrets.**
 
+### API Key Security
+
 To securely use your Anthropic API key:
 
 1. Add your API key as a repository secret:
@@ -515,6 +520,21 @@ anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
 This applies to all sensitive values including API keys, access tokens, and credentials.
 We also recommend that you always use short-lived tokens when possible
+
+### Full Output Security Warning
+
+The `show_full_output` option is **disabled by default** for security reasons. When enabled, it outputs ALL Claude Code messages including:
+
+- Full outputs from tool executions (e.g., `ps`, `env`, file reads)
+- API responses that may contain tokens or credentials
+- File contents that may include secrets
+- Command outputs that may expose sensitive system information
+
+**These logs are publicly visible in GitHub Actions for public repositories!**
+
+#### Automatic Enabling in Debug Mode
+
+Full output is **automatically enabled** when GitHub Actions debug mode is active (when `ACTIONS_STEP_DEBUG` secret is set to `true`). This helps with debugging but carries the same security risks.
 
 ## License
 
