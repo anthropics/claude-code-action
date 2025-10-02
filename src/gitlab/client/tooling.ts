@@ -26,7 +26,16 @@ ${changesSummary}`,
 
 export function parseReviewResponse(content: string): ReviewResult {
   try {
-    const parsed = JSON.parse(content) as ReviewResult;
+    // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+    let cleanContent = content.trim();
+    if (cleanContent.startsWith("```")) {
+      // Remove opening fence (```json or ```)
+      cleanContent = cleanContent.replace(/^```(?:json)?\s*\n?/, "");
+      // Remove closing fence
+      cleanContent = cleanContent.replace(/\n?```\s*$/, "");
+    }
+
+    const parsed = JSON.parse(cleanContent) as ReviewResult;
 
     if (!Array.isArray(parsed.findings)) {
       throw new Error("findings must be an array");

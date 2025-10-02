@@ -79,5 +79,19 @@ describe("parseReviewResponse", () => {
   it("throws on invalid JSON", () => {
     expect(() => parseReviewResponse("not json")).toThrow();
   });
+
+  it("strips markdown code fences from JSON", () => {
+    const wrappedJson = `\`\`\`json
+{
+  "findings": [],
+  "summary": {
+    "highLevelSummary": "Test"
+  }
+}
+\`\`\``;
+    
+    const result = parseReviewResponse(wrappedJson);
+    expect(result.summary.highLevelSummary).toBe("Test");
+  });
 });
 
