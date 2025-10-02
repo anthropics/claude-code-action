@@ -1,4 +1,5 @@
-import fetch from "node-fetch";
+import fetch, { Headers } from "node-fetch";
+import type { RequestInit, Response as FetchResponse } from "node-fetch";
 import { loadEnv } from "../utils/env";
 import { assertResponseOk } from "./errors";
 import type {
@@ -27,13 +28,11 @@ export class GitLabClient {
   private async request(
     path: string,
     init: RequestInitWithBody = {},
-  ): Promise<Response> {
+  ): Promise<FetchResponse> {
     const url = `${this.baseUrl}/api/v4${path}`;
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${this.token}`,
-      ...init.headers,
-    } satisfies Record<string, string>;
+    const headers = new Headers(init.headers ?? undefined);
+    headers.set("Content-Type", "application/json");
+    headers.set("Authorization", `Bearer ${this.token}`);
 
     const response = await fetch(url, {
       ...init,
@@ -46,7 +45,7 @@ export class GitLabClient {
   async getProject(): Promise<GitLabProject> {
     const response = await this.request(`/projects/${encodeURIComponent(this.projectId)}`);
     assertResponseOk(response, "Get project");
-    return response.json();
+    return (await response.json()) as GitLabProject;
   }
 
   async getMergeRequest(iid: string): Promise<GitLabMergeRequest> {
@@ -54,7 +53,7 @@ export class GitLabClient {
       `/projects/${encodeURIComponent(this.projectId)}/merge_requests/${iid}`,
     );
     assertResponseOk(response, "Get merge request");
-    return response.json();
+    return (await response.json()) as GitLabMergeRequest;
   }
 
   async getMergeRequestChanges(iid: string): Promise<GitLabMergeRequestChanges> {
@@ -62,7 +61,7 @@ export class GitLabClient {
       `/projects/${encodeURIComponent(this.projectId)}/merge_requests/${iid}/changes`,
     );
     assertResponseOk(response, "Get merge request changes");
-    return response.json();
+    return (await response.json()) as GitLabMergeRequestChanges;
   }
 
   async getDiscussions(iid: string): Promise<GitLabDiscussion[]> {
@@ -70,7 +69,7 @@ export class GitLabClient {
       `/projects/${encodeURIComponent(this.projectId)}/merge_requests/${iid}/discussions?per_page=100`,
     );
     assertResponseOk(response, "Get merge request discussions");
-    return response.json();
+    return (await response.json()) as GitLabDiscussion[];
   }
 
   async createDiscussion(
@@ -86,7 +85,7 @@ export class GitLabClient {
     );
 
     assertResponseOk(response, "Create discussion");
-    return response.json();
+    return (await response.json()) as GitLabDiscussion;
   }
 
   async createSystemNote(iid: string, body: string): Promise<void> {

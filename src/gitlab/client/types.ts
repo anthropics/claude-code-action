@@ -1,6 +1,11 @@
 export type ClaudeMessage = {
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant";
   content: string;
+};
+
+export type ClaudeRequest = {
+  system?: string;
+  messages: ClaudeMessage[];
 };
 
 export type ClaudeToolResult = {

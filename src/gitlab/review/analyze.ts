@@ -11,10 +11,10 @@ export async function analyzeMergeRequest(
   logger.info("Building review prompt");
   const prompt = createPrompt({ context });
 
-  const messages = buildReviewMessages(context, prompt);
+  const claudeRequest = buildReviewMessages(context, prompt);
 
   logger.info("Calling Claude for review analysis");
-  const response = await invokeClaude(messages);
+  const response = await invokeClaude(claudeRequest);
 
   logger.debug("Claude raw response", response);
 

@@ -1,27 +1,27 @@
 import type { MergeRequestContext } from "../context/types";
 import type { ReviewResult } from "../review/types";
+import type { ClaudeRequest } from "./types";
 
 export function buildReviewMessages(
   context: MergeRequestContext,
   prompt: { systemPrompt: string; userPrompt: string },
-) {
+): ClaudeRequest {
   const changesSummary = context.changes
     .map((change) => `### ${change.new_path}
 ${change.diff}`)
     .join("\n\n");
 
-  return [
-    {
-      role: "system" as const,
-      content: `${prompt.systemPrompt}`,
-    },
-    {
-      role: "user" as const,
-      content: `${prompt.userPrompt}
+  return {
+    system: prompt.systemPrompt,
+    messages: [
+      {
+        role: "user",
+        content: `${prompt.userPrompt}
 
 ${changesSummary}`,
-    },
-  ];
+      },
+    ],
+  };
 }
 
 export function parseReviewResponse(content: string): ReviewResult {

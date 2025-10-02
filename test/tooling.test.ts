@@ -46,11 +46,12 @@ describe("buildReviewMessages", () => {
       userPrompt: "Review",
     };
 
-    const messages = buildReviewMessages(context, prompt);
+    const request = buildReviewMessages(context, prompt);
 
-    expect(messages).toHaveLength(2);
-    expect(messages[1].content).toContain("src/log.ts");
-    expect(messages[1].content).toContain("console.info");
+    expect(request.system).toBe(prompt.systemPrompt);
+    expect(request.messages).toHaveLength(1);
+    expect(request.messages[0].content).toContain("src/log.ts");
+    expect(request.messages[0].content).toContain("console.info");
   });
 });
 

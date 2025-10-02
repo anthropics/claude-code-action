@@ -1,3 +1,5 @@
+import type { Response } from "node-fetch";
+
 export class GitLabError extends Error {
   constructor(message: string, public readonly status?: number) {
     super(message);
