@@ -3,15 +3,10 @@ import type { PromptInputs } from "./types";
 
 export function createPrompt(inputs: PromptInputs) {
   const systemPrompt = buildSystemPrompt(inputs.context);
-  const baseUserPrompt = buildUserPrompt(inputs.context);
-
   const extraInstructions = process.env.CLAUDE_PROMPT_INSTRUCTIONS?.trim();
-  const userPrompt = extraInstructions
-    ? `${baseUserPrompt}
-
-Additional reviewer instructions:
-${extraInstructions}`
-    : baseUserPrompt;
+  
+  // Pass custom instructions to buildUserPrompt so they appear before JSON schema
+  const userPrompt = buildUserPrompt(inputs.context, extraInstructions);
 
   return {
     systemPrompt,

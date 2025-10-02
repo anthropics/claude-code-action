@@ -28,10 +28,16 @@ Source Branch: ${context.mergeRequest.source_branch}
 Target Branch: ${context.mergeRequest.target_branch}`;
 }
 
-export function buildUserPrompt(context: MergeRequestContext): string {
+export function buildUserPrompt(context: MergeRequestContext, extraInstructions?: string): string {
   const summary = formatChangeSummary(context);
+  
+  const customGuidance = extraInstructions
+    ? `Additional review guidance: ${extraInstructions}
 
-  return `Please review the merge request and respond with ONLY a valid JSON object (no markdown, no code fences) in this exact format:
+`
+    : "";
+
+  return `${customGuidance}Please review the merge request and respond with ONLY a valid JSON object (no markdown, no code fences) in this exact format:
 
 {
   "summary": {
