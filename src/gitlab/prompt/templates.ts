@@ -31,11 +31,25 @@ Target Branch: ${context.mergeRequest.target_branch}`;
 export function buildUserPrompt(context: MergeRequestContext): string {
   const summary = formatChangeSummary(context);
 
-  return `Please review the merge request and provide:
-1. High-level summary of the changes
-2. Specific findings with severity (suggestion/issue/critical)
-3. Testing guidance if needed
-4. Highlight any risks or follow-ups
+  return `Please review the merge request and respond with ONLY a valid JSON object (no markdown, no code fences) in this exact format:
+
+{
+  "summary": {
+    "highLevelSummary": "string describing the overall changes",
+    "testingGuidance": "optional string with testing advice",
+    "risks": ["optional", "array", "of", "risk", "strings"]
+  },
+  "findings": [
+    {
+      "path": "file/path.ext",
+      "line": 123,
+      "severity": "suggestion|issue|critical",
+      "title": "Brief title of the finding",
+      "summary": "Detailed explanation of the issue",
+      "suggestion": "optional code or fix suggestion"
+    }
+  ]
+}
 
 Changed files:
 ${summary}`;
