@@ -15,16 +15,28 @@ export async function runMergeRequestReview() {
 
   for (const finding of result.findings) {
     if (!finding.line) {
+      logger.debug("Skipping finding without line number", {
+        path: finding.path,
+        title: finding.title,
+      });
       continue;
     }
 
-    logger.info("Posting inline finding", {
+    logger.info("Attempting inline finding", {
       path: finding.path,
       line: finding.line,
       severity: finding.severity,
     });
 
-    await postInlineFinding(client, context, finding);
+    const posted = await postInlineFinding(client, context, finding);
+    
+    if (!posted) {
+      logger.warn("Could not post inline comment (invalid position or missing file in diff)", {
+        path: finding.path,
+        line: finding.line,
+        title: finding.title,
+      });
+    }
   }
 }
 
