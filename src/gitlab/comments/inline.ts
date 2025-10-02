@@ -34,7 +34,10 @@ export async function postInlineFinding(
   finding: ReviewFinding,
 ) {
   const diffRefs = findDiffRef(context);
-
+  
+  // Find the change for this file to determine if it's new/modified
+  const change = context.changes.find(c => c.new_path === finding.path);
+  
   const payload: CreateDiscussionPayload = {
     body: buildInlineBody(finding),
     position: {
@@ -44,6 +47,9 @@ export async function postInlineFinding(
       head_sha: diffRefs.head_sha,
       new_path: finding.path,
       new_line: finding.line,
+      // For modified files, GitLab needs old_path to calculate line_code
+      // For new files, omit old_path
+      old_path: change?.new_file ? undefined : (change?.old_path || finding.path),
     },
   };
 
