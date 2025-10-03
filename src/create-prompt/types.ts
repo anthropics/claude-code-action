@@ -16,7 +16,7 @@ type Tool =
   | "Write";
 
 /** @see {@link https://docs.anthropic.com/en/docs/claude-code/iam#tool-specific-permission-rules} */
-type ToolPermission = `${Tool}${"" | `(${string})`}`;
+type ToolPermission = `${Tool}${"" | `(${string})`}` | (string & {});
 
 export type CommonFields = {
   repository: string;
