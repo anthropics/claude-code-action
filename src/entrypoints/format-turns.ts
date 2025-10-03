@@ -3,21 +3,21 @@
 import { readFileSync, existsSync } from "fs";
 import { exit } from "process";
 
-export interface ToolUse {
+export type ToolUse = {
   type: string;
   name?: string;
   input?: Record<string, any>;
   id?: string;
-}
+};
 
-export interface ToolResult {
+export type ToolResult = {
   type: string;
   tool_use_id?: string;
   content?: any;
   is_error?: boolean;
-}
+};
 
-export interface ContentItem {
+export type ContentItem = {
   type: string;
   text?: string;
   tool_use_id?: string;
@@ -26,17 +26,17 @@ export interface ContentItem {
   name?: string;
   input?: Record<string, any>;
   id?: string;
-}
+};
 
-export interface Message {
+export type Message = {
   content: ContentItem[];
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
   };
-}
+};
 
-export interface Turn {
+export type Turn = {
   type: string;
   subtype?: string;
   message?: Message;
@@ -44,16 +44,16 @@ export interface Turn {
   cost_usd?: number;
   duration_ms?: number;
   result?: string;
-}
+};
 
-export interface GroupedContent {
+export type GroupedContent = {
   type: string;
   tools_count?: number;
   data?: Turn;
   text_parts?: string[];
   tool_calls?: { tool_use: ToolUse; tool_result?: ToolResult }[];
   usage?: Record<string, number>;
-}
+};
 
 export function detectContentType(content: any): string {
   const contentStr = String(content).trim();
@@ -372,8 +372,12 @@ export function formatGroupedContent(groupedContent: GroupedContent[]): string {
       const usage = item.usage || {};
       if (Object.keys(usage).length > 0) {
         const inputTokens = usage.input_tokens || 0;
+        const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
+        const cacheReadTokens = usage.cache_read_input_tokens || 0;
+        const totalInputTokens =
+          inputTokens + cacheCreationTokens + cacheReadTokens;
         const outputTokens = usage.output_tokens || 0;
-        markdown += `*Token usage: ${inputTokens} input, ${outputTokens} output*\n\n`;
+        markdown += `*Token usage: ${totalInputTokens} input, ${outputTokens} output*\n\n`;
       }
 
       // Only add separator if this section had content
@@ -393,7 +397,7 @@ export function formatGroupedContent(groupedContent: GroupedContent[]): string {
       markdown += "---\n\n";
     } else if (itemType === "final_result") {
       const data = item.data || {};
-      const cost = (data as any).cost_usd || 0;
+      const cost = (data as any).total_cost_usd || (data as any).cost_usd || 0;
       const duration = (data as any).duration_ms || 0;
       const resultText = (data as any).result || "";
 

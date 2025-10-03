@@ -28,6 +28,33 @@ permissions:
 
 The OIDC token is required in order for the Claude GitHub app to function. If you wish to not use the GitHub app, you can instead provide a `github_token` input to the action for Claude to operate with. See the [Claude Code permissions documentation][perms] for more.
 
+### Why am I getting '403 Resource not accessible by integration' errors?
+
+This error occurs when the action tries to fetch the authenticated user information using a GitHub App installation token. GitHub App tokens have limited access and cannot access the `/user` endpoint, which causes this 403 error.
+
+**Solution**: The action now includes `bot_id` and `bot_name` inputs that default to Claude's bot credentials. This avoids the need to fetch user information from the API.
+
+For the default claude[bot]:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    # bot_id and bot_name have sensible defaults, no need to specify
+```
+
+For custom bots, specify both:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    bot_id: "12345678" # Your bot's GitHub user ID
+    bot_name: "my-bot" # Your bot's username
+```
+
+This issue typically only affects agent/automation mode workflows. Interactive workflows (with @claude mentions) don't encounter this issue as they use the comment author's information.
+
 ## Claude's Capabilities and Limitations
 
 ### Why won't Claude update workflow files when I ask it to?
@@ -41,10 +68,11 @@ By default, Claude only uses commit tools for non-destructive changes to the bra
 - Never push to branches other than where it was invoked (either its own branch or the PR branch)
 - Never force push or perform destructive operations
 
-You can grant additional tools via the `allowed_tools` input if needed:
+You can grant additional tools via the `claude_args` input if needed:
 
 ```yaml
-allowed_tools: "Bash(git rebase:*)" # Use with caution
+claude_args: |
+  --allowedTools "Bash(git rebase:*)"  # Use with caution
 ```
 
 ### Why won't Claude create a pull request?
@@ -67,7 +95,7 @@ Yes! Claude can access GitHub Actions workflow runs, job logs, and test results 
 
 2. Configure the action with additional permissions:
    ```yaml
-   - uses: anthropics/claude-code-action@beta
+   - uses: anthropics/claude-code-action@v1
      with:
        additional_permissions: |
          actions: read
@@ -105,35 +133,64 @@ If you need full history, you can configure this in your workflow before calling
 
 ## Configuration and Tools
 
-### What's the difference between `direct_prompt` and `custom_instructions`?
+### How does automatic mode detection work?
 
-These inputs serve different purposes in how Claude responds:
+The action intelligently detects whether to run in interactive mode or automation mode:
 
-- **`direct_prompt`**: Bypasses trigger detection entirely. When provided, Claude executes this exact instruction regardless of comments or mentions. Perfect for automated workflows where you want Claude to perform a specific task on every run (e.g., "Update the API documentation based on changes in this PR").
+- **With `prompt` input**: Runs in automation mode - executes immediately without waiting for @claude mentions
+- **Without `prompt` input**: Runs in interactive mode - waits for @claude mentions in comments
 
-- **`custom_instructions`**: Additional context added to Claude's system prompt while still respecting normal triggers. These instructions modify Claude's behavior but don't replace the triggering comment. Use this to give Claude standing instructions like "You have been granted additional tools for ...".
+This automatic detection eliminates the need to manually configure modes.
 
 Example:
 
 ```yaml
-# Using direct_prompt - runs automatically without @claude mention
-direct_prompt: "Review this PR for security vulnerabilities"
+# Automation mode - runs automatically
+prompt: "Review this PR for security vulnerabilities"
+# Interactive mode - waits for @claude mention
+# (no prompt provided)
+```
 
-# Using custom_instructions - still requires @claude trigger
-custom_instructions: "Focus on performance implications and suggest optimizations"
+### What happened to `direct_prompt` and `custom_instructions`?
+
+**These inputs are deprecated in v1.0:**
+
+- **`direct_prompt`** → Use `prompt` instead
+- **`custom_instructions`** → Use `claude_args` with `--system-prompt`
+
+Migration examples:
+
+```yaml
+# Old (v0.x)
+direct_prompt: "Review this PR"
+custom_instructions: "Focus on security"
+
+# New (v1.0)
+prompt: "Review this PR"
+claude_args: |
+  --system-prompt "Focus on security"
 ```
 
 ### Why doesn't Claude execute my bash commands?
 
-The Bash tool is **disabled by default** for security. To enable individual bash commands:
+The Bash tool is **disabled by default** for security. To enable individual bash commands using `claude_args`:
 
 ```yaml
-allowed_tools: "Bash(npm:*),Bash(git:*)" # Allows only npm and git commands
+claude_args: |
+  --allowedTools "Bash(npm:*),Bash(git:*)"  # Allows only npm and git commands
 ```
 
 ### Can Claude work across multiple repositories?
 
 No, Claude's GitHub app token is sandboxed to the current repository only. It cannot push to any other repositories. It can, however, read public repositories, but to get access to this, you must configure it with tools to do so.
+
+### Why aren't comments posted as claude[bot]?
+
+Comments appear as claude[bot] when the action uses its built-in authentication. However, if you provide a `github_token` in your workflow, the action will use that token's authentication instead, causing comments to appear under a different username.
+
+**Solution**: Remove `github_token` from your workflow file unless you're using a custom GitHub App.
+
+**Note**: The `use_sticky_comment` feature only works with claude[bot] authentication. If you're using a custom `github_token`, sticky comments won't update properly since they expect the claude[bot] username.
 
 ## MCP Servers and Extended Functionality
 
@@ -144,7 +201,7 @@ Claude Code Action automatically configures two MCP servers:
 1. **GitHub MCP server**: For GitHub API operations
 2. **File operations server**: For advanced file manipulation
 
-However, tools from these servers still need to be explicitly allowed via `allowed_tools`.
+However, tools from these servers still need to be explicitly allowed via `claude_args` with `--allowedTools`.
 
 ## Troubleshooting
 
@@ -156,11 +213,49 @@ Check the GitHub Action log for Claude's run for the full execution trace.
 
 The trigger uses word boundaries, so `@claude` must be a complete word. Variations like `@claude-bot`, `@claude!`, or `claude@mention` won't work unless you customize the `trigger_phrase`.
 
+### How can I use custom executables in specialized environments?
+
+For specialized environments like Nix, NixOS, or custom container setups where you need to provide your own executables:
+
+**Using a custom Claude Code executable:**
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    path_to_claude_code_executable: "/path/to/custom/claude"
+    # ... other inputs
+```
+
+**Using a custom Bun executable:**
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    path_to_bun_executable: "/path/to/custom/bun"
+    # ... other inputs
+```
+
+**Common use cases:**
+
+- Nix/NixOS environments where packages are managed differently
+- Docker containers with pre-installed executables
+- Custom build environments with specific version requirements
+- Debugging specific issues with particular versions
+
+**Important notes:**
+
+- Using an older Claude Code version may cause problems if the action uses newer features
+- Using an incompatible Bun version may cause runtime errors
+- The action will skip automatic installation when custom paths are provided
+- Ensure the custom executables are available in your GitHub Actions environment
+
 ## Best Practices
 
 1. **Always specify permissions explicitly** in your workflow file
 2. **Use GitHub Secrets** for API keys - never hardcode them
-3. **Be specific with `allowed_tools`** - only enable what's necessary
+3. **Be specific with tool permissions** - only enable what's necessary via `claude_args`
 4. **Test in a separate branch** before using on important PRs
 5. **Monitor Claude's token usage** to avoid hitting API limits
 6. **Review Claude's changes** carefully before merging

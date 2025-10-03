@@ -9,6 +9,7 @@ import {
 import {
   parseGitHubContext,
   isPullRequestReviewCommentEvent,
+  isEntityContext,
 } from "../github/context";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import { checkAndCommitOrDeleteBranch } from "../github/operations/branch-cleanup";
@@ -23,7 +24,14 @@ async function run() {
     const triggerUsername = process.env.TRIGGER_USERNAME;
 
     const context = parseGitHubContext();
+
+    // This script is only called for entity-based events
+    if (!isEntityContext(context)) {
+      throw new Error("update-comment-link requires an entity context");
+    }
+
     const { owner, repo } = context.repository;
+
     const octokit = createOctokit(githubToken);
 
     const serverUrl = GITHUB_SERVER_URL;

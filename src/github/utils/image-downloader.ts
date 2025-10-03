@@ -3,9 +3,15 @@ import path from "path";
 import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
 
+const escapedUrl = GITHUB_SERVER_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const IMAGE_REGEX = new RegExp(
-  `!\\[[^\\]]*\\]\\((${GITHUB_SERVER_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/user-attachments\\/assets\\/[^)]+)\\)`,
+  `!\\[[^\\]]*\\]\\((${escapedUrl}\\/user-attachments\\/assets\\/[^)]+)\\)`,
   "g",
+);
+
+const HTML_IMG_REGEX = new RegExp(
+  `<img[^>]+src=["']([^"']*${escapedUrl}\\/user-attachments\\/assets\\/[^"']+)["'][^>]*>`,
+  "gi",
 );
 
 type IssueComment = {
@@ -63,8 +69,16 @@ export async function downloadCommentImages(
   }> = [];
 
   for (const comment of comments) {
-    const imageMatches = [...comment.body.matchAll(IMAGE_REGEX)];
-    const urls = imageMatches.map((match) => match[1] as string);
+    // Extract URLs from Markdown format
+    const markdownMatches = [...comment.body.matchAll(IMAGE_REGEX)];
+    const markdownUrls = markdownMatches.map((match) => match[1] as string);
+
+    // Extract URLs from HTML format
+    const htmlMatches = [...comment.body.matchAll(HTML_IMG_REGEX)];
+    const htmlUrls = htmlMatches.map((match) => match[1] as string);
+
+    // Combine and deduplicate URLs
+    const urls = [...new Set([...markdownUrls, ...htmlUrls])];
 
     if (urls.length > 0) {
       commentsWithImages.push({ comment, urls });

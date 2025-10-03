@@ -220,13 +220,13 @@ describe("parseEnvVarsWithContext", () => {
       ).toThrow("BASE_BRANCH is required for issues event");
     });
 
-    test("should allow issue assigned event with direct_prompt and no assigneeTrigger", () => {
+    test("should allow issue assigned event with prompt and no assigneeTrigger", () => {
       const contextWithDirectPrompt = createMockContext({
         ...mockIssueAssignedContext,
         inputs: {
           ...mockIssueAssignedContext.inputs,
           assigneeTrigger: "", // No assignee trigger
-          directPrompt: "Please assess this issue", // But direct prompt is provided
+          prompt: "Please assess this issue", // But prompt is provided
         },
       });
 
@@ -239,7 +239,7 @@ describe("parseEnvVarsWithContext", () => {
 
       expect(result.eventData.eventName).toBe("issues");
       expect(result.eventData.isPR).toBe(false);
-      expect(result.directPrompt).toBe("Please assess this issue");
+      expect(result.prompt).toBe("Please assess this issue");
       if (
         result.eventData.eventName === "issues" &&
         result.eventData.eventAction === "assigned"
@@ -249,13 +249,13 @@ describe("parseEnvVarsWithContext", () => {
       }
     });
 
-    test("should throw error when neither assigneeTrigger nor directPrompt provided for issue assigned event", () => {
+    test("should throw error when neither assigneeTrigger nor prompt provided for issue assigned event", () => {
       const contextWithoutTriggers = createMockContext({
         ...mockIssueAssignedContext,
         inputs: {
           ...mockIssueAssignedContext.inputs,
           assigneeTrigger: "", // No assignee trigger
-          directPrompt: "", // No direct prompt
+          prompt: "", // No prompt
         },
       });
 
@@ -270,44 +270,23 @@ describe("parseEnvVarsWithContext", () => {
     });
   });
 
-  describe("optional fields", () => {
-    test("should include custom instructions when provided", () => {
+  describe("context generation", () => {
+    test("should generate context without legacy fields", () => {
       process.env = BASE_ENV;
-      const contextWithCustomInstructions = createMockContext({
+      const context = createMockContext({
         ...mockPullRequestCommentContext,
         inputs: {
           ...mockPullRequestCommentContext.inputs,
-          customInstructions: "Be concise",
         },
       });
-      const result = prepareContext(contextWithCustomInstructions, "12345");
+      const result = prepareContext(context, "12345");
 
-      expect(result.customInstructions).toBe("Be concise");
+      // Verify context is created without legacy fields
+      expect(result.repository).toBe("test-owner/test-repo");
+      expect(result.claudeCommentId).toBe("12345");
+      expect(result.triggerPhrase).toBe("/claude");
+      expect((result as any).customInstructions).toBeUndefined();
+      expect((result as any).allowedTools).toBeUndefined();
     });
-
-    test("should include allowed tools when provided", () => {
-      process.env = BASE_ENV;
-      const contextWithAllowedTools = createMockContext({
-        ...mockPullRequestCommentContext,
-        inputs: {
-          ...mockPullRequestCommentContext.inputs,
-          allowedTools: ["Tool1", "Tool2"],
-        },
-      });
-      const result = prepareContext(contextWithAllowedTools, "12345");
-
-      expect(result.allowedTools).toBe("Tool1,Tool2");
-    });
-  });
-
-  test("should throw error for unsupported event type", () => {
-    process.env = BASE_ENV;
-    const unsupportedContext = createMockContext({
-      eventName: "unsupported_event",
-      eventAction: "whatever",
-    });
-    expect(() => prepareContext(unsupportedContext, "12345")).toThrow(
-      "Unsupported event type: unsupported_event",
-    );
   });
 });

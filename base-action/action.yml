@@ -14,53 +14,16 @@ inputs:
     description: "Path to a file containing the prompt to send to Claude Code (mutually exclusive with prompt)"
     required: false
     default: ""
-  allowed_tools:
-    description: "Comma-separated list of allowed tools for Claude Code to use"
-    required: false
-    default: ""
-  disallowed_tools:
-    description: "Comma-separated list of disallowed tools that Claude Code cannot use"
-    required: false
-    default: ""
-  max_turns:
-    description: "Maximum number of conversation turns (default: no limit)"
-    required: false
-    default: ""
-  mcp_config:
-    description: "MCP configuration as JSON string or path to MCP configuration JSON file"
-    required: false
-    default: ""
   settings:
     description: "Claude Code settings as JSON string or path to settings JSON file"
     required: false
     default: ""
-  system_prompt:
-    description: "Override system prompt"
-    required: false
-    default: ""
-  append_system_prompt:
-    description: "Append to system prompt"
-    required: false
-    default: ""
-  model:
-    description: "Model to use (provider-specific format required for Bedrock/Vertex)"
-    required: false
-  anthropic_model:
-    description: "DEPRECATED: Use 'model' instead. Model to use (provider-specific format required for Bedrock/Vertex)"
-    required: false
-  fallback_model:
-    description: "Enable automatic fallback to specified model when default model is unavailable"
-    required: false
-  claude_env:
-    description: "Custom environment variables to pass to Claude Code execution (YAML multiline format)"
-    required: false
-    default: ""
 
   # Action settings
-  timeout_minutes:
-    description: "Timeout in minutes for Claude Code execution"
+  claude_args:
+    description: "Additional arguments to pass directly to Claude CLI (e.g., '--max-turns 3 --mcp-config /path/to/config.json')"
     required: false
-    default: "10"
+    default: ""
 
   # Authentication settings
   anthropic_api_key:
@@ -84,6 +47,14 @@ inputs:
     description: "Whether to use Node.js dependency caching (set to true only for Node.js projects with lock files)"
     required: false
     default: "false"
+  path_to_claude_code_executable:
+    description: "Optional path to a custom Claude Code executable. If provided, skips automatic installation and uses this executable instead. WARNING: Using an older version may cause problems if the action begins taking advantage of new Claude Code features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
+    required: false
+    default: ""
+  path_to_bun_executable:
+    description: "Optional path to a custom Bun executable. If provided, skips automatic Bun installation and uses this executable instead. WARNING: Using an incompatible version may cause problems if the action requires specific Bun features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
+    required: false
+    default: ""
 
 outputs:
   conclusion:
@@ -103,9 +74,19 @@ runs:
         cache: ${{ inputs.use_node_cache == 'true' && 'npm' || '' }}
 
     - name: Install Bun
+      if: inputs.path_to_bun_executable == ''
       uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # https://github.com/oven-sh/setup-bun/releases/tag/v2.0.2
       with:
         bun-version: 1.2.11
+
+    - name: Setup Custom Bun Path
+      if: inputs.path_to_bun_executable != ''
+      shell: bash
+      run: |
+        echo "Using custom Bun executable: ${{ inputs.path_to_bun_executable }}"
+        # Add the directory containing the custom executable to PATH
+        BUN_DIR=$(dirname "${{ inputs.path_to_bun_executable }}")
+        echo "$BUN_DIR" >> "$GITHUB_PATH"
 
     - name: Install Dependencies
       shell: bash
@@ -115,7 +96,16 @@ runs:
 
     - name: Install Claude Code
       shell: bash
-      run: npm install -g @anthropic-ai/claude-code@1.0.56
+      run: |
+        if [ -z "${{ inputs.path_to_claude_code_executable }}" ]; then
+          echo "Installing Claude Code..."
+          curl -fsSL https://claude.ai/install.sh | bash -s 2.0.5
+        else
+          echo "Using custom Claude Code executable: ${{ inputs.path_to_claude_code_executable }}"
+          # Add the directory containing the custom executable to PATH
+          CLAUDE_DIR=$(dirname "${{ inputs.path_to_claude_code_executable }}")
+          echo "$CLAUDE_DIR" >> "$GITHUB_PATH"
+        fi
 
     - name: Run Claude Code Action
       shell: bash
@@ -130,24 +120,18 @@ runs:
       env:
         # Model configuration
         CLAUDE_CODE_ACTION: "1"
-        ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
         INPUT_PROMPT: ${{ inputs.prompt }}
         INPUT_PROMPT_FILE: ${{ inputs.prompt_file }}
-        INPUT_ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
-        INPUT_DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
-        INPUT_MAX_TURNS: ${{ inputs.max_turns }}
-        INPUT_MCP_CONFIG: ${{ inputs.mcp_config }}
         INPUT_SETTINGS: ${{ inputs.settings }}
-        INPUT_SYSTEM_PROMPT: ${{ inputs.system_prompt }}
-        INPUT_APPEND_SYSTEM_PROMPT: ${{ inputs.append_system_prompt }}
-        INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
-        INPUT_CLAUDE_ENV: ${{ inputs.claude_env }}
-        INPUT_FALLBACK_MODEL: ${{ inputs.fallback_model }}
+        INPUT_CLAUDE_ARGS: ${{ inputs.claude_args }}
+        INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
+        INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
 
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
         ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
+        ANTHROPIC_CUSTOM_HEADERS: ${{ env.ANTHROPIC_CUSTOM_HEADERS }}
         # Only set provider flags if explicitly true, since any value (including "false") is truthy
         CLAUDE_CODE_USE_BEDROCK: ${{ inputs.use_bedrock == 'true' && '1' || '' }}
         CLAUDE_CODE_USE_VERTEX: ${{ inputs.use_vertex == 'true' && '1' || '' }}

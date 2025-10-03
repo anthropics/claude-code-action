@@ -1,7 +1,9 @@
 import * as core from "@actions/core";
-import { GITHUB_API_URL } from "../github/api/config";
-import type { ParsedGitHubContext } from "../github/context";
+import { GITHUB_API_URL, GITHUB_SERVER_URL } from "../github/api/config";
+import type { GitHubContext } from "../github/context";
+import { isEntityContext } from "../github/context";
 import { Octokit } from "@octokit/rest";
+import type { AutoDetectedMode } from "../modes/detector";
 
 type PrepareConfigParams = {
   githubToken: string;
@@ -9,10 +11,10 @@ type PrepareConfigParams = {
   repo: string;
   branch: string;
   baseBranch: string;
-  additionalMcpConfig?: string;
   claudeCommentId?: string;
   allowedTools: string[];
-  context: ParsedGitHubContext;
+  mode: AutoDetectedMode;
+  context: GitHubContext;
 };
 
 async function checkActionsReadPermission(
@@ -56,38 +58,59 @@ export async function prepareMcpConfig(
     repo,
     branch,
     baseBranch,
-    additionalMcpConfig,
     claudeCommentId,
     allowedTools,
     context,
+    mode,
   } = params;
   try {
     const allowedToolsList = allowedTools || [];
 
+    // Detect if we're in agent mode (explicit prompt provided)
+    const isAgentMode = mode === "agent";
+
+    const hasGitHubCommentTools = allowedToolsList.some((tool) =>
+      tool.startsWith("mcp__github_comment__"),
+    );
+
     const hasGitHubMcpTools = allowedToolsList.some((tool) =>
       tool.startsWith("mcp__github__"),
+    );
+
+    const hasInlineCommentTools = allowedToolsList.some((tool) =>
+      tool.startsWith("mcp__github_inline_comment__"),
+    );
+
+    const hasGitHubCITools = allowedToolsList.some((tool) =>
+      tool.startsWith("mcp__github_ci__"),
     );
 
     const baseMcpConfig: { mcpServers: Record<string, unknown> } = {
       mcpServers: {},
     };
 
-    // Always include comment server for updating Claude comments
-    baseMcpConfig.mcpServers.github_comment = {
-      command: "bun",
-      args: [
-        "run",
-        `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-comment-server.ts`,
-      ],
-      env: {
-        GITHUB_TOKEN: githubToken,
-        REPO_OWNER: owner,
-        REPO_NAME: repo,
-        ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
-        GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
-        GITHUB_API_URL: GITHUB_API_URL,
-      },
-    };
+    // Include comment server:
+    // - Always in tag mode (for updating Claude comments)
+    // - Only with explicit tools in agent mode
+    const shouldIncludeCommentServer = !isAgentMode || hasGitHubCommentTools;
+
+    if (shouldIncludeCommentServer) {
+      baseMcpConfig.mcpServers.github_comment = {
+        command: "bun",
+        args: [
+          "run",
+          `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-comment-server.ts`,
+        ],
+        env: {
+          GITHUB_TOKEN: githubToken,
+          REPO_OWNER: owner,
+          REPO_NAME: repo,
+          ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
+          GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
+          GITHUB_API_URL: GITHUB_API_URL,
+        },
+      };
+    }
 
     // Include file ops server when commit signing is enabled
     if (context.inputs.useCommitSigning) {
@@ -111,14 +134,42 @@ export async function prepareMcpConfig(
       };
     }
 
-    // Only add CI server if we have actions:read permission and we're in a PR context
-    const hasActionsReadPermission =
-      context.inputs.additionalPermissions.get("actions") === "read";
+    // Include inline comment server for PRs when requested via allowed tools
+    if (
+      isEntityContext(context) &&
+      context.isPR &&
+      (hasGitHubMcpTools || hasInlineCommentTools)
+    ) {
+      baseMcpConfig.mcpServers.github_inline_comment = {
+        command: "bun",
+        args: [
+          "run",
+          `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-inline-comment-server.ts`,
+        ],
+        env: {
+          GITHUB_TOKEN: githubToken,
+          REPO_OWNER: owner,
+          REPO_NAME: repo,
+          PR_NUMBER: context.entityNumber?.toString() || "",
+          GITHUB_API_URL: GITHUB_API_URL,
+        },
+      };
+    }
 
-    if (context.isPR && hasActionsReadPermission) {
+    // CI server is included when:
+    // - In tag mode: when we have a workflow token and context is a PR
+    // - In agent mode: same conditions PLUS explicit CI tools in allowedTools
+    const hasWorkflowToken = !!process.env.DEFAULT_WORKFLOW_TOKEN;
+    const shouldIncludeCIServer =
+      (!isAgentMode || hasGitHubCITools) &&
+      isEntityContext(context) &&
+      context.isPR &&
+      hasWorkflowToken;
+
+    if (shouldIncludeCIServer) {
       // Verify the token actually has actions:read permission
       const actuallyHasPermission = await checkActionsReadPermission(
-        process.env.ACTIONS_TOKEN || "",
+        process.env.DEFAULT_WORKFLOW_TOKEN || "",
         owner,
         repo,
       );
@@ -138,10 +189,10 @@ export async function prepareMcpConfig(
         ],
         env: {
           // Use workflow github token, not app token
-          GITHUB_TOKEN: process.env.ACTIONS_TOKEN,
+          GITHUB_TOKEN: process.env.DEFAULT_WORKFLOW_TOKEN,
           REPO_OWNER: owner,
           REPO_NAME: repo,
-          PR_NUMBER: context.entityNumber.toString(),
+          PR_NUMBER: context.entityNumber?.toString() || "",
           RUNNER_TEMP: process.env.RUNNER_TEMP || "/tmp",
         },
       };
@@ -156,46 +207,19 @@ export async function prepareMcpConfig(
           "--rm",
           "-e",
           "GITHUB_PERSONAL_ACCESS_TOKEN",
-          "ghcr.io/github/github-mcp-server:sha-721fd3e", // https://github.com/github/github-mcp-server/releases/tag/v0.6.0
+          "-e",
+          "GITHUB_HOST",
+          "ghcr.io/github/github-mcp-server:sha-efef8ae", // https://github.com/github/github-mcp-server/releases/tag/v0.9.0
         ],
         env: {
           GITHUB_PERSONAL_ACCESS_TOKEN: githubToken,
+          GITHUB_HOST: GITHUB_SERVER_URL,
         },
       };
     }
 
-    // Merge with additional MCP config if provided
-    if (additionalMcpConfig && additionalMcpConfig.trim()) {
-      try {
-        const additionalConfig = JSON.parse(additionalMcpConfig);
-
-        // Validate that parsed JSON is an object
-        if (typeof additionalConfig !== "object" || additionalConfig === null) {
-          throw new Error("MCP config must be a valid JSON object");
-        }
-
-        core.info(
-          "Merging additional MCP server configuration with built-in servers",
-        );
-
-        // Merge configurations with user config overriding built-in servers
-        const mergedConfig = {
-          ...baseMcpConfig,
-          ...additionalConfig,
-          mcpServers: {
-            ...baseMcpConfig.mcpServers,
-            ...additionalConfig.mcpServers,
-          },
-        };
-
-        return JSON.stringify(mergedConfig, null, 2);
-      } catch (parseError) {
-        core.warning(
-          `Failed to parse additional MCP config: ${parseError}. Using base config only.`,
-        );
-      }
-    }
-
+    // Return only our GitHub servers config
+    // User's config will be passed as separate --mcp-config flags
     return JSON.stringify(baseMcpConfig, null, 2);
   } catch (error) {
     core.setFailed(`Install MCP server failed with error: ${error}`);

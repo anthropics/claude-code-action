@@ -28,7 +28,7 @@ if __name__ == "__main__":
     print(result)
 ```
 
-*Token usage: 100 input, 75 output*
+*Token usage: 150 input, 75 output*
 
 ---
 
@@ -47,7 +47,7 @@ I can see the debug print statement that needs to be removed. Let me fix this by
 
 **→** File successfully edited. The debug print statement has been removed.
 
-*Token usage: 200 input, 50 output*
+*Token usage: 300 input, 50 output*
 
 ---
 
@@ -70,7 +70,7 @@ Perfect! I've successfully removed the debug print statement from the function. 
 
 **→** Successfully posted review comment to PR #123
 
-*Token usage: 150 input, 80 output*
+*Token usage: 225 input, 80 output*
 
 ---
 
@@ -82,7 +82,7 @@ Great! I've successfully completed the requested task:
 
 The debug print statement has been removed as requested by the reviewers.
 
-*Token usage: 180 input, 60 output*
+*Token usage: 270 input, 60 output*
 
 ---
 
@@ -91,5 +91,3 @@ The debug print statement has been removed as requested by the reviewers.
 Successfully removed debug print statement from file and added review comment to document the change.
 
 **Cost:** $0.0347 | **Duration:** 18.8s
-
-

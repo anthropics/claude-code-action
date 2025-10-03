@@ -1,0 +1,89 @@
+name: Test Custom Executables
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-custom-executables:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Install Bun manually
+        run: |
+          echo "Installing Bun..."
+          curl -fsSL https://bun.sh/install | bash
+          echo "Bun installed at: $HOME/.bun/bin/bun"
+
+          # Verify Bun installation
+          if [ -f "$HOME/.bun/bin/bun" ]; then
+            echo "✅ Bun executable found"
+            $HOME/.bun/bin/bun --version
+          else
+            echo "❌ Bun executable not found"
+            exit 1
+          fi
+
+      - name: Install Claude Code manually
+        run: |
+          echo "Installing Claude Code..."
+          curl -fsSL https://claude.ai/install.sh | bash -s latest
+          echo "Claude Code installed at: $HOME/.local/bin/claude"
+
+          # Verify Claude installation
+          if [ -f "$HOME/.local/bin/claude" ]; then
+            echo "✅ Claude executable found"
+            ls -la "$HOME/.local/bin/claude"
+          else
+            echo "❌ Claude executable not found"
+            exit 1
+          fi
+
+      - name: Test with both custom executables
+        id: custom-test
+        uses: ./base-action
+        with:
+          prompt: |
+            List the files in the current directory starting with "package"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          path_to_claude_code_executable: /home/runner/.local/bin/claude
+          path_to_bun_executable: /home/runner/.bun/bin/bun
+          allowed_tools: "LS,Read"
+
+      - name: Verify custom executables worked
+        run: |
+          OUTPUT_FILE="${{ steps.custom-test.outputs.execution_file }}"
+          CONCLUSION="${{ steps.custom-test.outputs.conclusion }}"
+
+          echo "Conclusion: $CONCLUSION"
+          echo "Output file: $OUTPUT_FILE"
+
+          if [ "$CONCLUSION" = "success" ]; then
+            echo "✅ Action completed successfully with both custom executables"
+          else
+            echo "❌ Action failed with custom executables"
+            exit 1
+          fi
+
+          if [ -f "$OUTPUT_FILE" ] && [ -s "$OUTPUT_FILE" ]; then
+            echo "✅ Execution log file created successfully"
+            if jq . "$OUTPUT_FILE" > /dev/null 2>&1; then
+              echo "✅ Output is valid JSON"
+              # Verify the task was completed
+              if grep -q "package" "$OUTPUT_FILE"; then
+                echo "✅ Claude successfully listed package files"
+              else
+                echo "⚠️ Could not verify if package files were listed"
+              fi
+            else
+              echo "❌ Output is not valid JSON"
+              exit 1
+            fi
+          else
+            echo "❌ Execution log file not found or empty"
+            exit 1
+          fi

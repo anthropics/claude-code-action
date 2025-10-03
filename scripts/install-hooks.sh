@@ -6,8 +6,8 @@ echo "Installing git hooks..."
 # Make sure hooks directory exists
 mkdir -p .git/hooks
 
-# Install pre-push hook
-cp scripts/pre-push .git/hooks/pre-push
-chmod +x .git/hooks/pre-push
+# Install pre-commit hook
+cp scripts/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
 
 echo "Git hooks installed successfully!"

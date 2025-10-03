@@ -662,4 +662,255 @@ describe("downloadCommentImages", () => {
     );
     expect(result.get(imageUrl2)).toBeUndefined();
   });
+
+  test("should detect and download images from HTML img tags", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl =
+      "https://github.com/user-attachments/assets/html-image.png";
+    const signedUrl =
+      "https://private-user-images.githubusercontent.com/html.png?jwt=token";
+
+    // Mock octokit response
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    // Mock fetch for image download
+    const mockArrayBuffer = new ArrayBuffer(8);
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => mockArrayBuffer,
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "777",
+        body: `Here's an HTML image: <img src="${imageUrl}" alt="test">`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(mockOctokit.rest.issues.getComment).toHaveBeenCalledWith({
+      owner: "owner",
+      repo: "repo",
+      comment_id: 777,
+      mediaType: { format: "full+json" },
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(signedUrl);
+    expect(fsWriteFileSpy).toHaveBeenCalledWith(
+      "/tmp/github-images/image-1704067200000-0.png",
+      Buffer.from(mockArrayBuffer),
+    );
+
+    expect(result.size).toBe(1);
+    expect(result.get(imageUrl)).toBe(
+      "/tmp/github-images/image-1704067200000-0.png",
+    );
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      "Found 1 image(s) in issue_comment 777",
+    );
+    expect(consoleLogSpy).toHaveBeenCalledWith(`Downloading ${imageUrl}...`);
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      "✓ Saved: /tmp/github-images/image-1704067200000-0.png",
+    );
+  });
+
+  test("should handle HTML img tags with different quote styles", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl1 =
+      "https://github.com/user-attachments/assets/single-quote.jpg";
+    const imageUrl2 =
+      "https://github.com/user-attachments/assets/double-quote.png";
+    const signedUrl1 =
+      "https://private-user-images.githubusercontent.com/single.jpg?jwt=token1";
+    const signedUrl2 =
+      "https://private-user-images.githubusercontent.com/double.png?jwt=token2";
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl1}"><img src="${signedUrl2}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "888",
+        body: `Single quote: <img src='${imageUrl1}' alt="test"> and double quote: <img src="${imageUrl2}" alt="test">`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(result.size).toBe(2);
+    expect(result.get(imageUrl1)).toBe(
+      "/tmp/github-images/image-1704067200000-0.jpg",
+    );
+    expect(result.get(imageUrl2)).toBe(
+      "/tmp/github-images/image-1704067200000-1.png",
+    );
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      "Found 2 image(s) in issue_comment 888",
+    );
+  });
+
+  test("should handle mixed Markdown and HTML images", async () => {
+    const mockOctokit = createMockOctokit();
+    const markdownUrl =
+      "https://github.com/user-attachments/assets/markdown.png";
+    const htmlUrl = "https://github.com/user-attachments/assets/html.jpg";
+    const signedUrl1 =
+      "https://private-user-images.githubusercontent.com/md.png?jwt=token1";
+    const signedUrl2 =
+      "https://private-user-images.githubusercontent.com/html.jpg?jwt=token2";
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl1}"><img src="${signedUrl2}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "999",
+        body: `Markdown: ![test](${markdownUrl}) and HTML: <img src="${htmlUrl}" alt="test">`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(result.size).toBe(2);
+    expect(result.get(markdownUrl)).toBe(
+      "/tmp/github-images/image-1704067200000-0.png",
+    );
+    expect(result.get(htmlUrl)).toBe(
+      "/tmp/github-images/image-1704067200000-1.jpg",
+    );
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      "Found 2 image(s) in issue_comment 999",
+    );
+  });
+
+  test("should deduplicate identical URLs from Markdown and HTML", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl = "https://github.com/user-attachments/assets/duplicate.png";
+    const signedUrl =
+      "https://private-user-images.githubusercontent.com/dup.png?jwt=token";
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "1000",
+        body: `Same image twice: ![test](${imageUrl}) and <img src="${imageUrl}" alt="test">`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1); // Only downloaded once
+    expect(result.size).toBe(1);
+    expect(result.get(imageUrl)).toBe(
+      "/tmp/github-images/image-1704067200000-0.png",
+    );
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      "Found 1 image(s) in issue_comment 1000",
+    );
+  });
+
+  test("should handle HTML img tags with additional attributes", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl =
+      "https://github.com/user-attachments/assets/complex-tag.webp";
+    const signedUrl =
+      "https://private-user-images.githubusercontent.com/complex.webp?jwt=token";
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "1001",
+        body: `Complex tag: <img class="image" src="${imageUrl}" alt="test image" width="100" height="200">`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(result.size).toBe(1);
+    expect(result.get(imageUrl)).toBe(
+      "/tmp/github-images/image-1704067200000-0.webp",
+    );
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      "Found 1 image(s) in issue_comment 1001",
+    );
+  });
 });

@@ -69,7 +69,7 @@ Add the following to your workflow file:
   uses: anthropics/claude-code-base-action@beta
   with:
     prompt: "Review and fix TypeScript errors"
-    model: "claude-opus-4-20250514"
+    model: "claude-opus-4-1-20250805"
     fallback_model: "claude-sonnet-4-20250514"
     allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -100,7 +100,6 @@ Add the following to your workflow file:
 | `model`                   | Model to use (provider-specific format required for Bedrock/Vertex)                               | No       | 'claude-4-0-sonnet-20250219' |
 | `anthropic_model`         | DEPRECATED: Use 'model' instead                                                                   | No       | 'claude-4-0-sonnet-20250219' |
 | `fallback_model`          | Enable automatic fallback to specified model when default model is overloaded                     | No       | ''                           |
-| `timeout_minutes`         | Timeout in minutes for Claude Code execution                                                      | No       | '10'                         |
 | `anthropic_api_key`       | Anthropic API key (required for direct Anthropic API)                                             | No       | ''                           |
 | `claude_code_oauth_token` | Claude Code OAuth token (alternative to anthropic_api_key)                                        | No       | ''                           |
 | `use_bedrock`             | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                       | No       | 'false'                      |
@@ -217,7 +216,7 @@ Provide the settings configuration directly as a JSON string:
     prompt: "Your prompt here"
     settings: |
       {
-        "model": "claude-opus-4-20250514",
+        "model": "claude-opus-4-1-20250805",
         "env": {
           "DEBUG": "true",
           "API_URL": "https://api.example.com"
@@ -320,7 +319,6 @@ You can combine MCP config with other inputs like allowed tools:
     prompt: "Access the custom MCP server and use its tools"
     mcp_config: "mcp-config.json"
     allowed_tools: "Bash(git:*),View,mcp__server-name__custom_tool"
-    timeout_minutes: "15"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 

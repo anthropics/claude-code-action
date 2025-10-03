@@ -1,4 +1,8 @@
-import type { ParsedGitHubContext } from "../src/github/context";
+import type {
+  ParsedGitHubContext,
+  AutomationContext,
+  RepositoryDispatchEvent,
+} from "../src/github/context";
 import type {
   IssuesEvent,
   IssueCommentEvent,
@@ -6,23 +10,21 @@ import type {
   PullRequestReviewEvent,
   PullRequestReviewCommentEvent,
 } from "@octokit/webhooks-types";
+import { CLAUDE_APP_BOT_ID, CLAUDE_BOT_LOGIN } from "../src/github/constants";
 
 const defaultInputs = {
+  prompt: "",
   triggerPhrase: "/claude",
   assigneeTrigger: "",
   labelTrigger: "",
-  anthropicModel: "claude-3-7-sonnet-20250219",
-  allowedTools: [] as string[],
-  disallowedTools: [] as string[],
-  customInstructions: "",
-  directPrompt: "",
-  useBedrock: false,
-  useVertex: false,
-  timeoutMinutes: 30,
   branchPrefix: "claude/",
   useStickyComment: false,
-  additionalPermissions: new Map<string, string>(),
   useCommitSigning: false,
+  botId: String(CLAUDE_APP_BOT_ID),
+  botName: CLAUDE_BOT_LOGIN,
+  allowedBots: "",
+  allowedNonWriteUsers: "",
+  trackProgress: false,
 };
 
 const defaultRepository = {
@@ -31,12 +33,16 @@ const defaultRepository = {
   full_name: "test-owner/test-repo",
 };
 
+type MockContextOverrides = Omit<Partial<ParsedGitHubContext>, "inputs"> & {
+  inputs?: Partial<ParsedGitHubContext["inputs"]>;
+};
+
 export const createMockContext = (
-  overrides: Partial<ParsedGitHubContext> = {},
+  overrides: MockContextOverrides = {},
 ): ParsedGitHubContext => {
   const baseContext: ParsedGitHubContext = {
     runId: "1234567890",
-    eventName: "",
+    eventName: "issue_comment", // Default to a valid entity event
     eventAction: "",
     repository: defaultRepository,
     actor: "test-actor",
@@ -46,11 +52,62 @@ export const createMockContext = (
     inputs: defaultInputs,
   };
 
-  if (overrides.inputs) {
-    overrides.inputs = { ...defaultInputs, ...overrides.inputs };
-  }
+  const mergedInputs = overrides.inputs
+    ? { ...defaultInputs, ...overrides.inputs }
+    : defaultInputs;
 
-  return { ...baseContext, ...overrides };
+  return { ...baseContext, ...overrides, inputs: mergedInputs };
+};
+
+type MockAutomationOverrides = Omit<Partial<AutomationContext>, "inputs"> & {
+  inputs?: Partial<AutomationContext["inputs"]>;
+};
+
+export const createMockAutomationContext = (
+  overrides: MockAutomationOverrides = {},
+): AutomationContext => {
+  const baseContext: AutomationContext = {
+    runId: "1234567890",
+    eventName: "workflow_dispatch",
+    eventAction: undefined,
+    repository: defaultRepository,
+    actor: "test-actor",
+    payload: {} as any,
+    inputs: defaultInputs,
+  };
+
+  const mergedInputs = overrides.inputs
+    ? { ...defaultInputs, ...overrides.inputs }
+    : { ...defaultInputs };
+
+  return { ...baseContext, ...overrides, inputs: mergedInputs };
+};
+
+export const mockRepositoryDispatchContext: AutomationContext = {
+  runId: "1234567890",
+  eventName: "repository_dispatch",
+  eventAction: undefined,
+  repository: defaultRepository,
+  actor: "automation-user",
+  payload: {
+    action: "trigger-analysis",
+    client_payload: {
+      source: "issue-detective",
+      issue_number: 42,
+      repository_name: "test-owner/test-repo",
+      analysis_type: "bug-report",
+    },
+    repository: {
+      name: "test-repo",
+      owner: {
+        login: "test-owner",
+      },
+    },
+    sender: {
+      login: "automation-user",
+    },
+  } as RepositoryDispatchEvent,
+  inputs: defaultInputs,
 };
 
 export const mockIssueOpenedContext: ParsedGitHubContext = {

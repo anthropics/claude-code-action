@@ -7,98 +7,87 @@
 
 import * as core from "@actions/core";
 import { setupGitHubToken } from "../github/token";
-import { checkTriggerAction } from "../github/validation/trigger";
-import { checkHumanActor } from "../github/validation/actor";
 import { checkWritePermissions } from "../github/validation/permissions";
-import { createInitialComment } from "../github/operations/comments/create-initial";
-import { setupBranch } from "../github/operations/branch";
-import { configureGitAuth } from "../github/operations/git-config";
-import { prepareMcpConfig } from "../mcp/install-mcp-server";
-import { createPrompt } from "../create-prompt";
 import { createOctokit } from "../github/api/client";
-import { fetchGitHubData } from "../github/data/fetcher";
-import { parseGitHubContext } from "../github/context";
+import { parseGitHubContext, isEntityContext } from "../github/context";
+import { getMode } from "../modes/registry";
+import { prepare } from "../prepare";
+import { collectActionInputsPresence } from "./collect-inputs";
 
 async function run() {
   try {
-    // Step 1: Setup GitHub token
+    collectActionInputsPresence();
+
+    // Parse GitHub context first to enable mode detection
+    const context = parseGitHubContext();
+
+    // Auto-detect mode based on context
+    const mode = getMode(context);
+
+    // Setup GitHub token
     const githubToken = await setupGitHubToken();
     const octokit = createOctokit(githubToken);
 
-    // Step 2: Parse GitHub context (once for all operations)
-    const context = parseGitHubContext();
-
-    // Step 3: Check write permissions
-    const hasWritePermissions = await checkWritePermissions(
-      octokit.rest,
-      context,
-    );
-    if (!hasWritePermissions) {
-      throw new Error(
-        "Actor does not have write permissions to the repository",
+    // Step 3: Check write permissions (only for entity contexts)
+    if (isEntityContext(context)) {
+      // Check if github_token was provided as input (not from app)
+      const githubTokenProvided = !!process.env.OVERRIDE_GITHUB_TOKEN;
+      const hasWritePermissions = await checkWritePermissions(
+        octokit.rest,
+        context,
+        context.inputs.allowedNonWriteUsers,
+        githubTokenProvided,
       );
-    }
-
-    // Step 4: Check trigger conditions
-    const containsTrigger = await checkTriggerAction(context);
-
-    if (!containsTrigger) {
-      console.log("No trigger found, skipping remaining steps");
-      return;
-    }
-
-    // Step 5: Check if actor is human
-    await checkHumanActor(octokit.rest, context);
-
-    // Step 6: Create initial tracking comment
-    const commentData = await createInitialComment(octokit.rest, context);
-    const commentId = commentData.id;
-
-    // Step 7: Fetch GitHub data (once for both branch setup and prompt creation)
-    const githubData = await fetchGitHubData({
-      octokits: octokit,
-      repository: `${context.repository.owner}/${context.repository.repo}`,
-      prNumber: context.entityNumber.toString(),
-      isPR: context.isPR,
-      triggerUsername: context.actor,
-    });
-
-    // Step 8: Setup branch
-    const branchInfo = await setupBranch(octokit, githubData, context);
-
-    // Step 9: Configure git authentication if not using commit signing
-    if (!context.inputs.useCommitSigning) {
-      try {
-        await configureGitAuth(githubToken, context, commentData.user);
-      } catch (error) {
-        console.error("Failed to configure git authentication:", error);
-        throw error;
+      if (!hasWritePermissions) {
+        throw new Error(
+          "Actor does not have write permissions to the repository",
+        );
       }
     }
 
-    // Step 10: Create prompt file
-    await createPrompt(
-      commentId,
-      branchInfo.baseBranch,
-      branchInfo.claudeBranch,
-      githubData,
-      context,
-    );
+    // Check trigger conditions
+    const containsTrigger = mode.shouldTrigger(context);
 
-    // Step 11: Get MCP configuration
-    const additionalMcpConfig = process.env.MCP_CONFIG || "";
-    const mcpConfig = await prepareMcpConfig({
-      githubToken,
-      owner: context.repository.owner,
-      repo: context.repository.repo,
-      branch: branchInfo.claudeBranch || branchInfo.currentBranch,
-      baseBranch: branchInfo.baseBranch,
-      additionalMcpConfig,
-      claudeCommentId: commentId.toString(),
-      allowedTools: context.inputs.allowedTools,
+    // Debug logging
+    console.log(`Mode: ${mode.name}`);
+    console.log(`Context prompt: ${context.inputs?.prompt || "NO PROMPT"}`);
+    console.log(`Trigger result: ${containsTrigger}`);
+
+    // Set output for action.yml to check
+    core.setOutput("contains_trigger", containsTrigger.toString());
+
+    if (!containsTrigger) {
+      console.log("No trigger found, skipping remaining steps");
+      // Still set github_token output even when skipping
+      core.setOutput("github_token", githubToken);
+      return;
+    }
+
+    // Step 5: Use the new modular prepare function
+    const result = await prepare({
       context,
+      octokit,
+      mode,
+      githubToken,
     });
-    core.setOutput("mcp_config", mcpConfig);
+
+    // MCP config is handled by individual modes (tag/agent) and included in their claude_args output
+
+    // Expose the GitHub token (Claude App token) as an output
+    core.setOutput("github_token", githubToken);
+
+    // Step 6: Get system prompt from mode if available
+    if (mode.getSystemPrompt) {
+      const modeContext = mode.prepareContext(context, {
+        commentId: result.commentId,
+        baseBranch: result.branchInfo.baseBranch,
+        claudeBranch: result.branchInfo.claudeBranch,
+      });
+      const systemPrompt = mode.getSystemPrompt(modeContext);
+      if (systemPrompt) {
+        core.exportVariable("APPEND_SYSTEM_PROMPT", systemPrompt);
+      }
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     core.setFailed(`Prepare step failed with error: ${errorMessage}`);
