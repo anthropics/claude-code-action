@@ -13,6 +13,10 @@
 - **No Cross-Repository Access**: Each action invocation is limited to the repository where it was triggered
 - **Limited Scope**: The token cannot access other repositories or perform actions beyond the configured permissions
 
+## ⚠️ Prompt Injection Risks
+
+**Beware of potential hidden markdown when tagging Claude on untrusted content.** External contributors may include hidden instructions through HTML comments, invisible characters, hidden attributes, or other techniques. The action sanitizes content by stripping HTML comments, invisible characters, markdown image alt text, hidden HTML attributes, and HTML entities, but new bypass techniques may emerge.
+
 ## GitHub App Permissions
 
 The [Claude Code GitHub app](https://github.com/apps/claude) requires these permissions:
