@@ -13,10 +13,27 @@ import { parseGitHubContext, isEntityContext } from "../github/context";
 import { getMode } from "../modes/registry";
 import { prepare } from "../prepare";
 import { collectActionInputsPresence } from "./collect-inputs";
+import { todoManager } from "../utils/todo-manager";
+import { readFile } from "fs/promises";
+import { join } from "path";
+
+async function readTodoPersistenceInstructions(): Promise<string | null> {
+  try {
+    const instructionsPath = join(__dirname, "..", "prompts", "todo-persistence-instructions.md");
+    const content = await readFile(instructionsPath, "utf-8");
+    return content;
+  } catch (error) {
+    core.warning(`Failed to read todo persistence instructions: ${error}`);
+    return null;
+  }
+}
 
 async function run() {
   try {
     collectActionInputsPresence();
+
+    // Initialize todo manager early in the process
+    await todoManager.initialize();
 
     // Parse GitHub context first to enable mode detection
     const context = parseGitHubContext();
@@ -71,22 +88,39 @@ async function run() {
       githubToken,
     });
 
+    // Step 5.5: Prepare todo list for Claude execution
+    await todoManager.prepareTodoForClaude();
+
     // MCP config is handled by individual modes (tag/agent) and included in their claude_args output
 
     // Expose the GitHub token (Claude App token) as an output
     core.setOutput("github_token", githubToken);
 
     // Step 6: Get system prompt from mode if available
+    let systemPrompt = "";
     if (mode.getSystemPrompt) {
       const modeContext = mode.prepareContext(context, {
         commentId: result.commentId,
         baseBranch: result.branchInfo.baseBranch,
         claudeBranch: result.branchInfo.claudeBranch,
       });
-      const systemPrompt = mode.getSystemPrompt(modeContext);
-      if (systemPrompt) {
-        core.exportVariable("APPEND_SYSTEM_PROMPT", systemPrompt);
+      const modeSystemPrompt = mode.getSystemPrompt(modeContext);
+      if (modeSystemPrompt) {
+        systemPrompt += modeSystemPrompt;
       }
+    }
+
+    // Add todo persistence instructions if enabled
+    const todoPersistenceEnabled = process.env.CLAUDE_TODO_PERSISTENCE_ENABLED === "true";
+    if (todoPersistenceEnabled) {
+      const todoInstructions = await readTodoPersistenceInstructions();
+      if (todoInstructions) {
+        systemPrompt += `\n\n## Todo List Persistence\n\n${todoInstructions}`;
+      }
+    }
+
+    if (systemPrompt) {
+      core.exportVariable("APPEND_SYSTEM_PROMPT", systemPrompt);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
