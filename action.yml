@@ -101,6 +101,10 @@ inputs:
     description: "Optional path to a custom Bun executable. If provided, skips automatic Bun installation and uses this executable instead. WARNING: Using an incompatible version may cause problems if the action requires specific Bun features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
     required: false
     default: ""
+  enable_todo_persistence:
+    description: "Enable persistent todo list functionality across GitHub Action runs using artifacts. Useful for complex multi-run tasks."
+    required: false
+    default: "false"
 
 outputs:
   execution_file:
@@ -162,6 +166,7 @@ runs:
         TRACK_PROGRESS: ${{ inputs.track_progress }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         CLAUDE_ARGS: ${{ inputs.claude_args }}
+        ENABLE_TODO_PERSISTENCE: ${{ inputs.enable_todo_persistence }}
         ALL_INPUTS: ${{ toJson(inputs) }}
 
     - name: Install Base Action Dependencies
@@ -246,7 +251,7 @@ runs:
         VERTEX_REGION_CLAUDE_3_7_SONNET: ${{ env.VERTEX_REGION_CLAUDE_3_7_SONNET }}
 
     - name: Finalize Todo List
-      if: steps.prepare.outputs.contains_trigger == 'true' && always()
+      if: steps.prepare.outputs.contains_trigger == 'true' && inputs.enable_todo_persistence == 'true' && always()
       shell: bash
       run: |
         bun run ${GITHUB_ACTION_PATH}/src/entrypoints/finalize-todos.ts

@@ -1,6 +1,6 @@
 # Todo List Persistence System
 
-You now have access to a persistent todo list system that maintains task state across multiple GitHub Action runs. This system is particularly useful when using the sticky comment option or when working on complex multi-run tasks.
+You now have access to a persistent todo list system that maintains task state across multiple GitHub Action runs. This system has been explicitly enabled for this workflow and is particularly useful when using the sticky comment option or when working on complex multi-run tasks.
 
 ## How It Works
 

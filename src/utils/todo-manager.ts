@@ -29,6 +29,13 @@ export class TodoManager {
     try {
       core.startGroup("Initializing Todo List Persistence");
 
+      // Check if todo persistence is enabled
+      const todoPermissionEnabled = process.env.ENABLE_TODO_PERSISTENCE === "true";
+      if (!todoPermissionEnabled) {
+        core.info("Todo persistence is disabled, skipping initialization");
+        return;
+      }
+
       this.todoList = await downloadTodoListArtifact();
 
       if (this.todoList) {
@@ -52,6 +59,13 @@ export class TodoManager {
   async prepareTodoForClaude(initialTodos?: TodoItem[]): Promise<void> {
     try {
       core.startGroup("Preparing Todo List for Claude");
+
+      // Check if todo persistence is enabled
+      const todoPermissionEnabled = process.env.ENABLE_TODO_PERSISTENCE === "true";
+      if (!todoPermissionEnabled) {
+        core.info("Todo persistence is disabled, skipping preparation");
+        return;
+      }
 
       // If initial todos are provided, merge them with existing ones
       if (initialTodos && initialTodos.length > 0) {
@@ -84,6 +98,13 @@ export class TodoManager {
   async finalizeTodoAfterClaude(): Promise<void> {
     try {
       core.startGroup("Finalizing Todo List After Claude Execution");
+
+      // Check if todo persistence is enabled
+      const todoPermissionEnabled = process.env.ENABLE_TODO_PERSISTENCE === "true";
+      if (!todoPermissionEnabled) {
+        core.info("Todo persistence is disabled, skipping finalization");
+        return;
+      }
 
       // Try to read updated todo list from Claude's output
       const updatedTodos = await readTodoListFromClaude(this.todoOutputPath);

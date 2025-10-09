@@ -32,8 +32,13 @@ async function run() {
   try {
     collectActionInputsPresence();
 
-    // Initialize todo manager early in the process
-    await todoManager.initialize();
+    // Check if todo persistence is enabled
+    const todoPermissionEnabled = process.env.ENABLE_TODO_PERSISTENCE === "true";
+
+    // Initialize todo manager early in the process if enabled
+    if (todoPermissionEnabled) {
+      await todoManager.initialize();
+    }
 
     // Parse GitHub context first to enable mode detection
     const context = parseGitHubContext();
@@ -88,8 +93,10 @@ async function run() {
       githubToken,
     });
 
-    // Step 5.5: Prepare todo list for Claude execution
-    await todoManager.prepareTodoForClaude();
+    // Step 5.5: Prepare todo list for Claude execution (if enabled)
+    if (todoPermissionEnabled) {
+      await todoManager.prepareTodoForClaude();
+    }
 
     // MCP config is handled by individual modes (tag/agent) and included in their claude_args output
 
@@ -111,8 +118,7 @@ async function run() {
     }
 
     // Add todo persistence instructions if enabled
-    const todoPersistenceEnabled = process.env.CLAUDE_TODO_PERSISTENCE_ENABLED === "true";
-    if (todoPersistenceEnabled) {
+    if (todoPermissionEnabled) {
       const todoInstructions = await readTodoPersistenceInstructions();
       if (todoInstructions) {
         systemPrompt += `\n\n## Todo List Persistence\n\n${todoInstructions}`;

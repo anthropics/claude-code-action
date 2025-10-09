@@ -219,7 +219,7 @@ export async function prepareMcpConfig(
     }
 
     // Add todo persistence server if todo persistence is enabled
-    const todoPersistenceEnabled = process.env.CLAUDE_TODO_PERSISTENCE_ENABLED === "true";
+    const todoPersistenceEnabled = process.env.ENABLE_TODO_PERSISTENCE === "true";
     if (todoPersistenceEnabled) {
       baseMcpConfig.mcpServers.todo_persistence = {
         command: "bun",
