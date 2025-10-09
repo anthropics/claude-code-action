@@ -19,7 +19,12 @@ import { join } from "path";
 
 async function readTodoPersistenceInstructions(): Promise<string | null> {
   try {
-    const instructionsPath = join(__dirname, "..", "prompts", "todo-persistence-instructions.md");
+    const instructionsPath = join(
+      __dirname,
+      "..",
+      "prompts",
+      "todo-persistence-instructions.md",
+    );
     const content = await readFile(instructionsPath, "utf-8");
     return content;
   } catch (error) {
@@ -33,7 +38,8 @@ async function run() {
     collectActionInputsPresence();
 
     // Check if todo persistence is enabled
-    const todoPermissionEnabled = process.env.ENABLE_TODO_PERSISTENCE === "true";
+    const todoPermissionEnabled =
+      process.env.ENABLE_TODO_PERSISTENCE === "true";
 
     // Initialize todo manager early in the process if enabled
     if (todoPermissionEnabled) {

@@ -37,18 +37,18 @@ describe("TodoManager", () => {
       {
         content: "Complete feature A",
         status: "completed",
-        activeForm: "Completing feature A"
+        activeForm: "Completing feature A",
       },
       {
         content: "Work on feature B",
         status: "in_progress",
-        activeForm: "Working on feature B"
+        activeForm: "Working on feature B",
       },
       {
         content: "Plan feature C",
         status: "pending",
-        activeForm: "Planning feature C"
-      }
+        activeForm: "Planning feature C",
+      },
     ]);
 
     const summary = manager.generateTodoSummaryMarkdown();

@@ -11,11 +11,13 @@ The todo list persistence system uses GitHub Actions artifacts to store your tod
 You have access to the following MCP tools for todo persistence:
 
 ### `load_todo_list`
+
 - **Description**: Load the persistent todo list from previous runs
 - **Parameters**: None
 - **Returns**: JSON object with todos array and metadata
 
 Example usage:
+
 ```
 I'll check if there's an existing todo list from previous runs.
 
@@ -26,12 +28,14 @@ I'll check if there's an existing todo list from previous runs.
 ```
 
 ### `save_todo_list`
+
 - **Description**: Save the current todo list for persistence across runs
 - **Parameters**:
   - `todos`: Array of todo items, each with `content`, `status`, and `activeForm`
 - **Returns**: Success confirmation with save statistics
 
 Example usage:
+
 ```
 <function_calls>
 <invoke name="mcp__todo_persistence__save_todo_list">
@@ -57,6 +61,7 @@ Example usage:
 ```
 
 ### `get_todo_status`
+
 - **Description**: Get information about todo list persistence status
 - **Parameters**: None
 - **Returns**: Status information about persistence system

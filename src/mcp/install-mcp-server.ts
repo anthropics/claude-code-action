@@ -219,11 +219,14 @@ export async function prepareMcpConfig(
     }
 
     // Add todo persistence server if todo persistence is enabled
-    const todoPersistenceEnabled = process.env.ENABLE_TODO_PERSISTENCE === "true";
+    const todoPersistenceEnabled =
+      process.env.ENABLE_TODO_PERSISTENCE === "true";
     if (todoPersistenceEnabled) {
       baseMcpConfig.mcpServers.todo_persistence = {
         command: "bun",
-        args: [`${process.env.GITHUB_ACTION_PATH || "."}/src/mcp/todo-persistence-server.ts`],
+        args: [
+          `${process.env.GITHUB_ACTION_PATH || "."}/src/mcp/todo-persistence-server.ts`,
+        ],
         env: {
           CLAUDE_TODO_INPUT_FILE: process.env.CLAUDE_TODO_INPUT_FILE || "",
           CLAUDE_TODO_OUTPUT_FILE: process.env.CLAUDE_TODO_OUTPUT_FILE || "",

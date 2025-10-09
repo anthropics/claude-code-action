@@ -8,7 +8,7 @@ import {
   mergeTodoLists,
   createTodoList,
   type TodoList,
-  type TodoItem
+  type TodoItem,
 } from "./todo-persistence";
 
 export class TodoManager {
@@ -30,7 +30,8 @@ export class TodoManager {
       core.startGroup("Initializing Todo List Persistence");
 
       // Check if todo persistence is enabled
-      const todoPermissionEnabled = process.env.ENABLE_TODO_PERSISTENCE === "true";
+      const todoPermissionEnabled =
+        process.env.ENABLE_TODO_PERSISTENCE === "true";
       if (!todoPermissionEnabled) {
         core.info("Todo persistence is disabled, skipping initialization");
         return;
@@ -39,7 +40,9 @@ export class TodoManager {
       this.todoList = await downloadTodoListArtifact();
 
       if (this.todoList) {
-        core.info(`Loaded existing todo list with ${this.todoList.todos.length} items`);
+        core.info(
+          `Loaded existing todo list with ${this.todoList.todos.length} items`,
+        );
         this.logTodoSummary(this.todoList);
       } else {
         core.info("No existing todo list found, starting fresh");
@@ -61,7 +64,8 @@ export class TodoManager {
       core.startGroup("Preparing Todo List for Claude");
 
       // Check if todo persistence is enabled
-      const todoPermissionEnabled = process.env.ENABLE_TODO_PERSISTENCE === "true";
+      const todoPermissionEnabled =
+        process.env.ENABLE_TODO_PERSISTENCE === "true";
       if (!todoPermissionEnabled) {
         core.info("Todo persistence is disabled, skipping preparation");
         return;
@@ -100,7 +104,8 @@ export class TodoManager {
       core.startGroup("Finalizing Todo List After Claude Execution");
 
       // Check if todo persistence is enabled
-      const todoPermissionEnabled = process.env.ENABLE_TODO_PERSISTENCE === "true";
+      const todoPermissionEnabled =
+        process.env.ENABLE_TODO_PERSISTENCE === "true";
       if (!todoPermissionEnabled) {
         core.info("Todo persistence is disabled, skipping finalization");
         return;
@@ -113,7 +118,9 @@ export class TodoManager {
         // Update our todo list with Claude's changes
         this.todoList = mergeTodoLists(this.todoList, updatedTodos);
 
-        core.info(`Todo list updated with ${updatedTodos.length} items from Claude`);
+        core.info(
+          `Todo list updated with ${updatedTodos.length} items from Claude`,
+        );
         this.logTodoSummary(this.todoList);
 
         // Upload the updated todo list as an artifact
@@ -154,7 +161,7 @@ export class TodoManager {
   getFilePaths(): { input: string; output: string } {
     return {
       input: this.todoInputPath,
-      output: this.todoOutputPath
+      output: this.todoOutputPath,
     };
   }
 
@@ -167,16 +174,19 @@ export class TodoManager {
     }
 
     const todos = this.todoList.todos;
-    const completedCount = todos.filter(t => t.status === "completed").length;
-    const inProgressCount = todos.filter(t => t.status === "in_progress").length;
-    const pendingCount = todos.filter(t => t.status === "pending").length;
+    const completedCount = todos.filter((t) => t.status === "completed").length;
 
     let summary = `\n\n### 📋 Task Progress (${completedCount}/${todos.length} completed)\n\n`;
 
-    todos.forEach(todo => {
-      const checkbox = todo.status === "completed" ? "☑️" :
-                      todo.status === "in_progress" ? "🔄" : "⬜";
-      const text = todo.status === "in_progress" ? todo.activeForm : todo.content;
+    todos.forEach((todo) => {
+      const checkbox =
+        todo.status === "completed"
+          ? "☑️"
+          : todo.status === "in_progress"
+            ? "🔄"
+            : "⬜";
+      const text =
+        todo.status === "in_progress" ? todo.activeForm : todo.content;
       summary += `${checkbox} ${text}\n`;
     });
 
@@ -188,18 +198,27 @@ export class TodoManager {
    */
   private logTodoSummary(todoList: TodoList): void {
     const todos = todoList.todos;
-    const completedCount = todos.filter(t => t.status === "completed").length;
-    const inProgressCount = todos.filter(t => t.status === "in_progress").length;
-    const pendingCount = todos.filter(t => t.status === "pending").length;
+    const completedCount = todos.filter((t) => t.status === "completed").length;
+    const inProgressCount = todos.filter(
+      (t) => t.status === "in_progress",
+    ).length;
+    const pendingCount = todos.filter((t) => t.status === "pending").length;
 
-    core.info(`Todo Summary: ${completedCount} completed, ${inProgressCount} in progress, ${pendingCount} pending`);
+    core.info(
+      `Todo Summary: ${completedCount} completed, ${inProgressCount} in progress, ${pendingCount} pending`,
+    );
 
     if (todos.length > 0) {
       core.info("Current todos:");
       todos.forEach((todo, index) => {
-        const status = todo.status === "completed" ? "✓" :
-                      todo.status === "in_progress" ? "⟳" : "○";
-        const text = todo.status === "in_progress" ? todo.activeForm : todo.content;
+        const status =
+          todo.status === "completed"
+            ? "✓"
+            : todo.status === "in_progress"
+              ? "⟳"
+              : "○";
+        const text =
+          todo.status === "in_progress" ? todo.activeForm : todo.content;
         core.info(`  ${status} ${index + 1}. ${text}`);
       });
     }

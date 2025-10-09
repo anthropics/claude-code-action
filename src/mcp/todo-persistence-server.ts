@@ -5,7 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
-  Tool,
+  type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { readFile, writeFile, existsSync } from "fs";
 import { promisify } from "util";
@@ -75,7 +75,8 @@ class TodoPersistenceServer {
                     },
                     activeForm: {
                       type: "string",
-                      description: "The present continuous form of the task (used when in progress)",
+                      description:
+                        "The present continuous form of the task (used when in progress)",
                     },
                   },
                   required: ["content", "status", "activeForm"],
@@ -116,7 +117,8 @@ class TodoPersistenceServer {
             throw new Error(`Unknown tool: ${name}`);
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         return {
           content: [
             {
@@ -136,11 +138,15 @@ class TodoPersistenceServer {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                success: true,
-                todos: [],
-                message: "No persistent todo list found, starting fresh",
-              }, null, 2),
+              text: JSON.stringify(
+                {
+                  success: true,
+                  todos: [],
+                  message: "No persistent todo list found, starting fresh",
+                },
+                null,
+                2,
+              ),
             },
           ],
         };
@@ -153,12 +159,16 @@ class TodoPersistenceServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify({
-              success: true,
-              todos: todoData.todos || [],
-              metadata: todoData.metadata || {},
-              message: `Loaded ${(todoData.todos || []).length} todos from persistent storage`,
-            }, null, 2),
+            text: JSON.stringify(
+              {
+                success: true,
+                todos: todoData.todos || [],
+                metadata: todoData.metadata || {},
+                message: `Loaded ${(todoData.todos || []).length} todos from persistent storage`,
+              },
+              null,
+              2,
+            ),
           },
         ],
       };
@@ -167,11 +177,15 @@ class TodoPersistenceServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify({
-              success: false,
-              error: error instanceof Error ? error.message : String(error),
-              todos: [],
-            }, null, 2),
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+                todos: [],
+              },
+              null,
+              2,
+            ),
           },
         ],
       };
@@ -193,10 +207,14 @@ class TodoPersistenceServer {
       // Validate each todo item
       for (const todo of todos) {
         if (!todo.content || !todo.status || !todo.activeForm) {
-          throw new Error("Each todo must have content, status, and activeForm");
+          throw new Error(
+            "Each todo must have content, status, and activeForm",
+          );
         }
         if (!["pending", "in_progress", "completed"].includes(todo.status)) {
-          throw new Error("Todo status must be pending, in_progress, or completed");
+          throw new Error(
+            "Todo status must be pending, in_progress, or completed",
+          );
         }
       }
 
@@ -212,14 +230,21 @@ class TodoPersistenceServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify({
-              success: true,
-              message: `Saved ${todos.length} todos to persistent storage`,
-              savedCount: todos.length,
-              completedCount: todos.filter(t => t.status === "completed").length,
-              inProgressCount: todos.filter(t => t.status === "in_progress").length,
-              pendingCount: todos.filter(t => t.status === "pending").length,
-            }, null, 2),
+            text: JSON.stringify(
+              {
+                success: true,
+                message: `Saved ${todos.length} todos to persistent storage`,
+                savedCount: todos.length,
+                completedCount: todos.filter((t) => t.status === "completed")
+                  .length,
+                inProgressCount: todos.filter((t) => t.status === "in_progress")
+                  .length,
+                pendingCount: todos.filter((t) => t.status === "pending")
+                  .length,
+              },
+              null,
+              2,
+            ),
           },
         ],
       };
@@ -228,10 +253,14 @@ class TodoPersistenceServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify({
-              success: false,
-              error: error instanceof Error ? error.message : String(error),
-            }, null, 2),
+            text: JSON.stringify(
+              {
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+              },
+              null,
+              2,
+            ),
           },
         ],
       };
@@ -240,8 +269,11 @@ class TodoPersistenceServer {
 
   private async getTodoStatus() {
     try {
-      const persistenceEnabled = process.env.CLAUDE_TODO_PERSISTENCE_ENABLED === "true";
-      const hasInputFile = TODO_INPUT_PATH ? existsSync(TODO_INPUT_PATH) : false;
+      const persistenceEnabled =
+        process.env.CLAUDE_TODO_PERSISTENCE_ENABLED === "true";
+      const hasInputFile = TODO_INPUT_PATH
+        ? existsSync(TODO_INPUT_PATH)
+        : false;
       const hasOutputPath = !!TODO_OUTPUT_PATH;
 
       let inputFileInfo = null;
@@ -262,19 +294,23 @@ class TodoPersistenceServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify({
-              persistenceEnabled,
-              inputFile: {
-                path: TODO_INPUT_PATH || null,
-                exists: hasInputFile,
-                info: inputFileInfo,
+            text: JSON.stringify(
+              {
+                persistenceEnabled,
+                inputFile: {
+                  path: TODO_INPUT_PATH || null,
+                  exists: hasInputFile,
+                  info: inputFileInfo,
+                },
+                outputFile: {
+                  path: TODO_OUTPUT_PATH || null,
+                  configured: hasOutputPath,
+                },
+                runId: process.env.GITHUB_RUN_ID || "unknown",
               },
-              outputFile: {
-                path: TODO_OUTPUT_PATH || null,
-                configured: hasOutputPath,
-              },
-              runId: process.env.GITHUB_RUN_ID || "unknown",
-            }, null, 2),
+              null,
+              2,
+            ),
           },
         ],
       };
@@ -283,9 +319,13 @@ class TodoPersistenceServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify({
-              error: error instanceof Error ? error.message : String(error),
-            }, null, 2),
+            text: JSON.stringify(
+              {
+                error: error instanceof Error ? error.message : String(error),
+              },
+              null,
+              2,
+            ),
           },
         ],
       };

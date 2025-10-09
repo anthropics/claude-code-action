@@ -1,9 +1,8 @@
-import { describe, test, expect, beforeEach } from "bun:test";
+import { describe, test, expect } from "bun:test";
 import {
   createTodoList,
   mergeTodoLists,
   type TodoItem,
-  type TodoList
 } from "../src/utils/todo-persistence";
 
 describe("Todo Persistence", () => {
@@ -11,18 +10,18 @@ describe("Todo Persistence", () => {
     {
       content: "Implement authentication",
       status: "completed",
-      activeForm: "Implementing authentication"
+      activeForm: "Implementing authentication",
     },
     {
       content: "Add database migrations",
       status: "in_progress",
-      activeForm: "Adding database migrations"
+      activeForm: "Adding database migrations",
     },
     {
       content: "Write unit tests",
       status: "pending",
-      activeForm: "Writing unit tests"
-    }
+      activeForm: "Writing unit tests",
+    },
   ];
 
   test("createTodoList creates a valid todo list", () => {
@@ -46,35 +45,40 @@ describe("Todo Persistence", () => {
       {
         content: "Implement authentication",
         status: "completed",
-        activeForm: "Implementing authentication"
+        activeForm: "Implementing authentication",
       },
       {
         content: "Add database migrations",
         status: "in_progress",
-        activeForm: "Adding database migrations"
-      }
+        activeForm: "Adding database migrations",
+      },
     ]);
 
     const newTodos: TodoItem[] = [
       {
         content: "Implement authentication",
         status: "pending",
-        activeForm: "Implementing authentication"
+        activeForm: "Implementing authentication",
       },
       {
         content: "Write unit tests",
         status: "pending",
-        activeForm: "Writing unit tests"
-      }
+        activeForm: "Writing unit tests",
+      },
     ];
 
     const merged = mergeTodoLists(existing, newTodos);
 
     // Should preserve completed status from existing
-    expect(merged.todos.find(t => t.content === "Implement authentication")?.status).toBe("completed");
+    expect(
+      merged.todos.find((t) => t.content === "Implement authentication")
+        ?.status,
+    ).toBe("completed");
 
     // Should add new todo
-    expect(merged.todos.find(t => t.content === "Write unit tests")?.status).toBe("pending");
+    expect(
+      merged.todos.find((t) => t.content === "Write unit tests")?.status,
+    ).toBe("pending");
 
     // Should preserve version info
     expect(merged.version).toBe(existing.version);
@@ -85,8 +89,8 @@ describe("Todo Persistence", () => {
       {
         content: "New task",
         status: "pending",
-        activeForm: "Working on new task"
-      }
+        activeForm: "Working on new task",
+      },
     ];
 
     const merged = mergeTodoLists(null, newTodos);
@@ -100,32 +104,38 @@ describe("Todo Persistence", () => {
       {
         content: "Old completed task",
         status: "completed",
-        activeForm: "Working on old completed task"
+        activeForm: "Working on old completed task",
       },
       {
         content: "Task in progress",
         status: "in_progress",
-        activeForm: "Working on task in progress"
-      }
+        activeForm: "Working on task in progress",
+      },
     ]);
 
     const newTodos: TodoItem[] = [
       {
         content: "New task",
         status: "pending",
-        activeForm: "Working on new task"
-      }
+        activeForm: "Working on new task",
+      },
     ];
 
     const merged = mergeTodoLists(existing, newTodos);
 
     // Should keep completed task from existing
-    expect(merged.todos.find(t => t.content === "Old completed task")?.status).toBe("completed");
+    expect(
+      merged.todos.find((t) => t.content === "Old completed task")?.status,
+    ).toBe("completed");
 
     // Should not keep non-completed task that's not in new list
-    expect(merged.todos.find(t => t.content === "Task in progress")).toBeUndefined();
+    expect(
+      merged.todos.find((t) => t.content === "Task in progress"),
+    ).toBeUndefined();
 
     // Should have the new task
-    expect(merged.todos.find(t => t.content === "New task")?.status).toBe("pending");
+    expect(merged.todos.find((t) => t.content === "New task")?.status).toBe(
+      "pending",
+    );
   });
 });
