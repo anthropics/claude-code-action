@@ -19,11 +19,22 @@
 
 ## GitHub App Permissions
 
-The [Claude Code GitHub app](https://github.com/apps/claude) requires these permissions:
+The [Claude Code GitHub app](https://github.com/apps/claude) requests the following permissions:
 
-- **Pull Requests**: Read and write to create PRs and push changes
-- **Issues**: Read and write to respond to issues
-- **Contents**: Read and write to modify repository files
+### Currently Used Permissions
+
+- **Contents** (Read & Write): For reading repository files and creating branches
+- **Pull Requests** (Read & Write): For reading PR data and creating/updating pull requests
+- **Issues** (Read & Write): For reading issue data and updating issue comments
+
+### Permissions for Future Features
+
+The following permissions are requested but not yet actively used. These will enable planned features in future releases:
+
+- **Discussions** (Read & Write): For interaction with GitHub Discussions
+- **Actions** (Read): For accessing workflow run data and logs
+- **Checks** (Read): For reading check run results
+- **Workflows** (Read & Write): For triggering and managing GitHub Actions workflows
 
 ## Commit Signing
 
