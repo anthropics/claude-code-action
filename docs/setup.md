@@ -20,7 +20,47 @@ If you prefer not to install the official Claude app, you can create your own Gi
 - Organization policies prevent installing third-party apps
 - You're using AWS Bedrock or Google Vertex AI
 
-**Steps to create and use a custom GitHub App:**
+### Option 1: Quick Setup with App Manifest (Recommended)
+
+The fastest way to create a custom GitHub App is using our pre-configured manifest. This ensures all permissions are correctly set up with a single click.
+
+**Steps:**
+
+1. **Create the app with one click:**
+
+   **🚀 [Open the App Creation Tool](./create-app.html)**
+
+   This interactive tool will help you:
+
+   - Create an app for your personal account or organization
+   - Automatically configure all required permissions
+   - Generate the manifest with proper settings
+
+   Alternatively, you can use the manifest file directly:
+
+   - Use the [`github-app-manifest.json`](../github-app-manifest.json) file from this repository
+   - Visit https://github.com/settings/apps/new (for personal) or your organization's app settings
+   - Look for the "Create from manifest" option and paste the JSON content
+
+2. **Complete the creation flow:**
+
+   - GitHub will show you a preview of the app configuration
+   - Confirm the app name (you can customize it)
+   - Click "Create GitHub App"
+   - The app will be created with all required permissions automatically configured
+
+3. **Generate and download a private key:**
+
+   - After creating the app, you'll be redirected to the app settings
+   - Scroll down to "Private keys"
+   - Click "Generate a private key"
+   - Download the `.pem` file (keep this secure!)
+
+4. **Continue with installation** - Skip to step 3 in the manual setup below to install the app and configure your workflow.
+
+### Option 2: Manual Setup
+
+If you prefer to configure the app manually or need custom permissions:
 
 1. **Create a new GitHub App:**
 

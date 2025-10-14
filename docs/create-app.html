@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Create Claude Code GitHub App</title>
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica,
+          Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 40px 20px;
+        line-height: 1.6;
+        color: #24292e;
+      }
+      h1 {
+        border-bottom: 1px solid #e1e4e8;
+        padding-bottom: 10px;
+      }
+      .button-container {
+        margin: 30px 0;
+      }
+      .create-button {
+        display: inline-block;
+        padding: 12px 24px;
+        background-color: #2ea44f;
+        color: white;
+        text-decoration: none;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: 600;
+        margin-right: 10px;
+        margin-bottom: 10px;
+        transition: background-color 0.2s;
+      }
+      .create-button:hover {
+        background-color: #2c974b;
+      }
+      .org-button {
+        background-color: #0969da;
+      }
+      .org-button:hover {
+        background-color: #0860ca;
+      }
+      .instructions {
+        background-color: #f6f8fa;
+        border: 1px solid #d1d5da;
+        border-radius: 6px;
+        padding: 20px;
+        margin: 20px 0;
+      }
+      .code-block {
+        background-color: #f6f8fa;
+        border: 1px solid #d1d5da;
+        border-radius: 6px;
+        padding: 10px;
+        font-family: monospace;
+        overflow-x: auto;
+      }
+      .permissions-list {
+        margin-left: 20px;
+      }
+      .permission-item {
+        margin: 5px 0;
+      }
+      .warning {
+        background-color: #fffbdd;
+        border: 1px solid #e3b341;
+        border-radius: 6px;
+        padding: 15px;
+        margin: 20px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🚀 Create Your Custom Claude Code GitHub App</h1>
+
+    <p>
+      This tool helps you create a custom GitHub App for Claude Code Action with
+      all the required permissions pre-configured.
+    </p>
+
+    <div class="instructions">
+      <h2>✨ Quick Setup (Recommended)</h2>
+      <p>
+        Click one of the buttons below to create your custom GitHub App with all
+        permissions automatically configured:
+      </p>
+
+      <div class="button-container">
+        <a href="#" class="create-button" id="personal-app-btn">
+          Create App for Personal Account
+        </a>
+        <a href="#" class="create-button org-button" id="org-app-btn">
+          Create App for Organization
+        </a>
+      </div>
+
+      <p>
+        <em
+          >Note: You'll be redirected to GitHub to complete the app creation.
+          The app will be created with these permissions:</em
+        >
+      </p>
+      <ul class="permissions-list">
+        <li class="permission-item">
+          ✅ <strong>Contents:</strong> Read & Write
+        </li>
+        <li class="permission-item">
+          ✅ <strong>Issues:</strong> Read & Write
+        </li>
+        <li class="permission-item">
+          ✅ <strong>Pull requests:</strong> Read & Write
+        </li>
+        <li class="permission-item">✅ <strong>Actions:</strong> Read</li>
+        <li class="permission-item">✅ <strong>Metadata:</strong> Read</li>
+      </ul>
+    </div>
+
+    <div class="instructions">
+      <h2>📝 Manual Setup</h2>
+      <p>If the buttons above don't work, you can manually create the app:</p>
+
+      <ol>
+        <li>Copy the manifest JSON below:</li>
+      </ol>
+
+      <div class="code-block" id="manifest-json">
+        { "name": "Claude Code Custom App", "description": "Custom GitHub App
+        for Claude Code Action", "url":
+        "https://github.com/anthropics/claude-code-action", "hook_attributes": {
+        "url": "https://example.com/github/webhook", "active": false },
+        "redirect_url": "https://github.com/settings/apps/new", "public": false,
+        "default_permissions": { "contents": "write", "issues": "write",
+        "pull_requests": "write", "actions": "read", "metadata": "read" },
+        "default_events": [ "issue_comment", "issues", "pull_request",
+        "pull_request_review", "pull_request_review_comment" ] }
+      </div>
+
+      <ol start="2">
+        <li>
+          Go to
+          <a href="https://github.com/settings/apps/new" target="_blank"
+            >GitHub App Settings</a
+          >
+        </li>
+        <li>Look for "Create from manifest" option</li>
+        <li>Paste the JSON and follow the prompts</li>
+      </ol>
+    </div>
+
+    <div class="instructions">
+      <h2>🔧 After Creating Your App</h2>
+      <ol>
+        <li>
+          <strong>Generate a private key:</strong> In your app settings, scroll
+          to "Private keys" and click "Generate a private key"
+        </li>
+        <li>
+          <strong>Install the app:</strong> Click "Install App" and select the
+          repositories
+        </li>
+        <li>
+          <strong>Configure your workflow:</strong> Add the app credentials to
+          your repository secrets
+        </li>
+      </ol>
+    </div>
+
+    <div class="warning">
+      <strong>⚠️ Important:</strong> Keep your private key secure! Never commit
+      it to your repository. Always use GitHub secrets to store sensitive
+      credentials.
+    </div>
+
+    <script>
+      // Manifest configuration
+      const manifest = {
+        name: "Claude Code Custom App",
+        description:
+          "Custom GitHub App for Claude Code Action - AI-powered coding assistant for GitHub workflows",
+        url: "https://github.com/anthropics/claude-code-action",
+        hook_attributes: {
+          url: "https://example.com/github/webhook",
+          active: false,
+        },
+        redirect_url: window.location.href,
+        callback_urls: [],
+        setup_url:
+          "https://github.com/anthropics/claude-code-action/blob/main/docs/setup.md",
+        public: false,
+        default_permissions: {
+          contents: "write",
+          issues: "write",
+          pull_requests: "write",
+          actions: "read",
+          metadata: "read",
+        },
+        default_events: [
+          "issue_comment",
+          "issues",
+          "pull_request",
+          "pull_request_review",
+          "pull_request_review_comment",
+        ],
+      };
+
+      // Encode manifest for URL
+      const encodedManifest = encodeURIComponent(JSON.stringify(manifest));
+
+      // Setup personal app button
+      document
+        .getElementById("personal-app-btn")
+        .addEventListener("click", function (e) {
+          e.preventDefault();
+          const url = `https://github.com/settings/apps/new?state=${Date.now()}&manifest=${encodedManifest}`;
+          window.open(url, "_blank");
+        });
+
+      // Setup org app button
+      document
+        .getElementById("org-app-btn")
+        .addEventListener("click", function (e) {
+          e.preventDefault();
+          const orgName = prompt("Enter your organization name:");
+          if (orgName) {
+            const url = `https://github.com/organizations/${orgName}/settings/apps/new?state=${Date.now()}&manifest=${encodedManifest}`;
+            window.open(url, "_blank");
+          }
+        });
+    </script>
+  </body>
+</html>
