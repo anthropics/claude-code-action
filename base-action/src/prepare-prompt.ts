@@ -1,7 +1,5 @@
-import * as core from "@actions/core";
-import { writeFileSync } from "fs";
+import { writeFileSync, readFileSync } from "fs";
 import { join } from "path";
-import { readFileSync } from "fs";
 
 export async function preparePrompt({
   prompt,

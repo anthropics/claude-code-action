@@ -1,4 +1,3 @@
-import * as core from "@actions/core";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";

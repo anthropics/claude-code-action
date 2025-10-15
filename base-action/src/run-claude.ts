@@ -1,8 +1,7 @@
 import * as core from "@actions/core";
 import { execSync } from "child_process";
-import { writeFileSync, readFileSync } from "fs";
+import { writeFileSync } from "fs";
 import { join } from "path";
-import { parse } from "shell-quote";
 
 interface ClaudeOptions {
   claudeArgs?: string;
