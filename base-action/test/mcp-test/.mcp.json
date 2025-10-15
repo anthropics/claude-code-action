@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "test-server": {
+      "type": "stdio",
+      "command": "bun",
+      "args": ["simple-mcp-server.ts"],
+      "env": {}
+    }
+  }
+}
