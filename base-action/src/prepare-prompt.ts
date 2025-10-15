@@ -1,82 +1,38 @@
-import { existsSync, statSync } from "fs";
-import { mkdir, writeFile } from "fs/promises";
+import * as core from "@actions/core";
+import { writeFileSync } from "fs";
+import { join } from "path";
+import { readFileSync } from "fs";
 
-export type PreparePromptInput = {
+export async function preparePrompt({
+  prompt,
+  promptFile,
+}: {
   prompt: string;
   promptFile: string;
-};
-
-export type PreparePromptConfig = {
-  type: "file" | "inline";
-  path: string;
-};
-
-async function validateAndPreparePrompt(
-  input: PreparePromptInput,
-): Promise<PreparePromptConfig> {
-  // Validate inputs
-  if (!input.prompt && !input.promptFile) {
-    throw new Error(
-      "Neither 'prompt' nor 'prompt_file' was provided. At least one is required.",
-    );
+}) {
+  if (prompt && promptFile) {
+    throw new Error("Cannot specify both prompt and prompt_file");
   }
 
-  if (input.prompt && input.promptFile) {
-    throw new Error(
-      "Both 'prompt' and 'prompt_file' were provided. Please specify only one.",
-    );
+  if (!prompt && !promptFile) {
+    throw new Error("Must specify either prompt or prompt_file");
   }
 
-  // Handle prompt file
-  if (input.promptFile) {
-    if (!existsSync(input.promptFile)) {
-      throw new Error(`Prompt file '${input.promptFile}' does not exist.`);
+  let finalPrompt: string;
+
+  if (promptFile) {
+    try {
+      finalPrompt = readFileSync(promptFile, "utf-8");
+    } catch (error) {
+      throw new Error(`Failed to read prompt file ${promptFile}: ${error}`);
     }
-
-    // Validate that the file is not empty
-    const stats = statSync(input.promptFile);
-    if (stats.size === 0) {
-      throw new Error(
-        "Prompt file is empty. Please provide a non-empty prompt.",
-      );
-    }
-
-    return {
-      type: "file",
-      path: input.promptFile,
-    };
+  } else {
+    finalPrompt = prompt;
   }
 
-  // Handle inline prompt
-  if (!input.prompt || input.prompt.trim().length === 0) {
-    throw new Error("Prompt is empty. Please provide a non-empty prompt.");
-  }
+  // Write prompt to a temporary file
+  const tempFile = join(process.cwd(), `claude-prompt-${Date.now()}.txt`);
+  writeFileSync(tempFile, finalPrompt);
 
-  const inlinePath = "/tmp/claude-action/prompt.txt";
-  return {
-    type: "inline",
-    path: inlinePath,
-  };
-}
-
-async function createTemporaryPromptFile(
-  prompt: string,
-  promptPath: string,
-): Promise<void> {
-  // Create the directory path
-  const dirPath = promptPath.substring(0, promptPath.lastIndexOf("/"));
-  await mkdir(dirPath, { recursive: true });
-  await writeFile(promptPath, prompt);
-}
-
-export async function preparePrompt(
-  input: PreparePromptInput,
-): Promise<PreparePromptConfig> {
-  const config = await validateAndPreparePrompt(input);
-
-  if (config.type === "inline") {
-    await createTemporaryPromptFile(input.prompt, config.path);
-  }
-
-  return config;
+  return { path: tempFile };
 }

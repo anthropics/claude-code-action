@@ -1,68 +1,54 @@
-import { $ } from "bun";
+import * as core from "@actions/core";
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
+import { join } from "path";
 import { homedir } from "os";
-import { readFile } from "fs/promises";
 
 export async function setupClaudeCodeSettings(
-  settingsInput?: string,
+  settings?: string,
   homeDir?: string,
 ) {
-  const home = homeDir ?? homedir();
-  const settingsPath = `${home}/.claude/settings.json`;
-  console.log(`Setting up Claude settings at: ${settingsPath}`);
+  const home = homeDir || homedir();
+  const claudeDir = join(home, ".claude");
+  const settingsPath = join(claudeDir, "settings.json");
 
-  // Ensure .claude directory exists
-  console.log(`Creating .claude directory...`);
-  await $`mkdir -p ${home}/.claude`.quiet();
-
-  let settings: Record<string, unknown> = {};
-  try {
-    const existingSettings = await $`cat ${settingsPath}`.quiet().text();
-    if (existingSettings.trim()) {
-      settings = JSON.parse(existingSettings);
-      console.log(
-        `Found existing settings:`,
-        JSON.stringify(settings, null, 2),
-      );
-    } else {
-      console.log(`Settings file exists but is empty`);
-    }
-  } catch (e) {
-    console.log(`No existing settings file found, creating new one`);
+  // Create .claude directory if it doesn't exist
+  if (!existsSync(claudeDir)) {
+    mkdirSync(claudeDir, { recursive: true });
   }
 
-  // Handle settings input (either file path or JSON string)
-  if (settingsInput && settingsInput.trim()) {
-    console.log(`Processing settings input...`);
-    let inputSettings: Record<string, unknown> = {};
+  let finalSettings: any = {
+    enableAllProjectMcpServers: true,
+  };
 
+  // Load existing settings if they exist
+  if (existsSync(settingsPath)) {
     try {
-      // First try to parse as JSON
-      inputSettings = JSON.parse(settingsInput);
-      console.log(`Parsed settings input as JSON`);
-    } catch (e) {
+      const existing = JSON.parse(readFileSync(settingsPath, "utf-8"));
+      finalSettings = { ...existing, ...finalSettings };
+    } catch (error) {
+      console.log("Failed to parse existing settings, using defaults");
+    }
+  }
+
+  // Process input settings if provided
+  if (settings) {
+    try {
+      // Try parsing as JSON first
+      const inputSettings = JSON.parse(settings);
+      finalSettings = { ...finalSettings, ...inputSettings };
+    } catch {
       // If not JSON, treat as file path
-      console.log(
-        `Settings input is not JSON, treating as file path: ${settingsInput}`,
-      );
       try {
-        const fileContent = await readFile(settingsInput, "utf-8");
-        inputSettings = JSON.parse(fileContent);
-        console.log(`Successfully read and parsed settings from file`);
-      } catch (fileError) {
-        console.error(`Failed to read or parse settings file: ${fileError}`);
-        throw new Error(`Failed to process settings input: ${fileError}`);
+        if (existsSync(settings)) {
+          const fileSettings = JSON.parse(readFileSync(settings, "utf-8"));
+          finalSettings = { ...finalSettings, ...fileSettings };
+        }
+      } catch (error) {
+        console.log(`Failed to read settings file: ${error}`);
       }
     }
-
-    // Merge input settings with existing settings
-    settings = { ...settings, ...inputSettings };
-    console.log(`Merged settings with input settings`);
   }
 
-  // Always set enableAllProjectMcpServers to true
-  settings.enableAllProjectMcpServers = true;
-  console.log(`Updated settings with enableAllProjectMcpServers: true`);
-
-  await $`echo ${JSON.stringify(settings, null, 2)} > ${settingsPath}`.quiet();
-  console.log(`Settings saved successfully`);
+  // Write settings file
+  writeFileSync(settingsPath, JSON.stringify(finalSettings, null, 2));
 }
