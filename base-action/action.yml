@@ -24,6 +24,38 @@ inputs:
     description: "Additional arguments to pass directly to Claude CLI (e.g., '--max-turns 3 --mcp-config /path/to/config.json')"
     required: false
     default: ""
+  allowed_tools:
+    description: "Comma-separated list of allowed tools for Claude Code to use"
+    required: false
+    default: ""
+  disallowed_tools:
+    description: "Comma-separated list of disallowed tools that Claude Code cannot use"
+    required: false
+    default: ""
+  max_turns:
+    description: "Maximum number of turns for the Claude Code session"
+    required: false
+    default: ""
+  mcp_config:
+    description: "Path to MCP configuration file or MCP configuration as JSON string"
+    required: false
+    default: ""
+  system_prompt:
+    description: "System prompt to use for the Claude Code session"
+    required: false
+    default: ""
+  append_system_prompt:
+    description: "Additional system prompt to append to the default system prompt"
+    required: false
+    default: ""
+  claude_env:
+    description: "Environment variables to pass to Claude Code (JSON format)"
+    required: false
+    default: ""
+  fallback_model:
+    description: "Fallback model to use if the primary model fails"
+    required: false
+    default: ""
 
   # Authentication settings
   anthropic_api_key:
@@ -77,7 +109,7 @@ runs:
       if: inputs.path_to_bun_executable == ''
       uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # https://github.com/oven-sh/setup-bun/releases/tag/v2.0.2
       with:
-        bun-version: 1.2.11
+        bun-version: 1.2.12
 
     - name: Setup Custom Bun Path
       if: inputs.path_to_bun_executable != ''
@@ -124,6 +156,14 @@ runs:
         INPUT_PROMPT_FILE: ${{ inputs.prompt_file }}
         INPUT_SETTINGS: ${{ inputs.settings }}
         INPUT_CLAUDE_ARGS: ${{ inputs.claude_args }}
+        INPUT_ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
+        INPUT_DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
+        INPUT_MAX_TURNS: ${{ inputs.max_turns }}
+        INPUT_MCP_CONFIG: ${{ inputs.mcp_config }}
+        INPUT_SYSTEM_PROMPT: ${{ inputs.system_prompt }}
+        INPUT_APPEND_SYSTEM_PROMPT: ${{ inputs.append_system_prompt }}
+        INPUT_CLAUDE_ENV: ${{ inputs.claude_env }}
+        INPUT_FALLBACK_MODEL: ${{ inputs.fallback_model }}
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
 

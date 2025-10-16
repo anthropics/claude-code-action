@@ -1,29 +1,66 @@
 #!/usr/bin/env bun
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 
-const server = new McpServer({
-  name: "test-server",
-  version: "1.0.0",
-});
+const server = new Server(
+  {
+    name: "test-mcp-server",
+    version: "0.1.0",
+  },
+  {
+    capabilities: {
+      tools: {},
+    },
+  },
+);
 
-server.tool("test_tool", "A simple test tool", {}, async () => {
+server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
-    content: [
+    tools: [
       {
-        type: "text",
-        text: "Test tool response",
+        name: "test_tool",
+        description: "A simple test tool for MCP testing",
+        inputSchema: {
+          type: "object",
+          properties: {
+            message: {
+              type: "string",
+              description: "A test message",
+            },
+          },
+          required: ["message"],
+        },
       },
     ],
   };
 });
 
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  if (request.params.name === "test_tool") {
+    const message =
+      request.params.arguments?.message || "Hello from MCP test server!";
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Test tool executed with message: ${message}`,
+        },
+      ],
+    };
+  } else {
+    throw new Error(`Unknown tool: ${request.params.name}`);
+  }
+});
+
 async function runServer() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  process.on("exit", () => {
-    server.close();
-  });
+  console.error("MCP test server running on stdio");
 }
 
 runServer().catch(console.error);
