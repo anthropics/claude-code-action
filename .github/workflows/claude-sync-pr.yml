@@ -1,0 +1,327 @@
+name: Claude Code (PR Sync/Rebase)
+
+on:
+    issue_comment:
+        types: [created]
+    pull_request_review_comment:
+        types: [created]
+    pull_request_review:
+        types: [submitted]
+
+jobs:
+    sync:
+        if: |
+            ((github.event_name == 'issue_comment' && github.event.issue.pull_request) ||
+             (github.event_name == 'pull_request_review_comment') ||
+             (github.event_name == 'pull_request_review'))
+            &&
+            (contains(github.event.comment.body, '@claude sync') ||
+             contains(github.event.comment.body, '@claude rebase') ||
+             contains(github.event.comment.body, '@claude fix-conflicts') ||
+             contains(github.event.review.body, '@claude sync') ||
+             contains(github.event.review.body, '@claude rebase') ||
+             contains(github.event.review.body, '@claude fix-conflicts')) &&
+            (
+                (github.event_name == 'issue_comment' && contains('MEMBER,OWNER,COLLABORATOR', github.event.comment.author_association)) ||
+                (github.event_name == 'pull_request_review_comment' && contains('MEMBER,OWNER,COLLABORATOR', github.event.comment.author_association)) ||
+                (github.event_name == 'pull_request_review' && contains('MEMBER,OWNER,COLLABORATOR', github.event.review.author_association))
+            )
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            pull-requests: write
+            issues: write
+            id-token: write
+        steps:
+            - name: Get PR details
+              id: pr_details
+              env:
+                  GH_TOKEN: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+              run: |
+                  if [ "${{ github.event_name }}" = "issue_comment" ]; then
+                    PR_NUM="${{ github.event.issue.number }}"
+                  else
+                    PR_NUM="${{ github.event.pull_request.number }}"
+                  fi
+
+                  echo "Fetching PR details for PR #$PR_NUM..."
+                  PR_DATA=$(gh api "/repos/${{ github.repository }}/pulls/$PR_NUM")
+                  HEAD_REF=$(echo "$PR_DATA" | jq -r '.head.ref')
+                  BASE_REF=$(echo "$PR_DATA" | jq -r '.base.ref')
+                  HEAD_SHA=$(echo "$PR_DATA" | jq -r '.head.sha')
+
+                  echo "PR Branch: $HEAD_REF"
+                  echo "Base Branch: $BASE_REF"
+                  echo "PR SHA: $HEAD_SHA"
+
+                  echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
+                  echo "head_ref=$HEAD_REF" >> $GITHUB_OUTPUT
+                  echo "base_ref=$BASE_REF" >> $GITHUB_OUTPUT
+                  echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
+
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  token: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+                  ref: ${{ steps.pr_details.outputs.head_ref }}
+                  fetch-depth: 0
+
+            - name: Setup Rust toolchain
+              uses: dtolnay/rust-toolchain@stable
+
+            - name: Setup cargo-machete
+              uses: BSteffaniak/cache-artifact@master
+              with:
+                  repo: https://github.com/BSteffaniak/cargo-machete
+                  command: cargo install --git https://github.com/BSteffaniak/cargo-machete --branch ignored-dirs cargo-machete
+                  shell: bash
+                  output-path: ~/.cargo/bin/cargo-machete
+                  artifact-name: cargo-machete-ubuntu-latest-binary
+                  cache-key-prefix: cargo-machete-claude
+                  make-executable: true
+                  verify-command: --version
+
+            - name: Setup taplo
+              uses: BSteffaniak/cache-artifact@master
+              with:
+                  repo: https://github.com/tamasfe/taplo
+                  command: cargo install taplo-cli --locked
+                  shell: bash
+                  output-path: ~/.cargo/bin/taplo
+                  artifact-name: taplo-ubuntu-latest-binary
+                  cache-key-prefix: taplo-claude
+                  make-executable: true
+                  verify-command: --version
+
+            - name: Setup git configuration
+              run: |
+                  git config user.name "MoosicBoxBot"
+                  git config user.email "MoosicBoxBot@gmail.com"
+                  git remote set-url origin "https://x-access-token:${{ secrets.WORKFLOW_BOT_TOKEN }}@github.com/${{ github.repository }}.git"
+
+            - name: Post acknowledgment
+              env:
+                  GH_TOKEN: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+              run: |
+                  cat > /tmp/ack.txt << 'EOF'
+                  👀 Looking into this...
+
+                  **My understanding:** I'll rebase this PR branch onto `${{ steps.pr_details.outputs.base_ref }}` and resolve any conflicts.
+
+                  [View workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+                  EOF
+
+                  gh pr comment ${{ steps.pr_details.outputs.pr_number }} --repo ${{ github.repository }} --body-file /tmp/ack.txt
+
+            - name: Check for conflicts
+              id: check_conflicts
+              run: |
+                  echo "🔍 Checking for conflicts with ${{ steps.pr_details.outputs.base_ref }}..."
+
+                  # Fetch latest base branch
+                  git fetch origin ${{ steps.pr_details.outputs.base_ref }}
+
+                  # Check if rebase is needed
+                  MERGE_BASE=$(git merge-base HEAD origin/${{ steps.pr_details.outputs.base_ref }})
+                  BASE_HEAD=$(git rev-parse origin/${{ steps.pr_details.outputs.base_ref }})
+
+                  if [ "$MERGE_BASE" = "$BASE_HEAD" ]; then
+                    echo "✅ Branch is already up to date with ${{ steps.pr_details.outputs.base_ref }}"
+                    echo "needs_rebase=false" >> $GITHUB_OUTPUT
+                    exit 0
+                  fi
+
+                  echo "📊 Branch needs rebasing"
+                  echo "needs_rebase=true" >> $GITHUB_OUTPUT
+
+                  # Check if rebase will have conflicts
+                  git rebase --no-ff origin/${{ steps.pr_details.outputs.base_ref }} 2>&1 | tee /tmp/rebase_output.txt || true
+
+                  if git status | grep -E "both modified|both added|both deleted|conflict" >/dev/null 2>&1; then
+                    echo "🚫 Conflicts detected"
+                    echo "has_conflicts=true" >> $GITHUB_OUTPUT
+
+                    # Save conflict information
+                    git status --short | grep '^[UAD][UAD]' > /tmp/conflicted_files.txt || true
+
+                    # Abort the rebase for now
+                    git rebase --abort
+                  else
+                    echo "✅ No conflicts detected"
+                    echo "has_conflicts=false" >> $GITHUB_OUTPUT
+
+                    # Abort test rebase
+                    git rebase --abort 2>/dev/null || true
+                  fi
+
+            - name: Post status update
+              if: steps.check_conflicts.outputs.needs_rebase == 'false'
+              env:
+                  GH_TOKEN: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+              run: |
+                  cat > /tmp/status.txt << 'EOF'
+                  ✅ **Branch is already up to date**
+
+                  No rebase needed - this PR branch is already synced with `${{ steps.pr_details.outputs.base_ref }}`.
+                  EOF
+
+                  gh pr comment ${{ steps.pr_details.outputs.pr_number }} --repo ${{ github.repository }} --body-file /tmp/status.txt
+
+            - name: Run Claude for conflict resolution
+              if: steps.check_conflicts.outputs.needs_rebase == 'true' && steps.check_conflicts.outputs.has_conflicts == 'true'
+              id: claude
+              uses: anthropics/claude-code-action@v1
+              with:
+                  claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+                  claude_args: '--allowedTools "Edit,Read,Write,Bash"'
+                  prompt: |
+                      You are helping resolve merge conflicts on a GitHub Pull Request.
+
+                      IMPORTANT: Follow the repository's AGENTS.md for guidance on build/test commands and code style conventions.
+
+                      CONTEXT:
+                      - PR Number: ${{ steps.pr_details.outputs.pr_number }}
+                      - PR Branch: ${{ steps.pr_details.outputs.head_ref }}
+                      - Base Branch: ${{ steps.pr_details.outputs.base_ref }}
+                      - Repository: ${{ github.repository }}
+
+                      TASK: Rebase the PR branch onto the base branch and resolve any conflicts.
+
+                      CRITICAL INSTRUCTIONS:
+
+                      1. **Start the rebase:**
+                         ```bash
+                         git fetch origin ${{ steps.pr_details.outputs.base_ref }}
+                         git rebase origin/${{ steps.pr_details.outputs.base_ref }}
+                         ```
+
+                      2. **If conflicts occur:**
+                         - Read each conflicted file to understand both sides
+                         - Resolve conflicts by editing the files (remove conflict markers)
+                         - Keep the intent of both changes when possible
+                         - After resolving each file: `git add <file>`
+                         - Continue rebase: `git rebase --continue`
+                         - Repeat until rebase is complete
+
+                      3. **DO NOT push yet** - just complete the rebase successfully
+
+                      4. **Post a comment** when done explaining what conflicts you resolved:
+                         ```bash
+                         cat > /tmp/resolution.txt << 'ENDMSG'
+                         ✅ **Conflicts Resolved**
+
+                         I've successfully rebased `${{ steps.pr_details.outputs.head_ref }}` onto `${{ steps.pr_details.outputs.base_ref }}`.
+
+                         **Conflicts resolved in:**
+                         - [list files you edited and briefly explain resolution strategy]
+
+                         The changes will be pushed shortly.
+                         ENDMSG
+
+                         gh pr comment ${{ steps.pr_details.outputs.pr_number }} --repo ${{ github.repository }} --body-file /tmp/resolution.txt
+                         ```
+
+                      5. **Guidelines for conflict resolution:**
+                         - Preserve functionality from both branches
+                         - Follow existing code style and patterns
+                         - If unsure about a resolution, mention it in your comment
+                         - Test that the code compiles/is syntactically valid after resolution
+
+                      6. **CRITICAL - MANDATORY VERIFICATION BEFORE COMPLETING REBASE:**
+
+                         After resolving all conflicts but BEFORE completing the rebase, you MUST run:
+
+                         MANDATORY CHECKS (ALWAYS REQUIRED):
+                         1. Run `cargo fmt` (format all code - NOT --check)
+                         2. Run `cargo clippy --all-targets -- -D warnings` (zero warnings policy)
+                         3. Run `~/.cargo/bin/cargo-machete --with-metadata` from workspace root (detect unused dependencies)
+                         4. Run `npx prettier --write "**/*.{md,yaml,yml}"` from workspace root (format markdown and YAML files)
+                         5. Run `~/.cargo/bin/taplo format` from workspace root (format all TOML files)
+
+                         ADDITIONAL CHECKS (when applicable):
+                         4. Run `cargo build -p [package]` if changes affect specific package
+                         5. Run `cargo test -p [package]` if test coverage exists
+                         6. Run package-specific build/test commands if documented in AGENTS.md
+
+                         If ANY verification check fails, you MUST fix the issues before continuing the rebase.
+                         NEVER complete a rebase with code that doesn't pass all verification checks.
+
+                         This is a NON-NEGOTIABLE requirement - no exceptions.
+
+                      Now proceed with the rebase and conflict resolution.
+
+            - name: Setup auth
+              if: steps.check_conflicts.outputs.needs_rebase == 'true'
+              run: |
+                  git config user.name "MoosicBoxBot"
+                  git config user.email "MoosicBoxBot@gmail.com"
+                  git remote set-url origin "https://x-access-token:${{ secrets.WORKFLOW_BOT_TOKEN }}@github.com/${{ github.repository }}.git"
+
+            - name: Simple rebase (no conflicts)
+              if: steps.check_conflicts.outputs.needs_rebase == 'true' && steps.check_conflicts.outputs.has_conflicts == 'false'
+              run: |
+                  echo "🔄 Performing clean rebase (no conflicts)..."
+                  git fetch origin ${{ steps.pr_details.outputs.base_ref }}
+                  git rebase origin/${{ steps.pr_details.outputs.base_ref }}
+
+                  echo "✅ Rebase completed successfully"
+
+            - name: Push rebased branch
+              if: steps.check_conflicts.outputs.needs_rebase == 'true'
+              run: |
+                  echo "📤 Force-pushing rebased branch..."
+
+                  # Use --force-with-lease for safety (fails if someone else pushed)
+                  if git push --force-with-lease origin ${{ steps.pr_details.outputs.head_ref }}; then
+                    echo "✅ Successfully pushed rebased branch"
+                  else
+                    echo "❌ Failed to push - someone else may have pushed to the branch"
+                    echo "Please try the sync command again"
+                    exit 1
+                  fi
+
+            - name: Post success notification
+              if: steps.check_conflicts.outputs.needs_rebase == 'true' && steps.check_conflicts.outputs.has_conflicts == 'false'
+              env:
+                  GH_TOKEN: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+              run: |
+                  COMMITS_REBASED=$(git rev-list --count origin/${{ steps.pr_details.outputs.base_ref }}..HEAD)
+
+                  cat > /tmp/success.txt << EOF
+                  ✅ **Branch Successfully Rebased**
+
+                  I've rebased \`${{ steps.pr_details.outputs.head_ref }}\` onto \`${{ steps.pr_details.outputs.base_ref }}\`.
+
+                  - **Commits rebased:** $COMMITS_REBASED
+                  - **Conflicts:** None
+
+                  The PR is now up to date with the base branch.
+                  EOF
+
+                  gh pr comment ${{ steps.pr_details.outputs.pr_number }} --repo ${{ github.repository }} --body-file /tmp/success.txt
+
+            - name: Handle push failure
+              if: failure()
+              env:
+                  GH_TOKEN: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+              run: |
+                  cat > /tmp/failure.txt << 'EOF'
+                  ❌ **Failed to Sync Branch**
+
+                  I encountered an issue while trying to rebase the branch. This could be due to:
+                  - Complex conflicts that require manual resolution
+                  - Someone else pushed to the branch while I was working
+
+                  **Manual Resolution Required:**
+                  ```bash
+                  git fetch origin
+                  git checkout ${{ steps.pr_details.outputs.head_ref }}
+                  git rebase origin/${{ steps.pr_details.outputs.base_ref }}
+                  # Resolve any conflicts
+                  git push --force-with-lease origin ${{ steps.pr_details.outputs.head_ref }}
+                  ```
+
+                  Check the [workflow logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+                  EOF
+
+                  gh pr comment ${{ steps.pr_details.outputs.pr_number }} --repo ${{ github.repository }} --body-file /tmp/failure.txt

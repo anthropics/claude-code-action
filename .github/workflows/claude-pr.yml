@@ -1,0 +1,729 @@
+name: Claude Code (PRs)
+
+on:
+    issue_comment:
+        types: [created]
+    pull_request_review_comment:
+        types: [created]
+    pull_request_review:
+        types: [submitted]
+
+jobs:
+    claude:
+        if: |
+            ((github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude')) ||
+             (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+             (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')))
+            &&
+            !contains(github.event.comment.body, '@claude sync') &&
+            !contains(github.event.comment.body, '@claude rebase') &&
+            !contains(github.event.comment.body, '@claude fix-conflicts') &&
+            !contains(github.event.review.body, '@claude sync') &&
+            !contains(github.event.review.body, '@claude rebase') &&
+            !contains(github.event.review.body, '@claude fix-conflicts') &&
+            (
+                (github.event_name == 'issue_comment' && contains('MEMBER,OWNER,COLLABORATOR', github.event.comment.author_association)) ||
+                (github.event_name == 'pull_request_review_comment' && contains('MEMBER,OWNER,COLLABORATOR', github.event.comment.author_association)) ||
+                (github.event_name == 'pull_request_review' && contains('MEMBER,OWNER,COLLABORATOR', github.event.review.author_association))
+            )
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            pull-requests: write
+            issues: write
+            id-token: write
+            actions: read # Required for Claude to read CI results on PRs
+        steps:
+            - name: Get PR details for issue comments
+              id: pr_details
+              if: github.event_name == 'issue_comment' && github.event.issue.pull_request
+              env:
+                  GH_TOKEN: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+              run: |
+                  echo "Fetching PR details for issue comment..."
+                  PR_DATA=$(gh api "/repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}")
+                  HEAD_REF=$(echo "$PR_DATA" | jq -r '.head.ref')
+                  HEAD_REPO=$(echo "$PR_DATA" | jq -r '.head.repo.full_name')
+                  HEAD_SHA=$(echo "$PR_DATA" | jq -r '.head.sha')
+
+                  echo "PR Branch: $HEAD_REF"
+                  echo "PR Repo: $HEAD_REPO"
+                  echo "PR SHA: $HEAD_SHA"
+
+                  echo "head_ref=$HEAD_REF" >> $GITHUB_OUTPUT
+                  echo "head_repo=$HEAD_REPO" >> $GITHUB_OUTPUT
+                  echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
+
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  token: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+                  ref: ${{ steps.pr_details.outputs.head_ref || github.event.pull_request.head.ref || github.ref }}
+                  fetch-depth: 0
+
+            - name: Setup Rust toolchain
+              uses: dtolnay/rust-toolchain@stable
+
+            - name: Setup cargo-machete
+              uses: BSteffaniak/cache-artifact@master
+              with:
+                  repo: https://github.com/BSteffaniak/cargo-machete
+                  command: cargo install --git https://github.com/BSteffaniak/cargo-machete --branch ignored-dirs cargo-machete
+                  shell: bash
+                  output-path: ~/.cargo/bin/cargo-machete
+                  artifact-name: cargo-machete-ubuntu-latest-binary
+                  cache-key-prefix: cargo-machete-claude
+                  make-executable: true
+                  verify-command: --version
+
+            - name: Setup taplo
+              uses: BSteffaniak/cache-artifact@master
+              with:
+                  repo: https://github.com/tamasfe/taplo
+                  command: cargo install taplo-cli --locked
+                  shell: bash
+                  output-path: ~/.cargo/bin/taplo
+                  artifact-name: taplo-ubuntu-latest-binary
+                  cache-key-prefix: taplo-claude
+                  make-executable: true
+                  verify-command: --version
+
+            - name: Setup git configuration
+              run: |
+                  git config user.name "MoosicBoxBot"
+                  git config user.email "MoosicBoxBot@gmail.com"
+
+            - name: Get comment thread context
+              id: thread_context
+              if: github.event_name == 'pull_request_review_comment'
+              env:
+                  GH_TOKEN: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+              run: |
+                  CURRENT_ID="${{ github.event.comment.id }}"
+                  PR_NUMBER="${{ github.event.pull_request.number }}"
+
+                  echo "Finding root comment for comment $CURRENT_ID"
+
+                  # Step 1: Walk backwards to find the root comment
+                  # GitHub PR review comments have a flat structure - all replies point to the root
+                  ROOT_ID=""
+                  TEMP_ID="$CURRENT_ID"
+
+                  while [ "$TEMP_ID" != "null" ] && [ -n "$TEMP_ID" ]; do
+                    echo "Checking comment $TEMP_ID..."
+
+                    if ! COMMENT=$(gh api "/repos/${{ github.repository }}/pulls/comments/$TEMP_ID" 2>/dev/null); then
+                      echo "Warning: Could not fetch comment $TEMP_ID"
+                      break
+                    fi
+
+                    PARENT_ID=$(echo "$COMMENT" | jq -r '.in_reply_to_id // "null"')
+                    echo "  in_reply_to_id: $PARENT_ID"
+
+                    if [ "$PARENT_ID" = "null" ] || [ -z "$PARENT_ID" ]; then
+                      # This is the root comment
+                      ROOT_ID="$TEMP_ID"
+                      echo "Found root comment: $ROOT_ID"
+                      break
+                    fi
+
+                    TEMP_ID="$PARENT_ID"
+                  done
+
+                  if [ -z "$ROOT_ID" ]; then
+                    echo "Error: Could not find root comment"
+                    exit 1
+                  fi
+
+                  # Step 2: Fetch ALL comments on this PR (with pagination)
+                  echo "Fetching all comments on PR #$PR_NUMBER..."
+                  ALL_COMMENTS=$(gh api "/repos/${{ github.repository }}/pulls/$PR_NUMBER/comments" --paginate)
+
+                  # Step 3: Filter for root + all replies to root, sorted by created_at
+                  echo "Building thread history for root comment $ROOT_ID..."
+                  THREAD_HISTORY=$(echo "$ALL_COMMENTS" | jq --arg root_id "$ROOT_ID" '
+                    [.[] | select((.id | tostring) == $root_id or (.in_reply_to_id | tostring) == $root_id)]
+                    | sort_by(.created_at)
+                  ')
+
+                  echo "Full Thread History $(echo "THREAD_HISTORY" | jq)"
+
+                  # Save full thread history
+                  echo "$THREAD_HISTORY" > /tmp/thread_history.json
+                  THREAD_COUNT=$(echo "$THREAD_HISTORY" | jq 'length')
+                  echo "Thread history ($THREAD_COUNT comments):"
+                  echo "$THREAD_HISTORY" | jq -r '.[] | "  - [\(.user.login) at \(.created_at)]: \(.body | split("\n")[0] | .[0:80])..."'
+
+                  # Extract context from the root comment (first in thread)
+                  ROOT_COMMENT=$(echo "$THREAD_HISTORY" | jq '.[0]')
+                  PATH_VALUE=$(echo "$ROOT_COMMENT" | jq -r '.path')
+                  LINE_VALUE=$(echo "$ROOT_COMMENT" | jq -r 'if .line != null then .line else .original_line end')
+                  SIDE_VALUE=$(echo "$ROOT_COMMENT" | jq -r '.side // "unknown"')
+                  DIFF_HUNK=$(echo "$ROOT_COMMENT" | jq -r '.diff_hunk')
+
+                  # Output simple values
+                  echo "path=$PATH_VALUE" >> $GITHUB_OUTPUT
+                  echo "line=$LINE_VALUE" >> $GITHUB_OUTPUT
+                  echo "side=$SIDE_VALUE" >> $GITHUB_OUTPUT
+                  echo "root_comment_id=$ROOT_ID" >> $GITHUB_OUTPUT
+
+                  # Output multi-line diff_hunk using heredoc syntax
+                  echo "diff_hunk<<EOF" >> $GITHUB_OUTPUT
+                  echo "$DIFF_HUNK" >> $GITHUB_OUTPUT
+                  echo "EOF" >> $GITHUB_OUTPUT
+
+                  # Format thread history for Claude (exclude the latest comment since it's passed separately)
+                  if [ "$THREAD_COUNT" -gt 1 ]; then
+                    echo "thread_history<<EOF" >> $GITHUB_OUTPUT
+                    echo "$THREAD_HISTORY" | jq -r '.[0:-1] | .[] | "[@\(.user.login) at \(.created_at)]:\n\(.body)\n"' >> $GITHUB_OUTPUT
+                    echo "EOF" >> $GITHUB_OUTPUT
+                  else
+                    # No previous history, just the current comment
+                    echo "thread_history=" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Run Claude Code
+              id: claude
+              uses: anthropics/claude-code-action@v1
+              with:
+                  claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+                  # This is an optional setting that allows Claude to read CI results on PRs
+                  additional_permissions: |
+                      actions: read
+
+                  # Grant access to file editing tools and all bash commands
+                  claude_args: '--allowedTools "Edit,Read,Write,Bash"'
+
+                  prompt: |
+                      You are helping with a GitHub repository. A user has mentioned @claude in a comment.
+
+                      IMPORTANT: Follow the repository's AGENTS.md for guidance on build/test commands and code style conventions.
+
+                      IMPORTANT: You MUST post TWO comments:
+                      1. FIRST - An acknowledgment that you're working on it
+                      2. SECOND - Your actual response/findings
+
+                      Context:
+                      - REPO: ${{ github.repository }}
+                      - PR/ISSUE NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+                      - BRANCH: ${{ steps.pr_details.outputs.head_ref || github.event.pull_request.head.ref || github.ref_name }}
+                      - Comment Type: ${{ github.event_name }}
+                      ${{ github.event_name == 'pull_request_review_comment' && format('
+
+                      SPECIFIC CODE CONTEXT (this is what the user is asking about):
+                      - File: {0}
+                      - Line: {1} (on the {2} side of the diff)
+                      - Code snippet:
+                      ```
+                      {3}
+                      ```
+                      ', steps.thread_context.outputs.path, steps.thread_context.outputs.line, steps.thread_context.outputs.side, steps.thread_context.outputs.diff_hunk) || '' }}
+                      ${{ github.event_name == 'pull_request_review_comment' && steps.thread_context.outputs.thread_history != '' && format('
+
+                      THREAD HISTORY (previous discussion on this code):
+                      {0}
+                      ', steps.thread_context.outputs.thread_history) || '' }}
+                      - User's latest message: "${{ github.event.comment.body || github.event.review.body || github.event.issue.body }}"
+
+                      STEP 1 - POST ACKNOWLEDGMENT WITH INTENT:
+                      Before doing anything else, analyze the request and post an acknowledgment with your understanding.
+
+                      Process:
+                      1. Quickly read and analyze the user's message
+                      2. Determine: Is it a Question or Command? What's the scope?
+                      3. Summarize in 1-2 sentences what you plan to do
+                      4. Post acknowledgment immediately
+
+                      Format your acknowledgment message as:
+                      ```
+                      👀 Looking into this...
+
+                      **My understanding:** [Your 1-2 sentence interpretation]
+
+                      [View workflow run](link)
+                      ```
+
+                      Guidelines for the summary:
+                      - **Questions**: "I'll explain [topic] in the context of [file/code]"
+                      - **Commands**: "I'll [action] by [approach]" (e.g., "I'll format all README files using prettier and commit to this PR branch")
+                      - **Unclear requests**: "I need clarification on [specific aspect]"
+                      - Keep it brief but specific - mention the scope (1 file vs all files, etc.)
+
+                      Use the appropriate command based on the comment type:
+                      ${{ github.event_name == 'pull_request_review_comment' && format('
+                      - Reply to the comment thread using the ROOT comment ID (this ensures proper threading):
+                        Save your acknowledgment message to a file first, then post it:
+                        ```
+                        cat > /tmp/ack.txt << ''EOF''
+                        👀 Looking into this...
+
+                        **My understanding:** [your summary here]
+
+                        [View workflow run](https://github.com/{0}/actions/runs/{3})
+                        EOF
+                        gh api -X POST "/repos/{0}/pulls/{1}/comments/{2}/replies" -F body=@/tmp/ack.txt 2>&1 || echo "Failed to post acknowledgment"
+                        ```
+
+                        IMPORTANT: Use the root comment ID {2} for all replies to ensure they appear in the correct thread.
+                      ', github.repository, github.event.pull_request.number, steps.thread_context.outputs.root_comment_id, github.run_id) || github.event_name == 'issue_comment' && github.event.issue.pull_request && format('
+                      - Post a PR comment:
+                        Save your acknowledgment message to a file first, then post it:
+                        ```
+                        cat > /tmp/ack.txt << ''EOF''
+                        👀 Looking into this...
+
+                        **My understanding:** [your summary here]
+
+                        [View workflow run](https://github.com/{1}/actions/runs/{2})
+                        EOF
+                        gh pr comment {0} --repo {1} --body-file /tmp/ack.txt
+                        ```
+                      ', github.event.issue.number, github.repository, github.run_id) || format('
+                      - Post an issue comment:
+                        Save your acknowledgment message to a file first, then post it:
+                        ```
+                        cat > /tmp/ack.txt << ''EOF''
+                        👀 Looking into this...
+
+                        **My understanding:** [your summary here]
+
+                        [View workflow run](https://github.com/{1}/actions/runs/{2})
+                        EOF
+                        gh issue comment {0} --repo {1} --body-file /tmp/ack.txt
+                        ```
+                      ', github.event.issue.number, github.repository, github.run_id) }}
+
+                      STEP 2 - ANALYZE THE SPECIFIC CONTEXT:
+
+                      CRITICAL: Focus on the SPECIFIC CODE CONTEXT provided above, not the entire PR.
+                      ${{ github.event_name == 'pull_request_review_comment' && '- The user is asking about THAT SPECIFIC code snippet shown above
+                      - Look at the file path, line number, and diff hunk provided
+                      - Do not analyze the entire PR unless specifically asked
+                      - Stay focused on the code in the immediate context' || '- Focus on the specific question or request
+                      - Do not over-analyze unless asked for comprehensive review' }}
+
+                      GUIDELINES:
+
+                      1. **Questions vs Commands**: Carefully read the tone and structure of the user's message.
+                         - If it's phrased as a QUESTION (contains "?", "how", "why", "what", "can you explain", etc.):
+                           → Analyze the SPECIFIC code context provided (if applicable)
+                           → Explain what that specific code does
+                           → DO NOT make code changes or commits
+                           → DO NOT create branches or PRs
+
+                         - If it's phrased as a COMMAND/STATEMENT (imperative, declarative, "please fix", "update X", etc.):
+                           → Implement changes to the SPECIFIC code mentioned
+                           → **CRITICAL - MANDATORY VERIFICATION BEFORE ANY COMMIT:**
+
+                           Before creating ANY commit, you MUST run the following verification checklist from AGENTS.md:
+
+                           MANDATORY CHECKS (ALWAYS REQUIRED):
+                           1. Run `cargo fmt` (format all code - NOT --check)
+                           2. Run `cargo clippy --all-targets -- -D warnings` (zero warnings policy)
+                           3. Run `~/.cargo/bin/cargo-machete --with-metadata` from workspace root (detect unused dependencies)
+                           4. Run `npx prettier --write "**/*.{md,yaml,yml}"` from workspace root (format markdown and YAML files)
+                           5. Run `~/.cargo/bin/taplo format` from workspace root (format all TOML files)
+
+                           ADDITIONAL CHECKS (when applicable):
+                           4. Run `cargo build -p [package]` if changes affect specific package
+                           5. Run `cargo test -p [package]` if test coverage exists
+                           6. Run package-specific build/test commands if documented in AGENTS.md
+
+                           If ANY verification check fails, you MUST fix the issues before committing.
+                           NEVER commit code that doesn't pass all verification checks.
+
+                           This is a NON-NEGOTIABLE requirement - no exceptions.
+
+                           → Create commits with descriptive messages
+                           → **DO NOT push commits - the workflow will handle pushing safely**
+                           → After committing, your work is done - the workflow will automatically push for you
+                           → The workflow has built-in conflict detection and fallback branch creation
+
+                       2. **CRITICAL - Clean Commit History**:
+                          - **NEVER create merge commits** - always use `git rebase` to integrate changes
+                          - If asked to "merge" or "update branch", use: `git fetch && git rebase origin/<branch>`
+                          - The workflow handles rebasing automatically, but if you do it manually: rebase only!
+
+                       3. **When in doubt**: Ask for clarification before taking action.
+
+                       4. **Keep responses focused and concise**:
+                          - Answer about the specific code/context provided
+                          - Reference the file and line number when relevant
+                          - Don't be overly detailed unless specifically asked
+
+                      STEP 3 - POST FINAL RESPONSE:
+                      After completing your analysis or implementation, post a final comment with your findings.
+                      Reference the specific code context in your response if applicable.
+
+                      CRITICAL: After posting your response, save the comment ID to /tmp/claude_final_comment_id.txt for tracking.
+
+                      Use the appropriate command based on the comment type:
+                      ${{ github.event_name == 'pull_request_review_comment' && format('
+                      - Reply to the comment thread using the ROOT comment ID:
+                        ```
+                        cat > /tmp/response.txt << ''EOF''
+                        your detailed response here
+                        EOF
+                        RESPONSE=$(gh api -X POST "/repos/{0}/pulls/{1}/comments/{2}/replies" -F body=@/tmp/response.txt 2>&1)
+                        echo "$RESPONSE" | jq -r ''.id'' > /tmp/claude_final_comment_id.txt 2>/dev/null || echo "Failed to save comment ID"
+                        ```
+
+                        IMPORTANT: Use the root comment ID {2} for all replies.
+                      ', github.repository, github.event.pull_request.number, steps.thread_context.outputs.root_comment_id) || github.event_name == 'issue_comment' && github.event.issue.pull_request && format('
+                      - Post a PR comment:
+                        ```
+                        cat > /tmp/response.txt << ''EOF''
+                        your detailed response here
+                        EOF
+                        RESPONSE=$(gh pr comment {0} --repo {1} --body-file /tmp/response.txt 2>&1)
+                        echo "$RESPONSE" | grep -oP ''#issuecomment-\K\d+'' > /tmp/claude_final_comment_id.txt 2>/dev/null || echo "Failed to save comment ID"
+                        ```
+                      ', github.event.issue.number, github.repository) || format('
+                      - Post an issue comment:
+                        ```
+                        cat > /tmp/response.txt << ''EOF''
+                        your detailed response here
+                        EOF
+                        RESPONSE=$(gh issue comment {0} --repo {1} --body-file /tmp/response.txt 2>&1)
+                        echo "$RESPONSE" | grep -oP ''#issuecomment-\K\d+'' > /tmp/claude_final_comment_id.txt 2>/dev/null || echo "Failed to save comment ID"
+                        ```
+                      ', github.event.issue.number, github.repository) }}
+
+                      Now respond appropriately based on whether this is a question or a command.
+
+            - name: Append execution details to Claude's response
+              if: always() && steps.claude.outputs.execution_file != ''
+              env:
+                  GH_TOKEN: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+              run: |
+                  EXECUTION_FILE="${{ steps.claude.outputs.execution_file }}"
+
+                  if [ ! -f "$EXECUTION_FILE" ] || [ ! -s "$EXECUTION_FILE" ]; then
+                      echo "⚠️ Execution file not found or empty, skipping details"
+                      exit 0
+                  fi
+
+                  echo "📋 Generating execution details from $EXECUTION_FILE..."
+                  "$GITHUB_WORKSPACE/.github/scripts/format-execution-details.sh" "$EXECUTION_FILE" /tmp/execution_details.md
+
+                  COMMENT_ID=""
+                  if [ -f /tmp/claude_final_comment_id.txt ]; then
+                      COMMENT_ID=$(cat /tmp/claude_final_comment_id.txt)
+                      echo "✅ Found saved comment ID: $COMMENT_ID"
+                  else
+                      echo "⚠️ No saved comment ID found, searching for latest comment..."
+
+                      ISSUE_NUM="${{ github.event.issue.number || github.event.pull_request.number }}"
+                      if [ -n "$ISSUE_NUM" ]; then
+                          COMMENT_ID=$(gh api "/repos/${{ github.repository }}/issues/$ISSUE_NUM/comments" \
+                              --jq '.[-1] | select(.user.login == "claude[bot]" or .user.login == "MoosicBoxBot") | .id')
+
+                          if [ -n "$COMMENT_ID" ]; then
+                              echo "✅ Found latest comment ID: $COMMENT_ID"
+                          fi
+                      fi
+                  fi
+
+                  if [ -z "$COMMENT_ID" ]; then
+                      echo "❌ Could not find Claude's comment to update"
+                      exit 0
+                  fi
+
+                  echo "📝 Fetching current comment body..."
+
+                  # Determine the correct API endpoint based on event type
+                  if [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
+                      API_ENDPOINT="/repos/${{ github.repository }}/pulls/comments/$COMMENT_ID"
+                      echo "Using PR review comment API endpoint"
+                  else
+                      API_ENDPOINT="/repos/${{ github.repository }}/issues/comments/$COMMENT_ID"
+                      echo "Using issue/PR comment API endpoint"
+                  fi
+
+                  CURRENT_BODY=$(gh api "$API_ENDPOINT" --jq '.body' 2>&1)
+
+                  if [ $? -ne 0 ] || [ -z "$CURRENT_BODY" ]; then
+                      echo "❌ Could not fetch comment body from $API_ENDPOINT"
+                      echo "Response: $CURRENT_BODY"
+                      exit 0
+                  fi
+
+                  echo "✍️ Appending execution details to comment..."
+                  DETAILS=$(cat /tmp/execution_details.md)
+
+                  printf '%s\n\n%s' "$CURRENT_BODY" "$DETAILS" | \
+                      gh api -X PATCH "$API_ENDPOINT" -F body=@- 2>&1
+
+                  if [ $? -eq 0 ]; then
+                      echo "✅ Successfully appended execution details to comment #$COMMENT_ID"
+                  else
+                      echo "❌ Failed to update comment"
+                      exit 1
+                  fi
+
+            - name: Add co-author to commits
+              if: always()
+              env:
+                  GH_TOKEN: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+              run: |
+                  TARGET_BRANCH="${{ steps.pr_details.outputs.head_ref || github.event.pull_request.head.ref || github.ref_name }}"
+                  COMMITS_AHEAD=$(git rev-list --count origin/$TARGET_BRANCH..HEAD 2>/dev/null || echo "0")
+
+                  if [ "$COMMITS_AHEAD" = "0" ]; then
+                    echo "📭 No commits to add co-author to"
+                    exit 0
+                  fi
+
+                  # Get the triggering commenter's info
+                  COMMENTER_LOGIN="${{ github.event.comment.user.login || github.event.review.user.login || github.event.issue.user.login }}"
+                  COMMENTER_ID="${{ github.event.comment.user.id || github.event.review.user.id || github.event.issue.user.id }}"
+
+                  if [ -z "$COMMENTER_LOGIN" ]; then
+                    echo "⚠️ Could not determine commenter, skipping co-author"
+                    exit 0
+                  fi
+
+                  # Try multiple sources to find user's email
+                  echo "🔍 Searching for email for ${COMMENTER_LOGIN}..."
+
+                  # 1. Try user profile API
+                  USER_EMAIL=$(gh api "/users/${COMMENTER_LOGIN}" --jq '.email // empty' 2>/dev/null || echo "")
+
+                  if [ -n "$USER_EMAIL" ] && [ "$USER_EMAIL" != "null" ]; then
+                    echo "✅ Found email from user profile: $USER_EMAIL"
+                  else
+                    echo "   User profile email not available, trying recent commits..."
+
+                    # 2. Try to get email from user's recent public commits
+                    USER_EMAIL=$(gh api "/users/${COMMENTER_LOGIN}/events/public" --jq '
+                      [.[] | select(.type == "PushEvent") | .payload.commits[]? | .author.email]
+                      | map(select(. != null and . != ""))
+                      | first // empty
+                    ' 2>/dev/null || echo "")
+
+                    if [ -n "$USER_EMAIL" ] && [ "$USER_EMAIL" != "null" ]; then
+                      echo "✅ Found email from recent commits: $USER_EMAIL"
+                    else
+                      echo "   No email in recent commits, trying PR commits..."
+
+                      # 3. Try to get email from commits in this PR
+                      PR_NUM="${{ github.event.issue.number || github.event.pull_request.number }}"
+                      if [ -n "$PR_NUM" ]; then
+                        USER_EMAIL=$(gh api "/repos/${{ github.repository }}/pulls/$PR_NUM/commits" --jq '
+                          [.[] | select(.author.login == "'${COMMENTER_LOGIN}'") | .commit.author.email]
+                          | map(select(. != null and . != ""))
+                          | first // empty
+                        ' 2>/dev/null || echo "")
+
+                        if [ -n "$USER_EMAIL" ] && [ "$USER_EMAIL" != "null" ]; then
+                          echo "✅ Found email from PR commits: $USER_EMAIL"
+                        fi
+                      fi
+                    fi
+                  fi
+
+                  # Use found email or fallback to noreply
+                  if [ -n "$USER_EMAIL" ] && [ "$USER_EMAIL" != "null" ]; then
+                    COMMENTER_EMAIL="$USER_EMAIL"
+                    echo "👤 Using email: $COMMENTER_EMAIL"
+                  else
+                    COMMENTER_EMAIL="${COMMENTER_ID}+${COMMENTER_LOGIN}@users.noreply.github.com"
+                    echo "📧 Using noreply email: $COMMENTER_EMAIL"
+                  fi
+
+                  # Create co-author line
+                  COAUTHOR_LINE="Co-authored-by: ${COMMENTER_LOGIN} <${COMMENTER_EMAIL}>"
+                  echo "👥 Adding co-author: $COAUTHOR_LINE"
+
+                  # Use origin branch as base (not merge-base) to only rebase NEW commits
+                  BASE_COMMIT="origin/$TARGET_BRANCH"
+
+                  # Create a temporary script for amending commits
+                  cat > /tmp/add_coauthor.sh << 'SCRIPT'
+                  #!/bin/bash
+                  if ! git log -1 --pretty=%B | grep -qF "$COAUTHOR_LINE"; then
+                    MSG=$(git log -1 --pretty=%B)
+                    if echo "$MSG" | tail -1 | grep -q '^$'; then
+                      printf '%s%s\n' "$MSG" "$COAUTHOR_LINE" | git commit --amend -F -
+                    else
+                      printf '%s\n\n%s\n' "$MSG" "$COAUTHOR_LINE" | git commit --amend -F -
+                    fi
+                  fi
+                  SCRIPT
+
+                  chmod +x /tmp/add_coauthor.sh
+                  export COAUTHOR_LINE
+
+                  # Rebase and amend each commit to add co-author
+                  if GIT_SEQUENCE_EDITOR=true git rebase -i --exec "/tmp/add_coauthor.sh" $BASE_COMMIT; then
+                    echo "✅ Added co-author attribution to $COMMITS_AHEAD commit(s)"
+                  else
+                    echo "⚠️ Failed to add co-author, continuing with push anyway..."
+                    git rebase --abort 2>/dev/null || true
+                  fi
+
+            - name: Detect and push changes with conflict handling
+              id: push_changes
+              if: always()
+              run: |
+                  git remote set-url origin "https://x-access-token:${{ secrets.WORKFLOW_BOT_TOKEN }}@github.com/${{ github.repository }}.git"
+
+                  # Check if there are any commits to push
+                  CURRENT_BRANCH=$(git branch --show-current)
+
+                  # Get the target branch
+                  TARGET_BRANCH="${{ steps.pr_details.outputs.head_ref || github.event.pull_request.head.ref || github.ref_name }}"
+
+                  # Count commits ahead of origin
+                  COMMITS_AHEAD=$(git rev-list --count origin/$TARGET_BRANCH..HEAD 2>/dev/null || echo "0")
+
+                  if [ "$COMMITS_AHEAD" = "0" ]; then
+                    echo "📭 No commits to push"
+                    echo "push_status=no_changes" >> $GITHUB_OUTPUT
+                    exit 0
+                  fi
+
+                  echo "📊 Found $COMMITS_AHEAD commit(s) to push to $TARGET_BRANCH"
+
+                  MAX_RETRIES=5
+                  RETRY_COUNT=0
+                  BACKOFF=1
+                  MAX_TIME=30
+                  START_TIME=$(date +%s)
+
+                  # Attempt push with rebase retry (no conflict resolution)
+                  while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+                    ELAPSED=$(($(date +%s) - START_TIME))
+                    if [ $ELAPSED -gt $MAX_TIME ]; then
+                      echo "⏱️ Timeout reached after ${ELAPSED}s"
+                      break
+                    fi
+
+                    echo "📤 Push attempt $((RETRY_COUNT + 1))/$MAX_RETRIES..."
+
+                    if git push origin "$TARGET_BRANCH" 2>&1; then
+                      echo "✅ Successfully pushed to $TARGET_BRANCH"
+                      echo "push_status=success" >> $GITHUB_OUTPUT
+                      echo "push_branch=$TARGET_BRANCH" >> $GITHUB_OUTPUT
+                      exit 0
+                    fi
+
+                    echo "⚠️ Push rejected, attempting rebase..."
+
+                    # Fetch latest changes
+                    git fetch origin "$TARGET_BRANCH"
+
+                    # Attempt rebase (no conflict resolution strategies)
+                    if git rebase "origin/$TARGET_BRANCH" 2>&1; then
+                      echo "✅ Rebase successful, retrying push..."
+                      RETRY_COUNT=$((RETRY_COUNT + 1))
+                      sleep $BACKOFF
+                      BACKOFF=$((BACKOFF * 2))
+                      continue
+                    else
+                      # Rebase failed
+                      echo "❌ Rebase failed"
+
+                      # Check if there are conflicts
+                      if git status | grep -E "both modified|both added|both deleted|conflict" >/dev/null 2>&1; then
+                        echo "🚫 CONFLICTS DETECTED during rebase"
+                        git rebase --abort 2>/dev/null || true
+                        break
+                      else
+                        echo "Rebase failed for non-conflict reason"
+                        git rebase --abort 2>/dev/null || true
+                        break
+                      fi
+                    fi
+                  done
+
+                  # Create fallback branch if push failed
+                  echo "🔀 Creating fallback branch..."
+                  TIMESTAMP=$(date +%s)
+                  FALLBACK_BRANCH="claude-${{ github.run_id }}-pr-${{ github.event.issue.number || github.event.pull_request.number }}-${TIMESTAMP}"
+
+                  # Ensure clean state
+                  git rebase --abort 2>/dev/null || true
+
+                  # Create fallback branch from current commits
+                  git checkout -B "$FALLBACK_BRANCH"
+
+                  echo "📤 Pushing to fallback branch: $FALLBACK_BRANCH"
+                  if git push origin "$FALLBACK_BRANCH" 2>&1; then
+                    echo "✅ Successfully pushed to fallback branch"
+                    echo "push_status=fallback" >> $GITHUB_OUTPUT
+                    echo "push_branch=$FALLBACK_BRANCH" >> $GITHUB_OUTPUT
+                    echo "original_branch=$TARGET_BRANCH" >> $GITHUB_OUTPUT
+                    echo "commits_count=$COMMITS_AHEAD" >> $GITHUB_OUTPUT
+
+                    # Create compare URL
+                    COMPARE_URL="${{ github.server_url }}/${{ github.repository }}/compare/${TARGET_BRANCH}...${FALLBACK_BRANCH}"
+                    echo "compare_url=$COMPARE_URL" >> $GITHUB_OUTPUT
+                    exit 0
+                  else
+                    echo "❌ Failed to push even to fallback branch"
+                    echo "push_status=failed" >> $GITHUB_OUTPUT
+                    exit 1
+                  fi
+
+            - name: Notify about fallback branch
+              if: always() && steps.push_changes.outputs.push_status == 'fallback'
+              env:
+                  GH_TOKEN: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+              run: |
+                  cat > /tmp/fallback_notice.md << 'ENDOFMSG'
+                  ## ⚠️ Changes Pushed to Fallback Branch
+
+                  I completed your request and committed **${{ steps.push_changes.outputs.commits_count }} commit(s)**, but couldn't push them to `${{ steps.push_changes.outputs.original_branch }}` due to:
+                  - Recent updates to the branch while I was working, OR
+                  - Conflicts that require manual resolution
+
+                  **Your changes are safe!** I've pushed them to a fallback branch:
+
+                  ### 📦 Fallback Branch
+                  **Branch:** `${{ steps.push_changes.outputs.push_branch }}`
+
+                  ### 📊 Review Changes
+                  [**Compare branches and see diff**](${{ steps.push_changes.outputs.compare_url }})
+
+                  ### 🔀 How to Merge
+
+                  **Option 1: Create a PR (Recommended)**
+                  1. [Create PR from fallback branch](${{ github.server_url }}/${{ github.repository }}/compare/${{ steps.push_changes.outputs.original_branch }}...${{ steps.push_changes.outputs.push_branch }})
+                  2. Review changes and resolve any conflicts in the GitHub UI
+                  3. Merge when ready
+
+                  **Option 2: Command Line Merge**
+                  ```bash
+                  git fetch origin ${{ steps.push_changes.outputs.push_branch }}
+                  git checkout ${{ steps.push_changes.outputs.original_branch }}
+                  git merge origin/${{ steps.push_changes.outputs.push_branch }}
+                  # If conflicts appear, resolve them
+                  git push origin ${{ steps.push_changes.outputs.original_branch }}
+                  ```
+
+                  **Option 3: Cherry-pick Commits**
+                  ```bash
+                  git fetch origin ${{ steps.push_changes.outputs.push_branch }}
+                  git checkout ${{ steps.push_changes.outputs.original_branch }}
+                  git cherry-pick origin/${{ steps.push_changes.outputs.push_branch }}
+                  ```
+
+                  ---
+
+                  💡 **Tip:** Once merged, you can delete the fallback branch with:
+                  ```bash
+                  git push origin --delete ${{ steps.push_changes.outputs.push_branch }}
+                  ```
+                  ENDOFMSG
+
+                  # Post notification based on event type
+                  if [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
+                    gh api -X POST "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments/${{ steps.thread_context.outputs.root_comment_id }}/replies" \
+                      -F body=@/tmp/fallback_notice.md 2>&1 || echo "Failed to post fallback notice"
+                  elif [ "${{ github.event_name }}" = "issue_comment" ] && [ -n "${{ github.event.issue.pull_request }}" ]; then
+                    gh pr comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body-file /tmp/fallback_notice.md 2>&1 || echo "Failed to post fallback notice"
+                  else
+                    gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body-file /tmp/fallback_notice.md 2>&1 || echo "Failed to post fallback notice"
+                  fi

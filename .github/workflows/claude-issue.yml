@@ -1,0 +1,396 @@
+name: Claude Code (Issues)
+
+on:
+    issue_comment:
+        types: [created]
+    issues:
+        types: [opened, assigned]
+
+concurrency:
+    group: claude-issue-${{ github.event.issue.number }}
+    cancel-in-progress: false
+
+jobs:
+    claude:
+        if: |
+            (
+                (github.event_name == 'issue_comment' && !github.event.issue.pull_request && contains(github.event.comment.body, '@claude')) ||
+                (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+            )
+            &&
+            (
+                (github.event_name == 'issue_comment' && contains('MEMBER,OWNER,COLLABORATOR', github.event.comment.author_association)) ||
+                (github.event_name == 'issues' && contains('MEMBER,OWNER,COLLABORATOR', github.event.issue.author_association))
+            )
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            pull-requests: write
+            issues: write
+            id-token: write
+            actions: read
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  token: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+                  ref: ${{ github.event.repository.default_branch }}
+                  fetch-depth: 0
+
+            - name: Setup Rust toolchain
+              uses: dtolnay/rust-toolchain@stable
+
+            - name: Setup cargo-machete
+              uses: BSteffaniak/cache-artifact@master
+              with:
+                  repo: https://github.com/BSteffaniak/cargo-machete
+                  command: cargo install --git https://github.com/BSteffaniak/cargo-machete --branch ignored-dirs cargo-machete
+                  shell: bash
+                  output-path: ~/.cargo/bin/cargo-machete
+                  artifact-name: cargo-machete-ubuntu-latest-binary
+                  cache-key-prefix: cargo-machete-claude
+                  make-executable: true
+                  verify-command: --version
+
+            - name: Setup taplo
+              uses: BSteffaniak/cache-artifact@master
+              with:
+                  repo: https://github.com/tamasfe/taplo
+                  command: cargo install taplo-cli --locked
+                  shell: bash
+                  output-path: ~/.cargo/bin/taplo
+                  artifact-name: taplo-ubuntu-latest-binary
+                  cache-key-prefix: taplo-claude
+                  make-executable: true
+                  verify-command: --version
+
+            - name: Setup git configuration
+              run: |
+                  git config user.name "MoosicBoxBot"
+                  git config user.email "MoosicBoxBot@gmail.com"
+
+            - name: Create feature branch for issue
+              id: create_branch
+              run: |
+                  ISSUE_NUM="${{ github.event.issue.number }}"
+                  TIMESTAMP=$(date +%s)
+                  BRANCH_NAME="fix-issue-${ISSUE_NUM}-${TIMESTAMP}"
+
+                  echo "📝 Creating branch: $BRANCH_NAME"
+                  git checkout -b "$BRANCH_NAME"
+
+                  echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+                  echo "issue_number=$ISSUE_NUM" >> $GITHUB_OUTPUT
+
+            - name: Run Claude Code
+              id: claude
+              uses: anthropics/claude-code-action@v1
+              with:
+                  claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+                  additional_permissions: |
+                      actions: read
+
+                  claude_args: '--allowedTools "Edit,Read,Write,Bash"'
+
+                  prompt: |
+                      You are helping solve a GitHub issue. A user has mentioned @claude in an issue.
+
+                      IMPORTANT: Follow the repository's AGENTS.md for guidance on build/test commands and code style conventions.
+
+                      IMPORTANT: You MUST post TWO comments:
+                      1. FIRST - An acknowledgment that you're working on it
+                      2. SECOND - Your actual response/findings
+
+                      Context:
+                      - REPO: ${{ github.repository }}
+                      - ISSUE NUMBER: ${{ github.event.issue.number }}
+                      - ISSUE TITLE: "${{ github.event.issue.title }}"
+                      - BRANCH: ${{ steps.create_branch.outputs.branch_name }}
+
+                      Issue Description:
+                      ${{ github.event.issue.body }}
+
+                      Latest Comment: "${{ github.event.comment.body || github.event.issue.body }}"
+
+                      STEP 1 - POST ACKNOWLEDGMENT WITH INTENT:
+                      Before doing anything else, analyze the request and post an acknowledgment with your understanding.
+
+                      Process:
+                      1. Quickly read and analyze the user's message
+                      2. Determine: Is it a Question or Command? What's the scope?
+                      3. Summarize in 1-2 sentences what you plan to do
+                      4. Post acknowledgment immediately
+
+                      Format your acknowledgment message as:
+                      ```
+                      👀 Looking into this...
+
+                      **My understanding:** [Your 1-2 sentence interpretation]
+
+                      [View workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+                      ```
+
+                      Guidelines for the summary:
+                      - **Questions**: "I'll explain [topic] in the context of [file/code]"
+                      - **Commands**: "I'll [action] by [approach]"
+                      - **Unclear requests**: "I need clarification on [specific aspect]"
+
+                      Post acknowledgment:
+                      ```
+                      cat > /tmp/ack.txt << 'EOF'
+                      👀 Looking into this...
+
+                      **My understanding:** [your summary here]
+
+                      [View workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+                      EOF
+                      gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body-file /tmp/ack.txt
+                      ```
+
+                      STEP 2 - ANALYZE THE ISSUE:
+
+                      Understand what the issue is asking for and determine the appropriate response.
+
+                      GUIDELINES:
+
+                      1. **Questions vs Commands**: Carefully read the tone and structure of the user's message.
+                         - If it's phrased as a QUESTION (contains "?", "how", "why", "what", "can you explain", etc.):
+                           → Analyze and explain
+                           → DO NOT make code changes or commits
+                           → DO NOT create branches (already created) or PRs
+
+                         - If it's phrased as a COMMAND/STATEMENT (imperative, declarative, "please fix", "update X", "create PR", etc.):
+                           → Implement changes to solve the issue
+                           → **CRITICAL - MANDATORY VERIFICATION BEFORE ANY COMMIT:**
+
+                           Before creating ANY commit, you MUST run the following verification checklist from AGENTS.md:
+
+                           MANDATORY CHECKS (ALWAYS REQUIRED):
+                           1. Run `cargo fmt` (format all code - NOT --check)
+                           2. Run `cargo clippy --all-targets -- -D warnings` (zero warnings policy)
+                           3. Run `~/.cargo/bin/cargo-machete --with-metadata` from workspace root (detect unused dependencies)
+                           4. Run `npx prettier --write "**/*.{md,yaml,yml}"` from workspace root (format markdown and YAML files)
+                           5. Run `~/.cargo/bin/taplo format` from workspace root (format all TOML files)
+
+                           ADDITIONAL CHECKS (when applicable):
+                           4. Run `cargo build -p [package]` if changes affect specific package
+                           5. Run `cargo test -p [package]` if test coverage exists
+                           6. Run package-specific build/test commands if documented in AGENTS.md
+
+                           If ANY verification check fails, you MUST fix the issues before committing.
+                           NEVER commit code that doesn't pass all verification checks.
+
+                           This is a NON-NEGOTIABLE requirement - no exceptions.
+
+                           → Create commits with descriptive messages
+                           → Commit message format: "fix: [description] (#${{ github.event.issue.number }})"
+                           → **DO NOT push commits - the workflow will handle pushing safely**
+                           → **DO NOT create branches - already created for you**
+                           → **DO NOT manually create PRs - the workflow will handle that**
+                           → After committing, your work is done
+
+                      2. **When in doubt**: Ask for clarification before taking action.
+
+                      3. **Keep responses focused and concise**:
+                         - Answer about the specific issue
+                         - Reference relevant files and line numbers when applicable
+
+                      STEP 3 - POST FINAL RESPONSE:
+                      After completing your analysis or implementation, post a final comment with your findings.
+
+                      CRITICAL: After posting your response, save the comment ID to /tmp/claude_final_comment_id.txt for tracking.
+
+                      Post your response:
+                      ```
+                      cat > /tmp/response.txt << 'EOF'
+                      your detailed response here
+                      EOF
+                      RESPONSE=$(gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body-file /tmp/response.txt 2>&1)
+                      echo "$RESPONSE" | grep -oP '#issuecomment-\K\d+' > /tmp/claude_final_comment_id.txt 2>/dev/null || echo "Failed to save comment ID"
+                      ```
+
+                      Now respond appropriately based on whether this is a question or a command.
+
+            - name: Append execution details to Claude's response
+              if: always() && steps.claude.outputs.execution_file != ''
+              env:
+                  GH_TOKEN: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+              run: |
+                  EXECUTION_FILE="${{ steps.claude.outputs.execution_file }}"
+
+                  if [ ! -f "$EXECUTION_FILE" ] || [ ! -s "$EXECUTION_FILE" ]; then
+                      echo "⚠️ Execution file not found or empty, skipping details"
+                      exit 0
+                  fi
+
+                  echo "📋 Generating execution details from $EXECUTION_FILE..."
+                  "$GITHUB_WORKSPACE/.github/scripts/format-execution-details.sh" "$EXECUTION_FILE" /tmp/execution_details.md
+
+                  COMMENT_ID=""
+                  if [ -f /tmp/claude_final_comment_id.txt ]; then
+                      COMMENT_ID=$(cat /tmp/claude_final_comment_id.txt)
+                      echo "✅ Found saved comment ID: $COMMENT_ID"
+                  else
+                      echo "⚠️ No saved comment ID found, searching for latest comment..."
+
+                      ISSUE_NUM="${{ github.event.issue.number }}"
+                      COMMENT_ID=$(gh api "/repos/${{ github.repository }}/issues/$ISSUE_NUM/comments" \
+                          --jq '.[-1] | select(.user.login == "claude[bot]" or .user.login == "MoosicBoxBot") | .id')
+
+                      if [ -n "$COMMENT_ID" ]; then
+                          echo "✅ Found latest comment ID: $COMMENT_ID"
+                      fi
+                  fi
+
+                  if [ -z "$COMMENT_ID" ]; then
+                      echo "❌ Could not find Claude's comment to update"
+                      exit 0
+                  fi
+
+                  echo "📝 Fetching current comment body..."
+                  API_ENDPOINT="/repos/${{ github.repository }}/issues/comments/$COMMENT_ID"
+
+                  CURRENT_BODY=$(gh api "$API_ENDPOINT" --jq '.body' 2>&1)
+
+                  if [ $? -ne 0 ] || [ -z "$CURRENT_BODY" ]; then
+                      echo "❌ Could not fetch comment body from $API_ENDPOINT"
+                      echo "Response: $CURRENT_BODY"
+                      exit 0
+                  fi
+
+                  echo "✍️ Appending execution details to comment..."
+                  DETAILS=$(cat /tmp/execution_details.md)
+
+                  printf '%s\n\n%s' "$CURRENT_BODY" "$DETAILS" | \
+                      gh api -X PATCH "$API_ENDPOINT" -F body=@- 2>&1
+
+                  if [ $? -eq 0 ]; then
+                      echo "✅ Successfully appended execution details to comment #$COMMENT_ID"
+                  else
+                      echo "❌ Failed to update comment"
+                      exit 1
+                  fi
+
+            - name: Add co-author to commits
+              if: always()
+              env:
+                  GH_TOKEN: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+              run: |
+                  DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+                  COMMITS_AHEAD=$(git rev-list --count origin/$DEFAULT_BRANCH..HEAD 2>/dev/null || echo "0")
+
+                  if [ "$COMMITS_AHEAD" = "0" ]; then
+                    echo "📭 No commits to add co-author to"
+                    exit 0
+                  fi
+
+                  COMMENTER_LOGIN="${{ github.event.comment.user.login || github.event.issue.user.login }}"
+                  COMMENTER_ID="${{ github.event.comment.user.id || github.event.issue.user.id }}"
+
+                  if [ -z "$COMMENTER_LOGIN" ]; then
+                    echo "⚠️ Could not determine commenter, skipping co-author"
+                    exit 0
+                  fi
+
+                  COMMENTER_EMAIL="${COMMENTER_ID}+${COMMENTER_LOGIN}@users.noreply.github.com"
+                  COAUTHOR_LINE="Co-authored-by: ${COMMENTER_LOGIN} <${COMMENTER_EMAIL}>"
+                  echo "👥 Adding co-author: $COAUTHOR_LINE"
+
+                  BASE_COMMIT=$(git merge-base HEAD origin/$DEFAULT_BRANCH)
+
+                  cat > /tmp/add_coauthor.sh << 'SCRIPT'
+                  #!/bin/bash
+                  if ! git log -1 --pretty=%B | grep -qF "$COAUTHOR_LINE"; then
+                    MSG=$(git log -1 --pretty=%B)
+                    if echo "$MSG" | tail -1 | grep -q '^$'; then
+                      printf '%s%s\n' "$MSG" "$COAUTHOR_LINE" | git commit --amend -F -
+                    else
+                      printf '%s\n\n%s\n' "$MSG" "$COAUTHOR_LINE" | git commit --amend -F -
+                    fi
+                  fi
+                  SCRIPT
+
+                  chmod +x /tmp/add_coauthor.sh
+                  export COAUTHOR_LINE
+
+                  if GIT_SEQUENCE_EDITOR=true git rebase -i --exec "/tmp/add_coauthor.sh" $BASE_COMMIT; then
+                    echo "✅ Added co-author attribution to $COMMITS_AHEAD commit(s)"
+                  else
+                    echo "⚠️ Failed to add co-author, continuing with push anyway..."
+                    git rebase --abort 2>/dev/null || true
+                  fi
+
+            - name: Push changes to new branch
+              id: push_changes
+              if: always()
+              run: |
+                  git remote set-url origin "https://x-access-token:${{ secrets.WORKFLOW_BOT_TOKEN }}@github.com/${{ github.repository }}.git"
+
+                  BRANCH_NAME="${{ steps.create_branch.outputs.branch_name }}"
+                  DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+
+                  COMMITS_AHEAD=$(git rev-list --count origin/$DEFAULT_BRANCH..HEAD 2>/dev/null || echo "0")
+
+                  if [ "$COMMITS_AHEAD" = "0" ]; then
+                    echo "📭 No commits to push"
+                    echo "push_status=no_changes" >> $GITHUB_OUTPUT
+                    exit 0
+                  fi
+
+                  echo "📊 Found $COMMITS_AHEAD commit(s) to push to $BRANCH_NAME"
+
+                  if git push origin "$BRANCH_NAME" 2>&1; then
+                    echo "✅ Successfully pushed to $BRANCH_NAME"
+                    echo "push_status=success" >> $GITHUB_OUTPUT
+                    echo "push_branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+                    exit 0
+                  else
+                    echo "❌ Failed to push to $BRANCH_NAME"
+                    echo "push_status=failed" >> $GITHUB_OUTPUT
+                    exit 1
+                  fi
+
+            - name: Create pull request
+              if: steps.push_changes.outputs.push_status == 'success'
+              env:
+                  GH_TOKEN: ${{ secrets.WORKFLOW_BOT_TOKEN }}
+              run: |
+                  BRANCH_NAME="${{ steps.push_changes.outputs.push_branch }}"
+                  ISSUE_NUM="${{ github.event.issue.number }}"
+                  ISSUE_TITLE="${{ github.event.issue.title }}"
+                  PR_TITLE="Fix #${ISSUE_NUM}: ${ISSUE_TITLE}"
+
+                  cat > /tmp/pr_body.md << 'EOF'
+                  ## 🤖 Claude-Generated Fix
+
+                  This PR was automatically created by @claude to address issue #${{ github.event.issue.number }}.
+
+                  ### Issue
+                  ${{ github.event.issue.title }}
+
+                  ### Changes
+                  Claude made the following changes to resolve this issue. Please review carefully before merging.
+
+                  Closes #${{ github.event.issue.number }}
+                  EOF
+
+                  echo "📝 Creating PR from $BRANCH_NAME..."
+                  PR_URL=$(gh pr create \
+                    --title "$PR_TITLE" \
+                    --body-file /tmp/pr_body.md \
+                    --base "${{ github.event.repository.default_branch }}" \
+                    --head "$BRANCH_NAME" \
+                    2>&1)
+
+                  if [ $? -eq 0 ]; then
+                    echo "✅ Created PR: $PR_URL"
+                    echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+
+                    gh issue comment $ISSUE_NUM --repo ${{ github.repository }} --body "✅ I've created a pull request to address this issue: $PR_URL"
+                  else
+                    echo "❌ Failed to create PR"
+                    echo "Error: $PR_URL"
+
+                    gh issue comment $ISSUE_NUM --repo ${{ github.repository }} --body "⚠️ I made changes but couldn't create a PR automatically. The changes are on branch \`$BRANCH_NAME\`. You can create the PR manually."
+                  fi

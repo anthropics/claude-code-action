@@ -1,0 +1,100 @@
+name: Claude Access Denied
+
+on:
+    issue_comment:
+        types: [created]
+    pull_request_review_comment:
+        types: [created]
+    pull_request_review:
+        types: [submitted]
+    issues:
+        types: [opened, assigned]
+
+jobs:
+    deny-unauthorized:
+        # Only run if:
+        # 1. Contains @claude mention
+        # 2. User is NOT a member/owner
+        if: |
+            (
+                (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+                (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+                (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+                (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+            )
+            &&
+            !(
+                (github.event_name == 'issue_comment' && contains('MEMBER,OWNER,COLLABORATOR', github.event.comment.author_association)) ||
+                (github.event_name == 'pull_request_review_comment' && contains('MEMBER,OWNER,COLLABORATOR', github.event.comment.author_association)) ||
+                (github.event_name == 'pull_request_review' && contains('MEMBER,OWNER,COLLABORATOR', github.event.review.author_association)) ||
+                (github.event_name == 'issues' && contains('MEMBER,OWNER,COLLABORATOR', github.event.issue.author_association))
+            )
+
+        runs-on: ubuntu-latest
+        permissions:
+            issues: write
+            pull-requests: write
+
+        steps:
+            - name: Post access denied message
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  # Determine actor and association based on event type
+                  if [ "${{ github.event_name }}" = "issue_comment" ]; then
+                    ACTOR="${{ github.event.comment.user.login }}"
+                    ASSOCIATION="${{ github.event.comment.author_association }}"
+                  elif [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
+                    ACTOR="${{ github.event.comment.user.login }}"
+                    ASSOCIATION="${{ github.event.comment.author_association }}"
+                  elif [ "${{ github.event_name }}" = "pull_request_review" ]; then
+                    ACTOR="${{ github.event.review.user.login }}"
+                    ASSOCIATION="${{ github.event.review.author_association }}"
+                  elif [ "${{ github.event_name }}" = "issues" ]; then
+                    ACTOR="${{ github.event.issue.user.login }}"
+                    ASSOCIATION="${{ github.event.issue.author_association }}"
+                  fi
+
+                  echo "🚫 Denying @claude access for $ACTOR (association: $ASSOCIATION)"
+
+                  # Create denial message
+                  cat > /tmp/denied.txt << 'EOF'
+                  🚫 **Access Denied**
+
+                  Only users with write access can trigger Claude workflows for security reasons.
+
+                  **Your association:** `ASSOCIATION_PLACEHOLDER`
+                  **Required:** `MEMBER`, `OWNER`, or `COLLABORATOR` (write access)
+
+                  If you believe this is an error, please contact a repository maintainer.
+                  EOF
+
+                  # Replace placeholder with actual value
+                  sed -i "s/ASSOCIATION_PLACEHOLDER/$ASSOCIATION/g" /tmp/denied.txt
+
+                  # Post message based on event type
+                  if [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
+                    # Reply to PR review comment
+                    gh api -X POST "/repos/${{ github.repository }}/pulls/comments/${{ github.event.comment.id }}/replies" \
+                      -F body=@/tmp/denied.txt
+
+                  elif [ "${{ github.event_name }}" = "issue_comment" ] && [ -n "${{ github.event.issue.pull_request }}" ]; then
+                    # Comment on PR
+                    gh pr comment ${{ github.event.issue.number }} \
+                      --repo ${{ github.repository }} \
+                      --body-file /tmp/denied.txt
+
+                  elif [ "${{ github.event_name }}" = "issue_comment" ]; then
+                    # Comment on issue
+                    gh issue comment ${{ github.event.issue.number }} \
+                      --repo ${{ github.repository }} \
+                      --body-file /tmp/denied.txt
+
+                  elif [ "${{ github.event_name }}" = "issues" ]; then
+                    # Comment on newly created issue
+                    gh issue comment ${{ github.event.issue.number }} \
+                      --repo ${{ github.repository }} \
+                      --body-file /tmp/denied.txt
+                  fi
+
+                  echo "✅ Posted access denied message"
