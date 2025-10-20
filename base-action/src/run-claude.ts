@@ -202,6 +202,7 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
     showFullOutput = true;
   } else if (!showFullOutput) {
     console.log("Running Claude Code (full output hidden for security)...");
+    console.log("Rerun in debug mode or enable `show_full_output: true` in your workflow file for full output.");
   }
 
   // Capture output for parsing execution metrics
