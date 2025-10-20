@@ -14,6 +14,7 @@ import {
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import { checkAndCommitOrDeleteBranch } from "../github/operations/branch-cleanup";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
+import { todoManager } from "../utils/todo-manager";
 
 async function run() {
   try {
@@ -214,7 +215,18 @@ async function run() {
       errorDetails,
     };
 
-    const updatedBody = updateCommentBody(commentInput);
+    // Generate the base updated body
+    let updatedBody = updateCommentBody(commentInput);
+
+    // Add todo summary if available
+    try {
+      const todoSummary = todoManager.generateTodoSummaryMarkdown();
+      if (todoSummary) {
+        updatedBody += todoSummary;
+      }
+    } catch (error) {
+      console.warn("Failed to generate todo summary for comment:", error);
+    }
 
     try {
       await updateClaudeComment(octokit.rest, {

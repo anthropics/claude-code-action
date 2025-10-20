@@ -1,0 +1,169 @@
+import * as core from "@actions/core";
+import { writeFile, readFile } from "fs/promises";
+import { existsSync } from "fs";
+
+export type TodoItem = {
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+  activeForm: string;
+};
+
+export type TodoList = {
+  todos: TodoItem[];
+  version: number;
+  lastUpdated: string;
+  runId: string;
+};
+
+// const ARTIFACT_NAME = "claude-todo-list";
+// const TODO_FILENAME = "todo-list.json";
+
+/**
+ * Downloads the todo list artifact from previous runs
+ * Returns null if no artifact exists or on error
+ */
+export async function downloadTodoListArtifact(): Promise<TodoList | null> {
+  try {
+    // TODO: Implement proper artifact download when API is stable
+    core.info("Todo list artifact download not yet implemented");
+    return null;
+  } catch (error) {
+    core.warning(`Failed to download todo list artifact: ${error}`);
+    return null;
+  }
+}
+
+/**
+ * Uploads the todo list as an artifact for future runs
+ */
+export async function uploadTodoListArtifact(
+  _todoList: TodoList,
+): Promise<void> {
+  try {
+    // TODO: Implement proper artifact upload when API is stable
+    core.info("Todo list artifact upload not yet implemented");
+  } catch (error) {
+    core.warning(`Failed to upload todo list artifact: ${error}`);
+  }
+}
+
+/**
+ * Creates a new todo list with provided items
+ */
+export function createTodoList(todos: TodoItem[]): TodoList {
+  return {
+    todos: todos || [],
+    version: 1,
+    lastUpdated: new Date().toISOString(),
+    runId: process.env.GITHUB_RUN_ID || "unknown",
+  };
+}
+
+/**
+ * Merges an existing todo list with new todos, preserving state where possible
+ * Returns the merged todo list
+ */
+export function mergeTodoLists(
+  existing: TodoList | null,
+  newTodos: TodoItem[],
+): TodoList {
+  if (!existing || existing.todos.length === 0) {
+    return createTodoList(newTodos);
+  }
+
+  // Create a map of existing todos by content for quick lookup
+  const existingTodoMap = new Map<string, TodoItem>();
+  existing.todos.forEach((todo) => {
+    existingTodoMap.set(todo.content, todo);
+  });
+
+  // Process new todos, preserving status from existing where possible
+  const mergedTodos: TodoItem[] = newTodos.map((newTodo) => {
+    const existingTodo = existingTodoMap.get(newTodo.content);
+    if (existingTodo) {
+      // Preserve the status from existing todo, but update activeForm if needed
+      return {
+        ...existingTodo,
+        activeForm: newTodo.activeForm, // Update activeForm in case it changed
+      };
+    }
+    return newTodo;
+  });
+
+  // Add any completed todos from existing list that aren't in new list
+  existing.todos.forEach((existingTodo) => {
+    if (
+      existingTodo.status === "completed" &&
+      !newTodos.some((newTodo) => newTodo.content === existingTodo.content)
+    ) {
+      mergedTodos.push(existingTodo);
+    }
+  });
+
+  return {
+    todos: mergedTodos,
+    version: existing.version,
+    lastUpdated: existing.lastUpdated,
+    runId: existing.runId,
+  };
+}
+
+/**
+ * Writes the todo list to a file that Claude can access
+ */
+export async function writeTodoListForClaude(
+  todoList: TodoList,
+  filePath: string,
+): Promise<void> {
+  try {
+    const claudeTodoData = {
+      todos: todoList.todos,
+      metadata: {
+        version: todoList.version,
+        lastUpdated: todoList.lastUpdated,
+        runId: todoList.runId,
+        totalTodos: todoList.todos.length,
+        completedTodos: todoList.todos.filter((t) => t.status === "completed")
+          .length,
+        inProgressTodos: todoList.todos.filter(
+          (t) => t.status === "in_progress",
+        ).length,
+        pendingTodos: todoList.todos.filter((t) => t.status === "pending")
+          .length,
+      },
+    };
+
+    await writeFile(filePath, JSON.stringify(claudeTodoData, null, 2));
+    core.info(`Written todo list for Claude to ${filePath}`);
+  } catch (error) {
+    core.warning(`Failed to write todo list for Claude: ${error}`);
+  }
+}
+
+/**
+ * Reads the updated todo list from Claude's output
+ */
+export async function readTodoListFromClaude(
+  filePath: string,
+): Promise<TodoItem[] | null> {
+  try {
+    if (!existsSync(filePath)) {
+      return null;
+    }
+
+    const data = await readFile(filePath, "utf-8");
+    const parsed = JSON.parse(data);
+
+    // Handle both formats - direct todos array or wrapped in metadata
+    if (Array.isArray(parsed)) {
+      return parsed as TodoItem[];
+    } else if (parsed.todos && Array.isArray(parsed.todos)) {
+      return parsed.todos as TodoItem[];
+    }
+
+    return null;
+  } catch (error) {
+    core.warning(`Failed to read todo list from Claude: ${error}`);
+    return null;
+  }
+}

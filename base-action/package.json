@@ -5,7 +5,6 @@
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "install-hooks": "bun run scripts/install-hooks.sh",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
