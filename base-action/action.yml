@@ -18,6 +18,10 @@ inputs:
     description: "Claude Code settings as JSON string or path to settings JSON file"
     required: false
     default: ""
+  plugins:
+    description: "Comma-separated list of Claude Code plugins to install (e.g., 'plugin-name1,plugin-name2')"
+    required: false
+    default: ""
 
   # Action settings
   claude_args:
@@ -123,6 +127,7 @@ runs:
         INPUT_PROMPT: ${{ inputs.prompt }}
         INPUT_PROMPT_FILE: ${{ inputs.prompt_file }}
         INPUT_SETTINGS: ${{ inputs.settings }}
+        INPUT_PLUGINS: ${{ inputs.plugins }}
         INPUT_CLAUDE_ARGS: ${{ inputs.claude_args }}
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
