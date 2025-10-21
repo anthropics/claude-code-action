@@ -26,15 +26,16 @@ The fastest way to create a custom GitHub App is using our pre-configured manife
 
 **Steps:**
 
-1. **Create the app with one click:**
+1. **Create the app:**
 
-   **🚀 [Open the App Creation Tool](./create-app.html)**
+   **🚀 [Download the Quick Setup Tool](./create-app.html)** (Right-click → "Save Link As" or "Download Linked File")
 
-   This interactive tool will help you:
+   After downloading, open `create-app.html` in your web browser:
 
-   - Create an app for your personal account or organization
-   - Automatically configure all required permissions
-   - Generate the manifest with proper settings
+   - **For Personal Accounts:** Click the "Create App for Personal Account" button
+   - **For Organizations:** Enter your organization name and click "Create App for Organization"
+
+   The tool will automatically configure all required permissions and submit the manifest.
 
    Alternatively, you can use the manifest file directly:
 
