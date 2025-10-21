@@ -41,6 +41,10 @@ inputs:
     description: "Claude Code settings as JSON string or path to settings JSON file"
     required: false
     default: ""
+  plugins:
+    description: "Comma-separated list of Claude Code plugins to install (e.g., 'plugin-name1,plugin-name2')"
+    required: false
+    default: ""
 
   # Auth configuration
   anthropic_api_key:
@@ -208,6 +212,7 @@ runs:
         CLAUDE_CODE_ACTION: "1"
         INPUT_PROMPT_FILE: ${{ runner.temp }}/claude-prompts/claude-prompt.txt
         INPUT_SETTINGS: ${{ inputs.settings }}
+        INPUT_PLUGINS: ${{ inputs.plugins }}
         INPUT_CLAUDE_ARGS: ${{ steps.prepare.outputs.claude_args }}
         INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ github.action_path }}/slash-commands
         INPUT_ACTION_INPUTS_PRESENT: ${{ steps.prepare.outputs.action_inputs_present }}
