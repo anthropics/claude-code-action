@@ -55,6 +55,10 @@ inputs:
     description: "Optional path to a custom Bun executable. If provided, skips automatic Bun installation and uses this executable instead. WARNING: Using an incompatible version may cause problems if the action requires specific Bun features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
     required: false
     default: ""
+  plugins:
+    description: "Comma-separated list of Claude Code plugin names to install (e.g., 'plugin1,plugin2,plugin3')"
+    required: false
+    default: ""
 
 outputs:
   conclusion:
@@ -126,6 +130,7 @@ runs:
         INPUT_CLAUDE_ARGS: ${{ inputs.claude_args }}
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
+        INPUT_PLUGINS: ${{ inputs.plugins }}
 
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}

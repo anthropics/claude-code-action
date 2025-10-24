@@ -5,6 +5,7 @@ import { preparePrompt } from "./prepare-prompt";
 import { runClaude } from "./run-claude";
 import { setupClaudeCodeSettings } from "./setup-claude-code-settings";
 import { validateEnvironmentVariables } from "./validate-env";
+import { installPlugins } from "./install-plugins";
 
 async function run() {
   try {
@@ -13,6 +14,12 @@ async function run() {
     await setupClaudeCodeSettings(
       process.env.INPUT_SETTINGS,
       undefined, // homeDir
+    );
+
+    // Install Claude Code plugins if specified
+    await installPlugins(
+      process.env.INPUT_PLUGINS,
+      process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE,
     );
 
     const promptConfig = await preparePrompt({
