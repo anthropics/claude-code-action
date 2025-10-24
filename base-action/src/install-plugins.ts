@@ -56,45 +56,51 @@ function parsePlugins(plugins?: string): string[] {
 }
 
 /**
+ * Executes a Claude Code CLI command with proper error handling
+ * @param claudeExecutable - Path to the Claude executable
+ * @param args - Command arguments to pass to the executable
+ * @param errorContext - Context string for error messages (e.g., "Failed to install plugin 'foo'")
+ * @returns Promise that resolves when the command completes successfully
+ * @throws {Error} If the command fails to execute
+ */
+async function executeClaudeCommand(
+  claudeExecutable: string,
+  args: string[],
+  errorContext: string,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const childProcess: ChildProcess = spawn(claudeExecutable, args, {
+      stdio: "inherit",
+    });
+
+    childProcess.on("close", (code: number | null) => {
+      if (code === 0) {
+        resolve();
+      } else if (code === null) {
+        reject(new Error(`${errorContext}: process terminated by signal`));
+      } else {
+        reject(new Error(`${errorContext} (exit code: ${code})`));
+      }
+    });
+
+    childProcess.on("error", (err: Error) => {
+      reject(new Error(`${errorContext}: ${err.message}`));
+    });
+  });
+}
+
+/**
  * Installs a single Claude Code plugin
  */
 async function installPlugin(
   pluginName: string,
   claudeExecutable: string,
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const childProcess: ChildProcess = spawn(
-      claudeExecutable,
-      ["plugin", "install", pluginName],
-      {
-        stdio: "inherit",
-      },
-    );
-
-    childProcess.on("close", (code: number | null) => {
-      if (code === 0) {
-        resolve();
-      } else if (code === null) {
-        reject(
-          new Error(
-            `Failed to install plugin '${pluginName}': process terminated by signal`,
-          ),
-        );
-      } else {
-        reject(
-          new Error(
-            `Failed to install plugin '${pluginName}' (exit code: ${code})`,
-          ),
-        );
-      }
-    });
-
-    childProcess.on("error", (err: Error) => {
-      reject(
-        new Error(`Failed to install plugin '${pluginName}': ${err.message}`),
-      );
-    });
-  });
+  return executeClaudeCommand(
+    claudeExecutable,
+    ["plugin", "install", pluginName],
+    `Failed to install plugin '${pluginName}'`,
+  );
 }
 
 /**
@@ -106,31 +112,11 @@ async function installPlugin(
 async function addMarketplace(claudeExecutable: string): Promise<void> {
   console.log("Adding Claude Code marketplace...");
 
-  return new Promise((resolve, reject) => {
-    const childProcess: ChildProcess = spawn(
-      claudeExecutable,
-      ["plugin", "marketplace", "add", CLAUDE_CODE_MARKETPLACE_URL],
-      {
-        stdio: "inherit",
-      },
-    );
-
-    childProcess.on("close", (code: number | null) => {
-      if (code === 0) {
-        resolve();
-      } else if (code === null) {
-        reject(
-          new Error("Failed to add marketplace: process terminated by signal"),
-        );
-      } else {
-        reject(new Error(`Failed to add marketplace (exit code: ${code})`));
-      }
-    });
-
-    childProcess.on("error", (err: Error) => {
-      reject(new Error(`Failed to add marketplace: ${err.message}`));
-    });
-  });
+  return executeClaudeCommand(
+    claudeExecutable,
+    ["plugin", "marketplace", "add", CLAUDE_CODE_MARKETPLACE_URL],
+    "Failed to add marketplace",
+  );
 }
 
 /**
