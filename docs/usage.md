@@ -32,6 +32,9 @@ jobs:
           #   --max-turns 10
           #   --model claude-4-0-sonnet-20250805
 
+          # Optional: install Claude Code plugins
+          # plugins: "plugin1,plugin2,plugin3"
+
           # Optional: add custom trigger phrase (default: @claude)
           # trigger_phrase: "/claude"
           # Optional: add assignee trigger for issues
@@ -73,6 +76,7 @@ jobs:
 | `allowed_non_write_users`        | **⚠️ RISKY**: Comma-separated list of usernames to allow without write permissions, or '\*' for all users. Only works with `github_token` input. See [Security](./security.md)         | No       | ""            |
 | `path_to_claude_code_executable` | Optional path to a custom Claude Code executable. Skips automatic installation. Useful for Nix, custom containers, or specialized environments                                         | No       | ""            |
 | `path_to_bun_executable`         | Optional path to a custom Bun executable. Skips automatic Bun installation. Useful for Nix, custom containers, or specialized environments                                             | No       | ""            |
+| `plugins`                        | Comma-separated list of Claude Code plugin names to install (e.g., `plugin1,plugin2,plugin3`). Plugins are installed before Claude Code execution                                      | No       | ""            |
 
 ### Deprecated Inputs
 
