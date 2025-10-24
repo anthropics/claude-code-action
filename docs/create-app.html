@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Create Claude Code GitHub App</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        /* Claude Brand Colors */
+        --primary-dark: #0e0e0e;
+        --primary-light: #d4a27f;
+        --background-light: rgb(253, 253, 247);
+        --background-dark: rgb(9, 9, 11);
+        --text-primary: #1a1a1a;
+        --text-secondary: #525252;
+        --text-tertiary: #737373;
+        --border-color: rgba(0, 0, 0, 0.08);
+        --hover-bg: rgba(0, 0, 0, 0.02);
+        --success: #2ea44f;
+        --warning: #e3b341;
+        --card-shadow:
+          0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+        --card-shadow-hover:
+          0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.05);
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        background: var(--background-light);
+        color: var(--text-primary);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 40px 24px;
+      }
+
+      /* Header */
+      header {
+        text-align: center;
+        margin-bottom: 48px;
+      }
+
+      h1 {
+        font-size: 36px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 12px;
+        letter-spacing: -0.02em;
+      }
+
+      .subtitle {
+        font-size: 18px;
+        color: var(--text-secondary);
+        max-width: 640px;
+        margin: 0 auto;
+        line-height: 1.5;
+      }
+
+      /* Cards */
+      .card {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 32px;
+        margin-bottom: 24px;
+        box-shadow: var(--card-shadow);
+        transition: all 0.2s ease;
+      }
+
+      .card:hover {
+        box-shadow: var(--card-shadow-hover);
+      }
+
+      .card-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .card-icon {
+        font-size: 24px;
+        line-height: 1;
+      }
+
+      h2 {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0;
+        letter-spacing: -0.01em;
+      }
+
+      .card-description {
+        color: var(--text-secondary);
+        margin-bottom: 24px;
+        font-size: 15px;
+        line-height: 1.6;
+      }
+
+      /* Buttons */
+      .button-group {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 24px;
+        font-size: 15px;
+        font-weight: 500;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        font-family: inherit;
+        width: 100%;
+      }
+
+      .btn-primary {
+        background: var(--primary-dark);
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #1a1a1a;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      .btn-secondary {
+        background: var(--primary-light);
+        color: var(--primary-dark);
+      }
+
+      .btn-secondary:hover {
+        background: #c99a70;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(212, 162, 127, 0.3);
+      }
+
+      .btn-outline {
+        background: white;
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+      }
+
+      .btn-outline:hover {
+        background: var(--hover-bg);
+        border-color: var(--text-secondary);
+      }
+
+      .btn:active {
+        transform: translateY(0);
+      }
+
+      .btn.copied {
+        background: var(--success);
+        color: white;
+      }
+
+      /* Form */
+      .form-row {
+        display: flex;
+        gap: 12px;
+        align-items: flex-end;
+      }
+
+      .form-group {
+        flex: 1;
+      }
+
+      label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 6px;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 15px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-family: inherit;
+        transition: all 0.2s ease;
+        background: white;
+      }
+
+      input[type="text"]:focus {
+        outline: none;
+        border-color: var(--primary-dark);
+        box-shadow: 0 0 0 3px rgba(14, 14, 14, 0.1);
+      }
+
+      /* Code Block */
+      .code-container {
+        position: relative;
+        background: #fafafa;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        margin: 20px 0;
+      }
+
+      .code-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .code-label {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-secondary);
+      }
+
+      .copy-btn {
+        padding: 6px 12px;
+        font-size: 13px;
+        font-weight: 500;
+        background: white;
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .copy-btn:hover {
+        background: var(--hover-bg);
+      }
+
+      .copy-btn.copied {
+        background: var(--success);
+        color: white;
+        border-color: var(--success);
+      }
+
+      .code-block {
+        padding: 16px;
+        overflow-x: auto;
+        font-family:
+          "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas,
+          "Courier New", monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        color: var(--text-primary);
+        white-space: pre;
+      }
+
+      /* Permissions List */
+      .permissions-grid {
+        display: grid;
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .permission-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        background: #fafafa;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+
+      .permission-icon {
+        color: var(--success);
+        font-size: 16px;
+        line-height: 1;
+      }
+
+      .permission-name {
+        font-weight: 500;
+        color: var(--text-primary);
+      }
+
+      .permission-value {
+        margin-left: auto;
+        color: var(--text-secondary);
+        font-size: 13px;
+      }
+
+      /* Steps */
+      .steps {
+        margin: 24px 0;
+      }
+
+      .step {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+
+      .step-number {
+        flex-shrink: 0;
+        width: 28px;
+        height: 28px;
+        background: var(--primary-dark);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .step-content {
+        flex: 1;
+        padding-top: 2px;
+      }
+
+      .step-content p {
+        color: var(--text-secondary);
+        font-size: 15px;
+        line-height: 1.6;
+      }
+
+      .step-content strong {
+        color: var(--text-primary);
+        font-weight: 500;
+      }
+
+      /* Alert Box */
+      .alert {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        background: #fffbf0;
+        border: 1px solid #f5e7c3;
+        border-radius: 8px;
+        margin-top: 32px;
+      }
+
+      .alert-icon {
+        font-size: 18px;
+        line-height: 1;
+        flex-shrink: 0;
+      }
+
+      .alert-content {
+        flex: 1;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .alert-content strong {
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+
+      /* Responsive */
+      @media (min-width: 640px) {
+        .button-group {
+          flex-direction: row;
+        }
+
+        .btn {
+          width: auto;
+        }
+
+        .permissions-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+
+      @media (max-width: 640px) {
+        h1 {
+          font-size: 28px;
+        }
+
+        .subtitle {
+          font-size: 16px;
+        }
+
+        .card {
+          padding: 24px 20px;
+        }
+
+        .container {
+          padding: 24px 16px;
+        }
+      }
+
+      /* Hidden form elements */
+      .hidden-form {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Create Your Custom GitHub App</h1>
+        <p class="subtitle">
+          Set up a custom GitHub App for Claude Code Action with all required
+          permissions automatically configured.
+        </p>
+      </header>
+
+      <!-- Quick Setup Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-icon">🚀</span>
+          <h2>Quick Setup</h2>
+        </div>
+        <p class="card-description">
+          Create your GitHub App with one click. All permissions will be
+          automatically configured for Claude Code Action.
+        </p>
+
+        <div class="button-group">
+          <!-- Personal Account Button -->
+          <form
+            action="https://github.com/settings/apps/new"
+            method="post"
+            class="hidden-form"
+            id="personal-form"
+          >
+            <input type="hidden" name="manifest" id="personal-manifest" />
+          </form>
+          <button
+            type="button"
+            class="btn btn-primary"
+            onclick="submitPersonalForm()"
+          >
+            <span>👤</span>
+            <span>Create for Personal Account</span>
+          </button>
+
+          <!-- Organization Form -->
+          <form id="org-form" method="post" class="hidden-form">
+            <input type="hidden" name="manifest" id="org-manifest" />
+          </form>
+        </div>
+
+        <!-- Organization Input -->
+        <div
+          style="
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+          "
+        >
+          <label for="org-name" style="margin-bottom: 8px"
+            >Or create for an organization:</label
+          >
+          <div class="form-row">
+            <div class="form-group">
+              <input
+                type="text"
+                id="org-name"
+                placeholder="Enter organization name (e.g., my-org)"
+              />
+            </div>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="submitOrgForm()"
+              style="flex-shrink: 0"
+            >
+              <span>🏢</span>
+              <span>Create for Org</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Permissions Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-icon">✅</span>
+          <h2>Configured Permissions</h2>
+        </div>
+        <p class="card-description">
+          Your GitHub App will be created with these permissions:
+        </p>
+
+        <div class="permissions-grid">
+          <div class="permission-item">
+            <span class="permission-icon">✓</span>
+            <span class="permission-name">Contents</span>
+            <span class="permission-value">Read & Write</span>
+          </div>
+          <div class="permission-item">
+            <span class="permission-icon">✓</span>
+            <span class="permission-name">Issues</span>
+            <span class="permission-value">Read & Write</span>
+          </div>
+          <div class="permission-item">
+            <span class="permission-icon">✓</span>
+            <span class="permission-name">Pull Requests</span>
+            <span class="permission-value">Read & Write</span>
+          </div>
+          <div class="permission-item">
+            <span class="permission-icon">✓</span>
+            <span class="permission-name">Actions</span>
+            <span class="permission-value">Read</span>
+          </div>
+          <div class="permission-item">
+            <span class="permission-icon">✓</span>
+            <span class="permission-name">Metadata</span>
+            <span class="permission-value">Read</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Next Steps Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-icon">📋</span>
+          <h2>Next Steps</h2>
+        </div>
+        <p class="card-description">
+          After creating your app, complete these steps:
+        </p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <p>
+                <strong>Generate a private key:</strong> In your app settings,
+                scroll to "Private keys" and click "Generate a private key"
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <p>
+                <strong>Install the app:</strong> Click "Install App" and select
+                the repositories where you want to use Claude
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <p>
+                <strong>Configure your workflow:</strong> Add your app's ID and
+                private key to your repository secrets
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manual Setup Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-icon">⚙️</span>
+          <h2>Manual Setup</h2>
+        </div>
+        <p class="card-description">
+          If the buttons above don't work, you can manually create the app by
+          copying the manifest JSON below:
+        </p>
+
+        <div class="code-container">
+          <div class="code-header">
+            <span class="code-label">github-app-manifest.json</span>
+            <button class="copy-btn" onclick="copyManifest()">Copy</button>
+          </div>
+          <div class="code-block" id="manifest-json"></div>
+        </div>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <p>Copy the manifest JSON above</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <p>
+                Go to
+                <a
+                  href="https://github.com/settings/apps/new"
+                  target="_blank"
+                  style="color: var(--primary-dark); text-decoration: underline"
+                  >GitHub App Settings</a
+                >
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <p>Look for "Create from manifest" option and paste the JSON</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Warning Alert -->
+      <div class="alert">
+        <span class="alert-icon">⚠️</span>
+        <div class="alert-content">
+          <strong>Important:</strong> Keep your private key secure! Never commit
+          it to your repository. Always use GitHub secrets to store sensitive
+          credentials.
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Manifest configuration
+      const manifest = {
+        name: "Claude Code Custom App",
+        description:
+          "Custom GitHub App for Claude Code Action - AI-powered coding assistant for GitHub workflows",
+        url: "https://github.com/anthropics/claude-code-action",
+        hook_attributes: {
+          url: "https://example.com/github/webhook",
+          active: false,
+        },
+        redirect_url: "https://github.com/settings/apps/new",
+        callback_urls: [],
+        setup_url:
+          "https://github.com/anthropics/claude-code-action/blob/main/docs/setup.md",
+        public: false,
+        default_permissions: {
+          contents: "write",
+          issues: "write",
+          pull_requests: "write",
+          actions: "read",
+          metadata: "read",
+        },
+        default_events: [
+          "issue_comment",
+          "issues",
+          "pull_request",
+          "pull_request_review",
+          "pull_request_review_comment",
+        ],
+      };
+
+      // Populate manifest fields
+      const manifestJson = JSON.stringify(manifest);
+      const manifestJsonPretty = JSON.stringify(manifest, null, 2);
+
+      document.getElementById("personal-manifest").value = manifestJson;
+      document.getElementById("org-manifest").value = manifestJson;
+
+      // Display formatted JSON
+      const manifestDisplay = document.getElementById("manifest-json");
+      manifestDisplay.textContent = manifestJsonPretty;
+
+      // Submit personal form
+      function submitPersonalForm() {
+        document.getElementById("personal-form").submit();
+      }
+
+      // Submit organization form
+      function submitOrgForm() {
+        const orgName = document.getElementById("org-name").value.trim();
+        if (!orgName) {
+          alert("Please enter an organization name");
+          document.getElementById("org-name").focus();
+          return;
+        }
+        const form = document.getElementById("org-form");
+        form.action = `https://github.com/organizations/${orgName}/settings/apps/new`;
+        form.submit();
+      }
+
+      // Allow Enter key to submit org form
+      document
+        .getElementById("org-name")
+        .addEventListener("keypress", function (e) {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submitOrgForm();
+          }
+        });
+
+      // Copy manifest to clipboard
+      function copyManifest() {
+        navigator.clipboard
+          .writeText(manifestJsonPretty)
+          .then(() => {
+            const button = document.querySelector(".copy-btn");
+            const originalText = button.textContent;
+            button.textContent = "Copied!";
+            button.classList.add("copied");
+            setTimeout(() => {
+              button.textContent = originalText;
+              button.classList.remove("copied");
+            }, 2000);
+          })
+          .catch(() => {
+            // Fallback for older browsers
+            const textArea = document.createElement("textarea");
+            textArea.value = manifestJsonPretty;
+            textArea.style.position = "fixed";
+            textArea.style.opacity = "0";
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+              document.execCommand("copy");
+              const button = document.querySelector(".copy-btn");
+              const originalText = button.textContent;
+              button.textContent = "Copied!";
+              button.classList.add("copied");
+              setTimeout(() => {
+                button.textContent = originalText;
+                button.classList.remove("copied");
+              }, 2000);
+            } catch (err) {
+              alert("Failed to copy. Please copy manually.");
+            }
+            document.body.removeChild(textArea);
+          });
+      }
+    </script>
+  </body>
+</html>
