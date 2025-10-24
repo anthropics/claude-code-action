@@ -4,6 +4,8 @@ const PLUGIN_NAME_REGEX = /^[@a-zA-Z0-9_\-\/\.]+$/;
 const MAX_PLUGIN_NAME_LENGTH = 512;
 const CLAUDE_CODE_MARKETPLACE_URL =
   "https://github.com/anthropics/claude-code.git";
+const PATH_TRAVERSAL_REGEX =
+  /\.\.\/|\/\.\.|\.\/|\/\.|(?:^|\/)\.\.$|(?:^|\/)\.$|\.\.(?![0-9])/;
 
 /**
  * Validates a plugin name for security issues
@@ -22,17 +24,8 @@ function validatePluginName(pluginName: string): void {
     throw new Error(`Invalid plugin name format: ${pluginName}`);
   }
 
-  // Prevent path traversal attacks
-  // Check for ../ and ./ patterns, and consecutive dots that aren't part of version numbers
-  if (
-    normalized.includes("../") ||
-    normalized.includes("/..") ||
-    normalized.includes("./") ||
-    normalized.includes("/.") ||
-    /(?:^|\/)\.\.$/.test(normalized) || // Ends with /.. or is exactly ..
-    /(?:^|\/)\.$/.test(normalized) || // Ends with /. or is exactly .
-    /\.\.(?![0-9])/.test(normalized) // Consecutive dots not followed by a digit (like version numbers)
-  ) {
+  // Prevent path traversal attacks with single efficient regex check
+  if (PATH_TRAVERSAL_REGEX.test(normalized)) {
     throw new Error(`Invalid plugin name format: ${pluginName}`);
   }
 }

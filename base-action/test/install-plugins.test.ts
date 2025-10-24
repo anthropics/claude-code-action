@@ -5,7 +5,7 @@ import { installPlugins } from "../src/install-plugins";
 import * as childProcess from "child_process";
 
 describe("installPlugins", () => {
-  let spawnSpy: any;
+  let spawnSpy: ReturnType<typeof spyOn> | undefined;
 
   afterEach(() => {
     // Restore original spawn after each test
