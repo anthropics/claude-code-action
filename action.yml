@@ -246,7 +246,7 @@ runs:
         VERTEX_REGION_CLAUDE_3_7_SONNET: ${{ env.VERTEX_REGION_CLAUDE_3_7_SONNET }}
 
     - name: Update comment with job link
-      if: steps.prepare.outputs.contains_trigger == 'true' && steps.prepare.outputs.claude_comment_id && always()
+      if: steps.prepare.outputs.contains_trigger == 'true' && steps.prepare.outputs.claude_comment_id && !cancelled()
       shell: bash
       run: |
         bun run ${GITHUB_ACTION_PATH}/src/entrypoints/update-comment-link.ts

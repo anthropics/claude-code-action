@@ -67,6 +67,7 @@ export function detectMode(context: GitHubContext): AutoDetectedMode {
       "synchronize",
       "ready_for_review",
       "reopened",
+      "assigned",
     ];
     if (context.eventAction && supportedActions.includes(context.eventAction)) {
       // If prompt is provided, use agent mode (default for automation)
@@ -114,6 +115,7 @@ function validateTrackProgressEvent(context: GitHubContext): void {
       "synchronize",
       "ready_for_review",
       "reopened",
+      "assigned",
     ];
     if (!validActions.includes(context.eventAction)) {
       throw new Error(
