@@ -1,0 +1,44 @@
+name: "Setup Claude Code"
+description: "Install Claude Code CLI with caching and plugin support"
+branding:
+  icon: "download"
+  color: "orange"
+
+inputs:
+  version:
+    description: "Claude Code version to install (stable, latest, or specific version like 2.0.1)"
+    required: false
+    default: "stable"
+  github_token:
+    description: "GitHub token for plugin repository access"
+    required: false
+    default: ${{ github.token }}
+  marketplaces:
+    description: "Plugin marketplaces to add (comma or newline separated). Examples: 'pleaseai/claude-code-plugins', 'owner/repo'"
+    required: false
+    default: ""
+  plugins:
+    description: "Plugins to install (comma or newline separated). Examples: 'nanobanana@pleaseai', 'plugin-name@marketplace'"
+    required: false
+    default: ""
+
+outputs:
+  cache-hit:
+    description: "Boolean indicating whether cache was successfully restored"
+    value: ${{ steps.setup.outputs.cache-hit }}
+  version:
+    description: "Installed Claude Code version"
+    value: ${{ steps.setup.outputs.version }}
+  claude-path:
+    description: "Absolute path to Claude Code executable"
+    value: ${{ steps.setup.outputs.claude-path }}
+  marketplaces_added:
+    description: "Number of marketplaces added or updated"
+    value: ${{ steps.setup.outputs.marketplaces_added }}
+  plugins_installed:
+    description: "Comma-separated list of successfully installed plugin names"
+    value: ${{ steps.setup.outputs.plugins_installed }}
+
+runs:
+  using: "node22"
+  main: "dist/index.js"
