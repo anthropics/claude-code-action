@@ -37,6 +37,7 @@ describe("prepareMcpConfig", () => {
       allowedBots: "",
       allowedNonWriteUsers: "",
       trackProgress: false,
+      plugins: [],
     },
   };
 
@@ -275,5 +276,112 @@ describe("prepareMcpConfig", () => {
 
     const parsed = JSON.parse(result);
     expect(parsed.mcpServers.github_ci).not.toBeDefined();
+  });
+
+  test("should include inline comment server in agent mode when code-review plugin is specified", async () => {
+    const contextWithCodeReviewPlugin: ParsedGitHubContext = {
+      ...mockPRContext,
+      inputs: {
+        ...mockPRContext.inputs,
+        plugins: ["code-review@claude-code-plugins"],
+      },
+    };
+
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: [],
+      mode: "agent",
+      context: contextWithCodeReviewPlugin,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_inline_comment).toBeDefined();
+    expect(parsed.mcpServers.github_inline_comment.env.GITHUB_TOKEN).toBe(
+      "test-token",
+    );
+  });
+
+  test("should not include inline comment server in agent mode when code-review plugin is not specified", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: [],
+      mode: "agent",
+      context: mockPRContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_inline_comment).not.toBeDefined();
+  });
+
+  test("should include inline comment server in agent mode when code-review plugin is in a list of plugins", async () => {
+    const contextWithMultiplePlugins: ParsedGitHubContext = {
+      ...mockPRContext,
+      inputs: {
+        ...mockPRContext.inputs,
+        plugins: ["plugin1", "code-review@claude-code-plugins", "plugin2"],
+      },
+    };
+
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: [],
+      mode: "agent",
+      context: contextWithMultiplePlugins,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_inline_comment).toBeDefined();
+  });
+
+  test("should not include inline comment server in agent mode when plugins contain similar but not exact match", async () => {
+    const contextWithSimilarPlugin: ParsedGitHubContext = {
+      ...mockPRContext,
+      inputs: {
+        ...mockPRContext.inputs,
+        plugins: ["code-review-other", "review@claude-code-plugins"],
+      },
+    };
+
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: [],
+      mode: "agent",
+      context: contextWithSimilarPlugin,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_inline_comment).not.toBeDefined();
+  });
+
+  test("should include inline comment server in agent mode when explicit inline comment tools are provided (backward compatibility)", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: ["mcp__github_inline_comment__create_inline_comment"],
+      mode: "agent",
+      context: mockPRContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_inline_comment).toBeDefined();
   });
 });

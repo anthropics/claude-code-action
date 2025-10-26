@@ -134,11 +134,17 @@ export async function prepareMcpConfig(
       };
     }
 
+    // Check if code-review plugin is in the plugins list
+    const hasCodeReviewPlugin = context.inputs.plugins.includes(
+      "code-review@claude-code-plugins",
+    );
+
     // Include inline comment server for PRs when requested via allowed tools
+    // or when code-review plugin is specified (needs inline comment access for reviews)
     if (
       isEntityContext(context) &&
       context.isPR &&
-      (hasGitHubMcpTools || hasInlineCommentTools)
+      (hasGitHubMcpTools || hasInlineCommentTools || hasCodeReviewPlugin)
     ) {
       baseMcpConfig.mcpServers.github_inline_comment = {
         command: "bun",

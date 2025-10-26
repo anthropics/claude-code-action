@@ -73,6 +73,7 @@ describe("checkWritePermissions", () => {
       allowedBots: "",
       allowedNonWriteUsers: "",
       trackProgress: false,
+      plugins: [],
     },
   });
 
