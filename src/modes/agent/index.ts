@@ -114,6 +114,14 @@ export const agentMode: Mode = {
     const userClaudeArgs = process.env.CLAUDE_ARGS || "";
     const allowedTools = parseAllowedTools(userClaudeArgs);
 
+    // Add inline comment tool if code-review plugin is present
+    const hasCodeReviewPlugin = context.inputs.plugins.includes(
+      "code-review@claude-code-plugins",
+    );
+    if (hasCodeReviewPlugin && isEntityContext(context) && context.isPR) {
+      allowedTools.push("mcp__github_inline_comment__create_inline_comment");
+    }
+
     // Check for branch info from environment variables (useful for auto-fix workflows)
     const claudeBranch = process.env.CLAUDE_BRANCH || undefined;
     const baseBranch =
