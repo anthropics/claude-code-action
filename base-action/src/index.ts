@@ -20,6 +20,7 @@ async function run() {
     await installPlugins(
       process.env.INPUT_PLUGINS,
       process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE,
+      process.env.INPUT_PLUGIN_MARKETPLACES,
     );
 
     const promptConfig = await preparePrompt({

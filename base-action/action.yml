@@ -59,6 +59,10 @@ inputs:
     description: "Comma-separated list of Claude Code plugin names to install (e.g., 'plugin1,plugin2,plugin3')"
     required: false
     default: ""
+  plugin_marketplaces:
+    description: "Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., 'https://github.com/user/marketplace1.git\nhttps://github.com/user/marketplace2.git')"
+    required: false
+    default: ""
 
 outputs:
   conclusion:
@@ -131,6 +135,7 @@ runs:
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
         INPUT_PLUGINS: ${{ inputs.plugins }}
+        INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
 
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}

@@ -59,22 +59,10 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("test-plugin");
 
-    expect(spy).toHaveBeenCalledTimes(2);
-    // First call: add marketplace
+    expect(spy).toHaveBeenCalledTimes(1);
+    // Only call: install plugin (no marketplace without explicit marketplace input)
     expect(spy).toHaveBeenNthCalledWith(
       1,
-      "claude",
-      [
-        "plugin",
-        "marketplace",
-        "add",
-        "https://github.com/anthropics/claude-code.git",
-      ],
-      { stdio: "inherit" },
-    );
-    // Second call: install plugin
-    expect(spy).toHaveBeenNthCalledWith(
-      2,
       "claude",
       ["plugin", "install", "test-plugin"],
       { stdio: "inherit" },
@@ -85,34 +73,22 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("plugin1,plugin2,plugin3");
 
-    expect(spy).toHaveBeenCalledTimes(4);
-    // First call: add marketplace
+    expect(spy).toHaveBeenCalledTimes(3);
+    // Install plugins (no marketplace without explicit marketplace input)
     expect(spy).toHaveBeenNthCalledWith(
       1,
-      "claude",
-      [
-        "plugin",
-        "marketplace",
-        "add",
-        "https://github.com/anthropics/claude-code.git",
-      ],
-      { stdio: "inherit" },
-    );
-    // Subsequent calls: install plugins
-    expect(spy).toHaveBeenNthCalledWith(
-      2,
       "claude",
       ["plugin", "install", "plugin1"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
-      3,
+      2,
       "claude",
       ["plugin", "install", "plugin2"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
-      4,
+      3,
       "claude",
       ["plugin", "install", "plugin3"],
       { stdio: "inherit" },
@@ -123,22 +99,10 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("test-plugin", "/custom/path/to/claude");
 
-    expect(spy).toHaveBeenCalledTimes(2);
-    // First call: add marketplace
+    expect(spy).toHaveBeenCalledTimes(1);
+    // Only call: install plugin (no marketplace without explicit marketplace input)
     expect(spy).toHaveBeenNthCalledWith(
       1,
-      "/custom/path/to/claude",
-      [
-        "plugin",
-        "marketplace",
-        "add",
-        "https://github.com/anthropics/claude-code.git",
-      ],
-      { stdio: "inherit" },
-    );
-    // Second call: install plugin
-    expect(spy).toHaveBeenNthCalledWith(
-      2,
       "/custom/path/to/claude",
       ["plugin", "install", "test-plugin"],
       { stdio: "inherit" },
@@ -149,27 +113,16 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins(" plugin1 , plugin2 ");
 
-    expect(spy).toHaveBeenCalledTimes(3);
-    // First call: add marketplace
+    expect(spy).toHaveBeenCalledTimes(2);
+    // Install plugins (no marketplace without explicit marketplace input)
     expect(spy).toHaveBeenNthCalledWith(
       1,
-      "claude",
-      [
-        "plugin",
-        "marketplace",
-        "add",
-        "https://github.com/anthropics/claude-code.git",
-      ],
-      { stdio: "inherit" },
-    );
-    expect(spy).toHaveBeenNthCalledWith(
-      2,
       "claude",
       ["plugin", "install", "plugin1"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
-      3,
+      2,
       "claude",
       ["plugin", "install", "plugin2"],
       { stdio: "inherit" },
@@ -180,27 +133,16 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("plugin1,,plugin2");
 
-    expect(spy).toHaveBeenCalledTimes(3);
-    // First call: add marketplace
+    expect(spy).toHaveBeenCalledTimes(2);
+    // Install plugins (no marketplace without explicit marketplace input)
     expect(spy).toHaveBeenNthCalledWith(
       1,
-      "claude",
-      [
-        "plugin",
-        "marketplace",
-        "add",
-        "https://github.com/anthropics/claude-code.git",
-      ],
-      { stdio: "inherit" },
-    );
-    expect(spy).toHaveBeenNthCalledWith(
-      2,
       "claude",
       ["plugin", "install", "plugin1"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
-      3,
+      2,
       "claude",
       ["plugin", "install", "plugin2"],
       { stdio: "inherit" },
@@ -211,7 +153,7 @@ describe("installPlugins", () => {
     createMockSpawn(1, false); // Exit code 1
 
     await expect(installPlugins("failing-plugin")).rejects.toThrow(
-      "Failed to add marketplace (exit code: 1)",
+      "Failed to install plugin 'failing-plugin' (exit code: 1)",
     );
   });
 
@@ -219,7 +161,7 @@ describe("installPlugins", () => {
     createMockSpawn(null, false); // Exit code null (terminated by signal)
 
     await expect(installPlugins("terminated-plugin")).rejects.toThrow(
-      "Failed to add marketplace: process terminated by signal",
+      "Failed to install plugin 'terminated-plugin': process terminated by signal",
     );
   });
 
@@ -227,10 +169,10 @@ describe("installPlugins", () => {
     const spy = createMockSpawn(1, false); // Exit code 1
 
     await expect(installPlugins("plugin1,plugin2,plugin3")).rejects.toThrow(
-      "Failed to add marketplace (exit code: 1)",
+      "Failed to install plugin 'plugin1' (exit code: 1)",
     );
 
-    // Should only try to add marketplace before failing
+    // Should only try to install first plugin before failing
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
@@ -238,27 +180,16 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("org/plugin-name,@scope/plugin");
 
-    expect(spy).toHaveBeenCalledTimes(3);
-    // First call: add marketplace
+    expect(spy).toHaveBeenCalledTimes(2);
+    // Install plugins (no marketplace without explicit marketplace input)
     expect(spy).toHaveBeenNthCalledWith(
       1,
-      "claude",
-      [
-        "plugin",
-        "marketplace",
-        "add",
-        "https://github.com/anthropics/claude-code.git",
-      ],
-      { stdio: "inherit" },
-    );
-    expect(spy).toHaveBeenNthCalledWith(
-      2,
       "claude",
       ["plugin", "install", "org/plugin-name"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
-      3,
+      2,
       "claude",
       ["plugin", "install", "@scope/plugin"],
       { stdio: "inherit" },
@@ -269,7 +200,7 @@ describe("installPlugins", () => {
     createMockSpawn(0, true); // Trigger error event
 
     await expect(installPlugins("test-plugin")).rejects.toThrow(
-      "Failed to add marketplace: spawn error",
+      "Failed to install plugin 'test-plugin': spawn error",
     );
   });
 
@@ -277,27 +208,16 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("plugin-a,plugin-b", "/usr/local/bin/claude-custom");
 
-    expect(spy).toHaveBeenCalledTimes(3);
-    // First call: add marketplace
+    expect(spy).toHaveBeenCalledTimes(2);
+    // Install plugins (no marketplace without explicit marketplace input)
     expect(spy).toHaveBeenNthCalledWith(
       1,
-      "/usr/local/bin/claude-custom",
-      [
-        "plugin",
-        "marketplace",
-        "add",
-        "https://github.com/anthropics/claude-code.git",
-      ],
-      { stdio: "inherit" },
-    );
-    expect(spy).toHaveBeenNthCalledWith(
-      2,
       "/usr/local/bin/claude-custom",
       ["plugin", "install", "plugin-a"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
-      3,
+      2,
       "/usr/local/bin/claude-custom",
       ["plugin", "install", "plugin-b"],
       { stdio: "inherit" },
@@ -360,21 +280,10 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("plugin-v1.0.2");
 
-    expect(spy).toHaveBeenCalledTimes(2);
-    // First call: add marketplace
+    expect(spy).toHaveBeenCalledTimes(1);
+    // Only call: install plugin (no marketplace without explicit marketplace input)
     expect(spy).toHaveBeenNthCalledWith(
       1,
-      "claude",
-      [
-        "plugin",
-        "marketplace",
-        "add",
-        "https://github.com/anthropics/claude-code.git",
-      ],
-      { stdio: "inherit" },
-    );
-    expect(spy).toHaveBeenNthCalledWith(
-      2,
       "claude",
       ["plugin", "install", "plugin-v1.0.2"],
       { stdio: "inherit" },
@@ -385,21 +294,10 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("@scope/plugin-v1.0.0-beta.1");
 
-    expect(spy).toHaveBeenCalledTimes(2);
-    // First call: add marketplace
+    expect(spy).toHaveBeenCalledTimes(1);
+    // Only call: install plugin (no marketplace without explicit marketplace input)
     expect(spy).toHaveBeenNthCalledWith(
       1,
-      "claude",
-      [
-        "plugin",
-        "marketplace",
-        "add",
-        "https://github.com/anthropics/claude-code.git",
-      ],
-      { stdio: "inherit" },
-    );
-    expect(spy).toHaveBeenNthCalledWith(
-      2,
       "claude",
       ["plugin", "install", "@scope/plugin-v1.0.0-beta.1"],
       { stdio: "inherit" },

@@ -2,10 +2,34 @@ import { spawn, ChildProcess } from "child_process";
 
 const PLUGIN_NAME_REGEX = /^[@a-zA-Z0-9_\-\/\.]+$/;
 const MAX_PLUGIN_NAME_LENGTH = 512;
-const CLAUDE_CODE_MARKETPLACE_URL =
-  "https://github.com/anthropics/claude-code.git";
 const PATH_TRAVERSAL_REGEX =
   /\.\.\/|\/\.\.|\.\/|\/\.|(?:^|\/)\.\.$|(?:^|\/)\.$|\.\.(?![0-9])/;
+const MARKETPLACE_URL_REGEX =
+  /^https:\/\/[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=%]+\.git$/;
+
+/**
+ * Validates a marketplace URL for security issues
+ * @param url - The marketplace URL to validate
+ * @throws {Error} If the URL is invalid
+ */
+function validateMarketplaceUrl(url: string): void {
+  const normalized = url.trim();
+
+  if (!normalized) {
+    throw new Error("Marketplace URL cannot be empty");
+  }
+
+  if (!MARKETPLACE_URL_REGEX.test(normalized)) {
+    throw new Error(`Invalid marketplace URL format: ${url}`);
+  }
+
+  // Additional check for valid URL structure
+  try {
+    new URL(normalized);
+  } catch {
+    throw new Error(`Invalid marketplace URL: ${url}`);
+  }
+}
 
 /**
  * Validates a plugin name for security issues
@@ -28,6 +52,30 @@ function validatePluginName(pluginName: string): void {
   if (PATH_TRAVERSAL_REGEX.test(normalized)) {
     throw new Error(`Invalid plugin name format: ${pluginName}`);
   }
+}
+
+/**
+ * Parse a newline-separated list of marketplace URLs and return an array of validated URLs
+ * @param marketplaces - Newline-separated list of marketplace Git URLs
+ * @returns Array of validated marketplace URLs (empty array if none provided)
+ */
+function parseMarketplaces(marketplaces?: string): string[] {
+  const trimmed = marketplaces?.trim();
+
+  if (!trimmed) {
+    return [];
+  }
+
+  // Split by newline and process each URL
+  return trimmed
+    .split("\n")
+    .map((url) => url.trim())
+    .filter((url) => {
+      if (url.length === 0) return false;
+
+      validateMarketplaceUrl(url);
+      return true;
+    });
 }
 
 /**
@@ -104,18 +152,22 @@ async function installPlugin(
 }
 
 /**
- * Adds the Claude Code marketplace
+ * Adds a Claude Code plugin marketplace
  * @param claudeExecutable - Path to the Claude executable
+ * @param marketplaceUrl - The marketplace Git URL to add
  * @returns Promise that resolves when the marketplace add command completes
  * @throws {Error} If the command fails to execute
  */
-async function addMarketplace(claudeExecutable: string): Promise<void> {
-  console.log("Adding Claude Code marketplace...");
+async function addMarketplace(
+  claudeExecutable: string,
+  marketplaceUrl: string,
+): Promise<void> {
+  console.log(`Adding marketplace: ${marketplaceUrl}`);
 
   return executeClaudeCommand(
     claudeExecutable,
-    ["plugin", "marketplace", "add", CLAUDE_CODE_MARKETPLACE_URL],
-    "Failed to add marketplace",
+    ["plugin", "marketplace", "add", marketplaceUrl],
+    `Failed to add marketplace '${marketplaceUrl}'`,
   );
 }
 
@@ -123,12 +175,14 @@ async function addMarketplace(claudeExecutable: string): Promise<void> {
  * Installs Claude Code plugins from a comma-separated list
  * @param pluginsInput - Comma-separated list of plugin names, or undefined/empty to skip installation
  * @param claudeExecutable - Path to the Claude executable (defaults to "claude")
+ * @param marketplacesInput - Newline-separated list of marketplace Git URLs
  * @returns Promise that resolves when all plugins are installed
  * @throws {Error} If any plugin fails validation or installation (stops on first error)
  */
 export async function installPlugins(
   pluginsInput: string | undefined,
   claudeExecutable?: string,
+  marketplacesInput?: string,
 ): Promise<void> {
   const plugins = parsePlugins(pluginsInput);
 
@@ -140,8 +194,18 @@ export async function installPlugins(
   // Resolve executable path with explicit fallback
   const resolvedExecutable = claudeExecutable || "claude";
 
-  // Add marketplace before installing plugins
-  await addMarketplace(resolvedExecutable);
+  // Parse and add all marketplaces before installing plugins
+  const marketplaces = parseMarketplaces(marketplacesInput);
+
+  if (marketplaces.length > 0) {
+    console.log(`Adding ${marketplaces.length} marketplace(s)...`);
+    for (const marketplace of marketplaces) {
+      await addMarketplace(resolvedExecutable, marketplace);
+      console.log(`✓ Successfully added marketplace: ${marketplace}`);
+    }
+  } else {
+    console.log("No marketplaces specified, skipping marketplace setup");
+  }
 
   console.log(`Installing ${plugins.length} plugin(s)...`);
 
