@@ -148,7 +148,7 @@ jobs:
 
 ### With Main Action
 
-The main `claude-code-action` uses this setup action internally:
+You can use the setup subaction before the main action to pre-install Claude Code with caching:
 
 ```yaml
 name: Claude Code Automation
@@ -160,11 +160,18 @@ jobs:
   claude:
     runs-on: ubuntu-latest
     steps:
+      - uses: anthropics/claude-code-action/setup@beta
+        id: setup
+        with:
+          version: stable
+
       - uses: anthropics/claude-code-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # The action will automatically use the setup subaction
+          path_to_claude_code_executable: ${{ steps.setup.outputs.claude-path }}
 ```
+
+This approach provides caching benefits for faster subsequent runs.
 
 ### Cache Output Example
 
