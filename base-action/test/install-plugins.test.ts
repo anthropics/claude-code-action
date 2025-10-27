@@ -350,4 +350,250 @@ describe("installPlugins", () => {
 
     expect(spy).not.toHaveBeenCalled();
   });
+
+  // Marketplace functionality tests
+  test("should add a single marketplace before installing plugins", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "https://github.com/user/marketplace.git",
+      "test-plugin",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    // First call: add marketplace
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "https://github.com/user/marketplace.git",
+      ],
+      { stdio: "inherit" },
+    );
+    // Second call: install plugin
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "install", "test-plugin"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should add multiple marketplaces with newline separation", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "https://github.com/user/m1.git\nhttps://github.com/user/m2.git",
+      "test-plugin",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(3); // 2 marketplaces + 1 plugin
+    // First two calls: add marketplaces
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "https://github.com/user/m1.git"],
+      { stdio: "inherit" },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "marketplace", "add", "https://github.com/user/m2.git"],
+      { stdio: "inherit" },
+    );
+    // Third call: install plugin
+    expect(spy).toHaveBeenNthCalledWith(
+      3,
+      "claude",
+      ["plugin", "install", "test-plugin"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should add marketplaces before installing multiple plugins", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "https://github.com/user/marketplace.git",
+      "plugin1\nplugin2",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(3); // 1 marketplace + 2 plugins
+    // First call: add marketplace
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "https://github.com/user/marketplace.git",
+      ],
+      { stdio: "inherit" },
+    );
+    // Next calls: install plugins
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "install", "plugin1"],
+      { stdio: "inherit" },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      3,
+      "claude",
+      ["plugin", "install", "plugin2"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should handle only marketplaces without plugins", async () => {
+    const spy = createMockSpawn();
+    await installPlugins("https://github.com/user/marketplace.git", undefined);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "https://github.com/user/marketplace.git",
+      ],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should skip empty marketplace entries", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "https://github.com/user/m1.git\n\nhttps://github.com/user/m2.git",
+      "test-plugin",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(3); // 2 marketplaces (skip empty) + 1 plugin
+  });
+
+  test("should trim whitespace from marketplace URLs", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "  https://github.com/user/marketplace.git  \n  https://github.com/user/m2.git  ",
+      "test-plugin",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(3);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "https://github.com/user/marketplace.git",
+      ],
+      { stdio: "inherit" },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "marketplace", "add", "https://github.com/user/m2.git"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should reject invalid marketplace URL format", async () => {
+    const spy = createMockSpawn();
+
+    await expect(
+      installPlugins("not-a-valid-url", "test-plugin"),
+    ).rejects.toThrow("Invalid marketplace URL format");
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test("should reject marketplace URL without .git extension", async () => {
+    const spy = createMockSpawn();
+
+    await expect(
+      installPlugins("https://github.com/user/marketplace", "test-plugin"),
+    ).rejects.toThrow("Invalid marketplace URL format");
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test("should reject marketplace URL with non-https protocol", async () => {
+    const spy = createMockSpawn();
+
+    await expect(
+      installPlugins("http://github.com/user/marketplace.git", "test-plugin"),
+    ).rejects.toThrow("Invalid marketplace URL format");
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test("should skip whitespace-only marketplace input", async () => {
+    const spy = createMockSpawn();
+    await installPlugins("   ", "test-plugin");
+
+    // Should skip marketplaces and only install plugin
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "install", "test-plugin"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should handle marketplace addition error", async () => {
+    createMockSpawn(1, false); // Exit code 1
+
+    await expect(
+      installPlugins("https://github.com/user/marketplace.git", "test-plugin"),
+    ).rejects.toThrow(
+      "Failed to add marketplace 'https://github.com/user/marketplace.git' (exit code: 1)",
+    );
+  });
+
+  test("should stop if marketplace addition fails before installing plugins", async () => {
+    const spy = createMockSpawn(1, false); // Exit code 1
+
+    await expect(
+      installPlugins(
+        "https://github.com/user/marketplace.git",
+        "plugin1\nplugin2",
+      ),
+    ).rejects.toThrow("Failed to add marketplace");
+
+    // Should only try to add marketplace, not install any plugins
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  test("should use custom executable for marketplace operations", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "https://github.com/user/marketplace.git",
+      "test-plugin",
+      "/custom/path/to/claude",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "/custom/path/to/claude",
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "https://github.com/user/marketplace.git",
+      ],
+      { stdio: "inherit" },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "/custom/path/to/claude",
+      ["plugin", "install", "test-plugin"],
+      { stdio: "inherit" },
+    );
+  });
 });
