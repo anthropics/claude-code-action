@@ -79,10 +79,13 @@ function parseMarketplaces(marketplaces?: string): string[] {
 }
 
 /**
- * Parse a comma-separated list of plugin names and return an array of trimmed, non-empty plugin names
+ * Parse a newline-separated list of plugin names and return an array of trimmed, non-empty plugin names
  * Validates plugin names to prevent command injection and path traversal attacks
  * Allows: letters, numbers, @, -, _, /, . (common npm/scoped package characters)
  * Disallows: path traversal (../, ./), shell metacharacters, and consecutive dots
+ * @param plugins - Newline-separated list of plugin names, or undefined/empty to return empty array
+ * @returns Array of validated plugin names (empty array if none provided)
+ * @throws {Error} If any plugin name fails validation
  */
 function parsePlugins(plugins?: string): string[] {
   const trimmedPlugins = plugins?.trim();
@@ -91,9 +94,9 @@ function parsePlugins(plugins?: string): string[] {
     return [];
   }
 
-  // Split by comma and process each plugin
+  // Split by newline and process each plugin
   return trimmedPlugins
-    .split(",")
+    .split("\n")
     .map((p) => p.trim())
     .filter((p) => {
       if (p.length === 0) return false;
@@ -139,11 +142,17 @@ async function executeClaudeCommand(
 
 /**
  * Installs a single Claude Code plugin
+ * @param pluginName - The name of the plugin to install
+ * @param claudeExecutable - Path to the Claude executable
+ * @returns Promise that resolves when the plugin is installed successfully
+ * @throws {Error} If the plugin installation fails
  */
 async function installPlugin(
   pluginName: string,
   claudeExecutable: string,
 ): Promise<void> {
+  console.log(`Installing plugin: ${pluginName}`);
+
   return executeClaudeCommand(
     claudeExecutable,
     ["plugin", "install", pluginName],
@@ -172,25 +181,18 @@ async function addMarketplace(
 }
 
 /**
- * Installs Claude Code plugins from a comma-separated list
- * @param pluginsInput - Comma-separated list of plugin names, or undefined/empty to skip installation
- * @param claudeExecutable - Path to the Claude executable (defaults to "claude")
+ * Installs Claude Code plugins from a newline-separated list
  * @param marketplacesInput - Newline-separated list of marketplace Git URLs
+ * @param pluginsInput - Newline-separated list of plugin names
+ * @param claudeExecutable - Path to the Claude executable (defaults to "claude")
  * @returns Promise that resolves when all plugins are installed
  * @throws {Error} If any plugin fails validation or installation (stops on first error)
  */
 export async function installPlugins(
-  pluginsInput: string | undefined,
-  claudeExecutable?: string,
   marketplacesInput?: string,
+  pluginsInput?: string,
+  claudeExecutable?: string,
 ): Promise<void> {
-  const plugins = parsePlugins(pluginsInput);
-
-  if (plugins.length === 0) {
-    console.log("No plugins to install");
-    return;
-  }
-
   // Resolve executable path with explicit fallback
   const resolvedExecutable = claudeExecutable || "claude";
 
@@ -207,13 +209,14 @@ export async function installPlugins(
     console.log("No marketplaces specified, skipping marketplace setup");
   }
 
-  console.log(`Installing ${plugins.length} plugin(s)...`);
-
-  for (const plugin of plugins) {
-    console.log(`Installing plugin: ${plugin}`);
-    await installPlugin(plugin, resolvedExecutable);
-    console.log(`✓ Successfully installed: ${plugin}`);
+  const plugins = parsePlugins(pluginsInput);
+  if (plugins.length > 0) {
+    console.log(`Installing ${plugins.length} plugin(s)...`);
+    for (const plugin of plugins) {
+      await installPlugin(plugin, resolvedExecutable);
+      console.log(`✓ Successfully installed: ${plugin}`);
+    }
+  } else {
+    console.log("No plugins specified, skipping plugins installation");
   }
-
-  console.log("All plugins installed successfully");
 }

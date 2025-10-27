@@ -56,7 +56,7 @@ inputs:
     required: false
     default: ""
   plugins:
-    description: "Comma-separated list of Claude Code plugin names to install (e.g., 'plugin1,plugin2,plugin3')"
+    description: "Newline-separated list of Claude Code plugin names to install (e.g., 'code-review@claude-code-plugins\nfeature-dev@claude-code-plugins')"
     required: false
     default: ""
   plugin_marketplaces:

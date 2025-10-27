@@ -39,25 +39,25 @@ describe("installPlugins", () => {
 
   test("should not call spawn when no plugins are specified", async () => {
     const spy = createMockSpawn();
-    await installPlugins("");
+    await installPlugins(undefined, "");
     expect(spy).not.toHaveBeenCalled();
   });
 
   test("should not call spawn when plugins is undefined", async () => {
     const spy = createMockSpawn();
-    await installPlugins(undefined);
+    await installPlugins(undefined, undefined);
     expect(spy).not.toHaveBeenCalled();
   });
 
   test("should not call spawn when plugins is only whitespace", async () => {
     const spy = createMockSpawn();
-    await installPlugins("   ");
+    await installPlugins(undefined, "   ");
     expect(spy).not.toHaveBeenCalled();
   });
 
   test("should install a single plugin with default executable", async () => {
     const spy = createMockSpawn();
-    await installPlugins("test-plugin");
+    await installPlugins(undefined, "test-plugin");
 
     expect(spy).toHaveBeenCalledTimes(1);
     // Only call: install plugin (no marketplace without explicit marketplace input)
@@ -71,7 +71,7 @@ describe("installPlugins", () => {
 
   test("should install multiple plugins sequentially", async () => {
     const spy = createMockSpawn();
-    await installPlugins("plugin1,plugin2,plugin3");
+    await installPlugins(undefined, "plugin1\nplugin2\nplugin3");
 
     expect(spy).toHaveBeenCalledTimes(3);
     // Install plugins (no marketplace without explicit marketplace input)
@@ -97,7 +97,7 @@ describe("installPlugins", () => {
 
   test("should use custom claude executable path when provided", async () => {
     const spy = createMockSpawn();
-    await installPlugins("test-plugin", "/custom/path/to/claude");
+    await installPlugins(undefined, "test-plugin", "/custom/path/to/claude");
 
     expect(spy).toHaveBeenCalledTimes(1);
     // Only call: install plugin (no marketplace without explicit marketplace input)
@@ -111,7 +111,7 @@ describe("installPlugins", () => {
 
   test("should trim whitespace from plugin names before installation", async () => {
     const spy = createMockSpawn();
-    await installPlugins(" plugin1 , plugin2 ");
+    await installPlugins(undefined, " plugin1 \n plugin2 ");
 
     expect(spy).toHaveBeenCalledTimes(2);
     // Install plugins (no marketplace without explicit marketplace input)
@@ -131,7 +131,7 @@ describe("installPlugins", () => {
 
   test("should skip empty entries in plugin list", async () => {
     const spy = createMockSpawn();
-    await installPlugins("plugin1,,plugin2");
+    await installPlugins(undefined, "plugin1\n\nplugin2");
 
     expect(spy).toHaveBeenCalledTimes(2);
     // Install plugins (no marketplace without explicit marketplace input)
@@ -152,7 +152,7 @@ describe("installPlugins", () => {
   test("should handle plugin installation error and throw", async () => {
     createMockSpawn(1, false); // Exit code 1
 
-    await expect(installPlugins("failing-plugin")).rejects.toThrow(
+    await expect(installPlugins(undefined, "failing-plugin")).rejects.toThrow(
       "Failed to install plugin 'failing-plugin' (exit code: 1)",
     );
   });
@@ -160,7 +160,9 @@ describe("installPlugins", () => {
   test("should handle null exit code (process terminated by signal)", async () => {
     createMockSpawn(null, false); // Exit code null (terminated by signal)
 
-    await expect(installPlugins("terminated-plugin")).rejects.toThrow(
+    await expect(
+      installPlugins(undefined, "terminated-plugin"),
+    ).rejects.toThrow(
       "Failed to install plugin 'terminated-plugin': process terminated by signal",
     );
   });
@@ -168,9 +170,9 @@ describe("installPlugins", () => {
   test("should stop installation on first error", async () => {
     const spy = createMockSpawn(1, false); // Exit code 1
 
-    await expect(installPlugins("plugin1,plugin2,plugin3")).rejects.toThrow(
-      "Failed to install plugin 'plugin1' (exit code: 1)",
-    );
+    await expect(
+      installPlugins(undefined, "plugin1\nplugin2\nplugin3"),
+    ).rejects.toThrow("Failed to install plugin 'plugin1' (exit code: 1)");
 
     // Should only try to install first plugin before failing
     expect(spy).toHaveBeenCalledTimes(1);
@@ -178,7 +180,7 @@ describe("installPlugins", () => {
 
   test("should handle plugins with special characters in names", async () => {
     const spy = createMockSpawn();
-    await installPlugins("org/plugin-name,@scope/plugin");
+    await installPlugins(undefined, "org/plugin-name\n@scope/plugin");
 
     expect(spy).toHaveBeenCalledTimes(2);
     // Install plugins (no marketplace without explicit marketplace input)
@@ -199,14 +201,18 @@ describe("installPlugins", () => {
   test("should handle spawn errors", async () => {
     createMockSpawn(0, true); // Trigger error event
 
-    await expect(installPlugins("test-plugin")).rejects.toThrow(
+    await expect(installPlugins(undefined, "test-plugin")).rejects.toThrow(
       "Failed to install plugin 'test-plugin': spawn error",
     );
   });
 
   test("should install plugins with custom executable and multiple plugins", async () => {
     const spy = createMockSpawn();
-    await installPlugins("plugin-a,plugin-b", "/usr/local/bin/claude-custom");
+    await installPlugins(
+      undefined,
+      "plugin-a\nplugin-b",
+      "/usr/local/bin/claude-custom",
+    );
 
     expect(spy).toHaveBeenCalledTimes(2);
     // Install plugins (no marketplace without explicit marketplace input)
@@ -228,9 +234,9 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
 
     // Should throw due to invalid characters (semicolon and spaces)
-    await expect(installPlugins("plugin-name; rm -rf /")).rejects.toThrow(
-      "Invalid plugin name format",
-    );
+    await expect(
+      installPlugins(undefined, "plugin-name; rm -rf /"),
+    ).rejects.toThrow("Invalid plugin name format");
 
     // Mock should never be called because validation fails first
     expect(spy).not.toHaveBeenCalled();
@@ -239,9 +245,9 @@ describe("installPlugins", () => {
   test("should reject plugin names with path traversal using ../", async () => {
     const spy = createMockSpawn();
 
-    await expect(installPlugins("../../../malicious-plugin")).rejects.toThrow(
-      "Invalid plugin name format",
-    );
+    await expect(
+      installPlugins(undefined, "../../../malicious-plugin"),
+    ).rejects.toThrow("Invalid plugin name format");
 
     expect(spy).not.toHaveBeenCalled();
   });
@@ -249,9 +255,9 @@ describe("installPlugins", () => {
   test("should reject plugin names with path traversal using ./", async () => {
     const spy = createMockSpawn();
 
-    await expect(installPlugins("./../../@scope/package")).rejects.toThrow(
-      "Invalid plugin name format",
-    );
+    await expect(
+      installPlugins(undefined, "./../../@scope/package"),
+    ).rejects.toThrow("Invalid plugin name format");
 
     expect(spy).not.toHaveBeenCalled();
   });
@@ -259,7 +265,7 @@ describe("installPlugins", () => {
   test("should reject plugin names with consecutive dots", async () => {
     const spy = createMockSpawn();
 
-    await expect(installPlugins(".../.../package")).rejects.toThrow(
+    await expect(installPlugins(undefined, ".../.../package")).rejects.toThrow(
       "Invalid plugin name format",
     );
 
@@ -269,7 +275,7 @@ describe("installPlugins", () => {
   test("should reject plugin names with hidden path traversal", async () => {
     const spy = createMockSpawn();
 
-    await expect(installPlugins("package/../other")).rejects.toThrow(
+    await expect(installPlugins(undefined, "package/../other")).rejects.toThrow(
       "Invalid plugin name format",
     );
 
@@ -278,7 +284,7 @@ describe("installPlugins", () => {
 
   test("should accept plugin names with single dots in version numbers", async () => {
     const spy = createMockSpawn();
-    await installPlugins("plugin-v1.0.2");
+    await installPlugins(undefined, "plugin-v1.0.2");
 
     expect(spy).toHaveBeenCalledTimes(1);
     // Only call: install plugin (no marketplace without explicit marketplace input)
@@ -292,7 +298,7 @@ describe("installPlugins", () => {
 
   test("should accept plugin names with multiple dots in semantic versions", async () => {
     const spy = createMockSpawn();
-    await installPlugins("@scope/plugin-v1.0.0-beta.1");
+    await installPlugins(undefined, "@scope/plugin-v1.0.0-beta.1");
 
     expect(spy).toHaveBeenCalledTimes(1);
     // Only call: install plugin (no marketplace without explicit marketplace input)
@@ -308,7 +314,7 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
 
     // Using fullwidth dots (U+FF0E) and fullwidth solidus (U+FF0F)
-    await expect(installPlugins("．．／malicious")).rejects.toThrow(
+    await expect(installPlugins(undefined, "．．／malicious")).rejects.toThrow(
       "Invalid plugin name format",
     );
 
@@ -318,7 +324,7 @@ describe("installPlugins", () => {
   test("should reject path traversal at end of path", async () => {
     const spy = createMockSpawn();
 
-    await expect(installPlugins("package/..")).rejects.toThrow(
+    await expect(installPlugins(undefined, "package/..")).rejects.toThrow(
       "Invalid plugin name format",
     );
 
@@ -328,7 +334,7 @@ describe("installPlugins", () => {
   test("should reject single dot directory reference", async () => {
     const spy = createMockSpawn();
 
-    await expect(installPlugins("package/.")).rejects.toThrow(
+    await expect(installPlugins(undefined, "package/.")).rejects.toThrow(
       "Invalid plugin name format",
     );
 
@@ -338,7 +344,7 @@ describe("installPlugins", () => {
   test("should reject path traversal in middle of path", async () => {
     const spy = createMockSpawn();
 
-    await expect(installPlugins("package/../other")).rejects.toThrow(
+    await expect(installPlugins(undefined, "package/../other")).rejects.toThrow(
       "Invalid plugin name format",
     );
 
