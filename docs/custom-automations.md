@@ -15,7 +15,7 @@ The action automatically detects which mode to use based on your configuration:
 
 This action supports the following GitHub events ([learn more GitHub event triggers](https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows)):
 
-- `pull_request` - When PRs are opened or synchronized
+- `pull_request` or `pull_request_target` - When PRs are opened or synchronized
 - `issue_comment` - When comments are created on issues or PRs
 - `pull_request_comment` - When comments are made on PR diffs
 - `issues` - When issues are opened or assigned

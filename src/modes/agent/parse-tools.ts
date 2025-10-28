@@ -1,10 +1,10 @@
 export function parseAllowedTools(claudeArgs: string): string[] {
-  // Match --allowedTools followed by the value
+  // Match --allowedTools or --allowed-tools followed by the value
   // Handle both quoted and unquoted values
   const patterns = [
-    /--allowedTools\s+"([^"]+)"/, // Double quoted
-    /--allowedTools\s+'([^']+)'/, // Single quoted
-    /--allowedTools\s+([^\s]+)/, // Unquoted
+    /--(?:allowedTools|allowed-tools)\s+"([^"]+)"/, // Double quoted
+    /--(?:allowedTools|allowed-tools)\s+'([^']+)'/, // Single quoted
+    /--(?:allowedTools|allowed-tools)\s+([^\s]+)/, // Unquoted
   ];
 
   for (const pattern of patterns) {

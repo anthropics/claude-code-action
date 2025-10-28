@@ -13,13 +13,28 @@
 - **No Cross-Repository Access**: Each action invocation is limited to the repository where it was triggered
 - **Limited Scope**: The token cannot access other repositories or perform actions beyond the configured permissions
 
+## ⚠️ Prompt Injection Risks
+
+**Beware of potential hidden markdown when tagging Claude on untrusted content.** External contributors may include hidden instructions through HTML comments, invisible characters, hidden attributes, or other techniques. The action sanitizes content by stripping HTML comments, invisible characters, markdown image alt text, hidden HTML attributes, and HTML entities, but new bypass techniques may emerge. We recommend reviewing the raw content of all input coming from external contributors before allowing Claude to process it.
+
 ## GitHub App Permissions
 
-The [Claude Code GitHub app](https://github.com/apps/claude) requires these permissions:
+The [Claude Code GitHub app](https://github.com/apps/claude) requests the following permissions:
 
-- **Pull Requests**: Read and write to create PRs and push changes
-- **Issues**: Read and write to respond to issues
-- **Contents**: Read and write to modify repository files
+### Currently Used Permissions
+
+- **Contents** (Read & Write): For reading repository files and creating branches
+- **Pull Requests** (Read & Write): For reading PR data and creating/updating pull requests
+- **Issues** (Read & Write): For reading issue data and updating issue comments
+
+### Permissions for Future Features
+
+The following permissions are requested but not yet actively used. These will enable planned features in future releases:
+
+- **Discussions** (Read & Write): For interaction with GitHub Discussions
+- **Actions** (Read): For accessing workflow run data and logs
+- **Checks** (Read): For reading check run results
+- **Workflows** (Read & Write): For triggering and managing GitHub Actions workflows
 
 ## Commit Signing
 

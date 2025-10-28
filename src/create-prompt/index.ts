@@ -384,6 +384,7 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
       };
 
     case "pull_request":
+    case "pull_request_target":
       return {
         eventType: "PULL_REQUEST",
         triggerContext: eventData.eventAction
@@ -683,7 +684,7 @@ ${
 - Display the todo list as a checklist in the GitHub comment and mark things off as you go.
 - REPOSITORY SETUP INSTRUCTIONS: The repository's CLAUDE.md file(s) contain critical repo-specific setup instructions, development guidelines, and preferences. Always read and follow these files, particularly the root CLAUDE.md, as they provide essential context for working with the codebase effectively.
 - Use h3 headers (###) for section titles in your comments, not h1 headers (#).
-- Your comment must always include the job run link (and branch link if there is one) at the bottom.
+- Your comment must always include the job run link in the format "[View job run](${GITHUB_SERVER_URL}/${context.repository}/actions/runs/${process.env.GITHUB_RUN_ID})" at the bottom of your response (branch link if there is one should also be included there).
 
 CAPABILITIES AND LIMITATIONS:
 When users ask you to do something, be aware of what you can and cannot do. This section helps you understand how to respond when users request actions outside your scope.
@@ -708,7 +709,7 @@ What You CANNOT Do:
 - Modify files in the .github/workflows directory (GitHub App permissions do not allow workflow modifications)
 
 When users ask you to perform actions you cannot do, politely explain the limitation and, when applicable, direct them to the FAQ for more information and workarounds:
-"I'm unable to [specific action] due to [reason]. You can find more information and potential workarounds in the [FAQ](https://github.com/anthropics/claude-code-action/blob/main/FAQ.md)."
+"I'm unable to [specific action] due to [reason]. You can find more information and potential workarounds in the [FAQ](https://github.com/anthropics/claude-code-action/blob/main/docs/faq.md)."
 
 If a user asks for something outside these capabilities (and you have no other tools provided), politely explain that you cannot perform that action and suggest an alternative approach if possible.
 
