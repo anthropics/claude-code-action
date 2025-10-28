@@ -56,3 +56,31 @@ claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 anthropic_api_key: "sk-ant-api03-..." # Exposed and vulnerable!
 claude_code_oauth_token: "oauth_token_..." # Exposed and vulnerable!
 ```
+
+## ⚠️ Full Output Security Warning
+
+The `show_full_output` option is **disabled by default** for security reasons. When enabled, it outputs ALL Claude Code messages including:
+
+- Full outputs from tool executions (e.g., `ps`, `env`, file reads)
+- API responses that may contain tokens or credentials
+- File contents that may include secrets
+- Command outputs that may expose sensitive system information
+
+**These logs are publicly visible in GitHub Actions for public repositories!**
+
+### Automatic Enabling in Debug Mode
+
+Full output is **automatically enabled** when GitHub Actions debug mode is active (when `ACTIONS_STEP_DEBUG` secret is set to `true`). This helps with debugging but carries the same security risks.
+
+### When to Enable Full Output
+
+Only enable `show_full_output: true` or GitHub Actions debug mode when:
+
+- Working in a private repository with controlled access
+- Debugging issues in a non-production environment
+- You have verified no secrets will be exposed in the output
+- You understand the security implications
+
+### Recommended Practice
+
+For debugging, prefer using `show_full_output: false` (the default) and rely on Claude Code's sanitized output, which shows only essential information like errors and completion status without exposing sensitive data.
