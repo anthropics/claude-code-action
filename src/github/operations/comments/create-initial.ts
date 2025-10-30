@@ -39,7 +39,7 @@ export async function createInitialComment(
         issue_number: context.entityNumber,
       });
       const existingComment = comments.data.find((comment) => {
-        const idMatch = comment.user?.id === CLAUDE_APP_BOT_ID;
+        const idMatch = comment.user?.id === CLAUDE_APP_BOT_ID || comment.user?.id === parseInt(context.inputs.botId);
         const botNameMatch =
           comment.user?.type === "Bot" &&
           comment.user?.login.toLowerCase().includes("claude");
