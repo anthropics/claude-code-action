@@ -130,7 +130,7 @@ To allow Claude to view workflow run results, job logs, and CI status:
 2. **Configure the action with additional permissions**:
 
    ```yaml
-   - uses: anthropics/claude-code-action@beta
+   - uses: anthropics/claude-code-action@v1
      with:
        anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
        additional_permissions: |
@@ -162,7 +162,7 @@ jobs:
   claude-ci-helper:
     runs-on: ubuntu-latest
     steps:
-      - uses: anthropics/claude-code-action@beta
+      - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           additional_permissions: |

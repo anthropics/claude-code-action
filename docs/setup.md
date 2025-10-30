@@ -117,7 +117,7 @@ If you prefer to configure the app manually or need custom permissions:
              private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
          # Use Claude with your custom app's token
-         - uses: anthropics/claude-code-action@beta
+         - uses: anthropics/claude-code-action@v1
            with:
              anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
              github_token: ${{ steps.app-token.outputs.token }}
