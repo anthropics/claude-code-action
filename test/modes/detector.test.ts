@@ -71,6 +71,34 @@ describe("detectMode with enhanced routing", () => {
       expect(detectMode(context)).toBe("agent");
     });
 
+    it("should use tag mode when track_progress is true for pull_request.assigned", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "pull_request",
+        eventAction: "assigned",
+        payload: { pull_request: { number: 1 } } as any,
+        entityNumber: 1,
+        isPR: true,
+        inputs: { ...baseContext.inputs, trackProgress: true },
+      };
+
+      expect(detectMode(context)).toBe("tag");
+    });
+
+    it("should use agent mode when prompt is provided for pull_request.assigned", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "pull_request",
+        eventAction: "assigned",
+        payload: { pull_request: { number: 1 } } as any,
+        entityNumber: 1,
+        isPR: true,
+        inputs: { ...baseContext.inputs, prompt: "Fix the issues", trackProgress: false },
+      };
+
+      expect(detectMode(context)).toBe("agent");
+    });
+
     it("should throw error when track_progress is used with unsupported PR action", () => {
       const context: GitHubContext = {
         ...baseContext,
