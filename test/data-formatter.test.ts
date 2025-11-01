@@ -28,6 +28,9 @@ describe("formatContext", () => {
       additions: 50,
       deletions: 30,
       state: "OPEN",
+      labels: {
+        nodes: [],
+      },
       commits: {
         totalCount: 3,
         nodes: [],
@@ -63,6 +66,9 @@ Changed Files: 2 files`,
       author: { login: "test-user" },
       createdAt: "2023-01-01T00:00:00Z",
       state: "OPEN",
+      labels: {
+        nodes: [],
+      },
       comments: {
         nodes: [],
       },
