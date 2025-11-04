@@ -33,14 +33,17 @@ const stats: ProxyStats = {
  * Determine proxy mode based on available credentials
  * - "bedrock-anthropic": Both credentials available (full failover)
  * - "anthropic-only": Only Anthropic key available
+ * - "bedrock-only": Only Bedrock token available
  * - "direct": No proxy, use direct Anthropic API
  */
-function getProxyMode(): 'bedrock-anthropic' | 'anthropic-only' | 'direct' {
+function getProxyMode(): 'bedrock-anthropic' | 'anthropic-only' | 'bedrock-only' | 'direct' {
   const hasBedrockToken = !!(process.env.AWS_BEARER_TOKEN_BEDROCK?.trim());
   const hasAnthropicKey = !!(process.env.ANTHROPIC_API_KEY?.trim());
 
   if (hasBedrockToken && hasAnthropicKey) {
     return 'bedrock-anthropic';
+  } else if (hasBedrockToken) {
+    return 'bedrock-only';
   } else if (hasAnthropicKey) {
     return 'anthropic-only';
   } else {
@@ -151,6 +154,7 @@ export async function startProxyServer(): Promise<number> {
   const server = Bun.serve({
     port: PROXY_PORT,
     hostname: '127.0.0.1',
+    idleTimeout: 300, // 5 minutes for long-running Claude API requests
 
     async fetch(req: Request): Promise<Response> {
       const url = new URL(req.url);
@@ -222,6 +226,8 @@ export async function startProxyServer(): Promise<number> {
   console.log(`   Mode: ${mode}`);
   if (mode === 'bedrock-anthropic') {
     console.log('   🔒 Bedrock-first with Anthropic failover via AI Gateway');
+  } else if (mode === 'bedrock-only') {
+    console.log('   🔒 Bedrock-only mode via AI Gateway (no Anthropic fallback)');
   } else if (mode === 'anthropic-only') {
     console.log('   🔒 Anthropic-only mode via AI Gateway (monitoring + observability)');
   }
