@@ -7,6 +7,13 @@ When you need to post multiple inline comments on a PR, use the batch tool `crea
 - **Single comment**: `mcp__github_inline_comment__create_inline_comment`
 - **Batch comments**: `mcp__github_inline_comment__create_inline_comments_batch`
 
+## Features
+
+- ✅ Post multiple inline comments in a single API call
+- ✅ Optionally include a review summary comment in the same call
+- ✅ More efficient than multiple separate API calls
+- ✅ Reduces GitHub API rate limit usage
+
 ## Prompt Examples
 
 ### Example 1: Explicit Batch Instruction
@@ -89,7 +96,29 @@ claude_args: |
   --allowedTools "mcp__github_inline_comment__create_inline_comments_batch,Read,Grep"
 ```
 
-### Example 4: Conditional Batching
+### Example 4: With Review Summary Comment
+
+You can include both inline comments AND a summary comment in a single API call:
+
+```yaml
+prompt: |
+  Review this PR and provide inline comments for all issues you find.
+  
+  IMPORTANT: Use create_inline_comments_batch to post all comments together.
+  Also include a summary comment highlighting the most critical issues.
+  
+  The batch tool supports both inline comments and a review summary in one call.
+
+claude_args: |
+  --allowedTools "mcp__github_inline_comment__create_inline_comments_batch"
+```
+
+The tool will automatically include:
+- All inline comments (on specific lines)
+- A summary comment (top-level review comment)
+- All in a single API call!
+
+### Example 5: Conditional Batching
 
 ```yaml
 prompt: |
