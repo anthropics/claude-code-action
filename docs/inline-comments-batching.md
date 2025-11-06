@@ -1,11 +1,22 @@
 # Batching Inline Comments
 
-When you need to post multiple inline comments on a PR, use the batch tool `create_inline_comments_batch` instead of calling `create_inline_comment` multiple times. This is more efficient and reduces API rate limit usage.
+When reviewing pull requests, you often need to post multiple inline comments on different lines or files. Instead of making separate API calls for each comment, use the batch tool `create_inline_comments_batch` to post all comments in a single API call. This is more efficient, faster, and reduces GitHub API rate limit usage.
+
+## When to Use
+
+- **Posting 2+ inline comments** - Use batch tool for efficiency
+- **Posting 1 inline comment** - Use single comment tool
+- **Including a summary comment** - Batch tool supports both inline comments and review summary in one call
+- **Automated PR reviews** - Perfect for workflows that review multiple files
+
+---
 
 ## Tool Names
 
 - **Single comment**: `mcp__github_inline_comment__create_inline_comment`
 - **Batch comments**: `mcp__github_inline_comment__create_inline_comments_batch`
+
+---
 
 ## Features
 
@@ -13,8 +24,52 @@ When you need to post multiple inline comments on a PR, use the batch tool `crea
 - ✅ Optionally include a review summary comment in the same call
 - ✅ More efficient than multiple separate API calls
 - ✅ Reduces GitHub API rate limit usage
+- ✅ Faster execution time
 
-## Prompt Examples
+---
+
+## Basic Usage
+
+### Simple Batch Example
+
+```yaml
+name: PR Review with Batch Comments
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this PR and post all inline comments together.
+            Use the batch tool to post all comments in a single API call.
+
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comments_batch,Read,Grep"
+```
+
+**Key Configuration:**
+
+- Include `mcp__github_inline_comment__create_inline_comments_batch` in `allowedTools`
+- Prompt should mention "post all comments together" or "use batch tool"
+- Works with any PR review workflow
+
+**Expected Output:** All inline comments appear in a single review, posted efficiently in one API call.
+
+---
+
+## Advanced Examples
 
 ### Example 1: Explicit Batch Instruction
 
@@ -27,30 +82,34 @@ prompt: |
   them all in a single API call. Only use the single comment tool if you're 
   posting just one comment.
 
-  Format your batch comments as an array of objects:
-  [
-    {
-      "path": "src/file.js",
-      "line": 10,
-      "body": "Consider adding error handling here"
-    },
-    {
-      "path": "src/file.js", 
-      "line": 25,
-      "body": "This function could be simplified"
-    },
-    {
-      "path": "src/utils.ts",
-      "line": 42,
-      "body": "Missing type annotation"
-    }
-  ]
-
 claude_args: |
   --allowedTools "mcp__github_inline_comment__create_inline_comments_batch,mcp__github_inline_comment__create_inline_comment"
 ```
 
-### Example 2: Code Review with Batch Comments
+### Example 2: With Review Summary Comment
+
+You can include both inline comments AND a summary comment in a single API call:
+
+```yaml
+prompt: |
+  Review this PR and provide inline comments for all issues you find.
+  
+  IMPORTANT: Use create_inline_comments_batch to post all comments together.
+  Also include a summary comment highlighting the most critical issues.
+  
+  The batch tool supports both inline comments and a review summary in one call.
+
+claude_args: |
+  --allowedTools "mcp__github_inline_comment__create_inline_comments_batch"
+```
+
+**Benefits:**
+
+- All inline comments (on specific lines)
+- A summary comment (top-level review comment)
+- All in a single API call!
+
+### Example 3: Comprehensive Code Review
 
 ```yaml
 prompt: |
@@ -74,64 +133,7 @@ claude_args: |
   --allowedTools "mcp__github_inline_comment__create_inline_comments_batch,mcp__github_inline_comment__create_inline_comment,Bash(gh pr view:*),Bash(gh pr diff:*)"
 ```
 
-### Example 3: Focused Review with Batch Comments
-
-```yaml
-prompt: |
-  Review the following files and provide inline comments:
-  - src/api/handlers.ts
-  - src/utils/validation.ts
-  - tests/api.test.ts
-
-  For each file:
-  1. Read the file
-  2. Identify issues
-  3. Note the file path, line number, and comment text
-
-  After reviewing all files, use `create_inline_comments_batch` to post 
-  all comments in a single API call. This is more efficient than posting 
-  them one by one.
-
-claude_args: |
-  --allowedTools "mcp__github_inline_comment__create_inline_comments_batch,Read,Grep"
-```
-
-### Example 4: With Review Summary Comment
-
-You can include both inline comments AND a summary comment in a single API call:
-
-```yaml
-prompt: |
-  Review this PR and provide inline comments for all issues you find.
-  
-  IMPORTANT: Use create_inline_comments_batch to post all comments together.
-  Also include a summary comment highlighting the most critical issues.
-  
-  The batch tool supports both inline comments and a review summary in one call.
-
-claude_args: |
-  --allowedTools "mcp__github_inline_comment__create_inline_comments_batch"
-```
-
-The tool will automatically include:
-- All inline comments (on specific lines)
-- A summary comment (top-level review comment)
-- All in a single API call!
-
-### Example 5: Conditional Batching
-
-```yaml
-prompt: |
-  Review this PR and provide feedback:
-
-  - If you find 1 issue: Use `create_inline_comment` (single tool)
-  - If you find 2+ issues: Use `create_inline_comments_batch` (batch tool)
-
-  Always prefer batching when posting multiple comments to reduce API calls.
-
-claude_args: |
-  --allowedTools "mcp__github_inline_comment__create_inline_comments_batch,mcp__github_inline_comment__create_inline_comment"
-```
+---
 
 ## Comment Object Structure
 
@@ -139,11 +141,11 @@ Each comment in the batch array should have:
 
 ```typescript
 {
-  path: string,        // File path (e.g., "src/index.js")
-  body: string,         // Comment text (supports markdown)
-  line?: number,        // Line number for single-line comments
-  startLine?: number,   // Start line for multi-line comments
-  side?: "LEFT" | "RIGHT"  // Default: "RIGHT"
+  path: string,              // File path (e.g., "src/index.js")
+  body: string,              // Comment text (supports markdown)
+  line?: number,             // Line number for single-line comments
+  startLine?: number,        // Start line for multi-line comments
+  side?: "LEFT" | "RIGHT"    // Default: "RIGHT"
 }
 ```
 
@@ -170,21 +172,15 @@ Each comment in the batch array should have:
 
 ### Code Suggestion Example
 
-````json
+```json
 {
   "path": "src/validator.ts",
   "line": 28,
   "body": "```suggestion\nif (!value || value.trim() === '') {\n  throw new Error('Value cannot be empty');\n}\n```"
 }
-````
+```
 
-## Best Practices
-
-1. **Always batch when posting multiple comments** - Reduces API calls and improves performance
-2. **Use single tool for one comment** - Simpler and clearer for single comments
-3. **Group by file** - Organize comments by file path for better readability
-4. **Be specific** - Include exact line numbers and clear, actionable feedback
-5. **Use code suggestions** - For fixable issues, use GitHub's suggestion syntax
+---
 
 ## Complete Workflow Example
 
@@ -213,7 +209,8 @@ jobs:
 
             1. Collect all comments with their file paths and line numbers
             2. Use `create_inline_comments_batch` to post them all at once
-            3. This is more efficient than multiple API calls
+            3. Include a summary comment highlighting critical issues
+            4. This is more efficient than multiple API calls
 
             Focus on:
             - Code quality and maintainability
@@ -225,6 +222,19 @@ jobs:
             --allowedTools "mcp__github_inline_comment__create_inline_comments_batch,mcp__github_inline_comment__create_inline_comment,Bash(gh pr view:*),Bash(gh pr diff:*),Read,Grep"
 ```
 
+---
+
+## Best Practices
+
+1. **Always batch when posting multiple comments** - Reduces API calls and improves performance
+2. **Use single tool for one comment** - Simpler and clearer for single comments
+3. **Include summary comment** - Use the `review_body` parameter for top-level feedback
+4. **Group by file** - Organize comments by file path for better readability
+5. **Be specific** - Include exact line numbers and clear, actionable feedback
+6. **Use code suggestions** - For fixable issues, use GitHub's suggestion syntax
+
+---
+
 ## Tool Selection Strategy
 
 The LLM will automatically choose the right tool based on:
@@ -232,6 +242,8 @@ The LLM will automatically choose the right tool based on:
 - **Number of comments**: Batch for 2+, single for 1
 - **Tool availability**: If both are allowed, batch is preferred
 - **Prompt instructions**: Explicit instructions guide the choice
+
+---
 
 ## Troubleshooting
 
