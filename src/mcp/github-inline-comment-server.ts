@@ -176,7 +176,7 @@ server.tool(
 // Batch tool for creating multiple inline comments in a single API call
 server.tool(
   "create_inline_comments_batch",
-  "Create multiple inline comments in a single API call.",
+  "Create multiple inline comments in a single API call. Optionally include a review summary comment.",
   {
     comments: z
       .array(
@@ -219,6 +219,12 @@ server.tool(
       .describe(
         "Array of comment objects. Each object requires 'path', 'body', and either 'line' (single-line) or both 'startLine' and 'line' (multi-line).",
       ),
+    review_body: z
+      .string()
+      .optional()
+      .describe(
+        "Optional summary comment for the review. This appears as a top-level review comment alongside the inline comments.",
+      ),
     commit_id: z
       .string()
       .optional()
@@ -226,7 +232,7 @@ server.tool(
         "Commit SHA to comment on (defaults to latest commit). All comments use the same commit.",
       ),
   },
-  async ({ comments, commit_id }) => {
+  async ({ comments, review_body, commit_id }) => {
     try {
       const githubToken = process.env.GITHUB_TOKEN;
 
@@ -294,6 +300,11 @@ server.tool(
         }
       }
 
+      // Prepare review body if provided
+      const sanitizedReviewBody = review_body
+        ? sanitizeContent(review_body)
+        : undefined;
+
       // Create review with all comments in a single API call
       const result = await octokit.rest.pulls.createReview({
         owner,
@@ -301,6 +312,7 @@ server.tool(
         pull_number,
         commit_id: finalCommitId,
         event: "COMMENT", // Just comment, don't approve or request changes
+        body: sanitizedReviewBody, // Optional review summary
         comments: reviewComments,
       });
 
@@ -314,7 +326,8 @@ server.tool(
                 review_id: result.data.id,
                 review_html_url: result.data.html_url,
                 comments_submitted: reviewComments.length,
-                message: `Successfully created review with ${reviewComments.length} inline comment(s).`,
+                review_body_included: !!sanitizedReviewBody,
+                message: `Successfully created review with ${reviewComments.length} inline comment(s)${sanitizedReviewBody ? " and a summary comment" : ""}.`,
                 comment_details: reviewComments.map((c, idx) => ({
                   index: idx + 1,
                   path: c.path,
