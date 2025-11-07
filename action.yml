@@ -77,6 +77,10 @@ inputs:
     description: "Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands"
     required: false
     default: "false"
+  preserve_checkout_credentials:
+    description: "Preserve git credentials from actions/checkout for subsequent git operations. When true, Claude Code will not modify the git config extraheader set by actions/checkout. This is useful for workflows that need to perform git push operations after Claude Code execution."
+    required: false
+    default: "false"
   bot_id:
     description: "GitHub user ID to use for git operations (defaults to Claude's bot ID)"
     required: false
@@ -169,6 +173,7 @@ runs:
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
+        PRESERVE_CHECKOUT_CREDENTIALS: ${{ inputs.preserve_checkout_credentials }}
         BOT_ID: ${{ inputs.bot_id }}
         BOT_NAME: ${{ inputs.bot_name }}
         TRACK_PROGRESS: ${{ inputs.track_progress }}

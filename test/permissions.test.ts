@@ -68,6 +68,7 @@ describe("checkWritePermissions", () => {
       branchPrefix: "claude/",
       useStickyComment: false,
       useCommitSigning: false,
+      preserveCheckoutCredentials: false,
       botId: String(CLAUDE_APP_BOT_ID),
       botName: CLAUDE_BOT_LOGIN,
       allowedBots: "",
