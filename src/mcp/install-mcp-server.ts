@@ -69,26 +69,26 @@ export async function prepareMcpConfig(
     // Detect if we're in agent mode (explicit prompt provided)
     const isAgentMode = mode === "agent";
 
-    // Check if general GitHub tools are allowed (enables all GitHub-related tools)
-    const hasGeneralGitHubTools = allowedToolsList.includes("mcp__github");
+    const hasGitHubCommentTools = allowedToolsList.some(
+      (tool) =>
+        tool.startsWith("mcp__github_comment__") ||
+        tool === "mcp__github_comment",
+    );
 
-    const hasGitHubCommentTools =
-      hasGeneralGitHubTools ||
-      allowedToolsList.some((tool) => tool.startsWith("mcp__github_comment__"));
+    const hasGitHubMcpTools = allowedToolsList.some(
+      (tool) => tool.startsWith("mcp__github__") || tool === "mcp__github",
+    );
 
-    const hasGitHubMcpTools =
-      hasGeneralGitHubTools ||
-      allowedToolsList.some((tool) => tool.startsWith("mcp__github__"));
+    const hasInlineCommentTools = allowedToolsList.some(
+      (tool) =>
+        tool.startsWith("mcp__github_inline_comment__") ||
+        tool === "mcp__github_inline_comment",
+    );
 
-    const hasInlineCommentTools =
-      hasGeneralGitHubTools ||
-      allowedToolsList.some((tool) =>
-        tool.startsWith("mcp__github_inline_comment__"),
-      );
-
-    const hasGitHubCITools =
-      hasGeneralGitHubTools ||
-      allowedToolsList.some((tool) => tool.startsWith("mcp__github_ci__"));
+    const hasGitHubCITools = allowedToolsList.some(
+      (tool) =>
+        tool.startsWith("mcp__github_ci__") || tool === "mcp__github_ci",
+    );
 
     const baseMcpConfig: { mcpServers: Record<string, unknown> } = {
       mcpServers: {},

@@ -185,14 +185,14 @@ describe("prepareMcpConfig", () => {
     expect(parsed.mcpServers.github_inline_comment.env.PR_NUMBER).toBe("456");
   });
 
-  test("should include inline comment server when all mcp__github tools are allowed", async () => {
+  test("should include inline comment server when all mcp__github_inline_comment tools are allowed", async () => {
     const result = await prepareMcpConfig({
       githubToken: "test-token",
       owner: "test-owner",
       repo: "test-repo",
       branch: "test-branch",
       baseBranch: "main",
-      allowedTools: ["mcp__github"],
+      allowedTools: ["mcp__github_inline_comment"],
       mode: "tag",
       context: mockPRContext,
     });
