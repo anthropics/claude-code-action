@@ -146,8 +146,7 @@ export function parseGitHubContext(): GitHubContext {
       branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
       useStickyComment: process.env.USE_STICKY_COMMENT === "true",
       useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
-      preserveCheckoutCredentials:
-        process.env.PRESERVE_CHECKOUT_CREDENTIALS === "true",
+      preserveCheckoutCredentials: process.env.PRESERVE_CHECKOUT_CREDENTIALS === "true",
       botId: process.env.BOT_ID ?? String(CLAUDE_APP_BOT_ID),
       botName: process.env.BOT_NAME ?? CLAUDE_BOT_LOGIN,
       allowedBots: process.env.ALLOWED_BOTS ?? "",

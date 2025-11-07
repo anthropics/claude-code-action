@@ -40,17 +40,17 @@ export async function configureGitAuth(
   // Remove the authorization header that actions/checkout sets
   // Skip if preserve_checkout_credentials is enabled
   if (context.inputs.preserveCheckoutCredentials) {
-    console.log(
-      "Preserving checkout credentials (preserve_checkout_credentials is enabled)",
-    );
-  } else {
-    console.log("Removing existing git authentication headers...");
-    try {
-      await $`git config --unset-all http.${GITHUB_SERVER_URL}/.extraheader`;
-      console.log("✓ Removed existing authentication headers");
-    } catch (e) {
-      console.log("No existing authentication headers to remove");
-    }
+    console.log("Preserving checkout credentials (preserve_checkout_credentials is enabled)");
+    console.log("Skipping git authentication configuration - using extraheader from actions/checkout");
+    return;
+  }
+
+  console.log("Removing existing git authentication headers...");
+  try {
+    await $`git config --unset-all http.${GITHUB_SERVER_URL}/.extraheader`;
+    console.log("✓ Removed existing authentication headers");
+  } catch (e) {
+    console.log("No existing authentication headers to remove");
   }
 
   // Update the remote URL to include the token for authentication
