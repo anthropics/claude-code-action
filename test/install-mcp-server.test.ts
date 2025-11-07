@@ -122,6 +122,27 @@ describe("prepareMcpConfig", () => {
     );
   });
 
+  test("should include github MCP server when all mcp__github tools are allowed", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: ["mcp__github"],
+      mode: "tag",
+      context: mockContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers).toBeDefined();
+    expect(parsed.mcpServers.github).toBeDefined();
+    expect(parsed.mcpServers.github.command).toBe("docker");
+    expect(parsed.mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN).toBe(
+      "test-token",
+    );
+  });
+
   test("should include github MCP server when mcp__github__ tools are allowed", async () => {
     const result = await prepareMcpConfig({
       githubToken: "test-token",
@@ -151,6 +172,27 @@ describe("prepareMcpConfig", () => {
       branch: "test-branch",
       baseBranch: "main",
       allowedTools: ["mcp__github_inline_comment__create_inline_comment"],
+      mode: "tag",
+      context: mockPRContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers).toBeDefined();
+    expect(parsed.mcpServers.github_inline_comment).toBeDefined();
+    expect(parsed.mcpServers.github_inline_comment.env.GITHUB_TOKEN).toBe(
+      "test-token",
+    );
+    expect(parsed.mcpServers.github_inline_comment.env.PR_NUMBER).toBe("456");
+  });
+
+  test("should include inline comment server when all mcp__github tools are allowed", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: ["mcp__github"],
       mode: "tag",
       context: mockPRContext,
     });
