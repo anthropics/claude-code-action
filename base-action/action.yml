@@ -67,6 +67,10 @@ inputs:
     description: "Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., 'https://github.com/user/marketplace1.git\nhttps://github.com/user/marketplace2.git')"
     required: false
     default: ""
+  claude_code_timeout_ms:
+    description: "Maximum time in milliseconds to wait for Claude Code execution before timing out (default: 900000 = 15 minutes). Prevents indefinite hangs when authentication fails or tokens expire."
+    required: false
+    default: "900000"
 
 outputs:
   conclusion:
@@ -141,6 +145,7 @@ runs:
         INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}
         INPUT_PLUGINS: ${{ inputs.plugins }}
         INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
+        INPUT_CLAUDE_CODE_TIMEOUT_MS: ${{ inputs.claude_code_timeout_ms }}
 
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
