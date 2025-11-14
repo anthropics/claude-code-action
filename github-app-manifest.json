@@ -1,0 +1,27 @@
+{
+  "name": "Claude Code Custom App",
+  "description": "Custom GitHub App for Claude Code Action - AI-powered coding assistant for GitHub workflows",
+  "url": "https://github.com/anthropics/claude-code-action",
+  "hook_attributes": {
+    "url": "https://example.com/github/webhook",
+    "active": false
+  },
+  "redirect_url": "https://github.com/settings/apps/new",
+  "callback_urls": [],
+  "setup_url": "https://github.com/anthropics/claude-code-action/blob/main/docs/setup.md",
+  "public": false,
+  "default_permissions": {
+    "contents": "write",
+    "issues": "write",
+    "pull_requests": "write",
+    "actions": "read",
+    "metadata": "read"
+  },
+  "default_events": [
+    "issue_comment",
+    "issues",
+    "pull_request",
+    "pull_request_review",
+    "pull_request_review_comment"
+  ]
+}

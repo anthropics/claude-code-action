@@ -12,6 +12,59 @@ const PIPE_PATH = `${process.env.RUNNER_TEMP}/claude_prompt_pipe`;
 const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`;
 const BASE_ARGS = ["--verbose", "--output-format", "stream-json"];
 
+/**
+ * Sanitizes JSON output to remove sensitive information when full output is disabled
+ * Returns a safe summary message or null if the message should be completely suppressed
+ */
+function sanitizeJsonOutput(
+  jsonObj: any,
+  showFullOutput: boolean,
+): string | null {
+  if (showFullOutput) {
+    // In full output mode, return the full JSON
+    return JSON.stringify(jsonObj, null, 2);
+  }
+
+  // In non-full-output mode, provide minimal safe output
+  const type = jsonObj.type;
+  const subtype = jsonObj.subtype;
+
+  // System initialization - safe to show
+  if (type === "system" && subtype === "init") {
+    return JSON.stringify(
+      {
+        type: "system",
+        subtype: "init",
+        message: "Claude Code initialized",
+        model: jsonObj.model || "unknown",
+      },
+      null,
+      2,
+    );
+  }
+
+  // Result messages - Always show the final result
+  if (type === "result") {
+    // These messages contain the final result and should always be visible
+    return JSON.stringify(
+      {
+        type: "result",
+        subtype: jsonObj.subtype,
+        is_error: jsonObj.is_error,
+        duration_ms: jsonObj.duration_ms,
+        num_turns: jsonObj.num_turns,
+        total_cost_usd: jsonObj.total_cost_usd,
+        permission_denials: jsonObj.permission_denials,
+      },
+      null,
+      2,
+    );
+  }
+
+  // For any other message types, suppress completely in non-full-output mode
+  return null;
+}
+
 export type ClaudeOptions = {
   claudeArgs?: string;
   model?: string;
@@ -24,6 +77,7 @@ export type ClaudeOptions = {
   appendSystemPrompt?: string;
   claudeEnv?: string;
   fallbackModel?: string;
+  showFullOutput?: string;
 };
 
 type PreparedConfig = {
@@ -138,12 +192,27 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
     pipeStream.destroy();
   });
 
+  // Determine if full output should be shown
+  // Show full output if explicitly set to "true" OR if GitHub Actions debug mode is enabled
+  const isDebugMode = process.env.ACTIONS_STEP_DEBUG === "true";
+  let showFullOutput = options.showFullOutput === "true" || isDebugMode;
+
+  if (isDebugMode && options.showFullOutput !== "false") {
+    console.log("Debug mode detected - showing full output");
+    showFullOutput = true;
+  } else if (!showFullOutput) {
+    console.log("Running Claude Code (full output hidden for security)...");
+    console.log(
+      "Rerun in debug mode or enable `show_full_output: true` in your workflow file for full output.",
+    );
+  }
+
   // Capture output for parsing execution metrics
   let output = "";
   claudeProcess.stdout.on("data", (data) => {
     const text = data.toString();
 
-    // Try to parse as JSON and pretty print if it's on a single line
+    // Try to parse as JSON and handle based on verbose setting
     const lines = text.split("\n");
     lines.forEach((line: string, index: number) => {
       if (line.trim() === "") return;
@@ -151,17 +220,24 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
       try {
         // Check if this line is a JSON object
         const parsed = JSON.parse(line);
-        const prettyJson = JSON.stringify(parsed, null, 2);
-        process.stdout.write(prettyJson);
-        if (index < lines.length - 1 || text.endsWith("\n")) {
-          process.stdout.write("\n");
+        const sanitizedOutput = sanitizeJsonOutput(parsed, showFullOutput);
+
+        if (sanitizedOutput) {
+          process.stdout.write(sanitizedOutput);
+          if (index < lines.length - 1 || text.endsWith("\n")) {
+            process.stdout.write("\n");
+          }
         }
       } catch (e) {
-        // Not a JSON object, print as is
-        process.stdout.write(line);
-        if (index < lines.length - 1 || text.endsWith("\n")) {
-          process.stdout.write("\n");
+        // Not a JSON object
+        if (showFullOutput) {
+          // In full output mode, print as is
+          process.stdout.write(line);
+          if (index < lines.length - 1 || text.endsWith("\n")) {
+            process.stdout.write("\n");
+          }
         }
+        // In non-full-output mode, suppress non-JSON output
       }
     });
 
