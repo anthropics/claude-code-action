@@ -49,6 +49,7 @@ Each solution includes complete working examples, configuration details, and exp
 
 ## Documentation
 
+- **[Examples](./examples/)** - **🔧 Complete workflow examples** - Ready-to-use GitHub Actions workflow files demonstrating various automation patterns
 - **[Solutions Guide](./docs/solutions.md)** - **🎯 Ready-to-use automation patterns**
 - **[Migration Guide](./docs/migration-guide.md)** - **⭐ Upgrading from v0.x to v1.0**
 - [Setup Guide](./docs/setup.md) - Manual setup, custom GitHub apps, and security best practices
