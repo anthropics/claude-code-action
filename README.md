@@ -47,6 +47,21 @@ Looking for specific automation patterns? Check our **[Solutions Guide](./docs/s
 
 Each solution includes complete working examples, configuration details, and expected outcomes.
 
+## 📁 Examples
+
+The [`examples/`](./examples/) folder contains ready-to-use GitHub Actions workflow files that demonstrate various automation patterns:
+
+- **[`pr-review-comprehensive.yml`](./examples/pr-review-comprehensive.yml)** - Complete PR review automation with progress tracking
+- **[`pr-review-filtered-paths.yml`](./examples/pr-review-filtered-paths.yml)** - Trigger reviews only for specific file paths
+- **[`pr-review-filtered-authors.yml`](./examples/pr-review-filtered-authors.yml)** - Special handling for external contributors
+- **[`issue-triage.yml`](./examples/issue-triage.yml)** - Automatic issue categorization and labeling
+- **[`issue-deduplication.yml`](./examples/issue-deduplication.yml)** - Detect and handle duplicate issues
+- **[`ci-failure-auto-fix.yml`](./examples/ci-failure-auto-fix.yml)** - Automatic CI failure analysis and fixes
+- **[`manual-code-analysis.yml`](./examples/manual-code-analysis.yml)** - On-demand code analysis workflows
+- **[`claude.yml`](./examples/claude.yml)** - Basic setup for @claude mentions
+
+Copy these examples directly into your `.github/workflows/` directory and customize them for your specific needs. Each example includes detailed comments explaining the configuration and expected behavior.
+
 ## Documentation
 
 - **[Solutions Guide](./docs/solutions.md)** - **🎯 Ready-to-use automation patterns**
