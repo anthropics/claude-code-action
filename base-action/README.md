@@ -490,7 +490,6 @@ This example shows how to use OIDC authentication with GCP Vertex AI:
 To securely use your Anthropic API key:
 
 1. Add your API key as a repository secret:
-
    - Go to your repository's Settings
    - Navigate to "Secrets and variables" → "Actions"
    - Click "New repository secret"

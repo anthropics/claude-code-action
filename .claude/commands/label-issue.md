@@ -17,7 +17,6 @@ TASK OVERVIEW:
 1. First, fetch the list of labels available in this repository by running: `gh label list`. Run exactly this command with nothing else.
 
 2. Next, use gh commands to get context about the issue:
-
    - Use `gh issue view ${{ github.event.issue.number }}` to retrieve the current issue's details
    - Use `gh search issues` to find similar issues that might provide context for proper categorization
    - You have access to these Bash commands:
@@ -27,7 +26,6 @@ TASK OVERVIEW:
      - Bash(gh search:\*) - to search for similar issues
 
 3. Analyze the issue content, considering:
-
    - The issue title and description
    - The type of issue (bug report, feature request, question, etc.)
    - Technical areas mentioned
@@ -36,7 +34,6 @@ TASK OVERVIEW:
    - Components affected
 
 4. Select appropriate labels from the available labels list provided above:
-
    - Choose labels that accurately reflect the issue's nature
    - Be specific but comprehensive
    - IMPORTANT: Add a priority label (P1, P2, or P3) based on the label descriptions from gh label list
