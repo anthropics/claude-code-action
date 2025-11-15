@@ -19,7 +19,9 @@ export function validateEnvironmentVariables() {
   if (!useBedrock && !useVertex) {
     if (!anthropicApiKey && !claudeCodeOAuthToken) {
       errors.push(
-        "Either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is required when using direct Anthropic API.",
+        "Either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is required when using direct Anthropic API.\n" +
+          "Note: Token validation occurs during Claude Code execution. If your subscription has expired or " +
+          "your token is invalid, the action will timeout with an authentication error.",
       );
     }
   } else if (useBedrock) {
