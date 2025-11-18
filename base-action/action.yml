@@ -24,10 +24,6 @@ inputs:
     description: "Additional arguments to pass directly to Claude CLI (e.g., '--max-turns 3 --mcp-config /path/to/config.json')"
     required: false
     default: ""
-  allowed_tools:
-    description: "Comma-separated list of allowed tools (e.g., 'Read,Write,Bash'). Passed as --allowedTools to Claude CLI"
-    required: false
-    default: ""
 
   # Authentication settings
   anthropic_api_key:
@@ -156,7 +152,6 @@ runs:
         INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}
         INPUT_PLUGINS: ${{ inputs.plugins }}
         INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
-        INPUT_ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         JSON_SCHEMA: ${{ inputs.json_schema }}
 
         # Provider configuration

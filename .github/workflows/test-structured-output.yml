@@ -42,7 +42,7 @@ jobs:
               "required": ["text_field", "number_field", "boolean_true", "boolean_false"]
             }
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          allowed_tools: "Bash"
+          claude_args: "--allowedTools Bash"
 
       - name: Verify outputs
         run: |
@@ -111,7 +111,7 @@ jobs:
               "required": ["items", "config", "empty_array"]
             }
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          allowed_tools: "Bash"
+          claude_args: "--allowedTools Bash"
 
       - name: Verify JSON stringification
         run: |
@@ -172,7 +172,7 @@ jobs:
               "required": ["zero", "empty_string", "negative", "decimal"]
             }
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          allowed_tools: "Bash"
+          claude_args: "--allowedTools Bash"
 
       - name: Verify edge cases
         run: |
@@ -233,7 +233,7 @@ jobs:
               "required": ["test-result", "item_count"]
             }
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          allowed_tools: "Bash"
+          claude_args: "--allowedTools Bash"
 
       - name: Verify sanitized names work
         run: |
@@ -277,7 +277,7 @@ jobs:
               "required": ["done"]
             }
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          allowed_tools: "Bash"
+          claude_args: "--allowedTools Bash"
 
       - name: Verify execution file contains structured_output
         run: |

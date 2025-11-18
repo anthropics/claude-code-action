@@ -128,6 +128,9 @@ outputs:
   github_token:
     description: "The GitHub token used by the action (Claude App token if available)"
     value: ${{ steps.prepare.outputs.github_token }}
+  structured_output:
+    description: "JSON string containing all structured output fields when json_schema input is provided. Use fromJSON() to parse: fromJSON(steps.id.outputs.structured_output).field_name"
+    value: ${{ steps.claude-code.outputs.structured_output }}
 
 runs:
   using: "composite"
