@@ -4,7 +4,6 @@ import { describe, test, expect, afterEach } from "bun:test";
 import { writeFile, unlink } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import { sanitizeOutputName, convertToString } from "../src/run-claude";
 
 // Import the type for testing
 type ExecutionMessage = {
@@ -37,7 +36,7 @@ async function createMockExecutionFile(
   await writeFile(TEST_EXECUTION_FILE, JSON.stringify(messages));
 }
 
-describe("Structured Output - Pure Functions", () => {
+describe("Structured Output Parsing", () => {
   afterEach(async () => {
     try {
       await unlink(TEST_EXECUTION_FILE);
@@ -46,84 +45,7 @@ describe("Structured Output - Pure Functions", () => {
     }
   });
 
-  describe("sanitizeOutputName", () => {
-    test("should keep valid characters", () => {
-      expect(sanitizeOutputName("valid_name-123")).toBe("valid_name-123");
-    });
-
-    test("should replace invalid characters with underscores", () => {
-      expect(sanitizeOutputName("invalid@name!")).toBe("invalid_name_");
-      expect(sanitizeOutputName("has spaces")).toBe("has_spaces");
-      expect(sanitizeOutputName("has.dots")).toBe("has_dots");
-    });
-
-    test("should handle special characters", () => {
-      expect(sanitizeOutputName("$field%name&")).toBe("_field_name_");
-      expect(sanitizeOutputName("field[0]")).toBe("field_0_");
-    });
-  });
-
-  describe("convertToString", () => {
-    test("should keep strings as-is", () => {
-      expect(convertToString("hello")).toBe("hello");
-      expect(convertToString("")).toBe("");
-    });
-
-    test("should convert booleans to strings", () => {
-      expect(convertToString(true)).toBe("true");
-      expect(convertToString(false)).toBe("false");
-    });
-
-    test("should convert numbers to strings", () => {
-      expect(convertToString(42)).toBe("42");
-      expect(convertToString(3.14)).toBe("3.14");
-      expect(convertToString(0)).toBe("0");
-    });
-
-    test("should convert null to empty string", () => {
-      expect(convertToString(null)).toBe("");
-    });
-
-    test("should JSON stringify objects", () => {
-      expect(convertToString({ foo: "bar" })).toBe('{"foo":"bar"}');
-    });
-
-    test("should JSON stringify arrays", () => {
-      expect(convertToString([1, 2, 3])).toBe("[1,2,3]");
-      expect(convertToString(["a", "b"])).toBe('["a","b"]');
-    });
-
-    test("should handle nested structures", () => {
-      const nested = { items: [{ id: 1, name: "test" }] };
-      expect(convertToString(nested)).toBe(
-        '{"items":[{"id":1,"name":"test"}]}',
-      );
-    });
-  });
-
   describe("parseAndSetStructuredOutputs integration", () => {
-    test("should parse and set simple structured outputs", async () => {
-      await createMockExecutionFile({
-        is_antonly: true,
-        confidence: 0.95,
-        risk: "low",
-      });
-
-      // In a real test, we'd import and call parseAndSetStructuredOutputs
-      // For now, we simulate the behavior
-      const content = await Bun.file(TEST_EXECUTION_FILE).text();
-      const messages = JSON.parse(content) as ExecutionMessage[];
-      const result = messages.find(
-        (m) => m.type === "result" && m.structured_output,
-      );
-
-      expect(result?.structured_output).toEqual({
-        is_antonly: true,
-        confidence: 0.95,
-        risk: "low",
-      });
-    });
-
     test("should handle array outputs", async () => {
       await createMockExecutionFile({
         affected_areas: ["auth", "database", "api"],
@@ -214,35 +136,6 @@ describe("Structured Output - Pure Functions", () => {
     });
   });
 
-  describe("output naming with prefix", () => {
-    test("should apply prefix correctly", () => {
-      const prefix = "CLAUDE_";
-      const key = "is_antonly";
-      const sanitizedKey = key.replace(/[^a-zA-Z0-9_-]/g, "_");
-      const outputName = prefix + sanitizedKey;
-
-      expect(outputName).toBe("CLAUDE_is_antonly");
-    });
-
-    test("should handle empty prefix", () => {
-      const prefix = "";
-      const key = "result";
-      const sanitizedKey = key.replace(/[^a-zA-Z0-9_-]/g, "_");
-      const outputName = prefix + sanitizedKey;
-
-      expect(outputName).toBe("result");
-    });
-
-    test("should sanitize and prefix invalid keys", () => {
-      const prefix = "OUT_";
-      const key = "invalid@key!";
-      const sanitizedKey = key.replace(/[^a-zA-Z0-9_-]/g, "_");
-      const outputName = prefix + sanitizedKey;
-
-      expect(outputName).toBe("OUT_invalid_key_");
-    });
-  });
-
   describe("error scenarios", () => {
     test("should handle malformed JSON", async () => {
       await writeFile(TEST_EXECUTION_FILE, "invalid json {");
@@ -285,41 +178,6 @@ describe("Structured Output - Pure Functions", () => {
       );
 
       expect(result).toBeUndefined();
-    });
-  });
-
-  describe("value truncation in logs", () => {
-    test("should truncate long string values for display", () => {
-      const longValue = "a".repeat(150);
-      const displayValue =
-        longValue.length > 100 ? `${longValue.slice(0, 97)}...` : longValue;
-
-      expect(displayValue).toBe("a".repeat(97) + "...");
-      expect(displayValue.length).toBe(100);
-    });
-
-    test("should not truncate short values", () => {
-      const shortValue = "short";
-      const displayValue =
-        shortValue.length > 100 ? `${shortValue.slice(0, 97)}...` : shortValue;
-
-      expect(displayValue).toBe("short");
-    });
-
-    test("should truncate exactly 100 character values", () => {
-      const value = "a".repeat(100);
-      const displayValue =
-        value.length > 100 ? `${value.slice(0, 97)}...` : value;
-
-      expect(displayValue).toBe(value);
-    });
-
-    test("should truncate 101 character values", () => {
-      const value = "a".repeat(101);
-      const displayValue =
-        value.length > 100 ? `${value.slice(0, 97)}...` : value;
-
-      expect(displayValue).toBe("a".repeat(97) + "...");
     });
   });
 });

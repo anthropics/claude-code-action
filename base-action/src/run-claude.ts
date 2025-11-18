@@ -12,9 +12,6 @@ const PIPE_PATH = `${process.env.RUNNER_TEMP}/claude_prompt_pipe`;
 const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`;
 const BASE_ARGS = ["--verbose", "--output-format", "stream-json"];
 
-// GitHub Actions output limits
-const MAX_OUTPUT_SIZE = 1024 * 1024; // 1MB per output field
-
 type ExecutionMessage = {
   type: string;
   structured_output?: Record<string, unknown>;
@@ -131,48 +128,6 @@ export function prepareRunConfig(
 }
 
 /**
- * Sanitizes output field names to meet GitHub Actions output naming requirements
- * GitHub outputs must be alphanumeric, hyphen, or underscore only
- */
-export function sanitizeOutputName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_-]/g, "_");
-}
-
-// Reserved output names that cannot be used by structured outputs
-const RESERVED_OUTPUTS = [
-  "conclusion",
-  "execution_file",
-  "structured_output",
-] as const;
-
-/**
- * Converts values to string format for GitHub Actions outputs
- * GitHub outputs must always be strings
- */
-export function convertToString(value: unknown): string {
-  switch (typeof value) {
-    case "string":
-      return value;
-    case "boolean":
-    case "number":
-      return String(value);
-    case "object":
-      if (value === null) return "";
-      // Handle circular references
-      try {
-        return JSON.stringify(value);
-      } catch (e) {
-        return "[Circular or non-serializable object]";
-      }
-    case "undefined":
-      return "";
-    default:
-      // Handle Symbol, Function, etc.
-      return String(value);
-  }
-}
-
-/**
  * Parses structured_output from execution file and sets GitHub Action outputs
  * Only runs if json_schema was explicitly provided by the user
  */
@@ -202,65 +157,6 @@ async function parseAndSetStructuredOutputs(
     core.info(
       `Set structured_output with ${Object.keys(result.structured_output).length} field(s)`,
     );
-
-    // Also set individual field outputs for direct usage (when not using composite action)
-    const entries = Object.entries(result.structured_output);
-    core.info(`Setting ${entries.length} individual structured output(s)`);
-
-    for (const [key, value] of entries) {
-      // Validate key before sanitization
-      if (!key || key.trim() === "") {
-        core.warning("Skipping empty output key");
-        continue;
-      }
-
-      const sanitizedKey = sanitizeOutputName(key);
-
-      // Ensure key starts with letter or underscore (GitHub Actions convention)
-      if (!/^[a-zA-Z_]/.test(sanitizedKey)) {
-        core.warning(
-          `Skipping invalid output key "${key}" (sanitized: "${sanitizedKey}")`,
-        );
-        continue;
-      }
-
-      // Prevent shadowing reserved action outputs
-      if (RESERVED_OUTPUTS.includes(sanitizedKey as any)) {
-        core.warning(
-          `Skipping reserved output key "${key}" - would shadow action output "${sanitizedKey}"`,
-        );
-        continue;
-      }
-
-      const stringValue = convertToString(value);
-
-      // Enforce GitHub Actions output size limit (1MB)
-      if (stringValue.length > MAX_OUTPUT_SIZE) {
-        // Don't truncate objects/arrays - would create invalid JSON
-        if (typeof value === "object" && value !== null) {
-          core.warning(
-            `Output "${sanitizedKey}" object/array exceeds 1MB (${stringValue.length} bytes). Skipping - reduce data size.`,
-          );
-          continue;
-        }
-        // For primitives, truncation is safe
-        core.warning(
-          `Output "${sanitizedKey}" exceeds 1MB (${stringValue.length} bytes), truncating`,
-        );
-        const truncated = stringValue.substring(0, MAX_OUTPUT_SIZE);
-        core.setOutput(sanitizedKey, truncated);
-        core.info(`✓ ${sanitizedKey}=[TRUNCATED ${stringValue.length} bytes]`);
-      } else {
-        // Truncate long values in logs for readability
-        const displayValue =
-          stringValue.length > 100
-            ? `${stringValue.slice(0, 97)}...`
-            : stringValue;
-
-        core.setOutput(sanitizedKey, stringValue);
-        core.info(`✓ ${sanitizedKey}=${displayValue}`);
-      }
-    }
   } catch (error) {
     if (error instanceof Error) {
       core.setFailed(error.message);
