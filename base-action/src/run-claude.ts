@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { unlink, writeFile, stat } from "fs/promises";
+import { unlink, writeFile, stat, readFile } from "fs/promises";
 import { createWriteStream } from "fs";
 import { spawn } from "child_process";
 import { parse as parseShellArgs } from "shell-quote";
@@ -11,6 +11,11 @@ const execAsync = promisify(exec);
 const PIPE_PATH = `${process.env.RUNNER_TEMP}/claude_prompt_pipe`;
 const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`;
 const BASE_ARGS = ["--verbose", "--output-format", "stream-json"];
+
+type ExecutionMessage = {
+  type: string;
+  structured_output?: Record<string, unknown>;
+};
 
 /**
  * Sanitizes JSON output to remove sensitive information when full output is disabled
@@ -120,6 +125,88 @@ export function prepareRunConfig(
     promptPath,
     env: customEnv,
   };
+}
+
+/**
+ * Sanitizes output field names to meet GitHub Actions output naming requirements
+ * GitHub outputs must be alphanumeric, hyphen, or underscore only
+ */
+function sanitizeOutputName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+/**
+ * Converts values to string format for GitHub Actions outputs
+ * GitHub outputs must always be strings
+ */
+function convertToString(value: unknown): string {
+  switch (typeof value) {
+    case "string":
+      return value;
+    case "boolean":
+    case "number":
+      return String(value);
+    case "object":
+      return value === null ? "" : JSON.stringify(value);
+    case "undefined":
+      return "";
+    default:
+      // Handle Symbol, Function, etc.
+      return String(value);
+  }
+}
+
+/**
+ * Parses structured_output from execution file and sets GitHub Action outputs
+ * Only runs if json_schema was explicitly provided by the user
+ */
+async function parseAndSetStructuredOutputs(
+  executionFile: string,
+): Promise<void> {
+  try {
+    const content = await readFile(executionFile, "utf-8");
+    const messages = JSON.parse(content) as ExecutionMessage[];
+
+    const result = messages.find(
+      (m) => m.type === "result" && m.structured_output,
+    );
+
+    if (!result?.structured_output) {
+      const error = new Error(
+        "json_schema was provided but Claude did not return structured_output. " +
+          "The schema may be invalid or Claude failed to call the StructuredOutput tool.",
+      );
+      core.setFailed(error.message);
+      throw error;
+    }
+
+    // Set GitHub Action output for each field
+    const entries = Object.entries(result.structured_output);
+    core.info(`Setting ${entries.length} structured output(s)`);
+
+    for (const [key, value] of entries) {
+      const sanitizedKey = sanitizeOutputName(key);
+      if (!sanitizedKey) {
+        core.warning(`Skipping invalid output key: "${key}"`);
+        continue;
+      }
+
+      const stringValue = convertToString(value);
+
+      // Truncate long values in logs for readability
+      const displayValue =
+        stringValue.length > 100
+          ? `${stringValue.slice(0, 97)}...`
+          : stringValue;
+
+      core.setOutput(sanitizedKey, stringValue);
+      core.info(`✓ ${sanitizedKey}=${displayValue}`);
+    }
+  } catch (error) {
+    const errorMsg = `Failed to parse structured outputs: ${error}`;
+    core.setFailed(errorMsg);
+    throw new Error(errorMsg);
+  }
 }
 
 export async function runClaude(promptPath: string, options: ClaudeOptions) {
@@ -310,6 +397,11 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
 
     core.setOutput("conclusion", "success");
     core.setOutput("execution_file", EXECUTION_FILE);
+
+    // Parse and set structured outputs only if user provided json_schema
+    if (process.env.JSON_SCHEMA) {
+      await parseAndSetStructuredOutputs(EXECUTION_FILE);
+    }
   } else {
     core.setOutput("conclusion", "failure");
 

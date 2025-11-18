@@ -149,6 +149,19 @@ export const agentMode: Mode = {
       claudeArgs = `--mcp-config '${escapedOurConfig}'`;
     }
 
+    // Add JSON schema if provided
+    const jsonSchema = process.env.JSON_SCHEMA || "";
+    if (jsonSchema) {
+      // Validate it's valid JSON
+      try {
+        JSON.parse(jsonSchema);
+      } catch (e) {
+        throw new Error(`Invalid JSON schema provided: ${e}`);
+      }
+      const escapedSchema = jsonSchema.replace(/'/g, "'\\''");
+      claudeArgs += ` --json-schema '${escapedSchema}'`;
+    }
+
     // Append user's claude_args (which may have more --mcp-config flags)
     claudeArgs = `${claudeArgs} ${userClaudeArgs}`.trim();
 

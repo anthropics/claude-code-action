@@ -67,6 +67,10 @@ inputs:
     description: "Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., 'https://github.com/user/marketplace1.git\nhttps://github.com/user/marketplace2.git')"
     required: false
     default: ""
+  json_schema:
+    description: "JSON schema for structured output validation. When provided, Claude will return validated JSON matching this schema, and the action will automatically set GitHub Action outputs for each field (e.g., access via steps.id.outputs.field_name)"
+    required: false
+    default: ""
 
 outputs:
   conclusion:

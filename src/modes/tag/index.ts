@@ -177,6 +177,19 @@ export const tagMode: Mode = {
     // Add required tools for tag mode
     claudeArgs += ` --allowedTools "${tagModeTools.join(",")}"`;
 
+    // Add JSON schema if provided
+    const jsonSchema = process.env.JSON_SCHEMA || "";
+    if (jsonSchema) {
+      // Validate it's valid JSON
+      try {
+        JSON.parse(jsonSchema);
+      } catch (e) {
+        throw new Error(`Invalid JSON schema provided: ${e}`);
+      }
+      const escapedSchema = jsonSchema.replace(/'/g, "'\\''");
+      claudeArgs += ` --json-schema '${escapedSchema}'`;
+    }
+
     // Append user's claude_args (which may have more --mcp-config flags)
     if (userClaudeArgs) {
       claudeArgs += ` ${userClaudeArgs}`;

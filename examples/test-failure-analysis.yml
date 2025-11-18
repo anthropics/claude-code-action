@@ -1,0 +1,113 @@
+name: Auto-Retry Flaky Tests
+
+# This example demonstrates using structured outputs to detect flaky test failures
+# and automatically retry them, reducing noise from intermittent failures.
+#
+# Use case: When CI fails, automatically determine if it's likely flaky and retry if so.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  detect-flaky:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect flaky test failures
+        id: detect
+        uses: anthropics/claude-code-action@main
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            The CI workflow failed: ${{ github.event.workflow_run.html_url }}
+
+            Check the logs: gh run view ${{ github.event.workflow_run.id }} --log-failed
+
+            Determine if this looks like a flaky test failure by checking for:
+            - Timeout errors
+            - Race conditions
+            - Network errors
+            - "Expected X but got Y" intermittent failures
+            - Tests that passed in previous commits
+
+            Return:
+            - is_flaky: true if likely flaky, false if real bug
+            - confidence: number 0-1 indicating confidence level
+            - summary: brief one-sentence explanation
+          json_schema: |
+            {
+              "type": "object",
+              "properties": {
+                "is_flaky": {
+                  "type": "boolean",
+                  "description": "Whether this appears to be a flaky test failure"
+                },
+                "confidence": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Confidence level in the determination"
+                },
+                "summary": {
+                  "type": "string",
+                  "description": "One-sentence explanation of the failure"
+                }
+              },
+              "required": ["is_flaky", "confidence", "summary"]
+            }
+
+      # Auto-retry only if flaky AND high confidence (>= 0.7)
+      - name: Retry flaky tests
+        if: |
+          steps.detect.outputs.is_flaky == 'true' &&
+          steps.detect.outputs.confidence >= '0.7'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "🔄 Flaky test detected (confidence: ${{ steps.detect.outputs.confidence }})"
+          echo "Summary: ${{ steps.detect.outputs.summary }}"
+          echo ""
+          echo "Triggering automatic retry..."
+
+          gh workflow run "${{ github.event.workflow_run.name }}" \
+            --ref "${{ github.event.workflow_run.head_branch }}"
+
+      # Low confidence flaky detection - skip retry
+      - name: Low confidence detection
+        if: |
+          steps.detect.outputs.is_flaky == 'true' &&
+          steps.detect.outputs.confidence < '0.7'
+        run: |
+          echo "⚠️ Possible flaky test but confidence too low (${{ steps.detect.outputs.confidence }})"
+          echo "Not retrying automatically - manual review recommended"
+
+      # Comment on PR if this was a PR build
+      - name: Comment on PR
+        if: github.event.workflow_run.event == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_number=$(gh pr list --head "${{ github.event.workflow_run.head_branch }}" --json number --jq '.[0].number')
+
+          if [ -n "$pr_number" ]; then
+            gh pr comment "$pr_number" --body "$(cat <<EOF
+          ## ${{ steps.detect.outputs.is_flaky == 'true' && '🔄 Flaky Test Detected' || '❌ Test Failure' }}
+
+          **Analysis**: ${{ steps.detect.outputs.summary }}
+          **Confidence**: ${{ steps.detect.outputs.confidence }}
+
+          ${{ steps.detect.outputs.is_flaky == 'true' && '✅ Automatically retrying the workflow' || '⚠️ This appears to be a real bug - manual intervention needed' }}
+
+          [View workflow run](${{ github.event.workflow_run.html_url }})
+          EOF
+          )"
+          fi
