@@ -139,7 +139,11 @@ export function sanitizeOutputName(name: string): string {
 }
 
 // Reserved output names that cannot be used by structured outputs
-const RESERVED_OUTPUTS = ["conclusion", "execution_file"] as const;
+const RESERVED_OUTPUTS = [
+  "conclusion",
+  "execution_file",
+  "structured_output",
+] as const;
 
 /**
  * Converts values to string format for GitHub Actions outputs
@@ -191,9 +195,17 @@ async function parseAndSetStructuredOutputs(
       );
     }
 
-    // Set GitHub Action output for each field
+    // Set the complete structured output as a single JSON string
+    // This works around GitHub Actions limitation that composite actions can't have dynamic outputs
+    const structuredOutputJson = JSON.stringify(result.structured_output);
+    core.setOutput("structured_output", structuredOutputJson);
+    core.info(
+      `Set structured_output with ${Object.keys(result.structured_output).length} field(s)`,
+    );
+
+    // Also set individual field outputs for direct usage (when not using composite action)
     const entries = Object.entries(result.structured_output);
-    core.info(`Setting ${entries.length} structured output(s)`);
+    core.info(`Setting ${entries.length} individual structured output(s)`);
 
     for (const [key, value] of entries) {
       // Validate key before sanitization

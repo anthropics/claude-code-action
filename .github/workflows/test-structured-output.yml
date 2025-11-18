@@ -46,27 +46,34 @@ jobs:
 
       - name: Verify outputs
         run: |
+          # Parse the structured_output JSON
+          OUTPUT='${{ steps.test.outputs.structured_output }}'
+
           # Test string pass-through
-          if [ "${{ steps.test.outputs.text_field }}" != "hello" ]; then
-            echo "❌ String: expected 'hello', got '${{ steps.test.outputs.text_field }}'"
+          TEXT_FIELD=$(echo "$OUTPUT" | jq -r '.text_field')
+          if [ "$TEXT_FIELD" != "hello" ]; then
+            echo "❌ String: expected 'hello', got '$TEXT_FIELD'"
             exit 1
           fi
 
           # Test number → string conversion
-          if [ "${{ steps.test.outputs.number_field }}" != "42" ]; then
-            echo "❌ Number: expected '42', got '${{ steps.test.outputs.number_field }}'"
+          NUMBER_FIELD=$(echo "$OUTPUT" | jq -r '.number_field')
+          if [ "$NUMBER_FIELD" != "42" ]; then
+            echo "❌ Number: expected '42', got '$NUMBER_FIELD'"
             exit 1
           fi
 
           # Test boolean → "true" conversion
-          if [ "${{ steps.test.outputs.boolean_true }}" != "true" ]; then
-            echo "❌ Boolean true: expected 'true', got '${{ steps.test.outputs.boolean_true }}'"
+          BOOLEAN_TRUE=$(echo "$OUTPUT" | jq -r '.boolean_true')
+          if [ "$BOOLEAN_TRUE" != "true" ]; then
+            echo "❌ Boolean true: expected 'true', got '$BOOLEAN_TRUE'"
             exit 1
           fi
 
           # Test boolean → "false" conversion
-          if [ "${{ steps.test.outputs.boolean_false }}" != "false" ]; then
-            echo "❌ Boolean false: expected 'false', got '${{ steps.test.outputs.boolean_false }}'"
+          BOOLEAN_FALSE=$(echo "$OUTPUT" | jq -r '.boolean_false')
+          if [ "$BOOLEAN_FALSE" != "false" ]; then
+            echo "❌ Boolean false: expected 'false', got '$BOOLEAN_FALSE'"
             exit 1
           fi
 
@@ -108,28 +115,31 @@ jobs:
 
       - name: Verify JSON stringification
         run: |
+          # Parse the structured_output JSON
+          OUTPUT='${{ steps.test.outputs.structured_output }}'
+
           # Arrays should be JSON stringified
-          ITEMS='${{ steps.test.outputs.items }}'
-          if ! echo "$ITEMS" | jq -e '. | length == 3' > /dev/null; then
-            echo "❌ Array not properly stringified: $ITEMS"
+          if ! echo "$OUTPUT" | jq -e '.items | length == 3' > /dev/null; then
+            echo "❌ Array not properly formatted"
+            echo "$OUTPUT" | jq '.items'
             exit 1
           fi
 
           # Objects should be JSON stringified
-          CONFIG='${{ steps.test.outputs.config }}'
-          if ! echo "$CONFIG" | jq -e '.key == "value"' > /dev/null; then
-            echo "❌ Object not properly stringified: $CONFIG"
+          if ! echo "$OUTPUT" | jq -e '.config.key == "value"' > /dev/null; then
+            echo "❌ Object not properly formatted"
+            echo "$OUTPUT" | jq '.config'
             exit 1
           fi
 
           # Empty arrays should work
-          EMPTY='${{ steps.test.outputs.empty_array }}'
-          if ! echo "$EMPTY" | jq -e '. | length == 0' > /dev/null; then
-            echo "❌ Empty array not properly stringified: $EMPTY"
+          if ! echo "$OUTPUT" | jq -e '.empty_array | length == 0' > /dev/null; then
+            echo "❌ Empty array not properly formatted"
+            echo "$OUTPUT" | jq '.empty_array'
             exit 1
           fi
 
-          echo "✅ All complex types JSON stringified correctly"
+          echo "✅ All complex types handled correctly"
 
   test-edge-cases:
     name: Test Edge Cases
@@ -166,27 +176,34 @@ jobs:
 
       - name: Verify edge cases
         run: |
+          # Parse the structured_output JSON
+          OUTPUT='${{ steps.test.outputs.structured_output }}'
+
           # Zero should be "0", not empty or falsy
-          if [ "${{ steps.test.outputs.zero }}" != "0" ]; then
-            echo "❌ Zero: expected '0', got '${{ steps.test.outputs.zero }}'"
+          ZERO=$(echo "$OUTPUT" | jq -r '.zero')
+          if [ "$ZERO" != "0" ]; then
+            echo "❌ Zero: expected '0', got '$ZERO'"
             exit 1
           fi
 
           # Empty string should be empty (not "null" or missing)
-          if [ "${{ steps.test.outputs.empty_string }}" != "" ]; then
-            echo "❌ Empty string: expected '', got '${{ steps.test.outputs.empty_string }}'"
+          EMPTY_STRING=$(echo "$OUTPUT" | jq -r '.empty_string')
+          if [ "$EMPTY_STRING" != "" ]; then
+            echo "❌ Empty string: expected '', got '$EMPTY_STRING'"
             exit 1
           fi
 
           # Negative numbers should work
-          if [ "${{ steps.test.outputs.negative }}" != "-5" ]; then
-            echo "❌ Negative: expected '-5', got '${{ steps.test.outputs.negative }}'"
+          NEGATIVE=$(echo "$OUTPUT" | jq -r '.negative')
+          if [ "$NEGATIVE" != "-5" ]; then
+            echo "❌ Negative: expected '-5', got '$NEGATIVE'"
             exit 1
           fi
 
           # Decimals should preserve precision
-          if [ "${{ steps.test.outputs.decimal }}" != "3.14" ]; then
-            echo "❌ Decimal: expected '3.14', got '${{ steps.test.outputs.decimal }}'"
+          DECIMAL=$(echo "$OUTPUT" | jq -r '.decimal')
+          if [ "$DECIMAL" != "3.14" ]; then
+            echo "❌ Decimal: expected '3.14', got '$DECIMAL'"
             exit 1
           fi
 
@@ -220,15 +237,20 @@ jobs:
 
       - name: Verify sanitized names work
         run: |
-          # Hyphens should be preserved (GitHub Actions allows them)
-          if [ "${{ steps.test.outputs.test-result }}" != "passed" ]; then
-            echo "❌ Hyphenated name failed"
+          # Parse the structured_output JSON
+          OUTPUT='${{ steps.test.outputs.structured_output }}'
+
+          # Hyphens should be preserved in the JSON
+          TEST_RESULT=$(echo "$OUTPUT" | jq -r '.["test-result"]')
+          if [ "$TEST_RESULT" != "passed" ]; then
+            echo "❌ Hyphenated name failed: expected 'passed', got '$TEST_RESULT'"
             exit 1
           fi
 
           # Underscores should work
-          if [ "${{ steps.test.outputs.item_count }}" != "10" ]; then
-            echo "❌ Underscore name failed"
+          ITEM_COUNT=$(echo "$OUTPUT" | jq -r '.item_count')
+          if [ "$ITEM_COUNT" != "10" ]; then
+            echo "❌ Underscore name failed: expected '10', got '$ITEM_COUNT'"
             exit 1
           fi
 

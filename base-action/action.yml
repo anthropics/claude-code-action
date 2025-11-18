@@ -92,6 +92,9 @@ outputs:
   execution_file:
     description: "Path to the JSON file containing Claude Code execution log"
     value: ${{ steps.run_claude.outputs.execution_file }}
+  structured_output:
+    description: "JSON string containing all structured output fields (use fromJSON() or jq to parse)"
+    value: ${{ steps.run_claude.outputs.structured_output }}
 
 runs:
   using: "composite"
