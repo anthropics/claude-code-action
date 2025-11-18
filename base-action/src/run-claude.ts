@@ -12,11 +12,6 @@ const PIPE_PATH = `${process.env.RUNNER_TEMP}/claude_prompt_pipe`;
 const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`;
 const BASE_ARGS = ["--verbose", "--output-format", "stream-json"];
 
-type ExecutionMessage = {
-  type: string;
-  structured_output?: Record<string, unknown>;
-};
-
 /**
  * Sanitizes JSON output to remove sensitive information when full output is disabled
  * Returns a safe summary message or null if the message should be completely suppressed
@@ -137,9 +132,13 @@ export async function parseAndSetStructuredOutputs(
 ): Promise<void> {
   try {
     const content = await readFile(executionFile, "utf-8");
-    const messages = JSON.parse(content) as ExecutionMessage[];
+    const messages = JSON.parse(content) as {
+      type: string;
+      structured_output?: Record<string, unknown>;
+    }[];
 
-    const result = messages.find(
+    // Search backwards - result is typically last or second-to-last message
+    const result = messages.findLast(
       (m) => m.type === "result" && m.structured_output,
     );
 

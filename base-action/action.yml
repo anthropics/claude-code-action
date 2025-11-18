@@ -77,11 +77,6 @@ inputs:
       or the action will fail. All fields are returned in a single structured_output JSON string.
 
       Access outputs via: fromJSON(steps.<step-id>.outputs.structured_output).<field_name>
-
-      Limitations:
-      - All fields are returned in a single structured_output JSON string
-      - Field names can use any valid JSON property name (including hyphens, special characters, etc.)
-      - The entire structured_output string is limited to 1MB
     required: false
     default: ""
 
