@@ -80,7 +80,7 @@ jobs:
 | `path_to_bun_executable`         | Optional path to a custom Bun executable. Skips automatic Bun installation. Useful for Nix, custom containers, or specialized environments                                             | No       | ""            |
 | `plugin_marketplaces`            | Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., see example in workflow above). Marketplaces are added before plugin installation             | No       | ""            |
 | `plugins`                        | Newline-separated list of Claude Code plugin names to install (e.g., see example in workflow above). Plugins are installed before Claude Code execution                                | No       | ""            |
-| `json_schema`                    | JSON schema for structured output validation. Automatically sets GitHub Action outputs for each field. See [Structured Outputs](#structured-outputs) section below                     | No       | ""            |
+| `json_schema`                    | JSON schema for structured output validation. See [Structured Outputs](#structured-outputs) section below                     | No       | ""            |
 
 ### Deprecated Inputs
 
