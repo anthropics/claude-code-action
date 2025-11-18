@@ -31,11 +31,6 @@ async function run() {
     // Build claudeArgs with JSON schema if provided
     let claudeArgs = process.env.INPUT_CLAUDE_ARGS || "";
 
-    // Add allowed tools if specified
-    if (process.env.INPUT_ALLOWED_TOOLS) {
-      claudeArgs += ` --allowedTools "${process.env.INPUT_ALLOWED_TOOLS}"`;
-    }
-
     // Add JSON schema if specified (no escaping - parseShellArgs handles it)
     if (process.env.JSON_SCHEMA) {
       // Wrap in single quotes for parseShellArgs
