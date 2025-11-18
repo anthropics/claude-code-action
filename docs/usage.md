@@ -213,7 +213,7 @@ Get validated JSON results from Claude that automatically become GitHub Action o
       }
 
 - name: Retry if flaky
-  if: steps.analyze.outputs.is_flaky == 'true'
+  if: fromJSON(steps.analyze.outputs.structured_output).is_flaky == true
   run: gh workflow run CI
 ```
 
@@ -222,29 +222,31 @@ Get validated JSON results from Claude that automatically become GitHub Action o
 1. **Define Schema**: Provide a JSON schema in the `json_schema` input
 2. **Claude Executes**: Claude uses tools to complete your task
 3. **Validated Output**: Result is validated against your schema
-4. **Auto-set Outputs**: Each field automatically becomes a GitHub Action output
+4. **JSON Output**: All fields are returned in a single `structured_output` JSON string
 
-### Type Conversions
+### Accessing Structured Outputs
 
-GitHub Actions outputs must be strings. Values are converted automatically:
+All structured output fields are available in the `structured_output` output as a JSON string:
 
-- `boolean` → `"true"` or `"false"`
-- `number` → `"42"` or `"3.14"`
-- `object/array` → JSON stringified (use `fromJSON()` in workflows to parse)
-- `null` → `""` (empty string)
+**In GitHub Actions expressions:**
 
-### Output Naming Rules
+```yaml
+if: fromJSON(steps.analyze.outputs.structured_output).is_flaky == true
+run: |
+  CONFIDENCE=${{ fromJSON(steps.analyze.outputs.structured_output).confidence }}
+```
 
-- Field names are sanitized: special characters replaced with underscores
-- Must start with letter or underscore (GitHub Actions requirement)
-- Reserved names (`conclusion`, `execution_file`) are automatically skipped
-- Example: `test.result` becomes `test_result`
+**In bash with jq:**
 
-### Size Limits
+```yaml
+- name: Process results
+  run: |
+    OUTPUT='${{ steps.analyze.outputs.structured_output }}'
+    IS_FLAKY=$(echo "$OUTPUT" | jq -r '.is_flaky')
+    SUMMARY=$(echo "$OUTPUT" | jq -r '.summary')
+```
 
-- Maximum 1MB per output field
-- Objects/arrays exceeding 1MB are skipped with warnings
-- Primitive values exceeding 1MB are truncated
+**Note**: Due to GitHub Actions limitations, composite actions cannot expose dynamic outputs. All fields are bundled in the single `structured_output` JSON string.
 
 ### Complete Example
 

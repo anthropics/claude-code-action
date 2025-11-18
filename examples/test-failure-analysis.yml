@@ -68,13 +68,17 @@ jobs:
       # Auto-retry only if flaky AND high confidence (>= 0.7)
       - name: Retry flaky tests
         if: |
-          steps.detect.outputs.is_flaky == 'true' &&
-          steps.detect.outputs.confidence >= '0.7'
+          fromJSON(steps.detect.outputs.structured_output).is_flaky == true &&
+          fromJSON(steps.detect.outputs.structured_output).confidence >= 0.7
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "🔄 Flaky test detected (confidence: ${{ steps.detect.outputs.confidence }})"
-          echo "Summary: ${{ steps.detect.outputs.summary }}"
+          OUTPUT='${{ steps.detect.outputs.structured_output }}'
+          CONFIDENCE=$(echo "$OUTPUT" | jq -r '.confidence')
+          SUMMARY=$(echo "$OUTPUT" | jq -r '.summary')
+
+          echo "🔄 Flaky test detected (confidence: $CONFIDENCE)"
+          echo "Summary: $SUMMARY"
           echo ""
           echo "Triggering automatic retry..."
 
@@ -84,10 +88,13 @@ jobs:
       # Low confidence flaky detection - skip retry
       - name: Low confidence detection
         if: |
-          steps.detect.outputs.is_flaky == 'true' &&
-          steps.detect.outputs.confidence < '0.7'
+          fromJSON(steps.detect.outputs.structured_output).is_flaky == true &&
+          fromJSON(steps.detect.outputs.structured_output).confidence < 0.7
         run: |
-          echo "⚠️ Possible flaky test but confidence too low (${{ steps.detect.outputs.confidence }})"
+          OUTPUT='${{ steps.detect.outputs.structured_output }}'
+          CONFIDENCE=$(echo "$OUTPUT" | jq -r '.confidence')
+
+          echo "⚠️ Possible flaky test but confidence too low ($CONFIDENCE)"
           echo "Not retrying automatically - manual review recommended"
 
       # Comment on PR if this was a PR build
@@ -96,16 +103,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          OUTPUT='${{ steps.detect.outputs.structured_output }}'
+          IS_FLAKY=$(echo "$OUTPUT" | jq -r '.is_flaky')
+          CONFIDENCE=$(echo "$OUTPUT" | jq -r '.confidence')
+          SUMMARY=$(echo "$OUTPUT" | jq -r '.summary')
+
           pr_number=$(gh pr list --head "${{ github.event.workflow_run.head_branch }}" --json number --jq '.[0].number')
 
           if [ -n "$pr_number" ]; then
+            if [ "$IS_FLAKY" = "true" ]; then
+              TITLE="🔄 Flaky Test Detected"
+              ACTION="✅ Automatically retrying the workflow"
+            else
+              TITLE="❌ Test Failure"
+              ACTION="⚠️ This appears to be a real bug - manual intervention needed"
+            fi
+
             gh pr comment "$pr_number" --body "$(cat <<EOF
-          ## ${{ steps.detect.outputs.is_flaky == 'true' && '🔄 Flaky Test Detected' || '❌ Test Failure' }}
+          ## $TITLE
 
-          **Analysis**: ${{ steps.detect.outputs.summary }}
-          **Confidence**: ${{ steps.detect.outputs.confidence }}
+          **Analysis**: $SUMMARY
+          **Confidence**: $CONFIDENCE
 
-          ${{ steps.detect.outputs.is_flaky == 'true' && '✅ Automatically retrying the workflow' || '⚠️ This appears to be a real bug - manual intervention needed' }}
+          $ACTION
 
           [View workflow run](${{ github.event.workflow_run.html_url }})
           EOF

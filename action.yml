@@ -114,7 +114,7 @@ inputs:
     required: false
     default: ""
   json_schema:
-    description: "JSON schema for structured output validation. When provided, Claude will return validated JSON matching this schema, and the action will automatically set GitHub Action outputs for each field."
+    description: "JSON schema for structured output validation. When provided, Claude will return validated JSON matching this schema. All fields are available in the structured_output output as a JSON string (use fromJSON() or jq to access fields)."
     required: false
     default: ""
 
