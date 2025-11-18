@@ -80,6 +80,7 @@ jobs:
 | `path_to_bun_executable`         | Optional path to a custom Bun executable. Skips automatic Bun installation. Useful for Nix, custom containers, or specialized environments                                             | No       | ""            |
 | `plugin_marketplaces`            | Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., see example in workflow above). Marketplaces are added before plugin installation             | No       | ""            |
 | `plugins`                        | Newline-separated list of Claude Code plugin names to install (e.g., see example in workflow above). Plugins are installed before Claude Code execution                                | No       | ""            |
+| `json_schema`                    | JSON schema for structured output validation. Automatically sets GitHub Action outputs for each field. See [Structured Outputs](#structured-outputs) section below                     | No       | ""            |
 
 ### Deprecated Inputs
 
@@ -184,6 +185,80 @@ For a comprehensive guide on migrating from v0.x to v1.0, including step-by-step
       Analyze PR #${{ github.event.pull_request.number }} for security issues.
       Focus on the changed files in this PR.
 ```
+
+## Structured Outputs
+
+Get validated JSON results from Claude that automatically become GitHub Action outputs. This enables building complex automation workflows where Claude analyzes data and subsequent steps use the results.
+
+### Basic Example
+
+```yaml
+- name: Detect flaky tests
+  id: analyze
+  uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    prompt: |
+      Check the CI logs and determine if this is a flaky test.
+      Return: is_flaky (boolean), confidence (0-1), summary (string)
+    json_schema: |
+      {
+        "type": "object",
+        "properties": {
+          "is_flaky": {"type": "boolean"},
+          "confidence": {"type": "number"},
+          "summary": {"type": "string"}
+        },
+        "required": ["is_flaky"]
+      }
+
+- name: Retry if flaky
+  if: steps.analyze.outputs.is_flaky == 'true'
+  run: gh workflow run CI
+```
+
+### How It Works
+
+1. **Define Schema**: Provide a JSON schema in the `json_schema` input
+2. **Claude Executes**: Claude uses tools to complete your task
+3. **Validated Output**: Result is validated against your schema
+4. **Auto-set Outputs**: Each field automatically becomes a GitHub Action output
+
+### Type Conversions
+
+GitHub Actions outputs must be strings. Values are converted automatically:
+
+- `boolean` → `"true"` or `"false"`
+- `number` → `"42"` or `"3.14"`
+- `object/array` → JSON stringified (use `fromJSON()` in workflows to parse)
+- `null` → `""` (empty string)
+
+### Output Naming Rules
+
+- Field names are sanitized: special characters replaced with underscores
+- Must start with letter or underscore (GitHub Actions requirement)
+- Reserved names (`conclusion`, `execution_file`) are automatically skipped
+- Example: `test.result` becomes `test_result`
+
+### Size Limits
+
+- Maximum 1MB per output field
+- Objects/arrays exceeding 1MB are skipped with warnings
+- Primitive values exceeding 1MB are truncated
+
+### Complete Example
+
+See `examples/test-failure-analysis.yml` for a working example that:
+
+- Detects flaky test failures
+- Uses confidence thresholds in conditionals
+- Auto-retries workflows
+- Comments on PRs
+
+### Documentation
+
+For complete details on JSON Schema syntax and Agent SDK structured outputs:
+https://docs.claude.com/en/docs/agent-sdk/structured-outputs
 
 ## Ways to Tag @claude
 

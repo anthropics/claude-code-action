@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { unlink, writeFile, stat } from "fs/promises";
+import { unlink, writeFile, stat, readFile } from "fs/promises";
 import { createWriteStream } from "fs";
 import { spawn } from "child_process";
 import { parse as parseShellArgs } from "shell-quote";
@@ -11,6 +11,14 @@ const execAsync = promisify(exec);
 const PIPE_PATH = `${process.env.RUNNER_TEMP}/claude_prompt_pipe`;
 const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`;
 const BASE_ARGS = ["--verbose", "--output-format", "stream-json"];
+
+// GitHub Actions output limits
+const MAX_OUTPUT_SIZE = 1024 * 1024; // 1MB per output field
+
+type ExecutionMessage = {
+  type: string;
+  structured_output?: Record<string, unknown>;
+};
 
 /**
  * Sanitizes JSON output to remove sensitive information when full output is disabled
@@ -120,6 +128,140 @@ export function prepareRunConfig(
     promptPath,
     env: customEnv,
   };
+}
+
+/**
+ * Sanitizes output field names to meet GitHub Actions output naming requirements
+ * GitHub outputs must be alphanumeric, hyphen, or underscore only
+ */
+export function sanitizeOutputName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+// Reserved output names that cannot be used by structured outputs
+const RESERVED_OUTPUTS = ["conclusion", "execution_file"] as const;
+
+/**
+ * Converts values to string format for GitHub Actions outputs
+ * GitHub outputs must always be strings
+ */
+export function convertToString(value: unknown): string {
+  switch (typeof value) {
+    case "string":
+      return value;
+    case "boolean":
+    case "number":
+      return String(value);
+    case "object":
+      if (value === null) return "";
+      // Handle circular references
+      try {
+        return JSON.stringify(value);
+      } catch (e) {
+        return "[Circular or non-serializable object]";
+      }
+    case "undefined":
+      return "";
+    default:
+      // Handle Symbol, Function, etc.
+      return String(value);
+  }
+}
+
+/**
+ * Parses structured_output from execution file and sets GitHub Action outputs
+ * Only runs if json_schema was explicitly provided by the user
+ */
+async function parseAndSetStructuredOutputs(
+  executionFile: string,
+): Promise<void> {
+  try {
+    const content = await readFile(executionFile, "utf-8");
+    const messages = JSON.parse(content) as ExecutionMessage[];
+
+    const result = messages.find(
+      (m) => m.type === "result" && m.structured_output,
+    );
+
+    if (!result?.structured_output) {
+      const error = new Error(
+        `json_schema was provided but Claude did not return structured_output.\n` +
+          `Found ${messages.length} messages. Result exists: ${!!result}\n` +
+          `The schema may be invalid or Claude failed to call the StructuredOutput tool.`,
+      );
+      core.setFailed(error.message);
+      throw error;
+    }
+
+    // Set GitHub Action output for each field
+    const entries = Object.entries(result.structured_output);
+    core.info(`Setting ${entries.length} structured output(s)`);
+
+    for (const [key, value] of entries) {
+      // Validate key before sanitization
+      if (!key || key.trim() === "") {
+        core.warning("Skipping empty output key");
+        continue;
+      }
+
+      const sanitizedKey = sanitizeOutputName(key);
+
+      // Ensure key starts with letter or underscore (GitHub Actions convention)
+      if (!/^[a-zA-Z_]/.test(sanitizedKey)) {
+        core.warning(
+          `Skipping invalid output key "${key}" (sanitized: "${sanitizedKey}")`,
+        );
+        continue;
+      }
+
+      // Prevent shadowing reserved action outputs
+      if (RESERVED_OUTPUTS.includes(sanitizedKey as any)) {
+        core.warning(
+          `Skipping reserved output key "${key}" - would shadow action output "${sanitizedKey}"`,
+        );
+        continue;
+      }
+
+      const stringValue = convertToString(value);
+
+      // Enforce GitHub Actions output size limit (1MB)
+      if (stringValue.length > MAX_OUTPUT_SIZE) {
+        // Don't truncate objects/arrays - would create invalid JSON
+        if (typeof value === "object" && value !== null) {
+          core.warning(
+            `Output "${sanitizedKey}" object/array exceeds 1MB (${stringValue.length} bytes). Skipping - reduce data size.`,
+          );
+          continue;
+        }
+        // For primitives, truncation is safe
+        core.warning(
+          `Output "${sanitizedKey}" exceeds 1MB (${stringValue.length} bytes), truncating`,
+        );
+        const truncated = stringValue.substring(0, MAX_OUTPUT_SIZE);
+        core.setOutput(sanitizedKey, truncated);
+        core.info(`✓ ${sanitizedKey}=[TRUNCATED ${stringValue.length} bytes]`);
+      } else {
+        // Truncate long values in logs for readability
+        const displayValue =
+          stringValue.length > 100
+            ? `${stringValue.slice(0, 97)}...`
+            : stringValue;
+
+        core.setOutput(sanitizedKey, stringValue);
+        core.info(`✓ ${sanitizedKey}=${displayValue}`);
+      }
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      core.setFailed(error.message);
+      throw error; // Preserve original error and stack trace
+    }
+    const wrappedError = new Error(
+      `Failed to parse structured outputs: ${error}`,
+    );
+    core.setFailed(wrappedError.message);
+    throw wrappedError;
+  }
 }
 
 export async function runClaude(promptPath: string, options: ClaudeOptions) {
@@ -308,8 +450,27 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
       core.warning(`Failed to process output for execution metrics: ${e}`);
     }
 
-    core.setOutput("conclusion", "success");
     core.setOutput("execution_file", EXECUTION_FILE);
+
+    // Parse and set structured outputs only if user provided json_schema
+    let structuredOutputSuccess = true;
+    if (process.env.JSON_SCHEMA) {
+      try {
+        await parseAndSetStructuredOutputs(EXECUTION_FILE);
+      } catch (error) {
+        structuredOutputSuccess = false;
+        // Error already logged by parseAndSetStructuredOutputs
+      }
+    }
+
+    // Set conclusion after structured output parsing (which may fail)
+    core.setOutput(
+      "conclusion",
+      structuredOutputSuccess ? "success" : "failure",
+    );
+    if (!structuredOutputSuccess) {
+      process.exit(1);
+    }
   } else {
     core.setOutput("conclusion", "failure");
 
