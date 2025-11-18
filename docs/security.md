@@ -38,7 +38,7 @@ The following permissions are requested but not yet actively used. These will en
 
 ## Commit Signing
 
-Commits made by Claude through this action are no longer automatically signed with commit signatures. To enable commit signing set `use_commit_signing: True` in the workflow(s).  This ensures the authenticity and integrity of commits, providing a verifiable trail of changes made by the action.
+Commits made by Claude through this action are no longer automatically signed with commit signatures. To enable commit signing set `use_commit_signing: True` in the workflow(s). This ensures the authenticity and integrity of commits, providing a verifiable trail of changes made by the action.
 
 ## ⚠️ Authentication Protection
 
