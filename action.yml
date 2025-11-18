@@ -113,6 +113,10 @@ inputs:
     description: "Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., 'https://github.com/user/marketplace1.git\nhttps://github.com/user/marketplace2.git')"
     required: false
     default: ""
+  json_schema:
+    description: "JSON schema for structured output validation. When provided, Claude will return validated JSON matching this schema. All fields are available in the structured_output output as a JSON string (use fromJSON() or jq to access fields)."
+    required: false
+    default: ""
 
 outputs:
   execution_file:
@@ -124,6 +128,9 @@ outputs:
   github_token:
     description: "The GitHub token used by the action (Claude App token if available)"
     value: ${{ steps.prepare.outputs.github_token }}
+  structured_output:
+    description: "JSON string containing all structured output fields when json_schema input is provided. Use fromJSON() to parse: fromJSON(steps.id.outputs.structured_output).field_name"
+    value: ${{ steps.claude-code.outputs.structured_output }}
 
 runs:
   using: "composite"
@@ -174,6 +181,7 @@ runs:
         TRACK_PROGRESS: ${{ inputs.track_progress }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         CLAUDE_ARGS: ${{ inputs.claude_args }}
+        JSON_SCHEMA: ${{ inputs.json_schema }}
         ALL_INPUTS: ${{ toJson(inputs) }}
 
     - name: Install Base Action Dependencies
@@ -228,6 +236,7 @@ runs:
         INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}
         INPUT_PLUGINS: ${{ inputs.plugins }}
         INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
+        JSON_SCHEMA: ${{ inputs.json_schema }}
 
         # Model configuration
         GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
