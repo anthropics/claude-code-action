@@ -159,14 +159,9 @@ async function parseAndSetStructuredOutputs(
     );
   } catch (error) {
     if (error instanceof Error) {
-      core.setFailed(error.message);
       throw error; // Preserve original error and stack trace
     }
-    const wrappedError = new Error(
-      `Failed to parse structured outputs: ${error}`,
-    );
-    core.setFailed(wrappedError.message);
-    throw wrappedError;
+    throw new Error(`Failed to parse structured outputs: ${error}`);
   }
 }
 
@@ -359,24 +354,20 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
     core.setOutput("execution_file", EXECUTION_FILE);
 
     // Parse and set structured outputs only if user provided json_schema
-    let structuredOutputSuccess = true;
     if (process.env.JSON_SCHEMA) {
       try {
         await parseAndSetStructuredOutputs(EXECUTION_FILE);
       } catch (error) {
-        structuredOutputSuccess = false;
-        // Error already logged by parseAndSetStructuredOutputs
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        core.setFailed(errorMessage);
+        core.setOutput("conclusion", "failure");
+        process.exit(1);
       }
     }
 
-    // Set conclusion after structured output parsing (which may fail)
-    core.setOutput(
-      "conclusion",
-      structuredOutputSuccess ? "success" : "failure",
-    );
-    if (!structuredOutputSuccess) {
-      process.exit(1);
-    }
+    // Set conclusion to success if we reached here
+    core.setOutput("conclusion", "success");
   } else {
     core.setOutput("conclusion", "failure");
 
