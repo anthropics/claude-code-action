@@ -1,15 +1,11 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect, afterEach } from "bun:test";
+import { describe, test, expect, afterEach, beforeEach, spyOn } from "bun:test";
 import { writeFile, unlink } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-
-// Import the type for testing
-type ExecutionMessage = {
-  type: string;
-  structured_output?: Record<string, unknown>;
-};
+import { parseAndSetStructuredOutputs } from "../src/run-claude";
+import * as core from "@actions/core";
 
 // Mock execution file path
 const TEST_EXECUTION_FILE = join(tmpdir(), "test-execution-output.json");
@@ -19,9 +15,9 @@ async function createMockExecutionFile(
   structuredOutput?: Record<string, unknown>,
   includeResult: boolean = true,
 ): Promise<void> {
-  const messages: ExecutionMessage[] = [
-    { type: "system", subtype: "init" } as any,
-    { type: "turn", content: "test" } as any,
+  const messages: any[] = [
+    { type: "system", subtype: "init" },
+    { type: "turn", content: "test" },
   ];
 
   if (includeResult) {
@@ -30,14 +26,25 @@ async function createMockExecutionFile(
       cost_usd: 0.01,
       duration_ms: 1000,
       structured_output: structuredOutput,
-    } as any);
+    });
   }
 
   await writeFile(TEST_EXECUTION_FILE, JSON.stringify(messages));
 }
 
-describe("Structured Output Parsing", () => {
+// Spy on core functions
+let setOutputSpy: any;
+let infoSpy: any;
+
+beforeEach(() => {
+  setOutputSpy = spyOn(core, "setOutput").mockImplementation(() => {});
+  infoSpy = spyOn(core, "info").mockImplementation(() => {});
+});
+
+describe("parseAndSetStructuredOutputs", () => {
   afterEach(async () => {
+    setOutputSpy?.mockRestore();
+    infoSpy?.mockRestore();
     try {
       await unlink(TEST_EXECUTION_FILE);
     } catch {
@@ -45,139 +52,107 @@ describe("Structured Output Parsing", () => {
     }
   });
 
-  describe("parseAndSetStructuredOutputs integration", () => {
-    test("should handle array outputs", async () => {
-      await createMockExecutionFile({
-        affected_areas: ["auth", "database", "api"],
-        severity: "high",
-      });
-
-      const content = await Bun.file(TEST_EXECUTION_FILE).text();
-      const messages = JSON.parse(content) as ExecutionMessage[];
-      const result = messages.find(
-        (m) => m.type === "result" && m.structured_output,
-      );
-
-      expect(result?.structured_output?.affected_areas).toEqual([
-        "auth",
-        "database",
-        "api",
-      ]);
+  test("should set structured_output with valid data", async () => {
+    await createMockExecutionFile({
+      is_flaky: true,
+      confidence: 0.85,
+      summary: "Test looks flaky",
     });
 
-    test("should handle nested objects", async () => {
-      await createMockExecutionFile({
-        analysis: {
-          category: "test",
-          details: { count: 5, passed: true },
-        },
-      });
+    await parseAndSetStructuredOutputs(TEST_EXECUTION_FILE);
 
-      const content = await Bun.file(TEST_EXECUTION_FILE).text();
-      const messages = JSON.parse(content) as ExecutionMessage[];
-      const result = messages.find(
-        (m) => m.type === "result" && m.structured_output,
-      );
+    expect(setOutputSpy).toHaveBeenCalledWith(
+      "structured_output",
+      '{"is_flaky":true,"confidence":0.85,"summary":"Test looks flaky"}',
+    );
+    expect(infoSpy).toHaveBeenCalledWith(
+      "Set structured_output with 3 field(s)",
+    );
+  });
 
-      expect(result?.structured_output?.analysis).toEqual({
-        category: "test",
-        details: { count: 5, passed: true },
-      });
+  test("should handle arrays and nested objects", async () => {
+    await createMockExecutionFile({
+      items: ["a", "b", "c"],
+      config: { key: "value", nested: { deep: true } },
     });
 
-    test("should handle missing structured_output", async () => {
-      await createMockExecutionFile(undefined, true);
+    await parseAndSetStructuredOutputs(TEST_EXECUTION_FILE);
 
-      const content = await Bun.file(TEST_EXECUTION_FILE).text();
-      const messages = JSON.parse(content) as ExecutionMessage[];
-      const result = messages.find(
-        (m) => m.type === "result" && m.structured_output,
-      );
-
-      expect(result).toBeUndefined();
-    });
-
-    test("should handle empty structured_output", async () => {
-      await createMockExecutionFile({});
-
-      const content = await Bun.file(TEST_EXECUTION_FILE).text();
-      const messages = JSON.parse(content) as ExecutionMessage[];
-      const result = messages.find(
-        (m) => m.type === "result" && m.structured_output,
-      );
-
-      expect(result?.structured_output).toEqual({});
-    });
-
-    test("should handle all supported types", async () => {
-      await createMockExecutionFile({
-        string_field: "hello",
-        number_field: 42,
-        boolean_field: true,
-        null_field: null,
-        array_field: [1, 2, 3],
-        object_field: { nested: "value" },
-      });
-
-      const content = await Bun.file(TEST_EXECUTION_FILE).text();
-      const messages = JSON.parse(content) as ExecutionMessage[];
-      const result = messages.find(
-        (m) => m.type === "result" && m.structured_output,
-      );
-
-      expect(result?.structured_output).toMatchObject({
-        string_field: "hello",
-        number_field: 42,
-        boolean_field: true,
-        null_field: null,
-        array_field: [1, 2, 3],
-        object_field: { nested: "value" },
-      });
+    const callArgs = setOutputSpy.mock.calls[0];
+    expect(callArgs[0]).toBe("structured_output");
+    const parsed = JSON.parse(callArgs[1]);
+    expect(parsed).toEqual({
+      items: ["a", "b", "c"],
+      config: { key: "value", nested: { deep: true } },
     });
   });
 
-  describe("error scenarios", () => {
-    test("should handle malformed JSON", async () => {
-      await writeFile(TEST_EXECUTION_FILE, "invalid json {");
-
-      let error: Error | undefined;
-      try {
-        const content = await Bun.file(TEST_EXECUTION_FILE).text();
-        JSON.parse(content);
-      } catch (e) {
-        error = e as Error;
-      }
-
-      expect(error).toBeDefined();
-      expect(error?.message).toContain("JSON");
+  test("should handle special characters in field names", async () => {
+    await createMockExecutionFile({
+      "test-result": "passed",
+      "item.count": 10,
+      "user@email": "test",
     });
 
-    test("should handle empty execution file", async () => {
-      await writeFile(TEST_EXECUTION_FILE, "[]");
+    await parseAndSetStructuredOutputs(TEST_EXECUTION_FILE);
 
-      const content = await Bun.file(TEST_EXECUTION_FILE).text();
-      const messages = JSON.parse(content) as ExecutionMessage[];
-      const result = messages.find(
-        (m) => m.type === "result" && m.structured_output,
-      );
+    const callArgs = setOutputSpy.mock.calls[0];
+    const parsed = JSON.parse(callArgs[1]);
+    expect(parsed["test-result"]).toBe("passed");
+    expect(parsed["item.count"]).toBe(10);
+    expect(parsed["user@email"]).toBe("test");
+  });
 
-      expect(result).toBeUndefined();
-    });
+  test("should throw error when result exists but structured_output is undefined", async () => {
+    const messages = [
+      { type: "system", subtype: "init" },
+      { type: "result", cost_usd: 0.01, duration_ms: 1000 },
+    ];
+    await writeFile(TEST_EXECUTION_FILE, JSON.stringify(messages));
 
-    test("should handle missing result message", async () => {
-      const messages = [
-        { type: "system", subtype: "init" },
-        { type: "turn", content: "test" },
-      ];
-      await writeFile(TEST_EXECUTION_FILE, JSON.stringify(messages));
+    await expect(
+      parseAndSetStructuredOutputs(TEST_EXECUTION_FILE),
+    ).rejects.toThrow(
+      "json_schema was provided but Claude did not return structured_output",
+    );
+  });
 
-      const content = await Bun.file(TEST_EXECUTION_FILE).text();
-      const parsed = JSON.parse(content) as ExecutionMessage[];
-      const result = parsed.find(
-        (m) => m.type === "result" && m.structured_output,
-      );
+  test("should throw error when no result message exists", async () => {
+    const messages = [
+      { type: "system", subtype: "init" },
+      { type: "turn", content: "test" },
+    ];
+    await writeFile(TEST_EXECUTION_FILE, JSON.stringify(messages));
 
-      expect(result).toBeUndefined();
-    });
+    await expect(
+      parseAndSetStructuredOutputs(TEST_EXECUTION_FILE),
+    ).rejects.toThrow(
+      "json_schema was provided but Claude did not return structured_output",
+    );
+  });
+
+  test("should throw error with malformed JSON", async () => {
+    await writeFile(TEST_EXECUTION_FILE, "{ invalid json");
+
+    await expect(
+      parseAndSetStructuredOutputs(TEST_EXECUTION_FILE),
+    ).rejects.toThrow();
+  });
+
+  test("should throw error when file does not exist", async () => {
+    await expect(
+      parseAndSetStructuredOutputs("/nonexistent/file.json"),
+    ).rejects.toThrow();
+  });
+
+  test("should handle empty structured_output object", async () => {
+    await createMockExecutionFile({});
+
+    await parseAndSetStructuredOutputs(TEST_EXECUTION_FILE);
+
+    expect(setOutputSpy).toHaveBeenCalledWith("structured_output", "{}");
+    expect(infoSpy).toHaveBeenCalledWith(
+      "Set structured_output with 0 field(s)",
+    );
   });
 });

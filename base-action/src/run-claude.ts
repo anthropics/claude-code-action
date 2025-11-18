@@ -130,8 +130,9 @@ export function prepareRunConfig(
 /**
  * Parses structured_output from execution file and sets GitHub Action outputs
  * Only runs if json_schema was explicitly provided by the user
+ * Exported for testing
  */
-async function parseAndSetStructuredOutputs(
+export async function parseAndSetStructuredOutputs(
   executionFile: string,
 ): Promise<void> {
   try {
@@ -145,8 +146,7 @@ async function parseAndSetStructuredOutputs(
     if (!result?.structured_output) {
       throw new Error(
         `json_schema was provided but Claude did not return structured_output.\n` +
-          `Found ${messages.length} messages. Result exists: ${!!result}\n` +
-          `The schema may be invalid or Claude failed to call the StructuredOutput tool.`,
+          `Found ${messages.length} messages. Result exists: ${!!result}\n`,
       );
     }
 
