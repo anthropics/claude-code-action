@@ -184,13 +184,11 @@ async function parseAndSetStructuredOutputs(
     );
 
     if (!result?.structured_output) {
-      const error = new Error(
+      throw new Error(
         `json_schema was provided but Claude did not return structured_output.\n` +
           `Found ${messages.length} messages. Result exists: ${!!result}\n` +
           `The schema may be invalid or Claude failed to call the StructuredOutput tool.`,
       );
-      core.setFailed(error.message);
-      throw error;
     }
 
     // Set GitHub Action output for each field

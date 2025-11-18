@@ -15,6 +15,7 @@ import { isEntityContext } from "../../github/context";
 import type { PreparedContext } from "../../create-prompt/types";
 import type { FetchDataResult } from "../../github/data/fetcher";
 import { parseAllowedTools } from "../agent/parse-tools";
+import { appendJsonSchemaArg } from "../../utils/json-schema";
 
 /**
  * Tag mode implementation.
@@ -178,12 +179,7 @@ export const tagMode: Mode = {
     claudeArgs += ` --allowedTools "${tagModeTools.join(",")}"`;
 
     // Add JSON schema if provided
-    const jsonSchemaStr = process.env.JSON_SCHEMA || "";
-    if (jsonSchemaStr) {
-      // CLI validates schema - just escape for safe shell passing
-      const escapedSchema = jsonSchemaStr.replace(/'/g, "'\\''");
-      claudeArgs += ` --json-schema '${escapedSchema}'`;
-    }
+    claudeArgs = appendJsonSchemaArg(claudeArgs);
 
     // Append user's claude_args (which may have more --mcp-config flags)
     if (userClaudeArgs) {

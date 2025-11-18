@@ -36,10 +36,10 @@ async function run() {
       claudeArgs += ` --allowedTools "${process.env.INPUT_ALLOWED_TOOLS}"`;
     }
 
-    // Add JSON schema if specified
+    // Add JSON schema if specified (no escaping - parseShellArgs handles it)
     if (process.env.JSON_SCHEMA) {
-      const escapedSchema = process.env.JSON_SCHEMA.replace(/'/g, "'\\''");
-      claudeArgs += ` --json-schema '${escapedSchema}'`;
+      // Wrap in single quotes for parseShellArgs
+      claudeArgs += ` --json-schema '${process.env.JSON_SCHEMA}'`;
     }
 
     await runClaude(promptConfig.path, {

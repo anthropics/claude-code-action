@@ -73,7 +73,7 @@ inputs:
     default: ""
   json_schema:
     description: |
-      JSON schema for structured output validation.  Claude must return JSON matching this schema 
+      JSON schema for structured output validation. Claude must return JSON matching this schema 
       or the action will fail. Outputs are automatically set for each field.
 
       Access outputs via: steps.<step-id>.outputs.<field_name>
@@ -81,8 +81,7 @@ inputs:
       Limitations:
       - Field names must start with letter or underscore (A-Z, a-z, _)
       - Special characters in field names are replaced with underscores
-      - Each output is limited to 1MB (values will be truncated)
-      - Objects and arrays are JSON stringified
+      - Each output is limited to 1MB
     required: false
     default: ""
 

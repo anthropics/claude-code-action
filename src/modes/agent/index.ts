@@ -7,6 +7,7 @@ import { parseAllowedTools } from "./parse-tools";
 import { configureGitAuth } from "../../github/operations/git-config";
 import type { GitHubContext } from "../../github/context";
 import { isEntityContext } from "../../github/context";
+import { appendJsonSchemaArg } from "../../utils/json-schema";
 
 /**
  * Extract GitHub context as environment variables for agent mode
@@ -150,12 +151,7 @@ export const agentMode: Mode = {
     }
 
     // Add JSON schema if provided
-    const jsonSchemaStr = process.env.JSON_SCHEMA || "";
-    if (jsonSchemaStr) {
-      // CLI validates schema - just escape for safe shell passing
-      const escapedSchema = jsonSchemaStr.replace(/'/g, "'\\''");
-      claudeArgs += ` --json-schema '${escapedSchema}'`;
-    }
+    claudeArgs = appendJsonSchemaArg(claudeArgs);
 
     // Append user's claude_args (which may have more --mcp-config flags)
     claudeArgs = `${claudeArgs} ${userClaudeArgs}`.trim();
