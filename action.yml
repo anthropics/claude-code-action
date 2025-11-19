@@ -31,8 +31,6 @@ inputs:
     description: "Comma-separated list of usernames to allow without write permissions, or '*' to allow all users. Only works when github_token input is provided. WARNING: Use with extreme caution - this bypasses security checks and should only be used for workflows with very limited permissions (e.g., issue labeling)."
     required: false
     default: ""
-
-  # Claude Code configuration
   prompt:
     description: "Instructions for Claude. Can be a direct prompt or custom template."
     required: false
@@ -41,8 +39,6 @@ inputs:
     description: "Claude Code settings as JSON string or path to settings JSON file"
     required: false
     default: ""
-
-  # Auth configuration
   anthropic_api_key:
     description: "Anthropic API key (required for direct API, not needed for Bedrock/Vertex)"
     required: false
@@ -60,6 +56,25 @@ inputs:
     description: "Use Google Vertex AI with OIDC authentication instead of direct Anthropic API"
     required: false
     default: "false"
+
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  env:
+    INPUT_TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
+    INPUT_ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
+    INPUT_LABEL_TRIGGER: ${{ inputs.label_trigger }}
+    INPUT_BASE_BRANCH: ${{ inputs.base_branch }}
+    INPUT_BRANCH_PREFIX: ${{ inputs.branch_prefix }}
+    INPUT_ALLOWED_BOTS: ${{ inputs.allowed_bots }}
+    INPUT_ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
+    INPUT_PROMPT: ${{ inputs.prompt }}
+    INPUT_SETTINGS: ${{ inputs.settings }}
+    ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+    CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
+    GITHUB_TOKEN: ${{ inputs.github_token }}
+    INPUT_USE_BEDROCK: ${{ inputs.use_bedrock }}
+    INPUT_USE_VERTEX: ${{ inputs.use_vertex }}    default: "false"
 
   claude_args:
     description: "Additional arguments to pass directly to Claude CLI"
