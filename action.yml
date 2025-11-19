@@ -31,6 +31,10 @@ inputs:
     description: "Comma-separated list of usernames to allow without write permissions, or '*' to allow all users. Only works when github_token input is provided. WARNING: Use with extreme caution - this bypasses security checks and should only be used for workflows with very limited permissions (e.g., issue labeling)."
     required: false
     default: ""
+  excluded_comment_users:
+    description: "Comma-separated list of usernames whose comments should be excluded from the prompt context. Useful for filtering out bot comments or previous Claude responses."
+    required: false
+    default: ""
 
   # Claude Code configuration
   prompt:
@@ -165,6 +169,7 @@ runs:
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
+        EXCLUDED_COMMENT_USERS: ${{ inputs.excluded_comment_users }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}

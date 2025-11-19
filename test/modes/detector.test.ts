@@ -24,6 +24,7 @@ describe("detectMode with enhanced routing", () => {
       botName: "claude-bot",
       allowedBots: "",
       allowedNonWriteUsers: "",
+      excludedCommentUsers: "",
       trackProgress: false,
     },
   };

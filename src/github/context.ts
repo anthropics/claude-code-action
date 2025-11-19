@@ -94,6 +94,7 @@ type BaseContext = {
     botName: string;
     allowedBots: string;
     allowedNonWriteUsers: string;
+    excludedCommentUsers: string;
     trackProgress: boolean;
   };
 };
@@ -149,6 +150,7 @@ export function parseGitHubContext(): GitHubContext {
       botName: process.env.BOT_NAME ?? CLAUDE_BOT_LOGIN,
       allowedBots: process.env.ALLOWED_BOTS ?? "",
       allowedNonWriteUsers: process.env.ALLOWED_NON_WRITE_USERS ?? "",
+      excludedCommentUsers: process.env.EXCLUDED_COMMENT_USERS ?? "",
       trackProgress: process.env.TRACK_PROGRESS === "true",
     },
   };

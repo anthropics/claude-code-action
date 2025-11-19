@@ -484,8 +484,20 @@ export function generateDefaultPrompt(
 
   const { eventType, triggerContext } = getEventTypeAndContext(context);
 
+  // Parse excluded comment users from context
+  const excludedUsers = context.githubContext?.inputs?.excludedCommentUsers
+    ? context.githubContext.inputs.excludedCommentUsers
+        .split(",")
+        .map((u) => u.trim().toLowerCase())
+        .filter((u) => u.length > 0)
+    : undefined;
+
   const formattedContext = formatContext(contextData, eventData.isPR);
-  const formattedComments = formatComments(comments, imageUrlMap);
+  const formattedComments = formatComments(
+    comments,
+    imageUrlMap,
+    excludedUsers,
+  );
   const formattedReviewComments = eventData.isPR
     ? formatReviewComments(reviewData, imageUrlMap)
     : "";

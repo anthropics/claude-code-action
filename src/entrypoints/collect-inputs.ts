@@ -8,6 +8,7 @@ export function collectActionInputsPresence(): void {
     base_branch: "",
     branch_prefix: "claude/",
     allowed_bots: "",
+    excluded_comment_users: "",
     mode: "tag",
     model: "",
     anthropic_model: "",
