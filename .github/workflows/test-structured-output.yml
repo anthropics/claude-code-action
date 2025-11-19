@@ -30,19 +30,10 @@ jobs:
             - number_field: 42
             - boolean_true: true
             - boolean_false: false
-          json_schema: |
-            {
-              "type": "object",
-              "properties": {
-                "text_field": {"type": "string"},
-                "number_field": {"type": "number"},
-                "boolean_true": {"type": "boolean"},
-                "boolean_false": {"type": "boolean"}
-              },
-              "required": ["text_field", "number_field", "boolean_true", "boolean_false"]
-            }
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_args: "--allowedTools Bash"
+          claude_args: |
+            --allowedTools Bash
+            --json-schema '{"type":"object","properties":{"text_field":{"type":"string"},"number_field":{"type":"number"},"boolean_true":{"type":"boolean"},"boolean_false":{"type":"boolean"}},"required":["text_field","number_field","boolean_true","boolean_false"]}'
 
       - name: Verify outputs
         run: |
@@ -97,21 +88,10 @@ jobs:
             - items: ["apple", "banana", "cherry"]
             - config: {"key": "value", "count": 3}
             - empty_array: []
-          json_schema: |
-            {
-              "type": "object",
-              "properties": {
-                "items": {
-                  "type": "array",
-                  "items": {"type": "string"}
-                },
-                "config": {"type": "object"},
-                "empty_array": {"type": "array"}
-              },
-              "required": ["items", "config", "empty_array"]
-            }
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_args: "--allowedTools Bash"
+          claude_args: |
+            --allowedTools Bash
+            --json-schema '{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}},"config":{"type":"object"},"empty_array":{"type":"array"}},"required":["items","config","empty_array"]}'
 
       - name: Verify JSON stringification
         run: |
@@ -160,19 +140,10 @@ jobs:
             - empty_string: ""
             - negative: -5
             - decimal: 3.14
-          json_schema: |
-            {
-              "type": "object",
-              "properties": {
-                "zero": {"type": "number"},
-                "empty_string": {"type": "string"},
-                "negative": {"type": "number"},
-                "decimal": {"type": "number"}
-              },
-              "required": ["zero", "empty_string", "negative", "decimal"]
-            }
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_args: "--allowedTools Bash"
+          claude_args: |
+            --allowedTools Bash
+            --json-schema '{"type":"object","properties":{"zero":{"type":"number"},"empty_string":{"type":"string"},"negative":{"type":"number"},"decimal":{"type":"number"}},"required":["zero","empty_string","negative","decimal"]}'
 
       - name: Verify edge cases
         run: |
@@ -223,17 +194,10 @@ jobs:
           prompt: |
             Run: echo "test"
             Return EXACTLY: {test-result: "passed", item_count: 10}
-          json_schema: |
-            {
-              "type": "object",
-              "properties": {
-                "test-result": {"type": "string"},
-                "item_count": {"type": "number"}
-              },
-              "required": ["test-result", "item_count"]
-            }
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_args: "--allowedTools Bash"
+          claude_args: |
+            --allowedTools Bash
+            --json-schema '{"type":"object","properties":{"test-result":{"type":"string"},"item_count":{"type":"number"}},"required":["test-result","item_count"]}'
 
       - name: Verify sanitized names work
         run: |
@@ -268,16 +232,10 @@ jobs:
         uses: ./base-action
         with:
           prompt: "Run: echo 'complete'. Return: {done: true}"
-          json_schema: |
-            {
-              "type": "object",
-              "properties": {
-                "done": {"type": "boolean"}
-              },
-              "required": ["done"]
-            }
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_args: "--allowedTools Bash"
+          claude_args: |
+            --allowedTools Bash
+            --json-schema '{"type":"object","properties":{"done":{"type":"boolean"}},"required":["done"]}'
 
       - name: Verify execution file contains structured_output
         run: |

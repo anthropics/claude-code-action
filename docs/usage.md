@@ -80,7 +80,6 @@ jobs:
 | `path_to_bun_executable`         | Optional path to a custom Bun executable. Skips automatic Bun installation. Useful for Nix, custom containers, or specialized environments                                             | No       | ""            |
 | `plugin_marketplaces`            | Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., see example in workflow above). Marketplaces are added before plugin installation             | No       | ""            |
 | `plugins`                        | Newline-separated list of Claude Code plugin names to install (e.g., see example in workflow above). Plugins are installed before Claude Code execution                                | No       | ""            |
-| `json_schema`                    | JSON schema for structured output validation. See [Structured Outputs](#structured-outputs) section below                                                                              | No       | ""            |
 
 ### Deprecated Inputs
 
@@ -201,16 +200,8 @@ Get validated JSON results from Claude that automatically become GitHub Action o
     prompt: |
       Check the CI logs and determine if this is a flaky test.
       Return: is_flaky (boolean), confidence (0-1), summary (string)
-    json_schema: |
-      {
-        "type": "object",
-        "properties": {
-          "is_flaky": {"type": "boolean"},
-          "confidence": {"type": "number"},
-          "summary": {"type": "string"}
-        },
-        "required": ["is_flaky"]
-      }
+    claude_args: |
+      --json-schema '{"type":"object","properties":{"is_flaky":{"type":"boolean"},"confidence":{"type":"number"},"summary":{"type":"string"}},"required":["is_flaky"]}'
 
 - name: Retry if flaky
   if: fromJSON(steps.analyze.outputs.structured_output).is_flaky == true
@@ -219,7 +210,7 @@ Get validated JSON results from Claude that automatically become GitHub Action o
 
 ### How It Works
 
-1. **Define Schema**: Provide a JSON schema in the `json_schema` input
+1. **Define Schema**: Provide a JSON schema via `--json-schema` flag in `claude_args`
 2. **Claude Executes**: Claude uses tools to complete your task
 3. **Validated Output**: Result is validated against your schema
 4. **JSON Output**: All fields are returned in a single `structured_output` JSON string

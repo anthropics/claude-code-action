@@ -67,14 +67,6 @@ inputs:
     description: "Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., 'https://github.com/user/marketplace1.git\nhttps://github.com/user/marketplace2.git')"
     required: false
     default: ""
-  json_schema:
-    description: |
-      JSON schema for structured output validation. Claude must return JSON matching this schema
-      or the action will fail. All fields are returned in a single structured_output JSON string.
-
-      Access outputs via: fromJSON(steps.<step-id>.outputs.structured_output).<field_name>
-    required: false
-    default: ""
 
 outputs:
   conclusion:
@@ -84,7 +76,7 @@ outputs:
     description: "Path to the JSON file containing Claude Code execution log"
     value: ${{ steps.run_claude.outputs.execution_file }}
   structured_output:
-    description: "JSON string containing all structured output fields (use fromJSON() or jq to parse)"
+    description: "JSON string containing all structured output fields when --json-schema is provided in claude_args (use fromJSON() or jq to parse)"
     value: ${{ steps.run_claude.outputs.structured_output }}
 
 runs:
@@ -152,7 +144,6 @@ runs:
         INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}
         INPUT_PLUGINS: ${{ inputs.plugins }}
         INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
-        JSON_SCHEMA: ${{ inputs.json_schema }}
 
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}

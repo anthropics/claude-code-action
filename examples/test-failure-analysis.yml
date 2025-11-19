@@ -43,27 +43,8 @@ jobs:
             - is_flaky: true if likely flaky, false if real bug
             - confidence: number 0-1 indicating confidence level
             - summary: brief one-sentence explanation
-          json_schema: |
-            {
-              "type": "object",
-              "properties": {
-                "is_flaky": {
-                  "type": "boolean",
-                  "description": "Whether this appears to be a flaky test failure"
-                },
-                "confidence": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 1,
-                  "description": "Confidence level in the determination"
-                },
-                "summary": {
-                  "type": "string",
-                  "description": "One-sentence explanation of the failure"
-                }
-              },
-              "required": ["is_flaky", "confidence", "summary"]
-            }
+          claude_args: |
+            --json-schema '{"type":"object","properties":{"is_flaky":{"type":"boolean","description":"Whether this appears to be a flaky test failure"},"confidence":{"type":"number","minimum":0,"maximum":1,"description":"Confidence level in the determination"},"summary":{"type":"string","description":"One-sentence explanation of the failure"}},"required":["is_flaky","confidence","summary"]}'
 
       # Auto-retry only if flaky AND high confidence (>= 0.7)
       - name: Retry flaky tests

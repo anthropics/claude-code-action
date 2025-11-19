@@ -113,7 +113,7 @@ describe("parseAndSetStructuredOutputs", () => {
     await expect(
       parseAndSetStructuredOutputs(TEST_EXECUTION_FILE),
     ).rejects.toThrow(
-      "json_schema was provided but Claude did not return structured_output",
+      "--json-schema was provided but Claude did not return structured_output",
     );
   });
 
@@ -127,7 +127,7 @@ describe("parseAndSetStructuredOutputs", () => {
     await expect(
       parseAndSetStructuredOutputs(TEST_EXECUTION_FILE),
     ).rejects.toThrow(
-      "json_schema was provided but Claude did not return structured_output",
+      "--json-schema was provided but Claude did not return structured_output",
     );
   });
 

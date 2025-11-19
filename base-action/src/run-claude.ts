@@ -124,7 +124,7 @@ export function prepareRunConfig(
 
 /**
  * Parses structured_output from execution file and sets GitHub Action outputs
- * Only runs if json_schema was explicitly provided by the user
+ * Only runs if --json-schema was explicitly provided in claude_args
  * Exported for testing
  */
 export async function parseAndSetStructuredOutputs(
@@ -144,7 +144,7 @@ export async function parseAndSetStructuredOutputs(
 
     if (!result?.structured_output) {
       throw new Error(
-        `json_schema was provided but Claude did not return structured_output.\n` +
+        `--json-schema was provided but Claude did not return structured_output.\n` +
           `Found ${messages.length} messages. Result exists: ${!!result}\n`,
       );
     }
@@ -166,6 +166,9 @@ export async function parseAndSetStructuredOutputs(
 
 export async function runClaude(promptPath: string, options: ClaudeOptions) {
   const config = prepareRunConfig(promptPath, options);
+
+  // Detect if --json-schema is present in claude args
+  const hasJsonSchema = options.claudeArgs?.includes("--json-schema") ?? false;
 
   // Create a named pipe
   try {
@@ -352,8 +355,8 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
 
     core.setOutput("execution_file", EXECUTION_FILE);
 
-    // Parse and set structured outputs only if user provided json_schema
-    if (process.env.JSON_SCHEMA) {
+    // Parse and set structured outputs only if user provided --json-schema in claude_args
+    if (hasJsonSchema) {
       try {
         await parseAndSetStructuredOutputs(EXECUTION_FILE);
       } catch (error) {

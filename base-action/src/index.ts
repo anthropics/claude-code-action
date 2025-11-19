@@ -28,17 +28,8 @@ async function run() {
       promptFile: process.env.INPUT_PROMPT_FILE || "",
     });
 
-    // Build claudeArgs with JSON schema if provided
-    let claudeArgs = process.env.INPUT_CLAUDE_ARGS || "";
-
-    // Add JSON schema if specified (no escaping - parseShellArgs handles it)
-    if (process.env.JSON_SCHEMA) {
-      // Wrap in single quotes for parseShellArgs
-      claudeArgs += ` --json-schema '${process.env.JSON_SCHEMA}'`;
-    }
-
     await runClaude(promptConfig.path, {
-      claudeArgs: claudeArgs.trim(),
+      claudeArgs: process.env.INPUT_CLAUDE_ARGS,
       allowedTools: process.env.INPUT_ALLOWED_TOOLS,
       disallowedTools: process.env.INPUT_DISALLOWED_TOOLS,
       maxTurns: process.env.INPUT_MAX_TURNS,
