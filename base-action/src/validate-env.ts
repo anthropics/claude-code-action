@@ -23,17 +23,25 @@ export function validateEnvironmentVariables() {
       );
     }
   } else if (useBedrock) {
-    const requiredBedrockVars = {
-      AWS_REGION: process.env.AWS_REGION,
-      AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
-      AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
-    };
+    const awsRegion = process.env.AWS_REGION;
+    const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
+    const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+    const awsBearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
 
-    Object.entries(requiredBedrockVars).forEach(([key, value]) => {
-      if (!value) {
-        errors.push(`${key} is required when using AWS Bedrock.`);
-      }
-    });
+    // AWS_REGION is always required for Bedrock
+    if (!awsRegion) {
+      errors.push("AWS_REGION is required when using AWS Bedrock.");
+    }
+
+    // Either bearer token OR access key credentials must be provided
+    const hasAccessKeyCredentials = awsAccessKeyId && awsSecretAccessKey;
+    const hasBearerToken = awsBearerToken;
+
+    if (!hasAccessKeyCredentials && !hasBearerToken) {
+      errors.push(
+        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+      );
+    }
   } else if (useVertex) {
     const requiredVertexVars = {
       ANTHROPIC_VERTEX_PROJECT_ID: process.env.ANTHROPIC_VERTEX_PROJECT_ID,

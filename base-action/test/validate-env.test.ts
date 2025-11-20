@@ -17,6 +17,7 @@ describe("validateEnvironmentVariables", () => {
     delete process.env.AWS_ACCESS_KEY_ID;
     delete process.env.AWS_SECRET_ACCESS_KEY;
     delete process.env.AWS_SESSION_TOKEN;
+    delete process.env.AWS_BEARER_TOKEN_BEDROCK;
     delete process.env.ANTHROPIC_BEDROCK_BASE_URL;
     delete process.env.ANTHROPIC_VERTEX_PROJECT_ID;
     delete process.env.CLOUD_ML_REGION;
@@ -92,31 +93,58 @@ describe("validateEnvironmentVariables", () => {
       );
     });
 
-    test("should fail when AWS_ACCESS_KEY_ID is missing", () => {
+    test("should fail when only AWS_SECRET_ACCESS_KEY is provided without bearer token", () => {
       process.env.CLAUDE_CODE_USE_BEDROCK = "1";
       process.env.AWS_REGION = "us-east-1";
       process.env.AWS_SECRET_ACCESS_KEY = "test-secret-key";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "AWS_ACCESS_KEY_ID is required when using AWS Bedrock.",
+        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
       );
     });
 
-    test("should fail when AWS_SECRET_ACCESS_KEY is missing", () => {
+    test("should fail when only AWS_ACCESS_KEY_ID is provided without bearer token", () => {
       process.env.CLAUDE_CODE_USE_BEDROCK = "1";
       process.env.AWS_REGION = "us-east-1";
       process.env.AWS_ACCESS_KEY_ID = "test-access-key";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "AWS_SECRET_ACCESS_KEY is required when using AWS Bedrock.",
+        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
       );
     });
 
-    test("should report all missing Bedrock variables", () => {
+    test("should pass when AWS_BEARER_TOKEN_BEDROCK is provided instead of access keys", () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.AWS_REGION = "us-east-1";
+      process.env.AWS_BEARER_TOKEN_BEDROCK = "test-bearer-token";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should pass when both bearer token and access keys are provided", () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.AWS_REGION = "us-east-1";
+      process.env.AWS_BEARER_TOKEN_BEDROCK = "test-bearer-token";
+      process.env.AWS_ACCESS_KEY_ID = "test-access-key";
+      process.env.AWS_SECRET_ACCESS_KEY = "test-secret-key";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should fail when no authentication method is provided", () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.AWS_REGION = "us-east-1";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+      );
+    });
+
+    test("should report missing region and authentication", () => {
       process.env.CLAUDE_CODE_USE_BEDROCK = "1";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        /AWS_REGION is required when using AWS Bedrock.*AWS_ACCESS_KEY_ID is required when using AWS Bedrock.*AWS_SECRET_ACCESS_KEY is required when using AWS Bedrock/s,
+        /AWS_REGION is required when using AWS Bedrock.*Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock/s,
       );
     });
   });
@@ -204,10 +232,7 @@ describe("validateEnvironmentVariables", () => {
         "  - AWS_REGION is required when using AWS Bedrock.",
       );
       expect(error!.message).toContain(
-        "  - AWS_ACCESS_KEY_ID is required when using AWS Bedrock.",
-      );
-      expect(error!.message).toContain(
-        "  - AWS_SECRET_ACCESS_KEY is required when using AWS Bedrock.",
+        "  - Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
       );
     });
   });
