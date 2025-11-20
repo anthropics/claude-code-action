@@ -61,7 +61,7 @@ inputs:
     required: false
     default: "false"
   use_foundry:
-    description: "Use Azure AI Foundry with OIDC authentication instead of direct Anthropic API"
+    description: "Use Microsoft Foundry with OIDC authentication instead of direct Anthropic API"
     required: false
     default: "false"
 
@@ -268,9 +268,8 @@ runs:
         VERTEX_REGION_CLAUDE_3_5_SONNET: ${{ env.VERTEX_REGION_CLAUDE_3_5_SONNET }}
         VERTEX_REGION_CLAUDE_3_7_SONNET: ${{ env.VERTEX_REGION_CLAUDE_3_7_SONNET }}
 
-        # Azure AI Foundry configuration
+        # Microsoft Foundry configuration
         ANTHROPIC_FOUNDRY_RESOURCE: ${{ env.ANTHROPIC_FOUNDRY_RESOURCE }}
-        ANTHROPIC_FOUNDRY_API_KEY: ${{ env.ANTHROPIC_FOUNDRY_API_KEY }}
         ANTHROPIC_FOUNDRY_BASE_URL: ${{ env.ANTHROPIC_FOUNDRY_BASE_URL }}
         ANTHROPIC_DEFAULT_SONNET_MODEL: ${{ env.ANTHROPIC_DEFAULT_SONNET_MODEL }}
         ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ env.ANTHROPIC_DEFAULT_HAIKU_MODEL }}

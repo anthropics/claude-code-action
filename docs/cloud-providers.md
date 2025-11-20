@@ -5,13 +5,13 @@ You can authenticate with Claude using any of these four methods:
 1. Direct Anthropic API (default)
 2. Amazon Bedrock with OIDC authentication
 3. Google Vertex AI with OIDC authentication
-4. Azure AI Foundry with OIDC authentication
+4. Microsoft Foundry with OIDC authentication
 
 For detailed setup instructions for AWS Bedrock and Google Vertex AI, see the [official documentation](https://docs.anthropic.com/en/docs/claude-code/github-actions#using-with-aws-bedrock-%26-google-vertex-ai).
 
 **Note**:
 
-- Bedrock, Vertex, and Azure AI Foundry use OIDC authentication (with optional API key fallback for Azure)
+- Bedrock, Vertex, and Microsoft Foundry use OIDC authentication exclusively
 - AWS Bedrock automatically uses cross-region inference profiles for certain models
 - For cross-region inference profile models, you need to request and be granted access to the Claude models in all regions that the inference profile uses
 
@@ -42,7 +42,7 @@ Use provider-specific model names based on your chosen provider:
       --model claude-4-0-sonnet@20250805
     # ... other inputs
 
-# For Azure AI Foundry with OIDC
+# For Microsoft Foundry with OIDC
 - uses: anthropics/claude-code-action@v1
   with:
     use_foundry: "true"
@@ -53,7 +53,7 @@ Use provider-specific model names based on your chosen provider:
 
 ## OIDC Authentication for Cloud Providers
 
-AWS Bedrock, GCP Vertex AI, and Azure AI Foundry all support OIDC authentication.
+AWS Bedrock, GCP Vertex AI, and Microsoft Foundry all support OIDC authentication.
 
 ```yaml
 # For AWS Bedrock with OIDC
@@ -108,7 +108,7 @@ AWS Bedrock, GCP Vertex AI, and Azure AI Foundry all support OIDC authentication
 ```
 
 ```yaml
-# For Azure AI Foundry with OIDC
+# For Microsoft Foundry with OIDC
 - name: Authenticate to Azure
   uses: azure/login@v2
   with:
@@ -140,26 +140,22 @@ permissions:
   id-token: write # Required for OIDC
 ```
 
-## Azure AI Foundry Setup
+## Microsoft Foundry Setup
 
 ### Prerequisites
 
-Before using Azure AI Foundry with Claude Code Action, ensure you have:
+Before using Microsoft Foundry with Claude Code Action, ensure you have:
 
-- An Azure subscription with access to Azure AI Foundry
-- RBAC permissions to create Azure AI Foundry resources and deployments
-- Created Claude model deployments in your Azure AI Foundry resource:
+- An Azure subscription with access to Microsoft Foundry
+- RBAC permissions to create Microsoft Foundry resources and deployments
+- Created Claude model deployments in your Microsoft Foundry resource:
   - Claude Opus
   - Claude Sonnet
   - Claude Haiku
 
-### Authentication Methods
+### Authentication
 
-Azure AI Foundry supports two authentication methods:
-
-#### 1. Microsoft Entra ID (OIDC) - Recommended
-
-This is the recommended approach for GitHub Actions:
+Microsoft Foundry uses Microsoft Entra ID (OIDC) authentication:
 
 1. Set up Azure Workload Identity Federation for your GitHub repository
 2. Configure the `azure/login` action with your Azure credentials
@@ -180,33 +176,15 @@ This is the recommended approach for GitHub Actions:
     ANTHROPIC_FOUNDRY_RESOURCE: my-azure-resource
 ```
 
-#### 2. API Key Authentication - Alternative
-
-For simpler setups, you can use API key authentication:
-
-1. Get your API key from the Azure AI Foundry portal (Endpoints and keys section)
-2. Store it as a GitHub secret
-3. Pass it via the `ANTHROPIC_FOUNDRY_API_KEY` environment variable
-
-```yaml
-- uses: anthropics/claude-code-action@v1
-  with:
-    use_foundry: "true"
-  env:
-    ANTHROPIC_FOUNDRY_RESOURCE: my-azure-resource
-    ANTHROPIC_FOUNDRY_API_KEY: ${{ secrets.AZURE_FOUNDRY_API_KEY }}
-```
-
 ### Environment Variables
 
-| Variable                         | Required | Description                                    |
-| -------------------------------- | -------- | ---------------------------------------------- |
-| `ANTHROPIC_FOUNDRY_RESOURCE`     | Yes\*    | Your Azure AI Foundry resource name            |
-| `ANTHROPIC_FOUNDRY_BASE_URL`     | Yes\*    | Full base URL (alternative to resource name)   |
-| `ANTHROPIC_FOUNDRY_API_KEY`      | No       | API key for authentication (if not using OIDC) |
-| `ANTHROPIC_DEFAULT_SONNET_MODEL` | No       | Custom deployment name for Sonnet model        |
-| `ANTHROPIC_DEFAULT_HAIKU_MODEL`  | No       | Custom deployment name for Haiku model         |
-| `ANTHROPIC_DEFAULT_OPUS_MODEL`   | No       | Custom deployment name for Opus model          |
+| Variable                         | Required | Description                                  |
+| -------------------------------- | -------- | -------------------------------------------- |
+| `ANTHROPIC_FOUNDRY_RESOURCE`     | Yes\*    | Your Microsoft Foundry resource name         |
+| `ANTHROPIC_FOUNDRY_BASE_URL`     | Yes\*    | Full base URL (alternative to resource name) |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` | No       | Custom deployment name for Sonnet model      |
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL`  | No       | Custom deployment name for Haiku model       |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL`   | No       | Custom deployment name for Opus model        |
 
 \*Either `ANTHROPIC_FOUNDRY_RESOURCE` or `ANTHROPIC_FOUNDRY_BASE_URL` is required.
 
@@ -218,7 +196,7 @@ https://{resource}.services.ai.azure.com
 
 ### Model Deployment Names
 
-By default, Claude Code expects the following deployment names in your Azure AI Foundry resource:
+By default, Claude Code expects the following deployment names in your Microsoft Foundry resource:
 
 - `claude-sonnet-4-5` for Claude Sonnet
 - `claude-haiku-4-5` for Claude Haiku
@@ -253,21 +231,14 @@ For more restrictive custom roles, ensure they include:
 }
 ```
 
-For more details, see [Azure AI Foundry RBAC documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/concepts/rbac-azure-ai-foundry).
+For more details, see [Microsoft Foundry RBAC documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/concepts/rbac-azure-ai-foundry).
 
 ### Troubleshooting
 
 **Error: "Failed to get token from azureADTokenProvider: ChainedTokenCredential authentication failed"**
 
-This indicates that Azure authentication is not properly configured. Ensure one of the following:
-
-- Configure Entra ID authentication using the `azure/login` action
-- Or, set the `ANTHROPIC_FOUNDRY_API_KEY` environment variable
+This indicates that Azure authentication is not properly configured. Ensure you have configured Entra ID authentication using the `azure/login` action before calling the claude-code-action.
 
 **Error: "Either ANTHROPIC_FOUNDRY_RESOURCE or ANTHROPIC_FOUNDRY_BASE_URL is required"**
 
-You must provide either the resource name or the full base URL. Set the `ANTHROPIC_FOUNDRY_RESOURCE` environment variable with your Azure resource name.
-
-```
-
-```
+You must provide either the resource name or the full base URL. Set the `ANTHROPIC_FOUNDRY_RESOURCE` environment variable with your Microsoft Foundry resource name.

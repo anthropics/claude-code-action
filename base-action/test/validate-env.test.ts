@@ -24,7 +24,6 @@ describe("validateEnvironmentVariables", () => {
     delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
     delete process.env.ANTHROPIC_VERTEX_BASE_URL;
     delete process.env.ANTHROPIC_FOUNDRY_RESOURCE;
-    delete process.env.ANTHROPIC_FOUNDRY_API_KEY;
     delete process.env.ANTHROPIC_FOUNDRY_BASE_URL;
   });
 
@@ -171,7 +170,7 @@ describe("validateEnvironmentVariables", () => {
     });
   });
 
-  describe("Azure AI Foundry", () => {
+  describe("Microsoft Foundry", () => {
     test("should pass when ANTHROPIC_FOUNDRY_RESOURCE is provided", () => {
       process.env.CLAUDE_CODE_USE_FOUNDRY = "1";
       process.env.ANTHROPIC_FOUNDRY_RESOURCE = "test-resource";
@@ -183,14 +182,6 @@ describe("validateEnvironmentVariables", () => {
       process.env.CLAUDE_CODE_USE_FOUNDRY = "1";
       process.env.ANTHROPIC_FOUNDRY_BASE_URL =
         "https://test-resource.services.ai.azure.com";
-
-      expect(() => validateEnvironmentVariables()).not.toThrow();
-    });
-
-    test("should pass with optional ANTHROPIC_FOUNDRY_API_KEY", () => {
-      process.env.CLAUDE_CODE_USE_FOUNDRY = "1";
-      process.env.ANTHROPIC_FOUNDRY_RESOURCE = "test-resource";
-      process.env.ANTHROPIC_FOUNDRY_API_KEY = "test-api-key";
 
       expect(() => validateEnvironmentVariables()).not.toThrow();
     });
@@ -209,7 +200,7 @@ describe("validateEnvironmentVariables", () => {
       // ANTHROPIC_FOUNDRY_BASE_URL: ${{ env.ANTHROPIC_FOUNDRY_BASE_URL || (env.ANTHROPIC_FOUNDRY_RESOURCE && format('https://{0}.services.ai.azure.com', env.ANTHROPIC_FOUNDRY_RESOURCE)) }}
 
       process.env.CLAUDE_CODE_USE_FOUNDRY = "1";
-      process.env.ANTHROPIC_FOUNDRY_RESOURCE = "my-azure-resource";
+      process.env.ANTHROPIC_FOUNDRY_RESOURCE = "my-foundry-resource";
       // ANTHROPIC_FOUNDRY_BASE_URL is intentionally not set
 
       // The actual URL construction happens in the composite action in action.yml
@@ -217,14 +208,14 @@ describe("validateEnvironmentVariables", () => {
       expect(() => validateEnvironmentVariables()).not.toThrow();
 
       // In the actual action, ANTHROPIC_FOUNDRY_BASE_URL would be:
-      // https://my-azure-resource.services.ai.azure.com
+      // https://my-foundry-resource.services.ai.azure.com
     });
 
     test("should fail when neither ANTHROPIC_FOUNDRY_RESOURCE nor ANTHROPIC_FOUNDRY_BASE_URL is provided", () => {
       process.env.CLAUDE_CODE_USE_FOUNDRY = "1";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Either ANTHROPIC_FOUNDRY_RESOURCE or ANTHROPIC_FOUNDRY_BASE_URL is required when using Azure AI Foundry.",
+        "Either ANTHROPIC_FOUNDRY_RESOURCE or ANTHROPIC_FOUNDRY_BASE_URL is required when using Microsoft Foundry.",
       );
     });
   });

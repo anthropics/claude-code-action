@@ -1,6 +1,6 @@
 /**
  * Validates the environment variables required for running Claude Code
- * based on the selected provider (Anthropic API, AWS Bedrock, Google Vertex AI, or Azure AI Foundry)
+ * based on the selected provider (Anthropic API, AWS Bedrock, Google Vertex AI, or Microsoft Foundry)
  */
 export function validateEnvironmentVariables() {
   const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK === "1";
@@ -55,7 +55,7 @@ export function validateEnvironmentVariables() {
     // Either resource name or base URL is required
     if (!foundryResource && !foundryBaseUrl) {
       errors.push(
-        "Either ANTHROPIC_FOUNDRY_RESOURCE or ANTHROPIC_FOUNDRY_BASE_URL is required when using Azure AI Foundry.",
+        "Either ANTHROPIC_FOUNDRY_RESOURCE or ANTHROPIC_FOUNDRY_BASE_URL is required when using Microsoft Foundry.",
       );
     }
   }
