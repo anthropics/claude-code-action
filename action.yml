@@ -198,7 +198,7 @@ runs:
           echo "Installing Claude Code..."
           for attempt in 1 2 3; do
             echo "Installation attempt $attempt..."
-            if timeout 120 bash -c 'curl -fsSL https://claude.ai/install.sh | bash -s -- --debug 2.0.50'; then
+            if timeout 120 bash -c 'curl -fsSL https://claude.ai/install.sh | bash -s -- 2.0.50'; then
               echo "Claude Code installed successfully"
               break
             fi
