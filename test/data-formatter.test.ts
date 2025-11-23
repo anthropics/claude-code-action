@@ -309,6 +309,93 @@ describe("formatComments", () => {
     const result = formatComments(comments);
     expect(result).toBe("");
   });
+
+  test("filters out comments from excluded users", () => {
+    const comments: GitHubComment[] = [
+      {
+        id: "1",
+        databaseId: "100001",
+        body: "Comment from user1",
+        author: { login: "user1" },
+        createdAt: "2023-01-01T00:00:00Z",
+      },
+      {
+        id: "2",
+        databaseId: "100002",
+        body: "Comment from bot",
+        author: { login: "github-actions[bot]" },
+        createdAt: "2023-01-02T00:00:00Z",
+      },
+      {
+        id: "3",
+        databaseId: "100003",
+        body: "Comment from user2",
+        author: { login: "user2" },
+        createdAt: "2023-01-03T00:00:00Z",
+      },
+      {
+        id: "4",
+        databaseId: "100004",
+        body: "Comment from claude",
+        author: { login: "claude[bot]" },
+        createdAt: "2023-01-04T00:00:00Z",
+      },
+    ];
+
+    const excludedUsers = ["github-actions[bot]", "claude[bot]"];
+    const result = formatComments(comments, undefined, excludedUsers);
+    expect(result).toBe(
+      `[user1 at 2023-01-01T00:00:00Z]: Comment from user1\n\n[user2 at 2023-01-03T00:00:00Z]: Comment from user2`,
+    );
+  });
+
+  test("includes all comments when excluded users array is empty", () => {
+    const comments: GitHubComment[] = [
+      {
+        id: "1",
+        databaseId: "100001",
+        body: "First comment",
+        author: { login: "user1" },
+        createdAt: "2023-01-01T00:00:00Z",
+      },
+      {
+        id: "2",
+        databaseId: "100002",
+        body: "Second comment",
+        author: { login: "user2" },
+        createdAt: "2023-01-02T00:00:00Z",
+      },
+    ];
+
+    const result = formatComments(comments, undefined, []);
+    expect(result).toBe(
+      `[user1 at 2023-01-01T00:00:00Z]: First comment\n\n[user2 at 2023-01-02T00:00:00Z]: Second comment`,
+    );
+  });
+
+  test("includes all comments when excluded users is undefined", () => {
+    const comments: GitHubComment[] = [
+      {
+        id: "1",
+        databaseId: "100001",
+        body: "First comment",
+        author: { login: "user1" },
+        createdAt: "2023-01-01T00:00:00Z",
+      },
+      {
+        id: "2",
+        databaseId: "100002",
+        body: "Second comment",
+        author: { login: "user2" },
+        createdAt: "2023-01-02T00:00:00Z",
+      },
+    ];
+
+    const result = formatComments(comments, undefined, []);
+    expect(result).toBe(
+      `[user1 at 2023-01-01T00:00:00Z]: First comment\n\n[user2 at 2023-01-02T00:00:00Z]: Second comment`,
+    );
+  });
 });
 
 describe("formatReviewComments", () => {
