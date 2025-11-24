@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { unlink, writeFile, stat } from "fs/promises";
+import { unlink, writeFile, stat, readFile } from "fs/promises";
 import { createWriteStream } from "fs";
 import { spawn } from "child_process";
 import { parse as parseShellArgs } from "shell-quote";
@@ -122,8 +122,53 @@ export function prepareRunConfig(
   };
 }
 
+/**
+ * Parses structured_output from execution file and sets GitHub Action outputs
+ * Only runs if --json-schema was explicitly provided in claude_args
+ * Exported for testing
+ */
+export async function parseAndSetStructuredOutputs(
+  executionFile: string,
+): Promise<void> {
+  try {
+    const content = await readFile(executionFile, "utf-8");
+    const messages = JSON.parse(content) as {
+      type: string;
+      structured_output?: Record<string, unknown>;
+    }[];
+
+    // Search backwards - result is typically last or second-to-last message
+    const result = messages.findLast(
+      (m) => m.type === "result" && m.structured_output,
+    );
+
+    if (!result?.structured_output) {
+      throw new Error(
+        `--json-schema was provided but Claude did not return structured_output.\n` +
+          `Found ${messages.length} messages. Result exists: ${!!result}\n`,
+      );
+    }
+
+    // Set the complete structured output as a single JSON string
+    // This works around GitHub Actions limitation that composite actions can't have dynamic outputs
+    const structuredOutputJson = JSON.stringify(result.structured_output);
+    core.setOutput("structured_output", structuredOutputJson);
+    core.info(
+      `Set structured_output with ${Object.keys(result.structured_output).length} field(s)`,
+    );
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error; // Preserve original error and stack trace
+    }
+    throw new Error(`Failed to parse structured outputs: ${error}`);
+  }
+}
+
 export async function runClaude(promptPath: string, options: ClaudeOptions) {
   const config = prepareRunConfig(promptPath, options);
+
+  // Detect if --json-schema is present in claude args
+  const hasJsonSchema = options.claudeArgs?.includes("--json-schema") ?? false;
 
   // Create a named pipe
   try {
@@ -308,8 +353,23 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
       core.warning(`Failed to process output for execution metrics: ${e}`);
     }
 
-    core.setOutput("conclusion", "success");
     core.setOutput("execution_file", EXECUTION_FILE);
+
+    // Parse and set structured outputs only if user provided --json-schema in claude_args
+    if (hasJsonSchema) {
+      try {
+        await parseAndSetStructuredOutputs(EXECUTION_FILE);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        core.setFailed(errorMessage);
+        core.setOutput("conclusion", "failure");
+        process.exit(1);
+      }
+    }
+
+    // Set conclusion to success if we reached here
+    core.setOutput("conclusion", "success");
   } else {
     core.setOutput("conclusion", "failure");
 

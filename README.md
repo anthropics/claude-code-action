@@ -2,7 +2,7 @@
 
 # Claude Code Action
 
-A general-purpose [Claude Code](https://claude.ai/code) action for GitHub PRs and issues that can answer questions and implement code changes. This action intelligently detects when to activate based on your workflow context—whether responding to @claude mentions, issue assignments, or executing automation tasks with explicit prompts. It supports multiple authentication methods including Anthropic direct API, Amazon Bedrock, and Google Vertex AI.
+A general-purpose [Claude Code](https://claude.ai/code) action for GitHub PRs and issues that can answer questions and implement code changes. This action intelligently detects when to activate based on your workflow context—whether responding to @claude mentions, issue assignments, or executing automation tasks with explicit prompts. It supports multiple authentication methods including Anthropic direct API, Amazon Bedrock, Google Vertex AI, and Microsoft Foundry.
 
 ## Features
 
@@ -13,6 +13,7 @@ A general-purpose [Claude Code](https://claude.ai/code) action for GitHub PRs an
 - 💬 **PR/Issue Integration**: Works seamlessly with GitHub comments and PR reviews
 - 🛠️ **Flexible Tool Access**: Access to GitHub APIs and file operations (additional tools can be enabled via configuration)
 - 📋 **Progress Tracking**: Visual progress indicators with checkboxes that dynamically update as Claude completes tasks
+- 📊 **Structured Outputs**: Get validated JSON results that automatically become GitHub Action outputs for complex automations
 - 🏃 **Runs on Your Infrastructure**: The action executes entirely on your own GitHub runner (Anthropic API calls go to your chosen provider)
 - ⚙️ **Simplified Configuration**: Unified `prompt` and `claude_args` inputs provide clean, powerful configuration aligned with Claude Code SDK
 
@@ -29,7 +30,7 @@ This command will guide you through setting up the GitHub app and required secre
 **Note**:
 
 - You must be a repository admin to install the GitHub app and add secrets
-- This quickstart method is only available for direct Anthropic API users. For AWS Bedrock or Google Vertex AI setup, see [docs/cloud-providers.md](./docs/cloud-providers.md).
+- This quickstart method is only available for direct Anthropic API users. For AWS Bedrock, Google Vertex AI, or Microsoft Foundry setup, see [docs/cloud-providers.md](./docs/cloud-providers.md).
 
 ## 📚 Solutions & Use Cases
 
@@ -56,7 +57,7 @@ Each solution includes complete working examples, configuration details, and exp
 - [Custom Automations](./docs/custom-automations.md) - Examples of automated workflows and custom prompts
 - [Configuration](./docs/configuration.md) - MCP servers, permissions, environment variables, and advanced settings
 - [Experimental Features](./docs/experimental.md) - Execution modes and network restrictions
-- [Cloud Providers](./docs/cloud-providers.md) - AWS Bedrock and Google Vertex AI setup
+- [Cloud Providers](./docs/cloud-providers.md) - AWS Bedrock, Google Vertex AI, and Microsoft Foundry setup
 - [Capabilities & Limitations](./docs/capabilities-and-limitations.md) - What Claude can and cannot do
 - [Security](./docs/security.md) - Access control, permissions, and commit signing
 - [FAQ](./docs/faq.md) - Common questions and troubleshooting
