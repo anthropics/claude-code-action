@@ -93,10 +93,6 @@ inputs:
     description: "Force tag mode with tracking comments for pull_request and issue events. Only applicable to pull_request (opened, synchronize, ready_for_review, reopened) and issue (opened, edited, labeled, assigned) events."
     required: false
     default: "false"
-  experimental_allowed_domains:
-    description: "Restrict network access to these domains only (newline-separated). If not set, no restrictions are applied. Provider domains are auto-detected."
-    required: false
-    default: ""
   path_to_claude_code_executable:
     description: "Optional path to a custom Claude Code executable. If provided, skips automatic installation and uses this executable instead. WARNING: Using an older version may cause problems if the action begins taking advantage of new Claude Code features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
     required: false
@@ -216,15 +212,6 @@ runs:
           CLAUDE_DIR=$(dirname "${{ inputs.path_to_claude_code_executable }}")
           echo "$CLAUDE_DIR" >> "$GITHUB_PATH"
         fi
-
-    - name: Setup Network Restrictions
-      if: steps.prepare.outputs.contains_trigger == 'true' && inputs.experimental_allowed_domains != ''
-      shell: bash
-      run: |
-        chmod +x ${GITHUB_ACTION_PATH}/scripts/setup-network-restrictions.sh
-        ${GITHUB_ACTION_PATH}/scripts/setup-network-restrictions.sh
-      env:
-        EXPERIMENTAL_ALLOWED_DOMAINS: ${{ inputs.experimental_allowed_domains }}
 
     - name: Run Claude Code
       id: claude-code
