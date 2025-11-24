@@ -228,10 +228,12 @@ jobs:
 The action now automatically detects the appropriate mode:
 
 1. **If `prompt` is provided** → Runs in **automation mode**
+
    - Executes immediately without waiting for @claude mentions
    - Perfect for scheduled tasks, PR automation, etc.
 
 2. **If no `prompt` but @claude is mentioned** → Runs in **interactive mode**
+
    - Waits for and responds to @claude mentions
    - Creates tracking comments with progress
 

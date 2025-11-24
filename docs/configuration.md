@@ -116,6 +116,7 @@ The `additional_permissions` input allows Claude to access GitHub Actions workfl
 To allow Claude to view workflow run results, job logs, and CI status:
 
 1. **Grant the necessary permission to your GitHub token**:
+
    - When using the default `GITHUB_TOKEN`, add the `actions: read` permission to your workflow:
 
    ```yaml
