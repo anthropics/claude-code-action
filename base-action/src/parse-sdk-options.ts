@@ -1,39 +1,15 @@
 import { parse as parseShellArgs } from "shell-quote";
 import type { ClaudeOptions } from "./run-claude";
+import type {
+  Options as SdkOptions,
+  McpStdioServerConfig,
+} from "@anthropic-ai/claude-agent-sdk";
 
 /**
- * MCP server configuration for stdio-based servers
+ * MCP server configuration object structure (for parsing JSON config files)
  */
-export type McpStdioServerConfig = {
-  type?: "stdio";
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-};
-
-/**
- * MCP server configuration object structure
- */
-export type McpConfigFile = {
+type McpConfigFile = {
   mcpServers?: Record<string, McpStdioServerConfig>;
-};
-
-/**
- * Options for the SDK runner
- */
-export type SdkRunOptions = {
-  model?: string;
-  maxTurns?: number;
-  allowedTools?: string[];
-  disallowedTools?: string[];
-  systemPrompt?: string;
-  appendSystemPrompt?: string;
-  mcpServers?: Record<string, McpStdioServerConfig>;
-  jsonSchema?: Record<string, unknown>;
-  fallbackModel?: string;
-  pathToClaudeCodeExecutable?: string;
-  showFullOutput: boolean;
-  env?: Record<string, string>;
 };
 
 /**
@@ -68,7 +44,7 @@ function extractJsonSchema(
 }
 
 /**
- * Parse MCP config from string (either JSON or file path reference)
+ * Parse MCP config from claudeArgs and mcpConfig input
  * Returns the mcpServers record merged from all configs
  */
 function parseMcpConfigs(
@@ -108,7 +84,6 @@ function parseMcpConfigs(
           }
         } catch {
           // Not valid JSON - could be file path, skip for now
-          // File paths would need to be resolved at runtime
         }
         i++; // Skip the value in next iteration
       }
@@ -119,15 +94,44 @@ function parseMcpConfigs(
 }
 
 /**
+ * Result of parsing ClaudeOptions for SDK usage
+ */
+export type ParsedSdkOptions = {
+  sdkOptions: SdkOptions;
+  showFullOutput: boolean;
+  hasJsonSchema: boolean;
+};
+
+/**
  * Parse ClaudeOptions into SDK-compatible options
  */
-export function parseSdkOptions(options: ClaudeOptions): SdkRunOptions {
+export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   // Determine output verbosity
   const isDebugMode = process.env.ACTIONS_STEP_DEBUG === "true";
   const showFullOutput = options.showFullOutput === "true" || isDebugMode;
 
-  // Build base options from direct inputs
-  const sdkOptions: SdkRunOptions = {
+  // Parse JSON schema from claudeArgs
+  const jsonSchema = extractJsonSchema(options.claudeArgs);
+
+  // Build system prompt option
+  let systemPrompt: SdkOptions["systemPrompt"];
+  if (options.systemPrompt) {
+    systemPrompt = options.systemPrompt;
+  } else if (options.appendSystemPrompt) {
+    systemPrompt = {
+      type: "preset",
+      preset: "claude_code",
+      append: options.appendSystemPrompt,
+    };
+  }
+
+  // Build custom environment
+  const env: Record<string, string | undefined> = { ...process.env };
+  if (process.env.INPUT_ACTION_INPUTS_PRESENT) {
+    env.GITHUB_ACTION_INPUTS = process.env.INPUT_ACTION_INPUTS_PRESENT;
+  }
+
+  const sdkOptions: SdkOptions = {
     model: options.model,
     maxTurns: options.maxTurns ? parseInt(options.maxTurns, 10) : undefined,
     allowedTools: options.allowedTools
@@ -136,33 +140,22 @@ export function parseSdkOptions(options: ClaudeOptions): SdkRunOptions {
     disallowedTools: options.disallowedTools
       ? options.disallowedTools.split(",").map((t) => t.trim())
       : undefined,
-    systemPrompt: options.systemPrompt,
-    appendSystemPrompt: options.appendSystemPrompt,
+    systemPrompt,
+    mcpServers: parseMcpConfigs(options.claudeArgs, options.mcpConfig),
+    outputFormat: jsonSchema
+      ? { type: "json_schema", schema: jsonSchema }
+      : undefined,
     fallbackModel: options.fallbackModel,
     pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
-    showFullOutput,
+    // Use bypassPermissions since GitHub Actions runs in a trusted environment
+    permissionMode: "bypassPermissions",
+    allowDangerouslySkipPermissions: true,
+    env,
   };
 
-  // Parse MCP servers from mcpConfig input and claudeArgs
-  const mcpServers = parseMcpConfigs(options.claudeArgs, options.mcpConfig);
-  if (mcpServers) {
-    sdkOptions.mcpServers = mcpServers;
-  }
-
-  // Extract JSON schema from claudeArgs
-  const jsonSchema = extractJsonSchema(options.claudeArgs);
-  if (jsonSchema) {
-    sdkOptions.jsonSchema = jsonSchema;
-  }
-
-  // Build custom environment
-  const customEnv: Record<string, string> = {};
-  if (process.env.INPUT_ACTION_INPUTS_PRESENT) {
-    customEnv.GITHUB_ACTION_INPUTS = process.env.INPUT_ACTION_INPUTS_PRESENT;
-  }
-  if (Object.keys(customEnv).length > 0) {
-    sdkOptions.env = customEnv;
-  }
-
-  return sdkOptions;
+  return {
+    sdkOptions,
+    showFullOutput,
+    hasJsonSchema: !!jsonSchema,
+  };
 }

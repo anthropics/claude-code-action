@@ -4,16 +4,13 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import type {
   SDKMessage,
   SDKResultMessage,
-  Options as SdkOptions,
-  McpServerConfig,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { SdkRunOptions, McpStdioServerConfig } from "./parse-sdk-options";
+import type { ParsedSdkOptions } from "./parse-sdk-options";
 
 const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`;
 
 /**
  * Sanitizes SDK output to match CLI sanitization behavior
- * Returns a safe summary message or null if the message should be completely suppressed
  */
 function sanitizeSdkOutput(
   message: SDKMessage,
@@ -37,7 +34,7 @@ function sanitizeSdkOutput(
     );
   }
 
-  // Result messages - Always show the final result (sanitized)
+  // Result messages - show sanitized summary
   if (message.type === "result") {
     const resultMsg = message as SDKResultMessage;
     return JSON.stringify(
@@ -55,12 +52,12 @@ function sanitizeSdkOutput(
     );
   }
 
-  // For any other message types, suppress completely in non-full-output mode
+  // Suppress other message types in non-full-output mode
   return null;
 }
 
 /**
- * Transform SDK messages to include CLI-compatible fields for backward compatibility
+ * Transform SDK messages to include CLI-compatible fields
  * Adds cost_usd alias since CLI uses cost_usd while SDK uses total_cost_usd
  */
 function transformForCompatibility(messages: SDKMessage[]): object[] {
@@ -69,7 +66,6 @@ function transformForCompatibility(messages: SDKMessage[]): object[] {
       const resultMsg = msg as SDKResultMessage;
       return {
         ...resultMsg,
-        // Add cost_usd alias for backward compatibility with update-comment-link.ts
         cost_usd: resultMsg.total_cost_usd,
       };
     }
@@ -78,71 +74,15 @@ function transformForCompatibility(messages: SDKMessage[]): object[] {
 }
 
 /**
- * Convert SdkRunOptions.mcpServers to SDK-compatible McpServerConfig
- */
-function convertMcpServers(
-  mcpServers?: Record<string, McpStdioServerConfig>,
-): Record<string, McpServerConfig> | undefined {
-  if (!mcpServers) return undefined;
-
-  const result: Record<string, McpServerConfig> = {};
-  for (const [name, config] of Object.entries(mcpServers)) {
-    result[name] = {
-      type: "stdio" as const,
-      command: config.command,
-      args: config.args,
-      env: config.env,
-    };
-  }
-  return result;
-}
-
-/**
  * Run Claude using the Agent SDK
  */
 export async function runClaudeWithSdk(
   promptPath: string,
-  options: SdkRunOptions,
+  { sdkOptions, showFullOutput, hasJsonSchema }: ParsedSdkOptions,
 ): Promise<void> {
-  // Read prompt from file
   const prompt = await readFile(promptPath, "utf-8");
 
-  // Build system prompt option
-  type SystemPromptOption =
-    | string
-    | { type: "preset"; preset: "claude_code"; append?: string };
-  let systemPrompt: SystemPromptOption | undefined;
-  if (options.systemPrompt) {
-    systemPrompt = options.systemPrompt;
-  } else if (options.appendSystemPrompt) {
-    systemPrompt = {
-      type: "preset",
-      preset: "claude_code",
-      append: options.appendSystemPrompt,
-    };
-  }
-
-  // Build SDK options
-  const sdkOptions: SdkOptions = {
-    model: options.model,
-    maxTurns: options.maxTurns,
-    allowedTools: options.allowedTools,
-    disallowedTools: options.disallowedTools,
-    systemPrompt,
-    mcpServers: convertMcpServers(options.mcpServers),
-    outputFormat: options.jsonSchema
-      ? { type: "json_schema" as const, schema: options.jsonSchema }
-      : undefined,
-    fallbackModel: options.fallbackModel,
-    pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
-    // Use bypassPermissions since GitHub Actions runs in a trusted environment
-    permissionMode: "bypassPermissions",
-    allowDangerouslySkipPermissions: true,
-    env: options.env ? { ...process.env, ...options.env } : undefined,
-  };
-
-  // Log output mode
-  if (!options.showFullOutput) {
+  if (!showFullOutput) {
     console.log(
       "Running Claude Code via SDK (full output hidden for security)...",
     );
@@ -153,7 +93,6 @@ export async function runClaudeWithSdk(
 
   console.log(`Running Claude with prompt from file: ${promptPath}`);
 
-  // Collect messages for execution file
   const messages: SDKMessage[] = [];
   let resultMessage: SDKResultMessage | undefined;
 
@@ -161,13 +100,11 @@ export async function runClaudeWithSdk(
     for await (const message of query({ prompt, options: sdkOptions })) {
       messages.push(message);
 
-      // Output to console with sanitization
-      const sanitized = sanitizeSdkOutput(message, options.showFullOutput);
+      const sanitized = sanitizeSdkOutput(message, showFullOutput);
       if (sanitized) {
         console.log(sanitized);
       }
 
-      // Capture result message
       if (message.type === "result") {
         resultMessage = message as SDKResultMessage;
       }
@@ -188,7 +125,6 @@ export async function runClaudeWithSdk(
     core.warning(`Failed to write execution file: ${error}`);
   }
 
-  // Handle result
   if (!resultMessage) {
     core.setOutput("conclusion", "failure");
     core.error("No result message received from Claude");
@@ -199,7 +135,7 @@ export async function runClaudeWithSdk(
   core.setOutput("conclusion", isSuccess ? "success" : "failure");
 
   // Handle structured output
-  if (options.jsonSchema) {
+  if (hasJsonSchema) {
     if (
       isSuccess &&
       "structured_output" in resultMessage &&
@@ -213,10 +149,9 @@ export async function runClaudeWithSdk(
         `Set structured_output with ${Object.keys(resultMessage.structured_output as object).length} field(s)`,
       );
     } else {
-      const errorMsg =
-        `--json-schema was provided but Claude did not return structured_output.\n` +
-        `Result subtype: ${resultMessage.subtype}`;
-      core.setFailed(errorMsg);
+      core.setFailed(
+        `--json-schema was provided but Claude did not return structured_output. Result subtype: ${resultMessage.subtype}`,
+      );
       core.setOutput("conclusion", "failure");
       process.exit(1);
     }
