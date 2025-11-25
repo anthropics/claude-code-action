@@ -205,13 +205,13 @@ runs:
             ( sleep 120; kill $install_pid 2>/dev/null ) &
             timeout_pid=$!
             if wait $install_pid 2>/dev/null; then
-              kill $timeout_pid 2>/dev/null
-              wait $timeout_pid 2>/dev/null
+              kill $timeout_pid 2>/dev/null || true
+              wait $timeout_pid 2>/dev/null || true
               echo "Claude Code installed successfully"
               break
             fi
-            kill $timeout_pid 2>/dev/null
-            wait $timeout_pid 2>/dev/null
+            kill $timeout_pid 2>/dev/null || true
+            wait $timeout_pid 2>/dev/null || true
             if [ $attempt -eq 3 ]; then
               echo "Failed to install Claude Code after 3 attempts"
               exit 1
