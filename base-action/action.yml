@@ -117,13 +117,23 @@ runs:
       shell: bash
       run: |
         if [ -z "${{ inputs.path_to_claude_code_executable }}" ]; then
-          echo "Installing Claude Code..."
+          CLAUDE_CODE_VERSION="2.0.50"
+          echo "Installing Claude Code v${CLAUDE_CODE_VERSION}..."
           for attempt in 1 2 3; do
             echo "Installation attempt $attempt..."
-            if timeout 120 bash -c 'curl -fsSL https://claude.ai/install.sh | bash -s -- 2.0.50'; then
+            # Cross-platform timeout (GNU timeout not available on macOS)
+            (curl -fsSL https://claude.ai/install.sh | bash -s -- "$CLAUDE_CODE_VERSION") &
+            install_pid=$!
+            ( sleep 120; kill $install_pid 2>/dev/null ) &
+            timeout_pid=$!
+            if wait $install_pid 2>/dev/null; then
+              kill $timeout_pid 2>/dev/null
+              wait $timeout_pid 2>/dev/null
               echo "Claude Code installed successfully"
               break
             fi
+            kill $timeout_pid 2>/dev/null
+            wait $timeout_pid 2>/dev/null
             if [ $attempt -eq 3 ]; then
               echo "Failed to install Claude Code after 3 attempts"
               exit 1
