@@ -179,11 +179,12 @@ async function run() {
             const lastElement = outputData[outputData.length - 1];
             if (
               lastElement.type === "result" &&
-              "cost_usd" in lastElement &&
+              ("cost_usd" in lastElement || "total_cost_usd" in lastElement) &&
               "duration_ms" in lastElement
             ) {
               executionDetails = {
-                cost_usd: lastElement.cost_usd,
+                // Handle both CLI (cost_usd) and SDK (total_cost_usd) field names
+                cost_usd: lastElement.cost_usd ?? lastElement.total_cost_usd,
                 duration_ms: lastElement.duration_ms,
                 duration_api_ms: lastElement.duration_api_ms,
               };
