@@ -401,6 +401,53 @@ export const mockPullRequestReviewContext: ParsedGitHubContext = {
   inputs: { ...defaultInputs, triggerPhrase: "@claude" },
 };
 
+export const mockPullRequestReviewWithoutCommentContext: ParsedGitHubContext = {
+  runId: "1234567890",
+  eventName: "pull_request_review",
+  eventAction: "dismissed",
+  repository: defaultRepository,
+  actor: "senior-developer",
+  payload: {
+    action: "submitted",
+    review: {
+      id: 11122233,
+      body: null, // Simulating approval without comment
+      user: {
+        login: "senior-developer",
+        id: 44444,
+        avatar_url: "https://avatars.githubusercontent.com/u/44444",
+        html_url: "https://github.com/senior-developer",
+      },
+      state: "approved",
+      html_url:
+        "https://github.com/test-owner/test-repo/pull/321#pullrequestreview-11122233",
+      submitted_at: "2024-01-15T15:30:00Z",
+    },
+    pull_request: {
+      number: 321,
+      title: "Refactor: Improve error handling in API layer",
+      body: "This PR improves error handling across all API endpoints",
+      user: {
+        login: "backend-developer",
+        id: 33333,
+        avatar_url: "https://avatars.githubusercontent.com/u/33333",
+        html_url: "https://github.com/backend-developer",
+      },
+    },
+    repository: {
+      name: "test-repo",
+      full_name: "test-owner/test-repo",
+      private: false,
+      owner: {
+        login: "test-owner",
+      },
+    },
+  } as PullRequestReviewEvent,
+  entityNumber: 321,
+  isPR: true,
+  inputs: { ...defaultInputs, triggerPhrase: "@claude" },
+};
+
 export const mockPullRequestReviewCommentContext: ParsedGitHubContext = {
   runId: "1234567890",
   eventName: "pull_request_review_comment",

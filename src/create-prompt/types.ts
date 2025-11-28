@@ -23,7 +23,7 @@ type PullRequestReviewEvent = {
   eventName: "pull_request_review";
   isPR: true;
   prNumber: string;
-  commentBody: string;
+  commentBody?: string; // May be absent for approvals without comments
   claudeBranch?: string;
   baseBranch?: string;
 };
