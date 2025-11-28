@@ -10,6 +10,7 @@ import {
   mockPullRequestCommentContext,
   mockPullRequestReviewContext,
   mockPullRequestReviewCommentContext,
+  mockPullRequestReviewWithoutCommentContext,
 } from "./mockContext";
 
 const BASE_ENV = {
@@ -122,6 +123,21 @@ describe("parseEnvVarsWithContext", () => {
         expect(result.eventData.commentBody).toBe(
           "@claude can you check if the error handling is comprehensive enough in this PR?",
         );
+      }
+    });
+  });
+
+  describe("pull_request_review event without comment", () => {
+    test("should parse pull_request_review event correctly", () => {
+      process.env = BASE_ENV;
+      const result = prepareContext(mockPullRequestReviewWithoutCommentContext, "12345");
+
+      expect(result.eventData.eventName).toBe("pull_request_review");
+      expect(result.eventData.isPR).toBe(true);
+      expect(result.triggerUsername).toBe("senior-developer");
+      if (result.eventData.eventName === "pull_request_review") {
+        expect(result.eventData.prNumber).toBe("321");
+        expect(result.eventData.commentBody).toBe("");
       }
     });
   });

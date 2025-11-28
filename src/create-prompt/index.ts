@@ -192,11 +192,6 @@ export function prepareContext(
       if (!isPR) {
         throw new Error("IS_PR must be true for pull_request_review event");
       }
-      if (!commentBody) {
-        throw new Error(
-          "COMMENT_BODY is required for pull_request_review event",
-        );
-      }
       eventData = {
         eventName: "pull_request_review",
         isPR: true,
