@@ -15,35 +15,26 @@ export function validateEnvironmentVariables() {
   const activeProviders = [useBedrock, useVertex, useFoundry].filter(Boolean);
   if (activeProviders.length > 1) {
     errors.push(
-      "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+      "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY."
     );
   }
 
+  // Direct Anthropic API (no Bedrock, Vertex, or Foundry)
   if (!useBedrock && !useVertex && !useFoundry) {
     if (!anthropicApiKey && !claudeCodeOAuthToken) {
-      errors.push(
-        "Either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is required when using direct Anthropic API.",
-      );
-    } 
- if (!useBedrock && !useVertex && !useFoundry) {
-  if (!anthropicApiKey && !claudeCodeOAuthToken) {
-  // Allow tests to explicitly bypass Anthropic credential validation
-  if (process.env.SKIP_ANTHROPIC_VALIDATION === "true") {
-    // Intentionally skipping required Anthropic credentials for CI/tests.
-    // This should only be used in test workflows and never in production.
-    // Log to make it clear in CI logs.
-    // eslint-disable-next-line no-console
-    console.info(
-      "SKIP_ANTHROPIC_VALIDATION=true — skipping Anthropic API key validation"
-    );
-  } else {
-    errors.push(
-      "Either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is required when using direct Anthropic API."
-    );
-  }
-}
-
-   } else if (useBedrock) {
+      if (process.env.SKIP_ANTHROPIC_VALIDATION === "true") {
+        // Intentionally skipping required Anthropic credentials for CI/tests.
+        // This should only be used in test workflows and never in production.
+        // eslint-disable-next-line no-console
+        console.info(
+          "SKIP_ANTHROPIC_VALIDATION=true — skipping Anthropic API key validation"
+        );
+      } else {
+        errors.push(
+          "Either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is required when using direct Anthropic API."
+        );
+      }
+    }
   } else if (useBedrock) {
     const awsRegion = process.env.AWS_REGION;
     const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
@@ -61,7 +52,7 @@ export function validateEnvironmentVariables() {
 
     if (!hasAccessKeyCredentials && !hasBearerToken) {
       errors.push(
-        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock."
       );
     }
   } else if (useVertex) {
@@ -82,13 +73,15 @@ export function validateEnvironmentVariables() {
     // Either resource name or base URL is required
     if (!foundryResource && !foundryBaseUrl) {
       errors.push(
-        "Either ANTHROPIC_FOUNDRY_RESOURCE or ANTHROPIC_FOUNDRY_BASE_URL is required when using Microsoft Foundry.",
+        "Either ANTHROPIC_FOUNDRY_RESOURCE or ANTHROPIC_FOUNDRY_BASE_URL is required when using Microsoft Foundry."
       );
     }
   }
 
   if (errors.length > 0) {
-    const errorMessage = `Environment variable validation failed:\n${errors.map((e) => `  - ${e}`).join("\n")}`;
+    const errorMessage = `Environment variable validation failed:\n${errors
+      .map((e) => `  - ${e}`)
+      .join("\n")}`;
     throw new Error(errorMessage);
   }
 }
