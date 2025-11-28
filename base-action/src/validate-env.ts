@@ -25,7 +25,7 @@ export function validateEnvironmentVariables() {
         "Either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is required when using direct Anthropic API.",
       );
     } 
-    @@
+    
    if (!useBedrock && !useVertex && !useFoundry) {
 -    if (!anthropicApiKey && !claudeCodeOAuthToken) {
 -      errors.push(
