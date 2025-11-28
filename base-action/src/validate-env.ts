@@ -24,7 +24,31 @@ export function validateEnvironmentVariables() {
       errors.push(
         "Either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is required when using direct Anthropic API.",
       );
-    }
+    } 
+    @@
+   if (!useBedrock && !useVertex && !useFoundry) {
+-    if (!anthropicApiKey && !claudeCodeOAuthToken) {
+-      errors.push(
+-        "Either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is required when using direct Anthropic API.",
+-      );
+-    }
++    // Allow tests to explicitly bypass Anthropic credential validation
++    if (process.env.SKIP_ANTHROPIC_VALIDATION === "true") {
++      // Intentionally skipping required Anthropic credentials for CI/tests.
++      // This should only be used in test workflows and never in production.
++      // Log to make it clear in CI logs.
++      // eslint-disable-next-line no-console
++      console.info(
++        "SKIP_ANTHROPIC_VALIDATION=true — skipping Anthropic API key validation",
++      );
++    } else {
++      if (!anthropicApiKey && !claudeCodeOAuthToken) {
++        errors.push(
++          "Either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is required when using direct Anthropic API.",
++        );
++      }
++    }
+   } else if (useBedrock) {
   } else if (useBedrock) {
     const awsRegion = process.env.AWS_REGION;
     const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
