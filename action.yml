@@ -108,10 +108,6 @@ runs:
     description: "Force tag mode with tracking comments for pull_request and issue events. Only applicable to pull_request (opened, synchronize, ready_for_review, reopened) and issue (opened, edited, labeled, assigned) events."
     required: false
     default: "false"
-  experimental_allowed_domains:
-    description: "Restrict network access to these domains only (newline-separated). If not set, no restrictions are applied. Provider domains are auto-detected."
-    required: false
-    default: ""
   path_to_claude_code_executable:
     description: "Optional path to a custom Claude Code executable. If provided, skips automatic installation and uses this executable instead. WARNING: Using an older version may cause problems if the action begins taking advantage of new Claude Code features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
     required: false
@@ -210,20 +206,23 @@ runs:
 
         # Install Claude Code if no custom executable is provided
         if [ -z "${{ inputs.path_to_claude_code_executable }}" ]; then
-          echo "Installing Claude Code..."
+          CLAUDE_CODE_VERSION="2.0.55"
+          echo "Installing Claude Code v${CLAUDE_CODE_VERSION}..."
           for attempt in 1 2 3; do
             echo "Installation attempt $attempt..."
-            if timeout 120 bash -c 'curl -fsSL https://claude.ai/install.sh | bash -s -- 2.0.50'; then
-              echo "Claude Code installed successfully"
-              break
+            if command -v timeout &> /dev/null; then
+              timeout 120 bash -c "curl -fsSL https://claude.ai/install.sh | bash -s -- $CLAUDE_CODE_VERSION" && break
+            else
+              curl -fsSL https://claude.ai/install.sh | bash -s -- "$CLAUDE_CODE_VERSION" && break
             fi
             if [ $attempt -eq 3 ]; then
               echo "Failed to install Claude Code after 3 attempts"
               exit 1
             fi
-            echo "Installation timed out or failed, retrying..."
+            echo "Installation failed, retrying..."
             sleep 5
           done
+          echo "Claude Code installed successfully"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
         else
           echo "Using custom Claude Code executable: ${{ inputs.path_to_claude_code_executable }}"
@@ -231,15 +230,6 @@ runs:
           CLAUDE_DIR=$(dirname "${{ inputs.path_to_claude_code_executable }}")
           echo "$CLAUDE_DIR" >> "$GITHUB_PATH"
         fi
-
-    - name: Setup Network Restrictions
-      if: steps.prepare.outputs.contains_trigger == 'true' && inputs.experimental_allowed_domains != ''
-      shell: bash
-      run: |
-        chmod +x ${GITHUB_ACTION_PATH}/scripts/setup-network-restrictions.sh
-        ${GITHUB_ACTION_PATH}/scripts/setup-network-restrictions.sh
-      env:
-        EXPERIMENTAL_ALLOWED_DOMAINS: ${{ inputs.experimental_allowed_domains }}
 
     - name: Run Claude Code
       id: claude-code
