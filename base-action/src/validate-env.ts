@@ -1,7 +1,6 @@
-cat > base-action/src/validate-env.ts <<'TS'
 /**
- * Validates the environment variables required for running Claude Code
- * based on the selected provider (Anthropic API, AWS Bedrock, Google Vertex AI, or Microsoft Foundry)
+ * Validates environment variables for Claude Code across providers:
+ * Anthropic API (direct), AWS Bedrock, Google Vertex AI, Microsoft Foundry.
  */
 export function validateEnvironmentVariables() {
   const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK === "1";
@@ -12,11 +11,11 @@ export function validateEnvironmentVariables() {
 
   const errors: string[] = [];
 
-  // Check for mutual exclusivity between providers
+  // Ensure only one provider is active
   const activeProviders = [useBedrock, useVertex, useFoundry].filter(Boolean);
   if (activeProviders.length > 1) {
     errors.push(
-      "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY."
+      "Cannot use multiple providers simultaneously. Set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY."
     );
   }
 
@@ -24,10 +23,10 @@ export function validateEnvironmentVariables() {
   if (!useBedrock && !useVertex && !useFoundry) {
     if (!anthropicApiKey && !claudeCodeOAuthToken) {
       if (process.env.SKIP_ANTHROPIC_VALIDATION === "true") {
-        // Intentionally skipping required Anthropic credentials for CI/tests.
+        // Skipping Anthropic credentials intentionally for CI/tests only.
         // eslint-disable-next-line no-console
         console.info(
-          "SKIP_ANTHROPIC_VALIDATION=true — skipping Anthropic API key validation"
+          "SKIP_ANTHROPIC_VALIDATION=true - skipping Anthropic API key validation"
         );
       } else {
         errors.push(
@@ -41,10 +40,12 @@ export function validateEnvironmentVariables() {
     const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
     const awsBearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
 
+    // AWS_REGION is always required for Bedrock
     if (!awsRegion) {
       errors.push("AWS_REGION is required when using AWS Bedrock.");
     }
 
+    // Either bearer token OR access key credentials must be provided
     const hasAccessKeyCredentials = awsAccessKeyId && awsSecretAccessKey;
     const hasBearerToken = awsBearerToken;
 
@@ -68,6 +69,7 @@ export function validateEnvironmentVariables() {
     const foundryResource = process.env.ANTHROPIC_FOUNDRY_RESOURCE;
     const foundryBaseUrl = process.env.ANTHROPIC_FOUNDRY_BASE_URL;
 
+    // Either resource name or base URL is required
     if (!foundryResource && !foundryBaseUrl) {
       errors.push(
         "Either ANTHROPIC_FOUNDRY_RESOURCE or ANTHROPIC_FOUNDRY_BASE_URL is required when using Microsoft Foundry."
@@ -78,8 +80,7 @@ export function validateEnvironmentVariables() {
   if (errors.length > 0) {
     const errorMessage =
       "Environment variable validation failed:\n" +
-      errors.map((e) => " - " + e) .join("\n");
+      errors.map((e) => "  - " + e).join("\n");
     throw new Error(errorMessage);
   }
 }
-TS
