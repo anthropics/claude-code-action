@@ -85,3 +85,4 @@ export function validateEnvironmentVariables() {
     throw new Error(errorMessage);
   }
 }
+
