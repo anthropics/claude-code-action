@@ -152,7 +152,7 @@ async function run() {
 
     // Check if action failed and read output file for execution details
     let executionDetails: {
-      cost_usd?: number;
+      total_cost_usd?: number;
       duration_ms?: number;
       duration_api_ms?: number;
     } | null = null;
@@ -179,12 +179,11 @@ async function run() {
             const lastElement = outputData[outputData.length - 1];
             if (
               lastElement.type === "result" &&
-              ("cost_usd" in lastElement || "total_cost_usd" in lastElement) &&
+              "total_cost_usd" in lastElement &&
               "duration_ms" in lastElement
             ) {
               executionDetails = {
-                // Handle both CLI (cost_usd) and SDK (total_cost_usd) field names
-                cost_usd: lastElement.cost_usd ?? lastElement.total_cost_usd,
+                total_cost_usd: lastElement.total_cost_usd,
                 duration_ms: lastElement.duration_ms,
                 duration_api_ms: lastElement.duration_api_ms,
               };

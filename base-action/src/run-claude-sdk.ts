@@ -57,23 +57,6 @@ function sanitizeSdkOutput(
 }
 
 /**
- * Transform SDK messages to include CLI-compatible fields
- * Adds cost_usd alias since CLI uses cost_usd while SDK uses total_cost_usd
- */
-function transformForCompatibility(messages: SDKMessage[]): object[] {
-  return messages.map((msg) => {
-    if (msg.type === "result") {
-      const resultMsg = msg as SDKResultMessage;
-      return {
-        ...resultMsg,
-        cost_usd: resultMsg.total_cost_usd,
-      };
-    }
-    return msg;
-  });
-}
-
-/**
  * Run Claude using the Agent SDK
  */
 export async function runClaudeWithSdk(
@@ -115,10 +98,9 @@ export async function runClaudeWithSdk(
     process.exit(1);
   }
 
-  // Write execution file with compatibility transformations
+  // Write execution file
   try {
-    const transformed = transformForCompatibility(messages);
-    await writeFile(EXECUTION_FILE, JSON.stringify(transformed, null, 2));
+    await writeFile(EXECUTION_FILE, JSON.stringify(messages, null, 2));
     console.log(`Log saved to ${EXECUTION_FILE}`);
     core.setOutput("execution_file", EXECUTION_FILE);
   } catch (error) {

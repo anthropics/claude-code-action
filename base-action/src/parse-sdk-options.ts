@@ -1,97 +1,6 @@
 import { parse as parseShellArgs } from "shell-quote";
 import type { ClaudeOptions } from "./run-claude";
-import type {
-  Options as SdkOptions,
-  McpStdioServerConfig,
-} from "@anthropic-ai/claude-agent-sdk";
-
-/**
- * MCP server configuration object structure (for parsing JSON config files)
- */
-type McpConfigFile = {
-  mcpServers?: Record<string, McpStdioServerConfig>;
-};
-
-/**
- * Parse JSON schema from claudeArgs string
- * Handles formats like: --json-schema '{"type":"object",...}'
- */
-function extractJsonSchema(
-  claudeArgs?: string,
-): Record<string, unknown> | undefined {
-  if (!claudeArgs) return undefined;
-
-  // Match --json-schema followed by a JSON string (single or double quoted)
-  const singleQuoteMatch = claudeArgs.match(/--json-schema\s+'([^']+)'/);
-  if (singleQuoteMatch?.[1]) {
-    try {
-      return JSON.parse(singleQuoteMatch[1]);
-    } catch {
-      return undefined;
-    }
-  }
-
-  const doubleQuoteMatch = claudeArgs.match(/--json-schema\s+"([^"]+)"/);
-  if (doubleQuoteMatch?.[1]) {
-    try {
-      return JSON.parse(doubleQuoteMatch[1]);
-    } catch {
-      return undefined;
-    }
-  }
-
-  return undefined;
-}
-
-/**
- * Parse MCP config from claudeArgs and mcpConfig input
- * Returns the mcpServers record merged from all configs
- */
-function parseMcpConfigs(
-  claudeArgs?: string,
-  mcpConfigInput?: string,
-): Record<string, McpStdioServerConfig> | undefined {
-  const result: Record<string, McpStdioServerConfig> = {};
-  let hasConfigs = false;
-
-  // Parse from mcpConfig input (direct JSON)
-  if (mcpConfigInput?.trim()) {
-    try {
-      const parsed = JSON.parse(mcpConfigInput) as McpConfigFile;
-      if (parsed.mcpServers) {
-        Object.assign(result, parsed.mcpServers);
-        hasConfigs = true;
-      }
-    } catch {
-      // Not valid JSON, skip
-    }
-  }
-
-  // Parse from claudeArgs --mcp-config flags
-  if (claudeArgs?.trim()) {
-    const args = parseShellArgs(claudeArgs).filter(
-      (arg): arg is string => typeof arg === "string",
-    );
-
-    for (let i = 0; i < args.length; i++) {
-      const configValue = args[i + 1];
-      if (args[i] === "--mcp-config" && configValue) {
-        try {
-          const parsed = JSON.parse(configValue) as McpConfigFile;
-          if (parsed.mcpServers) {
-            Object.assign(result, parsed.mcpServers);
-            hasConfigs = true;
-          }
-        } catch {
-          // Not valid JSON - could be file path, skip for now
-        }
-        i++; // Skip the value in next iteration
-      }
-    }
-  }
-
-  return hasConfigs ? result : undefined;
-}
+import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
 
 /**
  * Result of parsing ClaudeOptions for SDK usage
@@ -103,15 +12,58 @@ export type ParsedSdkOptions = {
 };
 
 /**
+ * Parse claudeArgs string into extraArgs record for SDK pass-through
+ * The SDK/CLI will handle --mcp-config, --json-schema, etc.
+ */
+function parseClaudeArgsToExtraArgs(
+  claudeArgs?: string,
+): Record<string, string | null> {
+  if (!claudeArgs?.trim()) return {};
+
+  const result: Record<string, string | null> = {};
+  const args = parseShellArgs(claudeArgs).filter(
+    (arg): arg is string => typeof arg === "string",
+  );
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg?.startsWith("--")) {
+      const flag = arg.slice(2);
+      const nextArg = args[i + 1];
+
+      // Check if next arg is a value (not another flag)
+      if (nextArg && !nextArg.startsWith("--")) {
+        result[flag] = nextArg;
+        i++; // Skip the value
+      } else {
+        result[flag] = null; // Boolean flag
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
  * Parse ClaudeOptions into SDK-compatible options
+ * Uses extraArgs for CLI pass-through instead of duplicating option parsing
  */
 export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   // Determine output verbosity
   const isDebugMode = process.env.ACTIONS_STEP_DEBUG === "true";
   const showFullOutput = options.showFullOutput === "true" || isDebugMode;
 
-  // Parse JSON schema from claudeArgs
-  const jsonSchema = extractJsonSchema(options.claudeArgs);
+  // Parse claudeArgs into extraArgs for CLI pass-through
+  const extraArgs = parseClaudeArgsToExtraArgs(options.claudeArgs);
+
+  // Detect if --json-schema is present (for hasJsonSchema flag)
+  const hasJsonSchema = "json-schema" in extraArgs;
+
+  // Build custom environment
+  const env: Record<string, string | undefined> = { ...process.env };
+  if (process.env.INPUT_ACTION_INPUTS_PRESENT) {
+    env.GITHUB_ACTION_INPUTS = process.env.INPUT_ACTION_INPUTS_PRESENT;
+  }
 
   // Build system prompt option
   let systemPrompt: SdkOptions["systemPrompt"];
@@ -125,13 +77,9 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     };
   }
 
-  // Build custom environment
-  const env: Record<string, string | undefined> = { ...process.env };
-  if (process.env.INPUT_ACTION_INPUTS_PRESENT) {
-    env.GITHUB_ACTION_INPUTS = process.env.INPUT_ACTION_INPUTS_PRESENT;
-  }
-
+  // Build SDK options - use direct options for explicit inputs, extraArgs for claudeArgs pass-through
   const sdkOptions: SdkOptions = {
+    // Direct options from ClaudeOptions inputs
     model: options.model,
     maxTurns: options.maxTurns ? parseInt(options.maxTurns, 10) : undefined,
     allowedTools: options.allowedTools
@@ -141,21 +89,21 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
       ? options.disallowedTools.split(",").map((t) => t.trim())
       : undefined,
     systemPrompt,
-    mcpServers: parseMcpConfigs(options.claudeArgs, options.mcpConfig),
-    outputFormat: jsonSchema
-      ? { type: "json_schema", schema: jsonSchema }
-      : undefined,
     fallbackModel: options.fallbackModel,
     pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
+
     // Use bypassPermissions since GitHub Actions runs in a trusted environment
     permissionMode: "bypassPermissions",
     allowDangerouslySkipPermissions: true,
+
+    // Pass through claudeArgs as extraArgs - CLI handles --mcp-config, --json-schema, etc.
+    extraArgs,
     env,
   };
 
   return {
     sdkOptions,
     showFullOutput,
-    hasJsonSchema: !!jsonSchema,
+    hasJsonSchema,
   };
 }
