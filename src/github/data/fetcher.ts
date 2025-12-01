@@ -107,6 +107,38 @@ export function filterReviewsToTriggerTime<
   });
 }
 
+/**
+ * Checks if the issue/PR body was edited after the trigger time.
+ * This prevents a race condition where an attacker could edit the issue/PR body
+ * between when an authorized user triggered Claude and when Claude processes the request.
+ *
+ * @param contextData - The PR or issue data containing body and edit timestamps
+ * @param triggerTime - ISO timestamp of when the trigger event occurred
+ * @returns true if the body is safe to use, false if it was edited after trigger
+ */
+export function isBodySafeToUse(
+  contextData: { createdAt: string; updatedAt?: string; lastEditedAt?: string },
+  triggerTime: string | undefined,
+): boolean {
+  // If no trigger time is available, we can't validate - allow the body
+  // This maintains backwards compatibility for triggers that don't have timestamps
+  if (!triggerTime) return true;
+
+  const triggerTimestamp = new Date(triggerTime).getTime();
+
+  // Check if the body was edited after the trigger
+  // Use lastEditedAt if available (more accurate for body edits), otherwise fall back to updatedAt
+  const lastEditTime = contextData.lastEditedAt || contextData.updatedAt;
+  if (lastEditTime) {
+    const lastEditTimestamp = new Date(lastEditTime).getTime();
+    if (lastEditTimestamp >= triggerTimestamp) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 type FetchDataParams = {
   octokits: Octokits;
   repository: string;
@@ -273,9 +305,13 @@ export async function fetchGitHubData({
       body: c.body,
     }));
 
-  // Add the main issue/PR body if it has content
-  const mainBody: CommentWithImages[] = contextData.body
-    ? [
+  // Add the main issue/PR body if it has content and wasn't edited after trigger
+  // This prevents a TOCTOU race condition where an attacker could edit the body
+  // between when an authorized user triggered Claude and when Claude processes the request
+  let mainBody: CommentWithImages[] = [];
+  if (contextData.body) {
+    if (isBodySafeToUse(contextData, triggerTime)) {
+      mainBody = [
         {
           ...(isPR
             ? {
@@ -289,8 +325,14 @@ export async function fetchGitHubData({
                 body: contextData.body,
               }),
         },
-      ]
-    : [];
+      ];
+    } else {
+      console.warn(
+        `Security: ${isPR ? "PR" : "Issue"} #${prNumber} body was edited after the trigger event. ` +
+          `Excluding body content to prevent potential injection attacks.`,
+      );
+    }
+  }
 
   const allComments = [
     ...mainBody,
