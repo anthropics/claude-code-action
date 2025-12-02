@@ -58,6 +58,8 @@ export type GitHubPullRequest = {
   headRefName: string;
   headRefOid: string;
   createdAt: string;
+  updatedAt?: string;
+  lastEditedAt?: string;
   additions: number;
   deletions: number;
   state: string;
@@ -83,6 +85,8 @@ export type GitHubIssue = {
   body: string;
   author: GitHubAuthor;
   createdAt: string;
+  updatedAt?: string;
+  lastEditedAt?: string;
   state: string;
   comments: {
     nodes: GitHubComment[];

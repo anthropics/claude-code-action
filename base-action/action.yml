@@ -117,7 +117,7 @@ runs:
       shell: bash
       run: |
         if [ -z "${{ inputs.path_to_claude_code_executable }}" ]; then
-          CLAUDE_CODE_VERSION="2.0.55"
+          CLAUDE_CODE_VERSION="2.0.56"
           echo "Installing Claude Code v${CLAUDE_CODE_VERSION}..."
           for attempt in 1 2 3; do
             echo "Installation attempt $attempt..."

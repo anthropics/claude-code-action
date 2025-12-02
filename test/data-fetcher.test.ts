@@ -4,6 +4,7 @@ import {
   fetchGitHubData,
   filterCommentsToTriggerTime,
   filterReviewsToTriggerTime,
+  isBodySafeToUse,
 } from "../src/github/data/fetcher";
 import {
   createMockContext,
@@ -371,6 +372,139 @@ describe("filterReviewsToTriggerTime", () => {
   });
 });
 
+describe("isBodySafeToUse", () => {
+  const triggerTime = "2024-01-15T12:00:00Z";
+
+  const createMockContextData = (
+    createdAt: string,
+    updatedAt?: string,
+    lastEditedAt?: string,
+  ) => ({
+    createdAt,
+    updatedAt,
+    lastEditedAt,
+  });
+
+  describe("body edit time validation", () => {
+    it("should return true when body was never edited", () => {
+      const contextData = createMockContextData("2024-01-15T10:00:00Z");
+      expect(isBodySafeToUse(contextData, triggerTime)).toBe(true);
+    });
+
+    it("should return true when body was edited before trigger time", () => {
+      const contextData = createMockContextData(
+        "2024-01-15T10:00:00Z",
+        "2024-01-15T11:00:00Z",
+        "2024-01-15T11:30:00Z",
+      );
+      expect(isBodySafeToUse(contextData, triggerTime)).toBe(true);
+    });
+
+    it("should return false when body was edited after trigger time (using updatedAt)", () => {
+      const contextData = createMockContextData(
+        "2024-01-15T10:00:00Z",
+        "2024-01-15T13:00:00Z",
+      );
+      expect(isBodySafeToUse(contextData, triggerTime)).toBe(false);
+    });
+
+    it("should return false when body was edited after trigger time (using lastEditedAt)", () => {
+      const contextData = createMockContextData(
+        "2024-01-15T10:00:00Z",
+        undefined,
+        "2024-01-15T13:00:00Z",
+      );
+      expect(isBodySafeToUse(contextData, triggerTime)).toBe(false);
+    });
+
+    it("should return false when body was edited exactly at trigger time", () => {
+      const contextData = createMockContextData(
+        "2024-01-15T10:00:00Z",
+        "2024-01-15T12:00:00Z",
+      );
+      expect(isBodySafeToUse(contextData, triggerTime)).toBe(false);
+    });
+
+    it("should prioritize lastEditedAt over updatedAt", () => {
+      // updatedAt is after trigger, but lastEditedAt is before - should be safe
+      const contextData = createMockContextData(
+        "2024-01-15T10:00:00Z",
+        "2024-01-15T13:00:00Z", // updatedAt after trigger
+        "2024-01-15T11:00:00Z", // lastEditedAt before trigger
+      );
+      expect(isBodySafeToUse(contextData, triggerTime)).toBe(true);
+    });
+  });
+
+  describe("edge cases", () => {
+    it("should return true when no trigger time is provided (backward compatibility)", () => {
+      const contextData = createMockContextData(
+        "2024-01-15T10:00:00Z",
+        "2024-01-15T13:00:00Z", // Would normally fail
+        "2024-01-15T14:00:00Z", // Would normally fail
+      );
+      expect(isBodySafeToUse(contextData, undefined)).toBe(true);
+    });
+
+    it("should handle millisecond precision correctly", () => {
+      // Edit 1ms after trigger - should be unsafe
+      const contextData = createMockContextData(
+        "2024-01-15T10:00:00Z",
+        "2024-01-15T12:00:00.001Z",
+      );
+      expect(isBodySafeToUse(contextData, triggerTime)).toBe(false);
+    });
+
+    it("should handle edit 1ms before trigger - should be safe", () => {
+      const contextData = createMockContextData(
+        "2024-01-15T10:00:00Z",
+        "2024-01-15T11:59:59.999Z",
+      );
+      expect(isBodySafeToUse(contextData, triggerTime)).toBe(true);
+    });
+
+    it("should handle various ISO timestamp formats", () => {
+      const contextData1 = createMockContextData(
+        "2024-01-15T10:00:00Z",
+        "2024-01-15T11:00:00Z",
+      );
+      const contextData2 = createMockContextData(
+        "2024-01-15T10:00:00+00:00",
+        "2024-01-15T11:00:00+00:00",
+      );
+      const contextData3 = createMockContextData(
+        "2024-01-15T10:00:00.000Z",
+        "2024-01-15T11:00:00.000Z",
+      );
+
+      expect(isBodySafeToUse(contextData1, triggerTime)).toBe(true);
+      expect(isBodySafeToUse(contextData2, triggerTime)).toBe(true);
+      expect(isBodySafeToUse(contextData3, triggerTime)).toBe(true);
+    });
+  });
+
+  describe("security scenarios", () => {
+    it("should detect race condition attack - body edited between trigger and processing", () => {
+      // Simulates: Owner triggers @claude at 12:00, attacker edits body at 12:00:30
+      const contextData = createMockContextData(
+        "2024-01-15T10:00:00Z", // Issue created
+        "2024-01-15T12:00:30Z", // Body edited after trigger
+      );
+      expect(isBodySafeToUse(contextData, "2024-01-15T12:00:00Z")).toBe(false);
+    });
+
+    it("should allow body that was stable at trigger time", () => {
+      // Body was last edited well before the trigger
+      const contextData = createMockContextData(
+        "2024-01-15T10:00:00Z",
+        "2024-01-15T10:30:00Z",
+        "2024-01-15T10:30:00Z",
+      );
+      expect(isBodySafeToUse(contextData, "2024-01-15T12:00:00Z")).toBe(true);
+    });
+  });
+});
+
 describe("fetchGitHubData integration with time filtering", () => {
   it("should filter comments based on trigger time when provided", async () => {
     const mockOctokits = {
@@ -695,5 +829,120 @@ describe("fetchGitHubData integration with time filtering", () => {
 
     // All three comments should be included as they're all before trigger time
     expect(result.comments.length).toBe(3);
+  });
+
+  it("should exclude issue body when edited after trigger time (TOCTOU protection)", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          issue: {
+            number: 555,
+            title: "Test Issue",
+            body: "Malicious body edited after trigger",
+            author: { login: "attacker" },
+            createdAt: "2024-01-15T10:00:00Z",
+            updatedAt: "2024-01-15T12:30:00Z", // Edited after trigger
+            lastEditedAt: "2024-01-15T12:30:00Z", // Edited after trigger
+            comments: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "555",
+      isPR: false,
+      triggerUsername: "trigger-user",
+      triggerTime: "2024-01-15T12:00:00Z",
+    });
+
+    // The body should be excluded from image processing due to TOCTOU protection
+    // We can verify this by checking that issue_body is NOT in the imageUrlMap keys
+    const hasIssueBodyInMap = Array.from(result.imageUrlMap.keys()).some(
+      (key) => key.includes("issue_body"),
+    );
+    expect(hasIssueBodyInMap).toBe(false);
+  });
+
+  it("should include issue body when not edited after trigger time", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          issue: {
+            number: 666,
+            title: "Test Issue",
+            body: "Safe body not edited after trigger",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            updatedAt: "2024-01-15T11:00:00Z", // Edited before trigger
+            lastEditedAt: "2024-01-15T11:00:00Z", // Edited before trigger
+            comments: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "666",
+      isPR: false,
+      triggerUsername: "trigger-user",
+      triggerTime: "2024-01-15T12:00:00Z",
+    });
+
+    // The contextData should still contain the body
+    expect(result.contextData.body).toBe("Safe body not edited after trigger");
+  });
+
+  it("should exclude PR body when edited after trigger time (TOCTOU protection)", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            number: 777,
+            title: "Test PR",
+            body: "Malicious PR body edited after trigger",
+            author: { login: "attacker" },
+            baseRefName: "main",
+            headRefName: "feature",
+            headRefOid: "abc123",
+            createdAt: "2024-01-15T10:00:00Z",
+            updatedAt: "2024-01-15T12:30:00Z", // Edited after trigger
+            lastEditedAt: "2024-01-15T12:30:00Z", // Edited after trigger
+            additions: 10,
+            deletions: 5,
+            state: "OPEN",
+            commits: { totalCount: 1, nodes: [] },
+            files: { nodes: [] },
+            comments: { nodes: [] },
+            reviews: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "777",
+      isPR: true,
+      triggerUsername: "trigger-user",
+      triggerTime: "2024-01-15T12:00:00Z",
+    });
+
+    // The body should be excluded from image processing due to TOCTOU protection
+    const hasPrBodyInMap = Array.from(result.imageUrlMap.keys()).some((key) =>
+      key.includes("pr_body"),
+    );
+    expect(hasPrBodyInMap).toBe(false);
   });
 });
