@@ -460,6 +460,123 @@ export function generatePrompt(
 }
 
 /**
+ * Generates a simplified prompt for tag mode (opt-in via USE_SIMPLE_PROMPT env var)
+ * @internal
+ */
+function generateSimplePrompt(
+  context: PreparedContext,
+  githubData: FetchDataResult,
+  useCommitSigning: boolean = false,
+): string {
+  const {
+    contextData,
+    comments,
+    changedFilesWithSHA,
+    reviewData,
+    imageUrlMap,
+  } = githubData;
+  const { eventData } = context;
+
+  const { triggerContext } = getEventTypeAndContext(context);
+
+  const formattedContext = formatContext(contextData, eventData.isPR);
+  const formattedComments = formatComments(comments, imageUrlMap);
+  const formattedReviewComments = eventData.isPR
+    ? formatReviewComments(reviewData, imageUrlMap)
+    : "";
+  const formattedChangedFiles = eventData.isPR
+    ? formatChangedFilesWithSHA(changedFilesWithSHA)
+    : "";
+
+  const hasImages = imageUrlMap && imageUrlMap.size > 0;
+  const imagesInfo = hasImages
+    ? `\n\n<images_info>
+Images from comments have been saved to disk. Paths are in the formatted content above. Use Read tool to view them.
+</images_info>`
+    : "";
+
+  const formattedBody = contextData?.body
+    ? formatBody(contextData.body, imageUrlMap)
+    : "No description provided";
+
+  const entityType = eventData.isPR ? "pull request" : "issue";
+  const jobUrl = `${GITHUB_SERVER_URL}/${context.repository}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+  let promptContent = `You were tagged on a GitHub ${entityType} via "${context.triggerPhrase}". Read the request and decide how to help.
+
+<context>
+${formattedContext}
+</context>
+
+<${eventData.isPR ? "pr" : "issue"}_body>
+${formattedBody}
+</${eventData.isPR ? "pr" : "issue"}_body>
+
+<comments>
+${formattedComments || "No comments"}
+</comments>
+${
+  eventData.isPR
+    ? `
+<review_comments>
+${formattedReviewComments || "No review comments"}
+</review_comments>
+
+<changed_files>
+${formattedChangedFiles || "No files changed"}
+</changed_files>`
+    : ""
+}${imagesInfo}
+
+<metadata>
+repository: ${context.repository}
+${eventData.isPR && eventData.prNumber ? `pr_number: ${eventData.prNumber}` : ""}
+${!eventData.isPR && eventData.issueNumber ? `issue_number: ${eventData.issueNumber}` : ""}
+trigger: ${triggerContext}
+triggered_by: ${context.triggerUsername ?? "Unknown"}
+claude_comment_id: ${context.claudeCommentId}
+</metadata>
+${
+  (eventData.eventName === "issue_comment" ||
+    eventData.eventName === "pull_request_review_comment" ||
+    eventData.eventName === "pull_request_review") &&
+  eventData.commentBody
+    ? `
+<trigger_comment>
+${sanitizeContent(eventData.commentBody)}
+</trigger_comment>`
+    : ""
+}
+
+Your request is in <trigger_comment> above${eventData.eventName === "issues" ? ` (or the ${entityType} body for assigned/labeled events)` : ""}.
+
+Decide what's being asked:
+1. **Question or code review** - Answer directly or provide feedback
+2. **Code change** - Implement the change, commit, and push
+
+Communication:
+- Your ONLY visible output is your GitHub comment - update it with progress and results
+- Use mcp__github_comment__update_claude_comment to update (only "body" param needed)
+- Use checklist format for tasks: - [ ] incomplete, - [x] complete
+- Use ### headers (not #)
+${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
+${
+  eventData.claudeBranch
+    ? `
+When done with changes, provide a PR link:
+[Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
+Use THREE dots (...) between branches. URL-encode all parameters.`
+    : ""
+}
+
+Always include at the bottom:
+- Job link: [View job run](${jobUrl})
+- Follow the repo's CLAUDE.md file for project-specific guidelines`;
+
+  return promptContent;
+}
+
+/**
  * Generates the default prompt for tag mode
  * @internal
  */
@@ -468,6 +585,10 @@ export function generateDefaultPrompt(
   githubData: FetchDataResult,
   useCommitSigning: boolean = false,
 ): string {
+  // Use simplified prompt if opted in
+  if (process.env.USE_SIMPLE_PROMPT === "true") {
+    return generateSimplePrompt(context, githubData, useCommitSigning);
+  }
   const {
     contextData,
     comments,
