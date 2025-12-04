@@ -32,6 +32,24 @@ describe("parseSdkOptions", () => {
       ]);
     });
 
+    test("should accumulate multiple --allowedTools flags from claudeArgs", () => {
+      // This simulates tag mode adding its tools, then user adding their own
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--allowedTools "Edit,Read,mcp__github_comment__update_claude_comment" --model "claude-3" --allowedTools "Bash(npm install),mcp__github__get_issue"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Edit",
+        "Read",
+        "mcp__github_comment__update_claude_comment",
+        "Bash(npm install)",
+        "mcp__github__get_issue",
+      ]);
+    });
+
     test("should merge allowedTools from both claudeArgs and direct options", () => {
       const options: ClaudeOptions = {
         claudeArgs: '--allowedTools "Edit,Read"',

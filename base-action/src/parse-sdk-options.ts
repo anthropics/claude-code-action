@@ -11,9 +11,13 @@ export type ParsedSdkOptions = {
   hasJsonSchema: boolean;
 };
 
+// Flags that should accumulate multiple values instead of overwriting
+const ACCUMULATING_FLAGS = new Set(["allowedTools", "disallowedTools"]);
+
 /**
  * Parse claudeArgs string into extraArgs record for SDK pass-through
  * The SDK/CLI will handle --mcp-config, --json-schema, etc.
+ * For allowedTools and disallowedTools, multiple occurrences are accumulated (comma-joined).
  */
 function parseClaudeArgsToExtraArgs(
   claudeArgs?: string,
@@ -33,7 +37,12 @@ function parseClaudeArgsToExtraArgs(
 
       // Check if next arg is a value (not another flag)
       if (nextArg && !nextArg.startsWith("--")) {
-        result[flag] = nextArg;
+        // For accumulating flags, join multiple values with commas
+        if (ACCUMULATING_FLAGS.has(flag) && result[flag]) {
+          result[flag] = `${result[flag]},${nextArg}`;
+        } else {
+          result[flag] = nextArg;
+        }
         i++; // Skip the value
       } else {
         result[flag] = null; // Boolean flag
