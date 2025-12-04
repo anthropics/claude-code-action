@@ -130,7 +130,10 @@ describe("parseEnvVarsWithContext", () => {
   describe("pull_request_review event without comment", () => {
     test("should parse pull_request_review event correctly", () => {
       process.env = BASE_ENV;
-      const result = prepareContext(mockPullRequestReviewWithoutCommentContext, "12345");
+      const result = prepareContext(
+        mockPullRequestReviewWithoutCommentContext,
+        "12345",
+      );
 
       expect(result.eventData.eventName).toBe("pull_request_review");
       expect(result.eventData.isPR).toBe(true);
