@@ -168,7 +168,12 @@ export async function parseAndSetStructuredOutputs(
 
 export async function runClaude(promptPath: string, options: ClaudeOptions) {
   // Feature flag: use SDK path when USE_AGENT_SDK=true
-  if (process.env.USE_AGENT_SDK === "true") {
+  const useAgentSdk = process.env.USE_AGENT_SDK === "true";
+  console.log(
+    `Using ${useAgentSdk ? "Agent SDK" : "CLI"} path (USE_AGENT_SDK=${process.env.USE_AGENT_SDK ?? "unset"})`,
+  );
+
+  if (useAgentSdk) {
     const parsedOptions = parseSdkOptions(options);
     return runClaudeWithSdk(promptPath, parsedOptions);
   }
