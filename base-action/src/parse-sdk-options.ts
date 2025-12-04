@@ -92,10 +92,6 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     fallbackModel: options.fallbackModel,
     pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
 
-    // Use bypassPermissions since GitHub Actions runs in a trusted environment
-    permissionMode: "bypassPermissions",
-    allowDangerouslySkipPermissions: true,
-
     // Pass through claudeArgs as extraArgs - CLI handles --mcp-config, --json-schema, etc.
     extraArgs,
     env,
