@@ -63,6 +63,11 @@ export type GitHubPullRequest = {
   additions: number;
   deletions: number;
   state: string;
+  labels: {
+    nodes: Array<{
+      name: string;
+    }>;
+  };
   commits: {
     totalCount: number;
     nodes: Array<{
@@ -88,6 +93,11 @@ export type GitHubIssue = {
   updatedAt?: string;
   lastEditedAt?: string;
   state: string;
+  labels: {
+    nodes: Array<{
+      name: string;
+    }>;
+  };
   comments: {
     nodes: GitHubComment[];
   };
