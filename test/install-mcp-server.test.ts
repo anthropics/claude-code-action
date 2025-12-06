@@ -164,6 +164,29 @@ describe("prepareMcpConfig", () => {
     expect(parsed.mcpServers.github_inline_comment.env.PR_NUMBER).toBe("456");
   });
 
+  test("should include inline comment server when batch tool is allowed", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: [
+        "mcp__github_inline_comment__create_inline_comments_batch",
+      ],
+      mode: "tag",
+      context: mockPRContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers).toBeDefined();
+    expect(parsed.mcpServers.github_inline_comment).toBeDefined();
+    expect(parsed.mcpServers.github_inline_comment.env.GITHUB_TOKEN).toBe(
+      "test-token",
+    );
+    expect(parsed.mcpServers.github_inline_comment.env.PR_NUMBER).toBe("456");
+  });
+
   test("should include comment server when no GitHub tools are allowed and signing disabled", async () => {
     const result = await prepareMcpConfig({
       githubToken: "test-token",
