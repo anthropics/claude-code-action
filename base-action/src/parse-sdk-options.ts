@@ -101,7 +101,7 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     env.GITHUB_ACTION_INPUTS = process.env.INPUT_ACTION_INPUTS_PRESENT;
   }
 
-  // Build system prompt option
+  // Build system prompt option - default to claude_code preset
   let systemPrompt: SdkOptions["systemPrompt"];
   if (options.systemPrompt) {
     systemPrompt = options.systemPrompt;
@@ -110,6 +110,12 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
       type: "preset",
       preset: "claude_code",
       append: options.appendSystemPrompt,
+    };
+  } else {
+    // Default to claude_code preset when no custom prompt is specified
+    systemPrompt = {
+      type: "preset",
+      preset: "claude_code",
     };
   }
 
