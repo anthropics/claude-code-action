@@ -75,12 +75,28 @@ export async function runClaudeWithSdk(
   }
 
   console.log(`Running Claude with prompt from file: ${promptPath}`);
+  console.log(
+    "[DEBUG] Prompt content (first 2000 chars):",
+    prompt.substring(0, 2000),
+  );
+  console.log("[DEBUG] Prompt length:", prompt.length);
+  console.log(
+    "[DEBUG] sdkOptions passed to query():",
+    JSON.stringify(sdkOptions, null, 2),
+  );
 
   const messages: SDKMessage[] = [];
   let resultMessage: SDKResultMessage | undefined;
 
   try {
+    console.log("[DEBUG] About to call query()...");
     for await (const message of query({ prompt, options: sdkOptions })) {
+      console.log(
+        "[DEBUG] Received message type:",
+        message.type,
+        "subtype:",
+        (message as any).subtype,
+      );
       messages.push(message);
 
       const sanitized = sanitizeSdkOutput(message, showFullOutput);
@@ -90,8 +106,16 @@ export async function runClaudeWithSdk(
 
       if (message.type === "result") {
         resultMessage = message as SDKResultMessage;
+        console.log(
+          "[DEBUG] Got result message:",
+          JSON.stringify(resultMessage, null, 2),
+        );
       }
     }
+    console.log(
+      "[DEBUG] Finished iterating query(), total messages:",
+      messages.length,
+    );
   } catch (error) {
     console.error("SDK execution error:", error);
     core.setOutput("conclusion", "failure");

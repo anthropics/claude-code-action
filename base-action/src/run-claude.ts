@@ -174,7 +174,15 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
   );
 
   if (useAgentSdk) {
+    console.log(
+      "[DEBUG] Raw options passed to SDK path:",
+      JSON.stringify(options, null, 2),
+    );
     const parsedOptions = parseSdkOptions(options);
+    console.log(
+      "[DEBUG] Parsed SDK options:",
+      JSON.stringify(parsedOptions, null, 2),
+    );
     return runClaudeWithSdk(promptPath, parsedOptions);
   }
 
