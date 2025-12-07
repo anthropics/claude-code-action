@@ -130,6 +130,9 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     // Note: allowedTools and disallowedTools have been removed from extraArgs to prevent duplicates
     extraArgs,
     env,
+
+    // Load settings from all sources to pick up CLI-installed plugins, CLAUDE.md, etc.
+    settingSources: ["user", "project", "local"],
   };
 
   return {
