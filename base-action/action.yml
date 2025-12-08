@@ -101,10 +101,12 @@ runs:
     - name: Setup Custom Bun Path
       if: inputs.path_to_bun_executable != ''
       shell: bash
+      env:
+        PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
       run: |
-        echo "Using custom Bun executable: ${{ inputs.path_to_bun_executable }}"
+        echo "Using custom Bun executable: $PATH_TO_BUN_EXECUTABLE"
         # Add the directory containing the custom executable to PATH
-        BUN_DIR=$(dirname "${{ inputs.path_to_bun_executable }}")
+        BUN_DIR=$(dirname "$PATH_TO_BUN_EXECUTABLE")
         echo "$BUN_DIR" >> "$GITHUB_PATH"
 
     - name: Install Dependencies
@@ -115,8 +117,10 @@ runs:
 
     - name: Install Claude Code
       shell: bash
+      env:
+        PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
       run: |
-        if [ -z "${{ inputs.path_to_claude_code_executable }}" ]; then
+        if [ -z "$PATH_TO_CLAUDE_CODE_EXECUTABLE" ]; then
           CLAUDE_CODE_VERSION="2.0.61"
           echo "Installing Claude Code v${CLAUDE_CODE_VERSION}..."
           for attempt in 1 2 3; do
@@ -135,9 +139,9 @@ runs:
           done
           echo "Claude Code installed successfully"
         else
-          echo "Using custom Claude Code executable: ${{ inputs.path_to_claude_code_executable }}"
+          echo "Using custom Claude Code executable: $PATH_TO_CLAUDE_CODE_EXECUTABLE"
           # Add the directory containing the custom executable to PATH
-          CLAUDE_DIR=$(dirname "${{ inputs.path_to_claude_code_executable }}")
+          CLAUDE_DIR=$(dirname "$PATH_TO_CLAUDE_CODE_EXECUTABLE")
           echo "$CLAUDE_DIR" >> "$GITHUB_PATH"
         fi
 
