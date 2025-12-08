@@ -140,13 +140,13 @@ runs:
     - name: Setup Custom Bun Path
       if: inputs.path_to_bun_executable != ''
       shell: bash
+      env:
+        PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
       run: |
         echo "Using custom Bun executable: $PATH_TO_BUN_EXECUTABLE"
         # Add the directory containing the custom executable to PATH
         BUN_DIR=$(dirname "$PATH_TO_BUN_EXECUTABLE")
         echo "$BUN_DIR" >> "$GITHUB_PATH"
-      env:
-        PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
 
     - name: Install Dependencies
       shell: bash
@@ -184,6 +184,8 @@ runs:
     - name: Install Base Action Dependencies
       if: steps.prepare.outputs.contains_trigger == 'true'
       shell: bash
+      env:
+        PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
       run: |
         echo "Installing base-action dependencies..."
         cd ${GITHUB_ACTION_PATH}/base-action
@@ -217,8 +219,6 @@ runs:
           CLAUDE_DIR=$(dirname "$PATH_TO_CLAUDE_CODE_EXECUTABLE")
           echo "$CLAUDE_DIR" >> "$GITHUB_PATH"
         fi
-      env:
-        PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
 
     - name: Run Claude Code
       id: claude-code
