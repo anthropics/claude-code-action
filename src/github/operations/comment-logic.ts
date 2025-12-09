@@ -1,5 +1,19 @@
 import { GITHUB_SERVER_URL } from "../api/config";
 
+/**
+ * Encodes a branch name for use in a URL, preserving forward slashes.
+ * GitHub expects literal slashes in branch names (e.g., /tree/feature/branch)
+ * but other special characters like parentheses need to be encoded.
+ * Note: encodeURIComponent doesn't encode ( ) ! ' * ~ per RFC 3986,
+ * but parentheses break markdown links so we encode them manually.
+ */
+function encodeBranchName(branchName: string): string {
+  return encodeURIComponent(branchName)
+    .replace(/%2F/gi, "/")
+    .replace(/\(/g, "%28")
+    .replace(/\)/g, "%29");
+}
+
 export type ExecutionDetails = {
   total_cost_usd?: number;
   duration_ms?: number;
@@ -160,7 +174,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
       // Extract owner/repo from jobUrl
       const repoMatch = jobUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\//);
       if (repoMatch) {
-        branchUrl = `${GITHUB_SERVER_URL}/${repoMatch[1]}/${repoMatch[2]}/tree/${finalBranchName}`;
+        branchUrl = `${GITHUB_SERVER_URL}/${repoMatch[1]}/${repoMatch[2]}/tree/${encodeBranchName(finalBranchName)}`;
       }
     }
 
@@ -172,8 +186,9 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   }
 
   // Add PR link (either from content or provided)
+  // Use greedy match with end anchor to capture full URL even if it contains parentheses
   const prUrl =
-    prLinkFromContent || (prLink ? prLink.match(/\(([^)]+)\)/)?.[1] : "");
+    prLinkFromContent || (prLink ? prLink.match(/\((.+)\)$/)?.[1] : "");
   if (prUrl) {
     links += ` • [Create PR ➔](${prUrl})`;
   }

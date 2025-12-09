@@ -2,6 +2,20 @@ import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
 import { $ } from "bun";
 
+/**
+ * Encodes a branch name for use in a URL, preserving forward slashes.
+ * GitHub expects literal slashes in branch names (e.g., /tree/feature/branch)
+ * but other special characters like parentheses need to be encoded.
+ * Note: encodeURIComponent doesn't encode ( ) ! ' * ~ per RFC 3986,
+ * but parentheses break markdown links so we encode them manually.
+ */
+function encodeBranchName(branchName: string): string {
+  return encodeURIComponent(branchName)
+    .replace(/%2F/gi, "/")
+    .replace(/\(/g, "%28")
+    .replace(/\)/g, "%29");
+}
+
 export async function checkAndCommitOrDeleteBranch(
   octokit: Octokits,
   owner: string,
@@ -80,7 +94,7 @@ export async function checkAndCommitOrDeleteBranch(
               );
 
               // Set branch link since we now have commits
-              const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${claudeBranch}`;
+              const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${encodeBranchName(claudeBranch)}`;
               branchLink = `\n[View branch](${branchUrl})`;
             } else {
               console.log(
@@ -91,7 +105,7 @@ export async function checkAndCommitOrDeleteBranch(
           } catch (gitError) {
             console.error("Error checking/committing changes:", gitError);
             // If we can't check git status, assume the branch might have changes
-            const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${claudeBranch}`;
+            const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${encodeBranchName(claudeBranch)}`;
             branchLink = `\n[View branch](${branchUrl})`;
           }
         } else {
@@ -102,13 +116,13 @@ export async function checkAndCommitOrDeleteBranch(
         }
       } else {
         // Only add branch link if there are commits
-        const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${claudeBranch}`;
+        const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${encodeBranchName(claudeBranch)}`;
         branchLink = `\n[View branch](${branchUrl})`;
       }
     } catch (error) {
       console.error("Error comparing commits on Claude branch:", error);
       // If we can't compare but the branch exists remotely, include the branch link
-      const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${claudeBranch}`;
+      const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${encodeBranchName(claudeBranch)}`;
       branchLink = `\n[View branch](${branchUrl})`;
     }
   }

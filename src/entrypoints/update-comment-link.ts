@@ -15,6 +15,20 @@ import { GITHUB_SERVER_URL } from "../github/api/config";
 import { checkAndCommitOrDeleteBranch } from "../github/operations/branch-cleanup";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 
+/**
+ * Encodes a branch name for use in a URL, preserving forward slashes.
+ * GitHub expects literal slashes in branch names (e.g., /tree/feature/branch)
+ * but other special characters like parentheses need to be encoded.
+ * Note: encodeURIComponent doesn't encode ( ) ! ' * ~ per RFC 3986,
+ * but parentheses break markdown links so we encode them manually.
+ */
+function encodeBranchName(branchName: string): string {
+  return encodeURIComponent(branchName)
+    .replace(/%2F/gi, "/")
+    .replace(/\(/g, "%28")
+    .replace(/\)/g, "%29");
+}
+
 async function run() {
   try {
     const commentId = parseInt(process.env.CLAUDE_COMMENT_ID!);
@@ -140,7 +154,7 @@ async function run() {
             const prBody = encodeURIComponent(
               `This PR addresses ${entityType.toLowerCase()} #${context.entityNumber}\n\nGenerated with [Claude Code](https://claude.ai/code)`,
             );
-            const prUrl = `${serverUrl}/${owner}/${repo}/compare/${baseBranch}...${claudeBranch}?quick_pull=1&title=${prTitle}&body=${prBody}`;
+            const prUrl = `${serverUrl}/${owner}/${repo}/compare/${encodeBranchName(baseBranch)}...${encodeBranchName(claudeBranch)}?quick_pull=1&title=${prTitle}&body=${prBody}`;
             prLink = `\n[Create a PR](${prUrl})`;
           }
         } catch (error) {

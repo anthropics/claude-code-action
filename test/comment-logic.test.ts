@@ -139,6 +139,21 @@ describe("updateCommentBody", () => {
       );
       expect(result).not.toContain("View branch");
     });
+
+    it("encodes special characters in branch names while preserving slashes", () => {
+      const input = {
+        ...baseInput,
+        branchName: "feature/fix(issue)-test",
+      };
+
+      const result = updateCommentBody(input);
+      // Branch name display should show the original name
+      expect(result).toContain("`feature/fix(issue)-test`");
+      // URL should have encoded parentheses but preserved slashes
+      expect(result).toContain(
+        "https://github.com/owner/repo/tree/feature/fix%28issue%29-test",
+      );
+    });
   });
 
   describe("PR link", () => {
