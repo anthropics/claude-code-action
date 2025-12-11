@@ -3,7 +3,7 @@ import type { PreparedContext } from "../create-prompt/types";
 import type { FetchDataResult } from "../github/data/fetcher";
 import type { Octokits } from "../github/api/client";
 
-export type ModeName = "tag" | "agent" | "experimental-review";
+export type ModeName = "tag" | "agent";
 
 export type ModeContext = {
   mode: ModeName;
@@ -25,8 +25,8 @@ export type ModeData = {
  * and tracking comment creation.
  *
  * Current modes include:
- * - 'tag': Traditional implementation triggered by mentions/assignments
- * - 'agent': For automation with no trigger checking
+ * - 'tag': Interactive mode triggered by @claude mentions
+ * - 'agent': Direct automation mode triggered by explicit prompts
  */
 export type Mode = {
   name: ModeName;

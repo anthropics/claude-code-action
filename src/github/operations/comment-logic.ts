@@ -1,7 +1,7 @@
 import { GITHUB_SERVER_URL } from "../api/config";
 
 export type ExecutionDetails = {
-  cost_usd?: number;
+  total_cost_usd?: number;
   duration_ms?: number;
   duration_api_ms?: number;
 };

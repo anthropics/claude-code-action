@@ -32,7 +32,7 @@ jobs:
                   "--rm",
                   "-e",
                   "GITHUB_PERSONAL_ACCESS_TOKEN",
-                  "ghcr.io/github/github-mcp-server:sha-7aced2b"
+                  "ghcr.io/github/github-mcp-server:sha-23fa0dd"
                 ],
                 "env": {
                   "GITHUB_PERSONAL_ACCESS_TOKEN": "${{ secrets.GITHUB_TOKEN }}"
@@ -103,6 +103,6 @@ jobs:
         with:
           prompt_file: /tmp/claude-prompts/triage-prompt.txt
           allowed_tools: "Bash(gh label list),mcp__github__get_issue,mcp__github__get_issue_comments,mcp__github__update_issue,mcp__github__search_issues,mcp__github__list_issues"
-          mcp_config: /tmp/mcp-config/mcp-servers.json
-          timeout_minutes: "5"
+          claude_args: |
+            --mcp-config /tmp/mcp-config/mcp-servers.json
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

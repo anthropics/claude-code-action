@@ -13,6 +13,8 @@ export const PR_QUERY = `
         headRefName
         headRefOid
         createdAt
+        updatedAt
+        lastEditedAt
         additions
         deletions
         state
@@ -46,6 +48,8 @@ export const PR_QUERY = `
               login
             }
             createdAt
+            updatedAt
+            lastEditedAt
             isMinimized
           }
         }
@@ -59,6 +63,8 @@ export const PR_QUERY = `
             body
             state
             submittedAt
+            updatedAt
+            lastEditedAt
             comments(first: 100) {
               nodes {
                 id
@@ -70,6 +76,8 @@ export const PR_QUERY = `
                   login
                 }
                 createdAt
+                updatedAt
+                lastEditedAt
                 isMinimized
               }
             }
@@ -90,6 +98,8 @@ export const ISSUE_QUERY = `
           login
         }
         createdAt
+        updatedAt
+        lastEditedAt
         state
         comments(first: 100) {
           nodes {
@@ -100,6 +110,8 @@ export const ISSUE_QUERY = `
               login
             }
             createdAt
+            updatedAt
+            lastEditedAt
             isMinimized
           }
         }

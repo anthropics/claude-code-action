@@ -3,7 +3,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { setupClaudeCodeSettings } from "../src/setup-claude-code-settings";
 import { tmpdir } from "os";
-import { mkdir, writeFile, readFile, rm, readdir } from "fs/promises";
+import { mkdir, writeFile, readFile, rm } from "fs/promises";
 import { join } from "path";
 
 const testHomeDir = join(
@@ -146,73 +146,5 @@ describe("setupClaudeCodeSettings", () => {
     expect(settings.existingKey).toBe("existingValue");
     expect(settings.newKey).toBe("newValue");
     expect(settings.model).toBe("claude-opus-4-1-20250805");
-  });
-
-  test("should copy slash commands to .claude directory when path provided", async () => {
-    const testSlashCommandsDir = join(testHomeDir, "test-slash-commands");
-    await mkdir(testSlashCommandsDir, { recursive: true });
-    await writeFile(
-      join(testSlashCommandsDir, "test-command.md"),
-      "---\ndescription: Test command\n---\nTest content",
-    );
-
-    await setupClaudeCodeSettings(undefined, testHomeDir, testSlashCommandsDir);
-
-    const testCommandPath = join(testHomeDir, ".claude", "test-command.md");
-    const content = await readFile(testCommandPath, "utf-8");
-    expect(content).toContain("Test content");
-  });
-
-  test("should skip slash commands when no directory provided", async () => {
-    await setupClaudeCodeSettings(undefined, testHomeDir);
-
-    const settingsContent = await readFile(settingsPath, "utf-8");
-    const settings = JSON.parse(settingsContent);
-    expect(settings.enableAllProjectMcpServers).toBe(true);
-  });
-
-  test("should handle missing slash commands directory gracefully", async () => {
-    const nonExistentDir = join(testHomeDir, "non-existent");
-
-    await setupClaudeCodeSettings(undefined, testHomeDir, nonExistentDir);
-
-    const settingsContent = await readFile(settingsPath, "utf-8");
-    expect(JSON.parse(settingsContent).enableAllProjectMcpServers).toBe(true);
-  });
-
-  test("should skip non-.md files in slash commands directory", async () => {
-    const testSlashCommandsDir = join(testHomeDir, "test-slash-commands");
-    await mkdir(testSlashCommandsDir, { recursive: true });
-    await writeFile(join(testSlashCommandsDir, "not-markdown.txt"), "ignored");
-    await writeFile(join(testSlashCommandsDir, "valid.md"), "copied");
-    await writeFile(join(testSlashCommandsDir, "another.md"), "also copied");
-
-    await setupClaudeCodeSettings(undefined, testHomeDir, testSlashCommandsDir);
-
-    const copiedFiles = await readdir(join(testHomeDir, ".claude"));
-    expect(copiedFiles).toContain("valid.md");
-    expect(copiedFiles).toContain("another.md");
-    expect(copiedFiles).not.toContain("not-markdown.txt");
-    expect(copiedFiles).toContain("settings.json"); // Settings should also exist
-  });
-
-  test("should handle slash commands path that is a file not directory", async () => {
-    const testFile = join(testHomeDir, "not-a-directory.txt");
-    await writeFile(testFile, "This is a file, not a directory");
-
-    await setupClaudeCodeSettings(undefined, testHomeDir, testFile);
-
-    const settingsContent = await readFile(settingsPath, "utf-8");
-    expect(JSON.parse(settingsContent).enableAllProjectMcpServers).toBe(true);
-  });
-
-  test("should handle empty slash commands directory", async () => {
-    const emptyDir = join(testHomeDir, "empty-slash-commands");
-    await mkdir(emptyDir, { recursive: true });
-
-    await setupClaudeCodeSettings(undefined, testHomeDir, emptyDir);
-
-    const settingsContent = await readFile(settingsPath, "utf-8");
-    expect(JSON.parse(settingsContent).enableAllProjectMcpServers).toBe(true);
   });
 });

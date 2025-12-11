@@ -2,51 +2,47 @@
 
 ## Using Custom MCP Configuration
 
-The `mcp_config` input allows you to add custom MCP (Model Context Protocol) servers to extend Claude's capabilities. These servers merge with the built-in GitHub MCP servers.
+You can add custom MCP (Model Context Protocol) servers to extend Claude's capabilities using the `--mcp-config` flag in `claude_args`. These servers merge with the built-in GitHub MCP servers.
 
 ### Basic Example: Adding a Sequential Thinking Server
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    mcp_config: |
-      {
-        "mcpServers": {
-          "sequential-thinking": {
-            "command": "npx",
-            "args": [
-              "-y",
-              "@modelcontextprotocol/server-sequential-thinking"
-            ]
-          }
-        }
-      }
-    allowed_tools: "mcp__sequential-thinking__sequentialthinking" # Important: Each MCP tool from your server must be listed here, comma-separated
+    claude_args: |
+      --mcp-config '{"mcpServers": {"sequential-thinking": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]}}}'
+      --allowedTools mcp__sequential-thinking__sequentialthinking
     # ... other inputs
 ```
 
 ### Passing Secrets to MCP Servers
 
-For MCP servers that require sensitive information like API keys or tokens, use GitHub Secrets in the environment variables:
+For MCP servers that require sensitive information like API keys or tokens, you can create a configuration file with GitHub Secrets:
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
-  with:
-    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    mcp_config: |
-      {
-        "mcpServers": {
-          "custom-api-server": {
-            "command": "npx",
-            "args": ["-y", "@example/api-server"],
-            "env": {
-              "API_KEY": "${{ secrets.CUSTOM_API_KEY }}",
-              "BASE_URL": "https://api.example.com"
-            }
+- name: Create MCP Config
+  run: |
+    cat > /tmp/mcp-config.json << 'EOF'
+    {
+      "mcpServers": {
+        "custom-api-server": {
+          "command": "npx",
+          "args": ["-y", "@example/api-server"],
+          "env": {
+            "API_KEY": "${{ secrets.CUSTOM_API_KEY }}",
+            "BASE_URL": "https://api.example.com"
           }
         }
       }
+    }
+    EOF
+
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    claude_args: |
+      --mcp-config /tmp/mcp-config.json
     # ... other inputs
 ```
 
@@ -55,25 +51,31 @@ For MCP servers that require sensitive information like API keys or tokens, use 
 For Python-based MCP servers managed with `uv`, you need to specify the directory containing your server:
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
-  with:
-    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    mcp_config: |
-      {
-        "mcpServers": {
-          "my-python-server": {
-            "type": "stdio",
-            "command": "uv",
-            "args": [
-              "--directory",
-              "${{ github.workspace }}/path/to/server/",
-              "run",
-              "server_file.py"
-            ]
-          }
+- name: Create MCP Config for Python Server
+  run: |
+    cat > /tmp/mcp-config.json << 'EOF'
+    {
+      "mcpServers": {
+        "my-python-server": {
+          "type": "stdio",
+          "command": "uv",
+          "args": [
+            "--directory",
+            "${{ github.workspace }}/path/to/server/",
+            "run",
+            "server_file.py"
+          ]
         }
       }
-    allowed_tools: "my-python-server__<tool_name>" # Replace <tool_name> with your server's tool names
+    }
+    EOF
+
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    claude_args: |
+      --mcp-config /tmp/mcp-config.json
+      --allowedTools my-python-server__<tool_name>  # Replace <tool_name> with your server's tool names
     # ... other inputs
 ```
 
@@ -84,10 +86,26 @@ For example, if your Python MCP server is at `mcp_servers/weather.py`, you would
   ["--directory", "${{ github.workspace }}/mcp_servers/", "run", "weather.py"]
 ```
 
+### Multiple MCP Servers
+
+You can add multiple MCP servers by using multiple `--mcp-config` flags:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    claude_args: |
+      --mcp-config /tmp/config1.json
+      --mcp-config /tmp/config2.json
+      --mcp-config '{"mcpServers": {"inline-server": {"command": "npx", "args": ["@example/server"]}}}'
+    # ... other inputs
+```
+
 **Important**:
 
 - Always use GitHub Secrets (`${{ secrets.SECRET_NAME }}`) for sensitive values like API keys, tokens, or passwords. Never hardcode secrets directly in the workflow file.
 - Your custom servers will override any built-in servers with the same name.
+- The `claude_args` supports multiple `--mcp-config` flags that will be merged together.
 
 ## Additional Permissions for CI/CD Integration
 
@@ -112,7 +130,7 @@ To allow Claude to view workflow run results, job logs, and CI status:
 2. **Configure the action with additional permissions**:
 
    ```yaml
-   - uses: anthropics/claude-code-action@beta
+   - uses: anthropics/claude-code-action@v1
      with:
        anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
        additional_permissions: |
@@ -144,7 +162,7 @@ jobs:
   claude-ci-helper:
     runs-on: ubuntu-latest
     steps:
-      - uses: anthropics/claude-code-action@beta
+      - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           additional_permissions: |
@@ -160,33 +178,38 @@ jobs:
 
 ## Custom Environment Variables
 
-You can pass custom environment variables to Claude Code execution using the `claude_env` input. This is useful for CI/test setups that require specific environment variables:
+You can pass custom environment variables to Claude Code execution using the `settings` input. This is useful for CI/test setups that require specific environment variables:
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
-    claude_env: |
-      NODE_ENV: test
-      CI: true
-      DATABASE_URL: postgres://test:test@localhost:5432/test_db
+    settings: |
+      {
+        "env": {
+          "NODE_ENV": "test",
+          "CI": "true",
+          "DATABASE_URL": "postgres://test:test@localhost:5432/test_db"
+        }
+      }
     # ... other inputs
 ```
 
-The `claude_env` input accepts YAML format where each line defines a key-value pair. These environment variables will be available to Claude Code during execution, allowing it to run tests, build processes, or other commands that depend on specific environment configurations.
+These environment variables will be available to Claude Code during execution, allowing it to run tests, build processes, or other commands that depend on specific environment configurations.
 
 ## Limiting Conversation Turns
 
-You can use the `max_turns` parameter to limit the number of back-and-forth exchanges Claude can have during task execution. This is useful for:
+You can limit the number of back-and-forth exchanges Claude can have during task execution using the `claude_args` input. This is useful for:
 
 - Controlling costs by preventing runaway conversations
 - Setting time boundaries for automated workflows
 - Ensuring predictable behavior in CI/CD pipelines
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    max_turns: "5" # Limit to 5 conversation turns
+    claude_args: |
+      --max-turns 5  # Limit to 5 conversation turns
     # ... other inputs
 ```
 
@@ -200,35 +223,50 @@ By default, Claude only has access to:
 - Comment management (creating/updating comments)
 - Basic GitHub operations
 
-Claude does **not** have access to execute arbitrary Bash commands by default. If you want Claude to run specific commands (e.g., npm install, npm test), you must explicitly allow them using the `allowed_tools` configuration:
+Claude does **not** have access to execute arbitrary Bash commands by default. If you want Claude to run specific commands (e.g., npm install, npm test), you must explicitly allow them using the `claude_args` configuration:
 
-**Note**: If your repository has a `.mcp.json` file in the root directory, Claude will automatically detect and use the MCP server tools defined there. However, these tools still need to be explicitly allowed via the `allowed_tools` configuration.
+**Note**: If your repository has a `.mcp.json` file in the root directory, Claude will automatically detect and use the MCP server tools defined there. However, these tools still need to be explicitly allowed.
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
-    allowed_tools: |
-      Bash(npm install)
-      Bash(npm run test)
-      Edit
-      Replace
-      NotebookEditCell
-    disallowed_tools: |
-      TaskOutput
-      KillTask
+    claude_args: |
+      --allowedTools "Bash(npm install),Bash(npm run test),Edit,Replace,NotebookEditCell"
+      --disallowedTools "TaskOutput,KillTask"
     # ... other inputs
 ```
 
-**Note**: The base GitHub tools are always included. Use `allowed_tools` to add additional tools (including specific Bash commands), and `disallowed_tools` to prevent specific tools from being used.
+**Note**: The base GitHub tools are always included. Use `--allowedTools` to add additional tools (including specific Bash commands), and `--disallowedTools` to prevent specific tools from being used.
 
 ## Custom Model
 
-Use a specific Claude model:
+Specify a Claude model using `claude_args`:
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
-    # model: "claude-3-5-sonnet-20241022"  # Optional: specify a different model
+    claude_args: |
+      --model claude-4-0-sonnet-20250805
+    # ... other inputs
+```
+
+For provider-specific models:
+
+```yaml
+# AWS Bedrock
+- uses: anthropics/claude-code-action@v1
+  with:
+    use_bedrock: "true"
+    claude_args: |
+      --model anthropic.claude-4-0-sonnet-20250805-v1:0
+    # ... other inputs
+
+# Google Vertex AI
+- uses: anthropics/claude-code-action@v1
+  with:
+    use_vertex: "true"
+    claude_args: |
+      --model claude-4-0-sonnet@20250805
     # ... other inputs
 ```
 
@@ -239,7 +277,7 @@ You can provide Claude Code settings to customize behavior such as model selecti
 ### Option 1: Settings File
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     settings: "path/to/settings.json"
     # ... other inputs
@@ -248,7 +286,7 @@ You can provide Claude Code settings to customize behavior such as model selecti
 ### Option 2: Inline Settings
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: anthropics/claude-code-action@v1
   with:
     settings: |
       {
@@ -287,6 +325,49 @@ For a complete list of available settings and their descriptions, see the [Claud
 **Notes**:
 
 - The `enableAllProjectMcpServers` setting is always set to `true` by this action to ensure MCP servers work correctly.
-- If both the `model` input parameter and a `model` in settings are provided, the `model` input parameter takes precedence.
-- The `allowed_tools` and `disallowed_tools` input parameters take precedence over `permissions` in settings.
-- In a future version, we may deprecate individual input parameters in favor of using the settings file for all configuration.
+- The `claude_args` input provides direct access to Claude Code CLI arguments and takes precedence over settings.
+- We recommend using `claude_args` for simple configurations and `settings` for complex configurations with hooks and environment variables.
+
+## Migration from Deprecated Inputs
+
+Many individual input parameters have been consolidated into `claude_args` or `settings`. Here's how to migrate:
+
+| Old Input             | New Approach                                             |
+| --------------------- | -------------------------------------------------------- |
+| `allowed_tools`       | Use `claude_args: "--allowedTools Tool1,Tool2"`          |
+| `disallowed_tools`    | Use `claude_args: "--disallowedTools Tool1,Tool2"`       |
+| `max_turns`           | Use `claude_args: "--max-turns 10"`                      |
+| `model`               | Use `claude_args: "--model claude-4-0-sonnet-20250805"`  |
+| `claude_env`          | Use `settings` with `"env"` object                       |
+| `custom_instructions` | Use `claude_args: "--system-prompt 'Your instructions'"` |
+| `mcp_config`          | Use `claude_args: "--mcp-config '{...}'"`                |
+| `direct_prompt`       | Use `prompt` input instead                               |
+| `override_prompt`     | Use `prompt` with GitHub context variables               |
+
+## Custom Executables for Specialized Environments
+
+For specialized environments like Nix, custom container setups, or other package management systems where the default installation doesn't work, you can provide your own executables:
+
+### Custom Claude Code Executable
+
+Use `path_to_claude_code_executable` to provide your own Claude Code binary instead of using the automatically installed version:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    path_to_claude_code_executable: "/path/to/custom/claude"
+    # ... other inputs
+```
+
+### Custom Bun Executable
+
+Use `path_to_bun_executable` to provide your own Bun runtime instead of the default installation:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    path_to_bun_executable: "/path/to/custom/bun"
+    # ... other inputs
+```
+
+**Important**: Using incompatible versions may cause the action to fail. Ensure your custom executables are compatible with the action's requirements.

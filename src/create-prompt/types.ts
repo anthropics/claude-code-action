@@ -1,13 +1,12 @@
+import type { GitHubContext } from "../github/context";
+
 export type CommonFields = {
   repository: string;
   claudeCommentId: string;
   triggerPhrase: string;
   triggerUsername?: string;
-  customInstructions?: string;
-  allowedTools?: string;
-  disallowedTools?: string;
-  directPrompt?: string;
-  overridePrompt?: string;
+  prompt?: string;
+  claudeBranch?: string;
 };
 
 type PullRequestReviewCommentEvent = {
@@ -24,7 +23,7 @@ type PullRequestReviewEvent = {
   eventName: "pull_request_review";
   isPR: true;
   prNumber: string;
-  commentBody: string;
+  commentBody?: string; // May be absent for approvals without comments
   claudeBranch?: string;
   baseBranch?: string;
 };
@@ -79,13 +78,20 @@ type IssueLabeledEvent = {
   labelTrigger: string;
 };
 
-type PullRequestEvent = {
-  eventName: "pull_request";
+type PullRequestBaseEvent = {
   eventAction?: string; // opened, synchronize, etc.
   isPR: true;
   prNumber: string;
   claudeBranch?: string;
   baseBranch?: string;
+};
+
+type PullRequestEvent = PullRequestBaseEvent & {
+  eventName: "pull_request";
+};
+
+type PullRequestTargetEvent = PullRequestBaseEvent & {
+  eventName: "pull_request_target";
 };
 
 // Union type for all possible event types
@@ -97,9 +103,11 @@ export type EventData =
   | IssueOpenedEvent
   | IssueAssignedEvent
   | IssueLabeledEvent
-  | PullRequestEvent;
+  | PullRequestEvent
+  | PullRequestTargetEvent;
 
 // Combined type with separate eventData field
 export type PreparedContext = CommonFields & {
   eventData: EventData;
+  githubContext?: GitHubContext;
 };

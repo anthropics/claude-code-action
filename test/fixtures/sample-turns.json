@@ -189,7 +189,7 @@
   },
   {
     "type": "result",
-    "cost_usd": 0.0347,
+    "total_cost_usd": 0.0347,
     "duration_ms": 18750,
     "result": "Successfully removed debug print statement from file and added review comment to document the change."
   }

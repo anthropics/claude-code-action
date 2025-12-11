@@ -50,7 +50,7 @@ This is a GitHub Action that allows running Claude Code within GitHub workflows.
 
 - Unit tests for configuration logic
 - Integration tests for prompt preparation
-- Full workflow tests in `.github/workflows/test-action.yml`
+- Full workflow tests in `.github/workflows/test-base-action.yml`
 
 ## Important Technical Details
 

@@ -58,6 +58,41 @@ export function sanitizeContent(content: string): string {
   content = stripMarkdownLinkTitles(content);
   content = stripHiddenAttributes(content);
   content = normalizeHtmlEntities(content);
+  content = redactGitHubTokens(content);
+  return content;
+}
+
+export function redactGitHubTokens(content: string): string {
+  // GitHub Personal Access Tokens (classic): ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (40 chars)
+  content = content.replace(
+    /\bghp_[A-Za-z0-9]{36}\b/g,
+    "[REDACTED_GITHUB_TOKEN]",
+  );
+
+  // GitHub OAuth tokens: gho_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (40 chars)
+  content = content.replace(
+    /\bgho_[A-Za-z0-9]{36}\b/g,
+    "[REDACTED_GITHUB_TOKEN]",
+  );
+
+  // GitHub installation tokens: ghs_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (40 chars)
+  content = content.replace(
+    /\bghs_[A-Za-z0-9]{36}\b/g,
+    "[REDACTED_GITHUB_TOKEN]",
+  );
+
+  // GitHub refresh tokens: ghr_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (40 chars)
+  content = content.replace(
+    /\bghr_[A-Za-z0-9]{36}\b/g,
+    "[REDACTED_GITHUB_TOKEN]",
+  );
+
+  // GitHub fine-grained personal access tokens: github_pat_XXXXXXXXXX (up to 255 chars)
+  content = content.replace(
+    /\bgithub_pat_[A-Za-z0-9_]{11,221}\b/g,
+    "[REDACTED_GITHUB_TOKEN]",
+  );
+
   return content;
 }
 

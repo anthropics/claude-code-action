@@ -6,6 +6,7 @@ import { z } from "zod";
 import { GITHUB_API_URL } from "../github/api/config";
 import { Octokit } from "@octokit/rest";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
+import { sanitizeContent } from "../github/utils/sanitizer";
 
 // Get repository information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -54,11 +55,13 @@ server.tool(
       const isPullRequestReviewComment =
         eventName === "pull_request_review_comment";
 
+      const sanitizedBody = sanitizeContent(body);
+
       const result = await updateClaudeComment(octokit, {
         owner,
         repo,
         commentId,
-        body,
+        body: sanitizedBody,
         isPullRequestReviewComment,
       });
 

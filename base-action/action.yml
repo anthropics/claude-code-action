@@ -14,56 +14,16 @@ inputs:
     description: "Path to a file containing the prompt to send to Claude Code (mutually exclusive with prompt)"
     required: false
     default: ""
-  allowed_tools:
-    description: "Comma-separated list of allowed tools for Claude Code to use"
-    required: false
-    default: ""
-  disallowed_tools:
-    description: "Comma-separated list of disallowed tools that Claude Code cannot use"
-    required: false
-    default: ""
-  max_turns:
-    description: "Maximum number of conversation turns (default: no limit)"
-    required: false
-    default: ""
-  mcp_config:
-    description: "MCP configuration as JSON string or path to MCP configuration JSON file"
-    required: false
-    default: ""
   settings:
     description: "Claude Code settings as JSON string or path to settings JSON file"
     required: false
     default: ""
-  system_prompt:
-    description: "Override system prompt"
-    required: false
-    default: ""
-  append_system_prompt:
-    description: "Append to system prompt"
-    required: false
-    default: ""
-  model:
-    description: "Model to use (provider-specific format required for Bedrock/Vertex)"
-    required: false
-  anthropic_model:
-    description: "DEPRECATED: Use 'model' instead. Model to use (provider-specific format required for Bedrock/Vertex)"
-    required: false
-  fallback_model:
-    description: "Enable automatic fallback to specified model when default model is unavailable"
-    required: false
-  claude_env:
-    description: "Custom environment variables to pass to Claude Code execution (YAML multiline format)"
-    required: false
-    default: ""
 
   # Action settings
-  timeout_minutes:
-    description: "Timeout in minutes for Claude Code execution"
+  claude_args:
+    description: "Additional arguments to pass directly to Claude CLI (e.g., '--max-turns 3 --mcp-config /path/to/config.json')"
     required: false
-    default: "10"
-  experimental_slash_commands_dir:
-    description: "Experimental: Directory containing slash command files to install"
-    required: false
+    default: ""
 
   # Authentication settings
   anthropic_api_key:
@@ -82,11 +42,35 @@ inputs:
     description: "Use Google Vertex AI with OIDC authentication instead of direct Anthropic API"
     required: false
     default: "false"
+  use_foundry:
+    description: "Use Microsoft Foundry with OIDC authentication instead of direct Anthropic API"
+    required: false
+    default: "false"
 
   use_node_cache:
     description: "Whether to use Node.js dependency caching (set to true only for Node.js projects with lock files)"
     required: false
     default: "false"
+  path_to_claude_code_executable:
+    description: "Optional path to a custom Claude Code executable. If provided, skips automatic installation and uses this executable instead. WARNING: Using an older version may cause problems if the action begins taking advantage of new Claude Code features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
+    required: false
+    default: ""
+  path_to_bun_executable:
+    description: "Optional path to a custom Bun executable. If provided, skips automatic Bun installation and uses this executable instead. WARNING: Using an incompatible version may cause problems if the action requires specific Bun features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
+    required: false
+    default: ""
+  show_full_output:
+    description: "Show full JSON output from Claude Code. WARNING: This outputs ALL Claude messages including tool execution results which may contain secrets, API keys, or other sensitive information. These logs are publicly visible in GitHub Actions. Only enable for debugging in non-sensitive environments."
+    required: false
+    default: "false"
+  plugins:
+    description: "Newline-separated list of Claude Code plugin names to install (e.g., 'code-review@claude-code-plugins\nfeature-dev@claude-code-plugins')"
+    required: false
+    default: ""
+  plugin_marketplaces:
+    description: "Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., 'https://github.com/user/marketplace1.git\nhttps://github.com/user/marketplace2.git')"
+    required: false
+    default: ""
 
 outputs:
   conclusion:
@@ -95,6 +79,9 @@ outputs:
   execution_file:
     description: "Path to the JSON file containing Claude Code execution log"
     value: ${{ steps.run_claude.outputs.execution_file }}
+  structured_output:
+    description: "JSON string containing all structured output fields when --json-schema is provided in claude_args (use fromJSON() or jq to parse)"
+    value: ${{ steps.run_claude.outputs.structured_output }}
 
 runs:
   using: "composite"
@@ -106,9 +93,21 @@ runs:
         cache: ${{ inputs.use_node_cache == 'true' && 'npm' || '' }}
 
     - name: Install Bun
+      if: inputs.path_to_bun_executable == ''
       uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # https://github.com/oven-sh/setup-bun/releases/tag/v2.0.2
       with:
         bun-version: 1.2.11
+
+    - name: Setup Custom Bun Path
+      if: inputs.path_to_bun_executable != ''
+      shell: bash
+      env:
+        PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
+      run: |
+        echo "Using custom Bun executable: $PATH_TO_BUN_EXECUTABLE"
+        # Add the directory containing the custom executable to PATH
+        BUN_DIR=$(dirname "$PATH_TO_BUN_EXECUTABLE")
+        echo "$BUN_DIR" >> "$GITHUB_PATH"
 
     - name: Install Dependencies
       shell: bash
@@ -118,7 +117,33 @@ runs:
 
     - name: Install Claude Code
       shell: bash
-      run: bun install -g @anthropic-ai/claude-code@1.0.72
+      env:
+        PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
+      run: |
+        if [ -z "$PATH_TO_CLAUDE_CODE_EXECUTABLE" ]; then
+          CLAUDE_CODE_VERSION="2.0.62"
+          echo "Installing Claude Code v${CLAUDE_CODE_VERSION}..."
+          for attempt in 1 2 3; do
+            echo "Installation attempt $attempt..."
+            if command -v timeout &> /dev/null; then
+              timeout 120 bash -c "curl -fsSL https://claude.ai/install.sh | bash -s -- $CLAUDE_CODE_VERSION" && break
+            else
+              curl -fsSL https://claude.ai/install.sh | bash -s -- "$CLAUDE_CODE_VERSION" && break
+            fi
+            if [ $attempt -eq 3 ]; then
+              echo "Failed to install Claude Code after 3 attempts"
+              exit 1
+            fi
+            echo "Installation failed, retrying..."
+            sleep 5
+          done
+          echo "Claude Code installed successfully"
+        else
+          echo "Using custom Claude Code executable: $PATH_TO_CLAUDE_CODE_EXECUTABLE"
+          # Add the directory containing the custom executable to PATH
+          CLAUDE_DIR=$(dirname "$PATH_TO_CLAUDE_CODE_EXECUTABLE")
+          echo "$CLAUDE_DIR" >> "$GITHUB_PATH"
+        fi
 
     - name: Run Claude Code Action
       shell: bash
@@ -133,34 +158,32 @@ runs:
       env:
         # Model configuration
         CLAUDE_CODE_ACTION: "1"
-        ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
         INPUT_PROMPT: ${{ inputs.prompt }}
         INPUT_PROMPT_FILE: ${{ inputs.prompt_file }}
-        INPUT_ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
-        INPUT_DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
-        INPUT_MAX_TURNS: ${{ inputs.max_turns }}
-        INPUT_MCP_CONFIG: ${{ inputs.mcp_config }}
         INPUT_SETTINGS: ${{ inputs.settings }}
-        INPUT_SYSTEM_PROMPT: ${{ inputs.system_prompt }}
-        INPUT_APPEND_SYSTEM_PROMPT: ${{ inputs.append_system_prompt }}
-        INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
-        INPUT_CLAUDE_ENV: ${{ inputs.claude_env }}
-        INPUT_FALLBACK_MODEL: ${{ inputs.fallback_model }}
-        INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ inputs.experimental_slash_commands_dir }}
+        INPUT_CLAUDE_ARGS: ${{ inputs.claude_args }}
+        INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
+        INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
+        INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}
+        INPUT_PLUGINS: ${{ inputs.plugins }}
+        INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
 
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
         ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
+        ANTHROPIC_CUSTOM_HEADERS: ${{ env.ANTHROPIC_CUSTOM_HEADERS }}
         # Only set provider flags if explicitly true, since any value (including "false") is truthy
         CLAUDE_CODE_USE_BEDROCK: ${{ inputs.use_bedrock == 'true' && '1' || '' }}
         CLAUDE_CODE_USE_VERTEX: ${{ inputs.use_vertex == 'true' && '1' || '' }}
+        CLAUDE_CODE_USE_FOUNDRY: ${{ inputs.use_foundry == 'true' && '1' || '' }}
 
         # AWS configuration
         AWS_REGION: ${{ env.AWS_REGION }}
         AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
         AWS_SESSION_TOKEN: ${{ env.AWS_SESSION_TOKEN }}
+        AWS_BEARER_TOKEN_BEDROCK: ${{ env.AWS_BEARER_TOKEN_BEDROCK }}
         ANTHROPIC_BEDROCK_BASE_URL: ${{ env.ANTHROPIC_BEDROCK_BASE_URL || (env.AWS_REGION && format('https://bedrock-runtime.{0}.amazonaws.com', env.AWS_REGION)) }}
 
         # GCP configuration
@@ -168,3 +191,10 @@ runs:
         CLOUD_ML_REGION: ${{ env.CLOUD_ML_REGION }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
         ANTHROPIC_VERTEX_BASE_URL: ${{ env.ANTHROPIC_VERTEX_BASE_URL }}
+
+        # Microsoft Foundry configuration
+        ANTHROPIC_FOUNDRY_RESOURCE: ${{ env.ANTHROPIC_FOUNDRY_RESOURCE }}
+        ANTHROPIC_FOUNDRY_BASE_URL: ${{ env.ANTHROPIC_FOUNDRY_BASE_URL }}
+        ANTHROPIC_DEFAULT_SONNET_MODEL: ${{ env.ANTHROPIC_DEFAULT_SONNET_MODEL }}
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ env.ANTHROPIC_DEFAULT_HAIKU_MODEL }}
+        ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ env.ANTHROPIC_DEFAULT_OPUS_MODEL }}

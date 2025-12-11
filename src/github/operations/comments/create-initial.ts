@@ -46,6 +46,12 @@ export async function createInitialComment(
             .includes(context.inputs.stickyCommentAppBotName);
         const bodyMatch = comment.body === initialBody;
 
+        // 'id_and_name': Require both ID AND name to match, allowing
+        // multiple sticky comments per bot by changing the name.
+        // 'id_or_name': Match by ID OR name OR body.
+        if (context.inputs.stickyCommentMatchingStrategy === "id_and_name") {
+          return (idMatch && botNameMatch) || bodyMatch;
+        }
         return idMatch || botNameMatch || bodyMatch;
       });
       if (existingComment) {

@@ -23,25 +23,19 @@ import type { ParsedGitHubContext } from "../src/github/context";
 import { defaultStickyCommentInputs } from "./mockContext";
 
 describe("checkContainsTrigger", () => {
-  describe("direct prompt trigger", () => {
-    it("should return true when direct prompt is provided", () => {
+  describe("prompt trigger", () => {
+    it("should return true when prompt is provided", () => {
       const context = createMockContext({
         eventName: "issues",
         eventAction: "opened",
         inputs: {
-          mode: "tag",
+          prompt: "Fix the bug in the login form",
           triggerPhrase: "/claude",
           assigneeTrigger: "",
           labelTrigger: "",
-          directPrompt: "Fix the bug in the login form",
-          overridePrompt: "",
-          allowedTools: [],
-          disallowedTools: [],
-          customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
           ...defaultStickyCommentInputs,
-          additionalPermissions: new Map(),
           useCommitSigning: false,
           allowedBots: "",
         },
@@ -49,7 +43,7 @@ describe("checkContainsTrigger", () => {
       expect(checkContainsTrigger(context)).toBe(true);
     });
 
-    it("should return false when direct prompt is empty", () => {
+    it("should return false when prompt is empty", () => {
       const context = createMockContext({
         eventName: "issues",
         eventAction: "opened",
@@ -64,19 +58,13 @@ describe("checkContainsTrigger", () => {
           },
         } as IssuesEvent,
         inputs: {
-          mode: "tag",
+          prompt: "",
           triggerPhrase: "/claude",
           assigneeTrigger: "",
           labelTrigger: "",
-          directPrompt: "",
-          overridePrompt: "",
-          allowedTools: [],
-          disallowedTools: [],
-          customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
           ...defaultStickyCommentInputs,
-          additionalPermissions: new Map(),
           useCommitSigning: false,
           allowedBots: "",
         },
@@ -283,19 +271,13 @@ describe("checkContainsTrigger", () => {
           },
         } as PullRequestEvent,
         inputs: {
-          mode: "tag",
+          prompt: "",
           triggerPhrase: "@claude",
           assigneeTrigger: "",
           labelTrigger: "",
-          directPrompt: "",
-          overridePrompt: "",
-          allowedTools: [],
-          disallowedTools: [],
-          customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
           ...defaultStickyCommentInputs,
-          additionalPermissions: new Map(),
           useCommitSigning: false,
           allowedBots: "",
         },
@@ -319,19 +301,13 @@ describe("checkContainsTrigger", () => {
           },
         } as PullRequestEvent,
         inputs: {
-          mode: "tag",
+          prompt: "",
           triggerPhrase: "@claude",
           assigneeTrigger: "",
           labelTrigger: "",
-          directPrompt: "",
-          overridePrompt: "",
-          allowedTools: [],
-          disallowedTools: [],
-          customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
           ...defaultStickyCommentInputs,
-          additionalPermissions: new Map(),
           useCommitSigning: false,
           allowedBots: "",
         },
@@ -355,19 +331,13 @@ describe("checkContainsTrigger", () => {
           },
         } as PullRequestEvent,
         inputs: {
-          mode: "tag",
+          prompt: "",
           triggerPhrase: "@claude",
           assigneeTrigger: "",
           labelTrigger: "",
-          directPrompt: "",
-          overridePrompt: "",
-          allowedTools: [],
-          disallowedTools: [],
-          customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
           ...defaultStickyCommentInputs,
-          additionalPermissions: new Map(),
           useCommitSigning: false,
           allowedBots: "",
         },
