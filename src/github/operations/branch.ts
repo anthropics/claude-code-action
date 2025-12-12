@@ -18,16 +18,35 @@ import type { FetchDataResult } from "../data/fetcher";
  * This prevents command injection by ensuring only safe characters are used.
  *
  * Valid branch names:
- * - Start with alphanumeric character
+ * - Start with alphanumeric character (not dash, to prevent option injection)
  * - Contain only alphanumeric, forward slash, hyphen, underscore, or period
+ * - Do not start or end with a period
+ * - Do not end with a slash
  * - Do not contain '..' (path traversal)
+ * - Do not contain '//' (consecutive slashes)
  * - Do not end with '.lock'
  * - Do not contain '@{'
+ * - Do not contain control characters or special git characters (~^:?*[\])
  */
-function validateBranchName(branchName: string): void {
+export function validateBranchName(branchName: string): void {
   // Check for empty or whitespace-only names
   if (!branchName || branchName.trim().length === 0) {
     throw new Error("Branch name cannot be empty");
+  }
+
+  // Check for leading dash (prevents option injection like --help, -x)
+  if (branchName.startsWith("-")) {
+    throw new Error(
+      `Invalid branch name: "${branchName}". Branch names cannot start with a dash.`,
+    );
+  }
+
+  // Check for control characters and special git characters (~^:?*[\])
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1F\x7F ~^:?*[\]\\]/.test(branchName)) {
+    throw new Error(
+      `Invalid branch name: "${branchName}". Branch names cannot contain control characters, spaces, or special git characters (~^:?*[\\]).`,
+    );
   }
 
   // Strict whitelist pattern: alphanumeric start, then alphanumeric/slash/hyphen/underscore/period
@@ -36,6 +55,27 @@ function validateBranchName(branchName: string): void {
   if (!validPattern.test(branchName)) {
     throw new Error(
       `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric character and contain only alphanumeric characters, forward slashes, hyphens, underscores, or periods.`,
+    );
+  }
+
+  // Check for leading/trailing periods
+  if (branchName.startsWith(".") || branchName.endsWith(".")) {
+    throw new Error(
+      `Invalid branch name: "${branchName}". Branch names cannot start or end with a period.`,
+    );
+  }
+
+  // Check for trailing slash
+  if (branchName.endsWith("/")) {
+    throw new Error(
+      `Invalid branch name: "${branchName}". Branch names cannot end with a slash.`,
+    );
+  }
+
+  // Check for consecutive slashes
+  if (branchName.includes("//")) {
+    throw new Error(
+      `Invalid branch name: "${branchName}". Branch names cannot contain consecutive slashes.`,
     );
   }
 
@@ -61,6 +101,12 @@ function validateBranchName(branchName: string): void {
 
 /**
  * Executes a git command safely using execFileSync to avoid shell interpolation.
+ *
+ * Security: execFileSync passes arguments directly to the git binary without
+ * invoking a shell, preventing command injection attacks where malicious input
+ * could be interpreted as shell commands (e.g., branch names containing `;`, `|`, `&&`).
+ *
+ * @param args - Git command arguments (e.g., ["checkout", "branch-name"])
  */
 function execGit(args: string[]): void {
   execFileSync("git", args, { stdio: "inherit" });
@@ -178,7 +224,7 @@ export async function setupBranch(
       console.log(`Fetching and checking out source branch: ${sourceBranch}`);
       validateBranchName(sourceBranch);
       execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
-      execGit(["checkout", sourceBranch]);
+      execGit(["checkout", sourceBranch, "--"]);
 
       // Set outputs for GitHub Actions
       core.setOutput("CLAUDE_BRANCH", newBranch);
@@ -200,7 +246,7 @@ export async function setupBranch(
     validateBranchName(sourceBranch);
     validateBranchName(newBranch);
     execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
-    execGit(["checkout", sourceBranch]);
+    execGit(["checkout", sourceBranch, "--"]);
 
     // Create and checkout the new branch from the source branch
     execGit(["checkout", "-b", newBranch]);
