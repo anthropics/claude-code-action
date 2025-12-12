@@ -167,8 +167,8 @@ export async function parseAndSetStructuredOutputs(
 }
 
 export async function runClaude(promptPath: string, options: ClaudeOptions) {
-  // Feature flag: use SDK path when USE_AGENT_SDK=true
-  const useAgentSdk = process.env.USE_AGENT_SDK === "true";
+  // Feature flag: use SDK path by default, set USE_AGENT_SDK=false to use CLI
+  const useAgentSdk = process.env.USE_AGENT_SDK !== "false";
   console.log(
     `Using ${useAgentSdk ? "Agent SDK" : "CLI"} path (USE_AGENT_SDK=${process.env.USE_AGENT_SDK ?? "unset"})`,
   );
