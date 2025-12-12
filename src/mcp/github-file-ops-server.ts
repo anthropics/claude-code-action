@@ -4,7 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { readFile, stat } from "fs/promises";
-import { join } from "path";
+import { join, resolve, sep } from "path";
 import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
@@ -474,20 +474,21 @@ server.tool(
         throw new Error("GITHUB_TOKEN environment variable is required");
       }
 
-      // Convert absolute paths to relative if they match CWD
+      // Normalize all paths and validate they're within the repository root
       const cwd = process.cwd();
       const processedPaths = paths.map((filePath) => {
-        if (filePath.startsWith("/")) {
-          if (filePath.startsWith(cwd)) {
-            // Strip CWD from absolute path
-            return filePath.slice(cwd.length + 1);
-          } else {
-            throw new Error(
-              `Path '${filePath}' must be relative to repository root or within current working directory`,
-            );
-          }
+        // Normalize the path to resolve any .. or . sequences
+        const normalizedPath = resolve(cwd, filePath);
+
+        // Validate the normalized path is within the current working directory
+        if (!normalizedPath.startsWith(cwd + sep)) {
+          throw new Error(
+            `Path '${filePath}' resolves outside the repository root`,
+          );
         }
-        return filePath;
+
+        // Convert to relative path by stripping the cwd prefix
+        return normalizedPath.slice(cwd.length + 1);
       });
 
       // 1. Get the branch reference (create if doesn't exist)
