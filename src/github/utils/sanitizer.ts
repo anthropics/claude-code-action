@@ -1,3 +1,11 @@
+export function stripAnsiCodes(content: string): string {
+  // Matches ANSI escape sequences:
+  // - \x1B[ (CSI) followed by parameters and a final byte
+  // - \x1B followed by single-character sequences
+  // Common sequences: \x1B[1;33m (colors), \x1B[0m (reset), \x1B[K (clear line)
+  return content.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
+}
+
 export function stripInvisibleCharacters(content: string): string {
   content = content.replace(/[\u200B\u200C\u200D\uFEFF]/g, "");
   content = content.replace(

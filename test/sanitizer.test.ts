@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  stripAnsiCodes,
   stripInvisibleCharacters,
   stripMarkdownImageAltText,
   stripMarkdownLinkTitles,
@@ -9,6 +10,51 @@ import {
   stripHtmlComments,
   redactGitHubTokens,
 } from "../src/github/utils/sanitizer";
+
+describe("stripAnsiCodes", () => {
+  it("should remove color codes", () => {
+    // Bold yellow text: \x1B[1;33m
+    expect(stripAnsiCodes("\x1B[1;33mWarning\x1B[0m")).toBe("Warning");
+    // Red text: \x1B[31m
+    expect(stripAnsiCodes("\x1B[31mError\x1B[0m")).toBe("Error");
+    // Green text: \x1B[32m
+    expect(stripAnsiCodes("\x1B[32mSuccess\x1B[0m")).toBe("Success");
+  });
+
+  it("should remove bold and other style codes", () => {
+    // Bold: \x1B[1m
+    expect(stripAnsiCodes("\x1B[1mBold text\x1B[0m")).toBe("Bold text");
+    // Underline: \x1B[4m
+    expect(stripAnsiCodes("\x1B[4mUnderlined\x1B[0m")).toBe("Underlined");
+  });
+
+  it("should remove cursor movement codes", () => {
+    // Clear line: \x1B[K
+    expect(stripAnsiCodes("Text\x1B[K")).toBe("Text");
+    // Cursor up: \x1B[A
+    expect(stripAnsiCodes("Line1\x1B[ALine2")).toBe("Line1Line2");
+  });
+
+  it("should handle multiple ANSI codes in one string", () => {
+    const input = "\x1B[1;31mError:\x1B[0m \x1B[33mWarning\x1B[0m text";
+    expect(stripAnsiCodes(input)).toBe("Error: Warning text");
+  });
+
+  it("should preserve text without ANSI codes", () => {
+    expect(stripAnsiCodes("Normal text")).toBe("Normal text");
+    expect(stripAnsiCodes("Text with [brackets]")).toBe("Text with [brackets]");
+  });
+
+  it("should handle empty string", () => {
+    expect(stripAnsiCodes("")).toBe("");
+  });
+
+  it("should handle complex terminal output", () => {
+    // Simulates npm/yarn output with colors
+    const input = "\x1B[2K\x1B[1G\x1B[32m✓\x1B[0m Tests passed";
+    expect(stripAnsiCodes(input)).toBe("✓ Tests passed");
+  });
+});
 
 describe("stripInvisibleCharacters", () => {
   it("should remove zero-width characters", () => {

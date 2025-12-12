@@ -2,6 +2,7 @@
 
 import { readFileSync, existsSync } from "fs";
 import { exit } from "process";
+import { stripAnsiCodes } from "../github/utils/sanitizer";
 
 export type ToolUse = {
   type: string;
@@ -171,6 +172,9 @@ export function formatResultContent(content: any): string {
   } catch {
     contentStr = String(content).trim();
   }
+
+  // Strip ANSI escape codes from terminal output
+  contentStr = stripAnsiCodes(contentStr);
 
   // Truncate very long results
   if (contentStr.length > 3000) {

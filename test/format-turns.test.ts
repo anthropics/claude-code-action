@@ -111,6 +111,27 @@ describe("formatResultContent", () => {
     const result = formatResultContent(JSON.stringify(structuredContent));
     expect(result).toBe("**→** Hello world\n\n");
   });
+
+  test("strips ANSI color codes from terminal output", () => {
+    // Test bold yellow warning (the issue reported: [1;33m)
+    const coloredOutput = "\x1B[1;33mWarning: something happened\x1B[0m";
+    const result = formatResultContent(coloredOutput);
+    expect(result).toBe("**→** Warning: something happened\n\n");
+    expect(result).not.toContain("\x1B");
+    expect(result).not.toContain("[1;33m");
+  });
+
+  test("strips ANSI codes from longer output in code blocks", () => {
+    const longColoredOutput =
+      "\x1B[32m✓\x1B[0m Test 1 passed\n" +
+      "\x1B[32m✓\x1B[0m Test 2 passed\n" +
+      "\x1B[31m✗\x1B[0m Test 3 failed\n" +
+      "Some additional output to make it longer";
+    const result = formatResultContent(longColoredOutput);
+    expect(result).toContain("✓ Test 1 passed");
+    expect(result).toContain("✗ Test 3 failed");
+    expect(result).not.toContain("\x1B");
+  });
 });
 
 describe("formatToolWithResult", () => {
