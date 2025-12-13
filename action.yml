@@ -77,6 +77,18 @@ inputs:
     description: "Use just one comment to deliver issue/PR comments"
     required: false
     default: "false"
+  sticky_comment_app_bot_id:
+    description: "The ID of the app bot that will be used to create the sticky comment. Defaults to the Claude app bot ID."
+    required: false
+    default: "209825114"
+  sticky_comment_app_bot_name:
+    description: "The name of the app bot that will be used to create the sticky comment. Defaults to 'claude'."
+    required: false
+    default: "claude"
+  sticky_comment_matching_strategy:
+    description: "Strategy for matching existing sticky comments: 'id_or_name' (match by ID OR name OR body - default), 'id_and_name' (match by ID AND name, allowing multiple comments per bot by changing name)"
+    required: false
+    default: "id_or_name"
   use_commit_signing:
     description: "Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands"
     required: false
@@ -172,6 +184,9 @@ runs:
         ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
+        STICKY_COMMENT_APP_BOT_ID: ${{ inputs.sticky_comment_app_bot_id }}
+        STICKY_COMMENT_APP_BOT_NAME: ${{ inputs.sticky_comment_app_bot_name }}
+        STICKY_COMMENT_MATCHING_STRATEGY: ${{ inputs.sticky_comment_matching_strategy }}
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
         BOT_ID: ${{ inputs.bot_id }}
@@ -304,6 +319,8 @@ runs:
         PREPARE_SUCCESS: ${{ steps.prepare.outcome == 'success' }}
         PREPARE_ERROR: ${{ steps.prepare.outputs.prepare_error || '' }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
+        STICKY_COMMENT_APP_BOT_ID: ${{ inputs.sticky_comment_app_bot_id }}
+        STICKY_COMMENT_APP_BOT_NAME: ${{ inputs.sticky_comment_app_bot_name }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
         TRACK_PROGRESS: ${{ inputs.track_progress }}
 
