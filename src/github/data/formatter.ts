@@ -48,9 +48,22 @@ export function formatBody(
 export function formatComments(
   comments: GitHubComment[],
   imageUrlMap?: Map<string, string>,
+  excludedCommentUsers?: string[],
 ): string {
   return comments
-    .filter((comment) => !comment.isMinimized)
+    .filter((comment) => {
+      // Filter out minimized comments
+      if (comment.isMinimized) return false;
+
+      // Filter out excluded users if specified
+      if (excludedCommentUsers && excludedCommentUsers.length > 0) {
+        return !excludedCommentUsers.includes(
+          comment.author.login.toLowerCase(),
+        );
+      }
+
+      return true;
+    })
     .map((comment) => {
       let body = comment.body;
 
