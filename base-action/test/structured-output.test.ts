@@ -4,7 +4,10 @@ import { describe, test, expect, afterEach, beforeEach, spyOn } from "bun:test";
 import { writeFile, unlink } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
-import { parseAndSetStructuredOutputs } from "../src/run-claude";
+import {
+  parseAndSetStructuredOutputs,
+  parseAndSetSessionId,
+} from "../src/run-claude";
 import * as core from "@actions/core";
 
 // Mock execution file path
@@ -35,16 +38,19 @@ async function createMockExecutionFile(
 // Spy on core functions
 let setOutputSpy: any;
 let infoSpy: any;
+let warningSpy: any;
 
 beforeEach(() => {
   setOutputSpy = spyOn(core, "setOutput").mockImplementation(() => {});
   infoSpy = spyOn(core, "info").mockImplementation(() => {});
+  warningSpy = spyOn(core, "warning").mockImplementation(() => {});
 });
 
 describe("parseAndSetStructuredOutputs", () => {
   afterEach(async () => {
     setOutputSpy?.mockRestore();
     infoSpy?.mockRestore();
+    warningSpy?.mockRestore();
     try {
       await unlink(TEST_EXECUTION_FILE);
     } catch {
@@ -154,5 +160,68 @@ describe("parseAndSetStructuredOutputs", () => {
     expect(infoSpy).toHaveBeenCalledWith(
       "Set structured_output with 0 field(s)",
     );
+  });
+});
+
+describe("parseAndSetSessionId", () => {
+  afterEach(async () => {
+    setOutputSpy?.mockRestore();
+    infoSpy?.mockRestore();
+    warningSpy?.mockRestore();
+    try {
+      await unlink(TEST_EXECUTION_FILE);
+    } catch {
+      // Ignore if file doesn't exist
+    }
+  });
+
+  test("should extract session_id from system.init message", async () => {
+    const messages = [
+      { type: "system", subtype: "init", session_id: "test-session-123" },
+      { type: "result", cost_usd: 0.01 },
+    ];
+    await writeFile(TEST_EXECUTION_FILE, JSON.stringify(messages));
+
+    await parseAndSetSessionId(TEST_EXECUTION_FILE);
+
+    expect(setOutputSpy).toHaveBeenCalledWith("session_id", "test-session-123");
+    expect(infoSpy).toHaveBeenCalledWith("Set session_id: test-session-123");
+  });
+
+  test("should handle missing session_id gracefully", async () => {
+    const messages = [
+      { type: "system", subtype: "init" },
+      { type: "result", cost_usd: 0.01 },
+    ];
+    await writeFile(TEST_EXECUTION_FILE, JSON.stringify(messages));
+
+    await parseAndSetSessionId(TEST_EXECUTION_FILE);
+
+    expect(setOutputSpy).not.toHaveBeenCalled();
+  });
+
+  test("should handle missing system.init message gracefully", async () => {
+    const messages = [{ type: "result", cost_usd: 0.01 }];
+    await writeFile(TEST_EXECUTION_FILE, JSON.stringify(messages));
+
+    await parseAndSetSessionId(TEST_EXECUTION_FILE);
+
+    expect(setOutputSpy).not.toHaveBeenCalled();
+  });
+
+  test("should handle malformed JSON gracefully with warning", async () => {
+    await writeFile(TEST_EXECUTION_FILE, "{ invalid json");
+
+    await parseAndSetSessionId(TEST_EXECUTION_FILE);
+
+    expect(setOutputSpy).not.toHaveBeenCalled();
+    expect(warningSpy).toHaveBeenCalled();
+  });
+
+  test("should handle non-existent file gracefully with warning", async () => {
+    await parseAndSetSessionId("/nonexistent/file.json");
+
+    expect(setOutputSpy).not.toHaveBeenCalled();
+    expect(warningSpy).toHaveBeenCalled();
   });
 });

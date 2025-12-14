@@ -127,6 +127,9 @@ outputs:
   structured_output:
     description: "JSON string containing all structured output fields when --json-schema is provided in claude_args. Use fromJSON() to parse: fromJSON(steps.id.outputs.structured_output).field_name"
     value: ${{ steps.claude-code.outputs.structured_output }}
+  session_id:
+    description: "The Claude Code session ID that can be used with --resume to continue this conversation"
+    value: ${{ steps.claude-code.outputs.session_id }}
 
 runs:
   using: "composite"

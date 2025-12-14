@@ -123,6 +123,36 @@ export function prepareRunConfig(
 }
 
 /**
+ * Parses session_id from execution file and sets GitHub Action output
+ * Exported for testing
+ */
+export async function parseAndSetSessionId(
+  executionFile: string,
+): Promise<void> {
+  try {
+    const content = await readFile(executionFile, "utf-8");
+    const messages = JSON.parse(content) as {
+      type: string;
+      subtype?: string;
+      session_id?: string;
+    }[];
+
+    // Find the system.init message which contains session_id
+    const initMessage = messages.find(
+      (m) => m.type === "system" && m.subtype === "init",
+    );
+
+    if (initMessage?.session_id) {
+      core.setOutput("session_id", initMessage.session_id);
+      core.info(`Set session_id: ${initMessage.session_id}`);
+    }
+  } catch (error) {
+    // Don't fail the action if session_id extraction fails
+    core.warning(`Failed to extract session_id: ${error}`);
+  }
+}
+
+/**
  * Parses structured_output from execution file and sets GitHub Action outputs
  * Only runs if --json-schema was explicitly provided in claude_args
  * Exported for testing
@@ -354,6 +384,9 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
     }
 
     core.setOutput("execution_file", EXECUTION_FILE);
+
+    // Extract and set session_id
+    await parseAndSetSessionId(EXECUTION_FILE);
 
     // Parse and set structured outputs only if user provided --json-schema in claude_args
     if (hasJsonSchema) {
