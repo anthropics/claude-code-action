@@ -563,9 +563,22 @@ ${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
 ${
   eventData.claudeBranch
     ? `
-When done with changes, provide a PR link:
+When done with changes:
+1. Run git log origin/${eventData.baseBranch}..HEAD and git diff origin/${eventData.baseBranch}...HEAD to understand ALL commits
+2. Draft a PR summary analyzing ALL changes (not just the latest commit)
+3. Provide a PR link:
 [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
-Use THREE dots (...) between branches. URL-encode all parameters.`
+Use THREE dots (...) between branches. URL-encode all parameters.
+PR body format:
+## Summary
+<1-3 bullet points>
+
+## Test plan
+<Checklist of testing TODOs>
+
+Fixes #<issue-number>
+
+Generated with [Claude Code](https://claude.ai/code)`
     : ""
 }
 
@@ -743,8 +756,13 @@ ${eventData.eventName === "issue_comment" || eventData.eventName === "pull_reque
       - Mark each subtask as completed as you progress.${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
       ${
         eventData.claudeBranch
-          ? `- Provide a URL to create a PR manually in this format:
-        [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
+          ? `- When creating a pull request, follow these steps:
+        1. Use git log and git diff to understand the full commit history for the current branch (from the time it diverged from the base branch):
+           - Run: git log origin/${eventData.baseBranch}..HEAD
+           - Run: git diff origin/${eventData.baseBranch}...HEAD
+        2. Analyze ALL changes that will be included in the pull request, making sure to look at all relevant commits (NOT just the latest commit, but ALL commits that will be included in the pull request), and draft a pull request summary
+        3. Provide a URL to create a PR manually in this format:
+           [Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...<branch-name>?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
         - IMPORTANT: Use THREE dots (...) between branch names, not two (..)
           Example: ${GITHUB_SERVER_URL}/${context.repository}/compare/main...feature-branch (correct)
           NOT: ${GITHUB_SERVER_URL}/${context.repository}/compare/main..feature-branch (incorrect)
@@ -752,10 +770,16 @@ ${eventData.eventName === "issue_comment" || eventData.eventName === "pull_reque
           Example: Instead of "fix: update welcome message", use "fix%3A%20update%20welcome%20message"
         - The target-branch should be '${eventData.baseBranch}'.
         - The branch-name is the current branch: ${eventData.claudeBranch}
-        - The body should include:
-          - A clear description of the changes
-          - Reference to the original ${eventData.isPR ? "PR" : "issue"}
-          - The signature: "Generated with [Claude Code](https://claude.ai/code)"
+        - The PR body MUST follow this format:
+          ## Summary
+          <1-3 bullet points summarizing the changes>
+
+          ## Test plan
+          <Bulleted markdown checklist of TODOs for testing the pull request>
+
+          Fixes #<issue-number>
+
+          Generated with [Claude Code](https://claude.ai/code)
         - Just include the markdown link with text "Create a PR" - do not add explanatory text before it like "You can create a PR using this link"`
           : ""
       }
