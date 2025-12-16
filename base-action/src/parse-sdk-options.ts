@@ -12,9 +12,12 @@ export type ParsedSdkOptions = {
 };
 
 // Flags that should accumulate multiple values instead of overwriting
+// Include both camelCase and hyphenated variants for CLI compatibility
 const ACCUMULATING_FLAGS = new Set([
   "allowedTools",
+  "allowed-tools",
   "disallowedTools",
+  "disallowed-tools",
   "mcp-config",
 ]);
 
@@ -79,7 +82,9 @@ function mergeMcpConfigs(configValues: string[]): string {
 /**
  * Parse claudeArgs string into extraArgs record for SDK pass-through
  * The SDK/CLI will handle --mcp-config, --json-schema, etc.
- * For allowedTools and disallowedTools, multiple occurrences are accumulated (comma-joined).
+ * For allowedTools and disallowedTools, multiple occurrences are accumulated (null-char joined).
+ * Accumulating flags also consume all consecutive non-flag values
+ * (e.g., --allowed-tools "Tool1" "Tool2" "Tool3" captures all three).
  */
 function parseClaudeArgsToExtraArgs(
   claudeArgs?: string,
@@ -99,14 +104,25 @@ function parseClaudeArgsToExtraArgs(
 
       // Check if next arg is a value (not another flag)
       if (nextArg && !nextArg.startsWith("--")) {
-        // For accumulating flags, join multiple values with delimiter
-        // Use null character as delimiter to avoid conflicts with comma in values
-        if (ACCUMULATING_FLAGS.has(flag) && result[flag]) {
-          result[flag] = `${result[flag]}${ACCUMULATE_DELIMITER}${nextArg}`;
+        // For accumulating flags, consume all consecutive non-flag values
+        // This handles: --allowed-tools "Tool1" "Tool2" "Tool3"
+        if (ACCUMULATING_FLAGS.has(flag)) {
+          const values: string[] = [];
+          while (i + 1 < args.length && !args[i + 1]?.startsWith("--")) {
+            i++;
+            values.push(args[i]!);
+          }
+          const joinedValues = values.join(ACCUMULATE_DELIMITER);
+          if (result[flag]) {
+            result[flag] =
+              `${result[flag]}${ACCUMULATE_DELIMITER}${joinedValues}`;
+          } else {
+            result[flag] = joinedValues;
+          }
         } else {
           result[flag] = nextArg;
+          i++; // Skip the value
         }
-        i++; // Skip the value
       } else {
         result[flag] = null; // Boolean flag
       }
@@ -131,15 +147,23 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   // Detect if --json-schema is present (for hasJsonSchema flag)
   const hasJsonSchema = "json-schema" in extraArgs;
 
-  // Extract and merge allowedTools from both sources:
+  // Extract and merge allowedTools from all sources:
   // 1. From extraArgs (parsed from claudeArgs - contains tag mode's tools)
+  //    - Check both camelCase (--allowedTools) and hyphenated (--allowed-tools) variants
   // 2. From options.allowedTools (direct input - may be undefined)
   // This prevents duplicate flags being overwritten when claudeArgs contains --allowedTools
-  const extraArgsAllowedTools = extraArgs["allowedTools"]
-    ? extraArgs["allowedTools"]
+  const allowedToolsValues = [
+    extraArgs["allowedTools"],
+    extraArgs["allowed-tools"],
+  ]
+    .filter(Boolean)
+    .join(ACCUMULATE_DELIMITER);
+  const extraArgsAllowedTools = allowedToolsValues
+    ? allowedToolsValues
         .split(ACCUMULATE_DELIMITER)
         .flatMap((v) => v.split(","))
         .map((t) => t.trim())
+        .filter(Boolean)
     : [];
   const directAllowedTools = options.allowedTools
     ? options.allowedTools.split(",").map((t) => t.trim())
@@ -148,13 +172,21 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     ...new Set([...extraArgsAllowedTools, ...directAllowedTools]),
   ];
   delete extraArgs["allowedTools"];
+  delete extraArgs["allowed-tools"];
 
-  // Same for disallowedTools
-  const extraArgsDisallowedTools = extraArgs["disallowedTools"]
-    ? extraArgs["disallowedTools"]
+  // Same for disallowedTools - check both camelCase and hyphenated variants
+  const disallowedToolsValues = [
+    extraArgs["disallowedTools"],
+    extraArgs["disallowed-tools"],
+  ]
+    .filter(Boolean)
+    .join(ACCUMULATE_DELIMITER);
+  const extraArgsDisallowedTools = disallowedToolsValues
+    ? disallowedToolsValues
         .split(ACCUMULATE_DELIMITER)
         .flatMap((v) => v.split(","))
         .map((t) => t.trim())
+        .filter(Boolean)
     : [];
   const directDisallowedTools = options.disallowedTools
     ? options.disallowedTools.split(",").map((t) => t.trim())
@@ -163,6 +195,7 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     ...new Set([...extraArgsDisallowedTools, ...directDisallowedTools]),
   ];
   delete extraArgs["disallowedTools"];
+  delete extraArgs["disallowed-tools"];
 
   // Merge multiple --mcp-config values by combining their mcpServers objects
   // The action prepends its config (github_comment, github_ci, etc.) as inline JSON,

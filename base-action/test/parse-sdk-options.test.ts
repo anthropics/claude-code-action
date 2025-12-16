@@ -108,6 +108,48 @@ describe("parseSdkOptions", () => {
       expect(result.sdkOptions.extraArgs?.["allowedTools"]).toBeUndefined();
       expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-3-5-sonnet");
     });
+
+    test("should handle hyphenated --allowed-tools flag", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--allowed-tools "Edit,Read,Write"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual(["Edit", "Read", "Write"]);
+      expect(result.sdkOptions.extraArgs?.["allowed-tools"]).toBeUndefined();
+    });
+
+    test("should accumulate multiple --allowed-tools flags (hyphenated)", () => {
+      // This is the exact scenario from issue #746
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--allowed-tools "Bash(git log:*)" "Bash(git diff:*)" "Bash(git fetch:*)" "Bash(gh pr:*)"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(git log:*)",
+        "Bash(git diff:*)",
+        "Bash(git fetch:*)",
+        "Bash(gh pr:*)",
+      ]);
+    });
+
+    test("should handle mixed camelCase and hyphenated allowedTools flags", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--allowedTools "Edit,Read" --allowed-tools "Write,Glob"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      // Both should be merged - note: order depends on which key is found first
+      expect(result.sdkOptions.allowedTools).toContain("Edit");
+      expect(result.sdkOptions.allowedTools).toContain("Read");
+      expect(result.sdkOptions.allowedTools).toContain("Write");
+      expect(result.sdkOptions.allowedTools).toContain("Glob");
+    });
   });
 
   describe("disallowedTools merging", () => {
