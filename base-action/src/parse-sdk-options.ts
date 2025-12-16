@@ -249,9 +249,17 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     extraArgs,
     env,
 
-    // Load settings from all sources to pick up CLI-installed plugins, CLAUDE.md, etc.
-    settingSources: ["user", "project", "local"],
+    // Load settings from sources - prefer user's --setting-sources if provided, otherwise use all sources
+    // This ensures users can override the default behavior (e.g., --setting-sources user to avoid in-repo configs)
+    settingSources: extraArgs["setting-sources"]
+      ? (extraArgs["setting-sources"].split(
+          ",",
+        ) as SdkOptions["settingSources"])
+      : ["user", "project", "local"],
   };
+
+  // Remove setting-sources from extraArgs to avoid passing it twice
+  delete extraArgs["setting-sources"];
 
   return {
     sdkOptions,
