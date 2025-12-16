@@ -1,22 +1,55 @@
-export function parseAllowedTools(claudeArgs: string): string[] {
-  // Match --allowedTools or --allowed-tools followed by the value
-  // Handle both quoted and unquoted values
-  const patterns = [
-    /--(?:allowedTools|allowed-tools)\s+"([^"]+)"/, // Double quoted
-    /--(?:allowedTools|allowed-tools)\s+'([^']+)'/, // Single quoted
-    /--(?:allowedTools|allowed-tools)\s+([^\s]+)/, // Unquoted
-  ];
+import { parse as parseShellArgs, type ParseEntry } from "shell-quote";
 
-  for (const pattern of patterns) {
-    const match = claudeArgs.match(pattern);
-    if (match && match[1]) {
-      // Don't return if the value starts with -- (another flag)
-      if (match[1].startsWith("--")) {
-        return [];
+/**
+ * Extract the string value from a shell-quote ParseEntry.
+ * Handles both plain strings and glob patterns (which are returned as objects).
+ */
+function entryToString(entry: ParseEntry): string | null {
+  if (typeof entry === "string") {
+    return entry;
+  }
+  // Handle glob patterns - shell-quote returns { op: "glob", pattern: "..." }
+  if (typeof entry === "object" && "op" in entry && entry.op === "glob") {
+    return (entry as { op: "glob"; pattern: string }).pattern;
+  }
+  return null;
+}
+
+export function parseAllowedTools(claudeArgs: string): string[] {
+  if (!claudeArgs?.trim()) return [];
+
+  const result: string[] = [];
+
+  // Use shell-quote to properly tokenize the arguments
+  // This handles quoted strings, escaped characters, etc.
+  const rawArgs = parseShellArgs(claudeArgs);
+
+  for (let i = 0; i < rawArgs.length; i++) {
+    const entry = rawArgs[i];
+    if (!entry) continue;
+    const arg = entryToString(entry);
+    if (!arg) continue;
+
+    // Match both --allowedTools and --allowed-tools
+    if (arg === "--allowedTools" || arg === "--allowed-tools") {
+      // Collect all subsequent non-flag values as tools
+      while (i + 1 < rawArgs.length) {
+        const nextEntry = rawArgs[i + 1];
+        if (!nextEntry) break;
+        const toolArg = entryToString(nextEntry);
+
+        // Stop if we hit another flag or a non-parseable entry
+        if (!toolArg || toolArg.startsWith("--")) {
+          break;
+        }
+
+        // Split by comma in case tools are comma-separated within a single value
+        const tools = toolArg.split(",").map((t) => t.trim());
+        result.push(...tools.filter((t) => t.length > 0));
+        i++;
       }
-      return match[1].split(",").map((t) => t.trim());
     }
   }
 
-  return [];
+  return result;
 }
