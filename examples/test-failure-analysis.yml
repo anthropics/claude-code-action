@@ -53,6 +53,8 @@ jobs:
           fromJSON(steps.detect.outputs.structured_output).confidence >= 0.7
         env:
           GH_TOKEN: ${{ github.token }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           OUTPUT='${{ steps.detect.outputs.structured_output }}'
           CONFIDENCE=$(echo "$OUTPUT" | jq -r '.confidence')
@@ -63,8 +65,8 @@ jobs:
           echo ""
           echo "Triggering automatic retry..."
 
-          gh workflow run "${{ github.event.workflow_run.name }}" \
-            --ref "${{ github.event.workflow_run.head_branch }}"
+          gh workflow run "$WORKFLOW_NAME" \
+            --ref "$HEAD_BRANCH"
 
       # Low confidence flaky detection - skip retry
       - name: Low confidence detection
@@ -83,13 +85,14 @@ jobs:
         if: github.event.workflow_run.event == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           OUTPUT='${{ steps.detect.outputs.structured_output }}'
           IS_FLAKY=$(echo "$OUTPUT" | jq -r '.is_flaky')
           CONFIDENCE=$(echo "$OUTPUT" | jq -r '.confidence')
           SUMMARY=$(echo "$OUTPUT" | jq -r '.summary')
 
-          pr_number=$(gh pr list --head "${{ github.event.workflow_run.head_branch }}" --json number --jq '.[0].number')
+          pr_number=$(gh pr list --head "$HEAD_BRANCH" --json number --jq '.[0].number')
 
           if [ -n "$pr_number" ]; then
             if [ "$IS_FLAKY" = "true" ]; then

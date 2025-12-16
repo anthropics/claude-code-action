@@ -35,8 +35,11 @@ jobs:
 
       - name: Create fix branch
         id: branch
+        env:
+          SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_ID: ${{ github.run_id }}
         run: |
-          BRANCH_NAME="claude-auto-fix-ci-${{ github.event.workflow_run.head_branch }}-${{ github.run_id }}"
+          BRANCH_NAME="claude-auto-fix-ci-${SOURCE_BRANCH}-${RUN_ID}"
           git checkout -b "$BRANCH_NAME"
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
