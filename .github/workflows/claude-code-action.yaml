@@ -1,0 +1,20 @@
+name: Claude AI Code Action
+
+on:
+  issues:
+    types: [opened, edited]
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--max-turns 3"
+          prompt: "/review"
