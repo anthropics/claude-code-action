@@ -8,26 +8,47 @@ const MARKETPLACE_URL_REGEX =
   /^https:\/\/[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=%]+\.git$/;
 
 /**
- * Validates a marketplace URL for security issues
- * @param url - The marketplace URL to validate
- * @throws {Error} If the URL is invalid
+ * Checks if a marketplace input is a local path (not a URL)
+ * @param input - The marketplace input to check
+ * @returns true if the input is a local path, false if it's a URL
  */
-function validateMarketplaceUrl(url: string): void {
-  const normalized = url.trim();
+function isLocalPath(input: string): boolean {
+  // Local paths start with ./, ../, /, or a drive letter (Windows)
+  return (
+    input.startsWith("./") ||
+    input.startsWith("../") ||
+    input.startsWith("/") ||
+    /^[a-zA-Z]:[\\\/]/.test(input)
+  );
+}
+
+/**
+ * Validates a marketplace URL or local path
+ * @param input - The marketplace URL or local path to validate
+ * @throws {Error} If the input is invalid
+ */
+function validateMarketplaceInput(input: string): void {
+  const normalized = input.trim();
 
   if (!normalized) {
-    throw new Error("Marketplace URL cannot be empty");
+    throw new Error("Marketplace URL or path cannot be empty");
   }
 
+  // Local paths are passed directly to Claude Code which handles them
+  if (isLocalPath(normalized)) {
+    return;
+  }
+
+  // Validate as URL
   if (!MARKETPLACE_URL_REGEX.test(normalized)) {
-    throw new Error(`Invalid marketplace URL format: ${url}`);
+    throw new Error(`Invalid marketplace URL format: ${input}`);
   }
 
   // Additional check for valid URL structure
   try {
     new URL(normalized);
   } catch {
-    throw new Error(`Invalid marketplace URL: ${url}`);
+    throw new Error(`Invalid marketplace URL: ${input}`);
   }
 }
 
@@ -55,9 +76,9 @@ function validatePluginName(pluginName: string): void {
 }
 
 /**
- * Parse a newline-separated list of marketplace URLs and return an array of validated URLs
- * @param marketplaces - Newline-separated list of marketplace Git URLs
- * @returns Array of validated marketplace URLs (empty array if none provided)
+ * Parse a newline-separated list of marketplace URLs or local paths and return an array of validated entries
+ * @param marketplaces - Newline-separated list of marketplace Git URLs or local paths
+ * @returns Array of validated marketplace URLs or paths (empty array if none provided)
  */
 function parseMarketplaces(marketplaces?: string): string[] {
   const trimmed = marketplaces?.trim();
@@ -66,14 +87,14 @@ function parseMarketplaces(marketplaces?: string): string[] {
     return [];
   }
 
-  // Split by newline and process each URL
+  // Split by newline and process each entry
   return trimmed
     .split("\n")
-    .map((url) => url.trim())
-    .filter((url) => {
-      if (url.length === 0) return false;
+    .map((entry) => entry.trim())
+    .filter((entry) => {
+      if (entry.length === 0) return false;
 
-      validateMarketplaceUrl(url);
+      validateMarketplaceInput(entry);
       return true;
     });
 }
@@ -163,26 +184,26 @@ async function installPlugin(
 /**
  * Adds a Claude Code plugin marketplace
  * @param claudeExecutable - Path to the Claude executable
- * @param marketplaceUrl - The marketplace Git URL to add
+ * @param marketplace - The marketplace Git URL or local path to add
  * @returns Promise that resolves when the marketplace add command completes
  * @throws {Error} If the command fails to execute
  */
 async function addMarketplace(
   claudeExecutable: string,
-  marketplaceUrl: string,
+  marketplace: string,
 ): Promise<void> {
-  console.log(`Adding marketplace: ${marketplaceUrl}`);
+  console.log(`Adding marketplace: ${marketplace}`);
 
   return executeClaudeCommand(
     claudeExecutable,
-    ["plugin", "marketplace", "add", marketplaceUrl],
-    `Failed to add marketplace '${marketplaceUrl}'`,
+    ["plugin", "marketplace", "add", marketplace],
+    `Failed to add marketplace '${marketplace}'`,
   );
 }
 
 /**
  * Installs Claude Code plugins from a newline-separated list
- * @param marketplacesInput - Newline-separated list of marketplace Git URLs
+ * @param marketplacesInput - Newline-separated list of marketplace Git URLs or local paths
  * @param pluginsInput - Newline-separated list of plugin names
  * @param claudeExecutable - Path to the Claude executable (defaults to "claude")
  * @returns Promise that resolves when all plugins are installed
