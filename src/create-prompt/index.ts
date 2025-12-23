@@ -392,6 +392,46 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
   }
 }
 
+function getConciseCommentsInstructions(): string {
+  return `
+COMMENT FORMATTING FOR CLEAN PR THREADS:
+Your comments should be scannable and not clutter the PR thread. Follow this format:
+
+1. Keep the visible summary brief (1-3 sentences describing what you did or your answer)
+2. Use <details> blocks for anything verbose:
+   - Detailed explanations or reasoning
+   - Code snippets longer than 10 lines
+   - Command output or logs
+   - Step-by-step breakdowns
+   - Full error messages or stack traces
+   - File lists or lengthy enumerations
+
+Example format:
+\`\`\`
+### Summary
+Fixed the authentication bug by updating token validation in \`auth.ts\`.
+
+<details>
+<summary>📝 Detailed changes</summary>
+
+The issue was in the \`validateToken()\` function which wasn't checking token expiry...
+
+</details>
+
+<details>
+<summary>📋 Files modified</summary>
+
+- \`src/auth/auth.ts\` - Updated token validation
+- \`src/auth/types.ts\` - Added new error type
+- \`tests/auth.test.ts\` - Added test coverage
+
+</details>
+\`\`\`
+
+This keeps the PR thread readable while preserving all details for those who want them.
+`;
+}
+
 function getCommitInstructions(
   eventData: EventData,
   githubData: FetchDataResult,
@@ -559,6 +599,7 @@ Communication:
 - Use mcp__github_comment__update_claude_comment to update (only "body" param needed)
 - Use checklist format for tasks: - [ ] incomplete, - [x] complete
 - Use ### headers (not #)
+${context.githubContext?.inputs.conciseComments ? getConciseCommentsInstructions() : ""}
 ${getCommitInstructions(eventData, githubData, context, useCommitSigning)}
 ${
   eventData.claudeBranch
@@ -801,6 +842,7 @@ ${
 - REPOSITORY SETUP INSTRUCTIONS: The repository's CLAUDE.md file(s) contain critical repo-specific setup instructions, development guidelines, and preferences. Always read and follow these files, particularly the root CLAUDE.md, as they provide essential context for working with the codebase effectively.
 - Use h3 headers (###) for section titles in your comments, not h1 headers (#).
 - Your comment must always include the job run link in the format "[View job run](${GITHUB_SERVER_URL}/${context.repository}/actions/runs/${process.env.GITHUB_RUN_ID})" at the bottom of your response (branch link if there is one should also be included there).
+${context.githubContext?.inputs.conciseComments ? getConciseCommentsInstructions() : ""}
 
 CAPABILITIES AND LIMITATIONS:
 When users ask you to do something, be aware of what you can and cannot do. This section helps you understand how to respond when users request actions outside your scope.

@@ -95,6 +95,7 @@ type BaseContext = {
     allowedBots: string;
     allowedNonWriteUsers: string;
     trackProgress: boolean;
+    conciseComments: boolean;
   };
 };
 
@@ -150,6 +151,7 @@ export function parseGitHubContext(): GitHubContext {
       allowedBots: process.env.ALLOWED_BOTS ?? "",
       allowedNonWriteUsers: process.env.ALLOWED_NON_WRITE_USERS ?? "",
       trackProgress: process.env.TRACK_PROGRESS === "true",
+      conciseComments: (process.env.CONCISE_COMMENTS ?? "true") === "true",
     },
   };
 
