@@ -21,6 +21,7 @@ import type { ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import type { Mode, ModeContext } from "../modes/types";
+import { extractUserRequest } from "../utils/extract-user-request";
 export type { CommonFields, PreparedContext } from "./types";
 
 // Tag mode defaults - these tools are needed for tag mode to function
@@ -847,6 +848,44 @@ f. If you are unable to complete certain steps, such as running a linter or test
   return promptContent;
 }
 
+/**
+ * Extracts the user's request from the prepared context and GitHub data.
+ * This is used to send the user's actual command/request as a separate
+ * content block, enabling slash command processing in the CLI.
+ */
+function extractUserRequestFromContext(
+  context: PreparedContext,
+  githubData: FetchDataResult,
+): string | null {
+  const { eventData, triggerPhrase } = context;
+
+  // For comment events, extract from comment body
+  if (
+    "commentBody" in eventData &&
+    eventData.commentBody &&
+    (eventData.eventName === "issue_comment" ||
+      eventData.eventName === "pull_request_review_comment" ||
+      eventData.eventName === "pull_request_review")
+  ) {
+    return extractUserRequest(eventData.commentBody, triggerPhrase);
+  }
+
+  // For issue/PR events triggered by body content, extract from the body
+  if (githubData.contextData?.body) {
+    const request = extractUserRequest(
+      githubData.contextData.body,
+      triggerPhrase,
+    );
+    if (request) {
+      return request;
+    }
+  }
+
+  // For assigned/labeled events without explicit trigger in body,
+  // return null to indicate the full context should be used
+  return null;
+}
+
 export async function createPrompt(
   mode: Mode,
   modeContext: ModeContext,
@@ -894,6 +933,22 @@ export async function createPrompt(
       `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts/claude-prompt.txt`,
       promptContent,
     );
+
+    // Extract and write the user request separately for SDK multi-block messaging
+    // This allows the CLI to process slash commands (e.g., "@claude /review-pr")
+    const userRequest = extractUserRequestFromContext(
+      preparedContext,
+      githubData,
+    );
+    if (userRequest) {
+      await writeFile(
+        `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts/claude-user-request.txt`,
+        userRequest,
+      );
+      console.log("===== USER REQUEST =====");
+      console.log(userRequest);
+      console.log("========================");
+    }
 
     // Set allowed tools
     const hasActionsReadPermission = false;

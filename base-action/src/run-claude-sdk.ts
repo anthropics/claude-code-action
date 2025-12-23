@@ -1,13 +1,72 @@
 import * as core from "@actions/core";
-import { readFile, writeFile } from "fs/promises";
+import { readFile, writeFile, access } from "fs/promises";
+import { dirname, join } from "path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type {
   SDKMessage,
   SDKResultMessage,
+  SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { ParsedSdkOptions } from "./parse-sdk-options";
 
 const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`;
+
+/**
+ * Check if a file exists
+ */
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Creates a prompt configuration for the SDK.
+ * If a user request file exists alongside the prompt file, returns a multi-block
+ * SDKUserMessage that enables slash command processing in the CLI.
+ * Otherwise, returns the prompt as a simple string.
+ */
+async function createPromptConfig(
+  promptPath: string,
+): Promise<string | AsyncIterable<SDKUserMessage>> {
+  const promptContent = await readFile(promptPath, "utf-8");
+
+  // Check for user request file in the same directory
+  const userRequestPath = join(dirname(promptPath), "claude-user-request.txt");
+  const hasUserRequest = await fileExists(userRequestPath);
+
+  if (!hasUserRequest) {
+    // No user request file - use simple string prompt
+    return promptContent;
+  }
+
+  // User request file exists - create multi-block message
+  const userRequest = await readFile(userRequestPath, "utf-8");
+  console.log("Using multi-block message with user request:", userRequest);
+
+  // Create an async generator that yields a single multi-block message
+  // The context/instructions go first, then the user's actual request last
+  // This allows the CLI to detect and process slash commands in the user request
+  async function* createMultiBlockMessage(): AsyncGenerator<SDKUserMessage> {
+    yield {
+      type: "user",
+      session_id: "",
+      message: {
+        role: "user",
+        content: [
+          { type: "text", text: promptContent }, // Instructions + GitHub context
+          { type: "text", text: userRequest }, // User's request (may be a slash command)
+        ],
+      },
+      parent_tool_use_id: null,
+    };
+  }
+
+  return createMultiBlockMessage();
+}
 
 /**
  * Sanitizes SDK output to match CLI sanitization behavior
@@ -63,7 +122,8 @@ export async function runClaudeWithSdk(
   promptPath: string,
   { sdkOptions, showFullOutput, hasJsonSchema }: ParsedSdkOptions,
 ): Promise<void> {
-  const prompt = await readFile(promptPath, "utf-8");
+  // Create prompt configuration - may be a string or multi-block message
+  const prompt = await createPromptConfig(promptPath);
 
   if (!showFullOutput) {
     console.log(
