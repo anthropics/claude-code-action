@@ -120,10 +120,10 @@ outputs:
     value: ${{ steps.claude-code.outputs.execution_file }}
   branch_name:
     description: "The branch created by Claude Code for this execution"
-    value: ${{ steps.prepare.outputs.CLAUDE_BRANCH }}
+    value: ${{ steps.claude-code.outputs.CLAUDE_BRANCH }}
   github_token:
     description: "The GitHub token used by the action (Claude App token if available)"
-    value: ${{ steps.prepare.outputs.github_token }}
+    value: ${{ steps.claude-code.outputs.GITHUB_TOKEN }}
   structured_output:
     description: "JSON string containing all structured output fields when --json-schema is provided in claude_args. Use fromJSON() to parse: fromJSON(steps.id.outputs.structured_output).field_name"
     value: ${{ steps.claude-code.outputs.structured_output }}
@@ -153,43 +153,14 @@ runs:
 
     - name: Install Dependencies
       shell: bash
-      run: |
-        cd ${GITHUB_ACTION_PATH}
-        bun install
-
-    - name: Prepare action
-      id: prepare
-      shell: bash
-      run: |
-        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/prepare.ts
-      env:
-        MODE: ${{ inputs.mode }}
-        PROMPT: ${{ inputs.prompt }}
-        TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
-        ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
-        LABEL_TRIGGER: ${{ inputs.label_trigger }}
-        BASE_BRANCH: ${{ inputs.base_branch }}
-        BRANCH_PREFIX: ${{ inputs.branch_prefix }}
-        OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
-        ALLOWED_BOTS: ${{ inputs.allowed_bots }}
-        ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
-        GITHUB_RUN_ID: ${{ github.run_id }}
-        USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
-        DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
-        USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
-        BOT_ID: ${{ inputs.bot_id }}
-        BOT_NAME: ${{ inputs.bot_name }}
-        TRACK_PROGRESS: ${{ inputs.track_progress }}
-        ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
-        CLAUDE_ARGS: ${{ inputs.claude_args }}
-        ALL_INPUTS: ${{ toJson(inputs) }}
-
-    - name: Install Base Action Dependencies
-      if: steps.prepare.outputs.contains_trigger == 'true'
-      shell: bash
       env:
         PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
       run: |
+        # Install main action dependencies
+        cd ${GITHUB_ACTION_PATH}
+        bun install
+
+        # Install base-action dependencies
         echo "Installing base-action dependencies..."
         cd ${GITHUB_ACTION_PATH}/base-action
         bun install
@@ -223,31 +194,46 @@ runs:
           echo "$CLAUDE_DIR" >> "$GITHUB_PATH"
         fi
 
+    # Unified step: prepare + setup + run Claude
     - name: Run Claude Code
       id: claude-code
-      if: steps.prepare.outputs.contains_trigger == 'true'
       shell: bash
       run: |
-
-        # Run the base-action
-        bun run ${GITHUB_ACTION_PATH}/base-action/src/index.ts
+        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
       env:
-        # Base-action inputs
+        # Action configuration
         CLAUDE_CODE_ACTION: "1"
-        INPUT_PROMPT_FILE: ${{ runner.temp }}/claude-prompts/claude-prompt.txt
+        MODE: ${{ inputs.mode }}
+        PROMPT: ${{ inputs.prompt }}
+        TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
+        ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
+        LABEL_TRIGGER: ${{ inputs.label_trigger }}
+        BASE_BRANCH: ${{ inputs.base_branch }}
+        BRANCH_PREFIX: ${{ inputs.branch_prefix }}
+        OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
+        ALLOWED_BOTS: ${{ inputs.allowed_bots }}
+        ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
+        DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
+        USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
+        BOT_ID: ${{ inputs.bot_id }}
+        BOT_NAME: ${{ inputs.bot_name }}
+        TRACK_PROGRESS: ${{ inputs.track_progress }}
+        ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
+        CLAUDE_ARGS: ${{ inputs.claude_args }}
+        ALL_INPUTS: ${{ toJson(inputs) }}
+
+        # Base-action inputs
         INPUT_SETTINGS: ${{ inputs.settings }}
-        INPUT_CLAUDE_ARGS: ${{ steps.prepare.outputs.claude_args }}
+        INPUT_CLAUDE_ARGS: ${{ inputs.claude_args }}
         INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ github.action_path }}/slash-commands
-        INPUT_ACTION_INPUTS_PRESENT: ${{ steps.prepare.outputs.action_inputs_present }}
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
         INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}
         INPUT_PLUGINS: ${{ inputs.plugins }}
         INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
 
-        # Model configuration
-        GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
-        GH_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
         NODE_VERSION: ${{ env.NODE_VERSION }}
         DETAILED_PERMISSION_MESSAGES: "1"
 
@@ -287,33 +273,33 @@ runs:
         ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ env.ANTHROPIC_DEFAULT_OPUS_MODEL }}
 
     - name: Update comment with job link
-      if: steps.prepare.outputs.contains_trigger == 'true' && steps.prepare.outputs.claude_comment_id && always()
+      if: steps.claude-code.outputs.contains_trigger == 'true' && steps.claude-code.outputs.claude_comment_id && always()
       shell: bash
       run: |
         bun run ${GITHUB_ACTION_PATH}/src/entrypoints/update-comment-link.ts
       env:
         REPOSITORY: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
-        CLAUDE_COMMENT_ID: ${{ steps.prepare.outputs.claude_comment_id }}
+        CLAUDE_COMMENT_ID: ${{ steps.claude-code.outputs.claude_comment_id }}
         GITHUB_RUN_ID: ${{ github.run_id }}
-        GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
-        GH_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ steps.claude-code.outputs.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ steps.claude-code.outputs.GITHUB_TOKEN }}
         GITHUB_EVENT_NAME: ${{ github.event_name }}
         TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
-        CLAUDE_BRANCH: ${{ steps.prepare.outputs.CLAUDE_BRANCH }}
+        CLAUDE_BRANCH: ${{ steps.claude-code.outputs.CLAUDE_BRANCH }}
         IS_PR: ${{ github.event.issue.pull_request != null || github.event_name == 'pull_request_target' || github.event_name == 'pull_request_review_comment' }}
-        BASE_BRANCH: ${{ steps.prepare.outputs.BASE_BRANCH }}
+        BASE_BRANCH: ${{ steps.claude-code.outputs.BASE_BRANCH }}
         CLAUDE_SUCCESS: ${{ steps.claude-code.outputs.conclusion == 'success' }}
         OUTPUT_FILE: ${{ steps.claude-code.outputs.execution_file || '' }}
         TRIGGER_USERNAME: ${{ github.event.comment.user.login || github.event.issue.user.login || github.event.pull_request.user.login || github.event.sender.login || github.triggering_actor || github.actor || '' }}
-        PREPARE_SUCCESS: ${{ steps.prepare.outcome == 'success' }}
-        PREPARE_ERROR: ${{ steps.prepare.outputs.prepare_error || '' }}
+        PREPARE_SUCCESS: ${{ steps.claude-code.outcome == 'success' }}
+        PREPARE_ERROR: ${{ steps.claude-code.outputs.prepare_error || '' }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
         TRACK_PROGRESS: ${{ inputs.track_progress }}
 
     - name: Display Claude Code Report
-      if: steps.prepare.outputs.contains_trigger == 'true' && steps.claude-code.outputs.execution_file != ''
+      if: steps.claude-code.outputs.contains_trigger == 'true' && steps.claude-code.outputs.execution_file != ''
       shell: bash
       run: |
         # Try to format the turns, but if it fails, dump the raw JSON
@@ -330,12 +316,12 @@ runs:
         fi
 
     - name: Revoke app token
-      if: always() && inputs.github_token == '' && steps.prepare.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
+      if: always() && inputs.github_token == '' && steps.claude-code.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
       shell: bash
       run: |
         curl -L \
           -X DELETE \
           -H "Accept: application/vnd.github+json" \
-          -H "Authorization: Bearer ${{ steps.prepare.outputs.GITHUB_TOKEN }}" \
+          -H "Authorization: Bearer ${{ steps.claude-code.outputs.GITHUB_TOKEN }}" \
           -H "X-GitHub-Api-Version: 2022-11-28" \
           ${GITHUB_API_URL:-https://api.github.com}/installation/token

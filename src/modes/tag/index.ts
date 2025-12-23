@@ -10,7 +10,11 @@ import {
   fetchGitHubData,
   extractTriggerTimestamp,
 } from "../../github/data/fetcher";
-import { createPrompt, generateDefaultPrompt } from "../../create-prompt";
+import {
+  createPrompt,
+  generateDefaultPrompt,
+  generatePromptContent,
+} from "../../create-prompt";
 import { isEntityContext } from "../../github/context";
 import type { PreparedContext } from "../../create-prompt/types";
 import type { FetchDataResult } from "../../github/data/fetcher";
@@ -104,13 +108,22 @@ export const tagMode: Mode = {
       }
     }
 
-    // Create prompt file
+    // Create prompt
     const modeContext = this.prepareContext(context, {
       commentId,
       baseBranch: branchInfo.baseBranch,
       claudeBranch: branchInfo.claudeBranch,
     });
 
+    // Generate prompt content - returns data instead of writing file
+    const promptResult = generatePromptContent(
+      tagMode,
+      modeContext,
+      githubData,
+      context,
+    );
+
+    // Also write file for backwards compatibility with current flow
     await createPrompt(tagMode, modeContext, githubData, context);
 
     const userClaudeArgs = process.env.CLAUDE_ARGS || "";
@@ -188,6 +201,9 @@ export const tagMode: Mode = {
       commentId,
       branchInfo,
       mcpConfig: ourMcpConfig,
+      promptContent: promptResult.promptContent,
+      allowedTools: promptResult.allowedTools,
+      disallowedTools: promptResult.disallowedTools,
     };
   },
 

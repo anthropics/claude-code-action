@@ -5,7 +5,7 @@ import { unlink, writeFile, stat, readFile } from "fs/promises";
 import { createWriteStream } from "fs";
 import { spawn } from "child_process";
 import { parse as parseShellArgs } from "shell-quote";
-import { runClaudeWithSdk } from "./run-claude-sdk";
+import { runClaudeWithSdkFromFile } from "./run-claude-sdk";
 import { parseSdkOptions } from "./parse-sdk-options";
 
 const execAsync = promisify(exec);
@@ -205,7 +205,7 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
 
   if (useAgentSdk) {
     const parsedOptions = parseSdkOptions(options);
-    return runClaudeWithSdk(promptPath, parsedOptions);
+    return runClaudeWithSdkFromFile(promptPath, parsedOptions);
   }
 
   const config = prepareRunConfig(promptPath, options);

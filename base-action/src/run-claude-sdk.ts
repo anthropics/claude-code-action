@@ -10,6 +10,18 @@ import type { ParsedSdkOptions } from "./parse-sdk-options";
 const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`;
 
 /**
+ * Result of running Claude via SDK
+ */
+export type RunClaudeResult = {
+  success: boolean;
+  executionFile: string;
+  conclusion: "success" | "failure";
+  structuredOutput?: string;
+  sessionId?: string;
+  error?: string;
+};
+
+/**
  * Sanitizes SDK output to match CLI sanitization behavior
  */
 function sanitizeSdkOutput(
@@ -57,13 +69,31 @@ function sanitizeSdkOutput(
 }
 
 /**
- * Run Claude using the Agent SDK
+ * Input for runClaudeWithSdk - either a prompt string or file path
+ */
+export type PromptInput =
+  | { type: "string"; prompt: string }
+  | { type: "file"; promptPath: string };
+
+/**
+ * Run Claude using the Agent SDK.
+ *
+ * @param promptInput - Either a direct prompt string or path to prompt file
+ * @param parsedOptions - Parsed SDK options
+ * @param options - Additional options
+ * @param options.setOutputs - Whether to set GitHub Action outputs (default: true for backwards compat)
+ * @returns Result of the execution
  */
 export async function runClaudeWithSdk(
-  promptPath: string,
+  promptInput: PromptInput,
   { sdkOptions, showFullOutput, hasJsonSchema }: ParsedSdkOptions,
-): Promise<void> {
-  const prompt = await readFile(promptPath, "utf-8");
+  { setOutputs = true }: { setOutputs?: boolean } = {},
+): Promise<RunClaudeResult> {
+  // Get prompt from string or file
+  const prompt =
+    promptInput.type === "string"
+      ? promptInput.prompt
+      : await readFile(promptInput.promptPath, "utf-8");
 
   if (!showFullOutput) {
     console.log(
@@ -74,7 +104,13 @@ export async function runClaudeWithSdk(
     );
   }
 
-  console.log(`Running Claude with prompt from file: ${promptPath}`);
+  if (promptInput.type === "file") {
+    console.log(
+      `Running Claude with prompt from file: ${promptInput.promptPath}`,
+    );
+  } else {
+    console.log(`Running Claude with prompt string (${prompt.length} chars)`);
+  }
   // Log SDK options without env (which could contain sensitive data)
   const { env, ...optionsToLog } = sdkOptions;
   console.log("SDK options:", JSON.stringify(optionsToLog, null, 2));
@@ -97,27 +133,47 @@ export async function runClaudeWithSdk(
     }
   } catch (error) {
     console.error("SDK execution error:", error);
-    core.setOutput("conclusion", "failure");
-    process.exit(1);
+    if (setOutputs) {
+      core.setOutput("conclusion", "failure");
+    }
+    return {
+      success: false,
+      executionFile: EXECUTION_FILE,
+      conclusion: "failure",
+      error: String(error),
+    };
   }
 
   // Write execution file
   try {
     await writeFile(EXECUTION_FILE, JSON.stringify(messages, null, 2));
     console.log(`Log saved to ${EXECUTION_FILE}`);
-    core.setOutput("execution_file", EXECUTION_FILE);
+    if (setOutputs) {
+      core.setOutput("execution_file", EXECUTION_FILE);
+    }
   } catch (error) {
     core.warning(`Failed to write execution file: ${error}`);
   }
 
   if (!resultMessage) {
-    core.setOutput("conclusion", "failure");
+    if (setOutputs) {
+      core.setOutput("conclusion", "failure");
+    }
     core.error("No result message received from Claude");
-    process.exit(1);
+    return {
+      success: false,
+      executionFile: EXECUTION_FILE,
+      conclusion: "failure",
+      error: "No result message received from Claude",
+    };
   }
 
   const isSuccess = resultMessage.subtype === "success";
-  core.setOutput("conclusion", isSuccess ? "success" : "failure");
+  if (setOutputs) {
+    core.setOutput("conclusion", isSuccess ? "success" : "failure");
+  }
+
+  let structuredOutput: string | undefined;
 
   // Handle structured output
   if (hasJsonSchema) {
@@ -126,26 +182,64 @@ export async function runClaudeWithSdk(
       "structured_output" in resultMessage &&
       resultMessage.structured_output
     ) {
-      const structuredOutputJson = JSON.stringify(
-        resultMessage.structured_output,
-      );
-      core.setOutput("structured_output", structuredOutputJson);
+      structuredOutput = JSON.stringify(resultMessage.structured_output);
+      if (setOutputs) {
+        core.setOutput("structured_output", structuredOutput);
+      }
       core.info(
         `Set structured_output with ${Object.keys(resultMessage.structured_output as object).length} field(s)`,
       );
     } else {
-      core.setFailed(
-        `--json-schema was provided but Claude did not return structured_output. Result subtype: ${resultMessage.subtype}`,
-      );
-      core.setOutput("conclusion", "failure");
-      process.exit(1);
+      const errorMsg = `--json-schema was provided but Claude did not return structured_output. Result subtype: ${resultMessage.subtype}`;
+      if (setOutputs) {
+        core.setFailed(errorMsg);
+        core.setOutput("conclusion", "failure");
+      }
+      return {
+        success: false,
+        executionFile: EXECUTION_FILE,
+        conclusion: "failure",
+        error: errorMsg,
+      };
     }
   }
 
   if (!isSuccess) {
-    if ("errors" in resultMessage && resultMessage.errors) {
-      core.error(`Execution failed: ${resultMessage.errors.join(", ")}`);
-    }
+    const errors =
+      "errors" in resultMessage && resultMessage.errors
+        ? resultMessage.errors.join(", ")
+        : "Unknown error";
+    core.error(`Execution failed: ${errors}`);
+    return {
+      success: false,
+      executionFile: EXECUTION_FILE,
+      conclusion: "failure",
+      error: errors,
+    };
+  }
+
+  return {
+    success: true,
+    executionFile: EXECUTION_FILE,
+    conclusion: "success",
+    structuredOutput,
+  };
+}
+
+/**
+ * Wrapper for backwards compatibility - reads prompt from file path and exits on failure
+ */
+export async function runClaudeWithSdkFromFile(
+  promptPath: string,
+  parsedOptions: ParsedSdkOptions,
+): Promise<void> {
+  const result = await runClaudeWithSdk(
+    { type: "file", promptPath },
+    parsedOptions,
+    { setOutputs: true },
+  );
+
+  if (!result.success) {
     process.exit(1);
   }
 }

@@ -95,16 +95,15 @@ export const agentMode: Mode = {
       }
     }
 
-    // Create prompt directory
-    await mkdir(`${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`, {
-      recursive: true,
-    });
-
-    // Write the prompt file - use the user's prompt directly
+    // Generate prompt content - use the user's prompt directly
     const promptContent =
       context.inputs.prompt ||
       `Repository: ${context.repository.owner}/${context.repository.repo}`;
 
+    // Also write file for backwards compatibility with current flow
+    await mkdir(`${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`, {
+      recursive: true,
+    });
     await writeFile(
       `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts/claude-prompt.txt`,
       promptContent,
@@ -162,6 +161,8 @@ export const agentMode: Mode = {
         claudeBranch: claudeBranch,
       },
       mcpConfig: ourMcpConfig,
+      promptContent,
+      // Agent mode doesn't use the same allowed/disallowed tools mechanism as tag mode
     };
   },
 

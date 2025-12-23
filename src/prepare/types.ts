@@ -10,6 +10,12 @@ export type PrepareResult = {
     currentBranch: string;
   };
   mcpConfig: string;
+  /** Generated prompt content for Claude */
+  promptContent?: string;
+  /** Comma-separated list of allowed tools */
+  allowedTools?: string;
+  /** Comma-separated list of disallowed tools */
+  disallowedTools?: string;
 };
 
 export type PrepareOptions = {

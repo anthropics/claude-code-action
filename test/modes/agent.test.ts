@@ -177,6 +177,7 @@ describe("Agent Mode", () => {
         claudeBranch: undefined,
       },
       mcpConfig: expect.any(String),
+      promptContent: expect.any(String),
     });
 
     // Clean up

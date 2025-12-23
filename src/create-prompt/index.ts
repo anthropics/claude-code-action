@@ -841,6 +841,78 @@ f. If you are unable to complete certain steps, such as running a linter or test
   return promptContent;
 }
 
+/**
+ * Result of generating prompt content
+ */
+export type PromptResult = {
+  promptContent: string;
+  allowedTools: string;
+  disallowedTools: string;
+};
+
+/**
+ * Generate prompt content and tool configurations.
+ * This function can be used directly without side effects (no file writes, no env vars).
+ */
+export function generatePromptContent(
+  mode: Mode,
+  modeContext: ModeContext,
+  githubData: FetchDataResult,
+  context: ParsedGitHubContext,
+): PromptResult {
+  // Prepare the context for prompt generation
+  let claudeCommentId: string = "";
+  if (mode.name === "tag") {
+    if (!modeContext.commentId) {
+      throw new Error(
+        `${mode.name} mode requires a comment ID for prompt generation`,
+      );
+    }
+    claudeCommentId = modeContext.commentId.toString();
+  }
+
+  const preparedContext = prepareContext(
+    context,
+    claudeCommentId,
+    modeContext.baseBranch,
+    modeContext.claudeBranch,
+  );
+
+  // Generate the prompt directly
+  const promptContent = generatePrompt(
+    preparedContext,
+    githubData,
+    context.inputs.useCommitSigning,
+    mode,
+  );
+
+  // Get mode-specific tools
+  const modeAllowedTools = mode.getAllowedTools();
+  const modeDisallowedTools = mode.getDisallowedTools();
+
+  const hasActionsReadPermission = false;
+  const allowedTools = buildAllowedToolsString(
+    modeAllowedTools,
+    hasActionsReadPermission,
+    context.inputs.useCommitSigning,
+  );
+  const disallowedTools = buildDisallowedToolsString(
+    modeDisallowedTools,
+    modeAllowedTools,
+  );
+
+  return {
+    promptContent,
+    allowedTools,
+    disallowedTools,
+  };
+}
+
+/**
+ * Create prompt and write to file.
+ * This is the legacy function that writes files and sets environment variables.
+ * For the unified step, use generatePromptContent() instead.
+ */
 export async function createPrompt(
   mode: Mode,
   modeContext: ModeContext,
@@ -848,66 +920,30 @@ export async function createPrompt(
   context: ParsedGitHubContext,
 ) {
   try {
-    // Prepare the context for prompt generation
-    let claudeCommentId: string = "";
-    if (mode.name === "tag") {
-      if (!modeContext.commentId) {
-        throw new Error(
-          `${mode.name} mode requires a comment ID for prompt generation`,
-        );
-      }
-      claudeCommentId = modeContext.commentId.toString();
-    }
-
-    const preparedContext = prepareContext(
-      context,
-      claudeCommentId,
-      modeContext.baseBranch,
-      modeContext.claudeBranch,
-    );
-
-    await mkdir(`${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`, {
-      recursive: true,
-    });
-
-    // Generate the prompt directly
-    const promptContent = generatePrompt(
-      preparedContext,
-      githubData,
-      context.inputs.useCommitSigning,
+    const result = generatePromptContent(
       mode,
+      modeContext,
+      githubData,
+      context,
     );
 
     // Log the final prompt to console
     console.log("===== FINAL PROMPT =====");
-    console.log(promptContent);
+    console.log(result.promptContent);
     console.log("=======================");
 
     // Write the prompt file
+    await mkdir(`${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`, {
+      recursive: true,
+    });
     await writeFile(
       `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts/claude-prompt.txt`,
-      promptContent,
+      result.promptContent,
     );
 
-    // Set allowed tools
-    const hasActionsReadPermission = false;
-
-    // Get mode-specific tools
-    const modeAllowedTools = mode.getAllowedTools();
-    const modeDisallowedTools = mode.getDisallowedTools();
-
-    const allAllowedTools = buildAllowedToolsString(
-      modeAllowedTools,
-      hasActionsReadPermission,
-      context.inputs.useCommitSigning,
-    );
-    const allDisallowedTools = buildDisallowedToolsString(
-      modeDisallowedTools,
-      modeAllowedTools,
-    );
-
-    core.exportVariable("ALLOWED_TOOLS", allAllowedTools);
-    core.exportVariable("DISALLOWED_TOOLS", allDisallowedTools);
+    // Set environment variables
+    core.exportVariable("ALLOWED_TOOLS", result.allowedTools);
+    core.exportVariable("DISALLOWED_TOOLS", result.disallowedTools);
   } catch (error) {
     core.setFailed(`Create prompt failed with error: ${error}`);
     process.exit(1);
