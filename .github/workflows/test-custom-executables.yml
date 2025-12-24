@@ -7,11 +7,17 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   test-custom-executables:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
 
       - name: Install Bun manually
         run: |
@@ -55,10 +61,10 @@ jobs:
           allowed_tools: "LS,Read"
 
       - name: Verify custom executables worked
+        env:
+          OUTPUT_FILE: ${{ steps.custom-test.outputs.execution_file }}
+          CONCLUSION: ${{ steps.custom-test.outputs.conclusion }}
         run: |
-          OUTPUT_FILE="${{ steps.custom-test.outputs.execution_file }}"
-          CONCLUSION="${{ steps.custom-test.outputs.conclusion }}"
-
           echo "Conclusion: $CONCLUSION"
           echo "Output file: $OUTPUT_FILE"
 

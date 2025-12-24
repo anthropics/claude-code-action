@@ -8,26 +8,30 @@ on:
       - "base-action/**"
   workflow_dispatch:
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   sync-base-action:
     name: Sync base-action to claude-code-base-action repository
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
     timeout-minutes: 10
     steps:
       - name: Checkout source repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup SSH and clone target repository
+        env:
+          DEPLOY_KEY: ${{ secrets.CLAUDE_CODE_BASE_ACTION_REPO_DEPLOY_KEY }}
         run: |
           # Configure SSH with deploy key
           mkdir -p ~/.ssh
-          echo "${{ secrets.CLAUDE_CODE_BASE_ACTION_REPO_DEPLOY_KEY }}" > ~/.ssh/deploy_key_base
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key_base
           chmod 600 ~/.ssh/deploy_key_base
 
           # Configure SSH host
