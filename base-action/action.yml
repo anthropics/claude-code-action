@@ -128,6 +128,10 @@ runs:
           echo "Installing Claude Code v${CLAUDE_CODE_VERSION}..."
           for attempt in 1 2 3; do
             echo "Installation attempt $attempt..."
+
+            # Clean up stale lock files before retry
+            rm -rf ~/.claude/.locks 2>/dev/null || true
+
             if command -v timeout &> /dev/null; then
               timeout 120 bash -c "curl -fsSL https://claude.ai/install.sh | bash -s -- $CLAUDE_CODE_VERSION" && break
             else
@@ -140,6 +144,14 @@ runs:
             echo "Installation failed, retrying..."
             sleep 5
           done
+
+          # Add to PATH and validate installation
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          if ! command -v claude &> /dev/null; then
+            echo "Installation failed: claude binary not found in PATH"
+            exit 1
+          fi
           echo "Claude Code installed successfully"
         else
           echo "Using custom Claude Code executable: $PATH_TO_CLAUDE_CODE_EXECUTABLE"
