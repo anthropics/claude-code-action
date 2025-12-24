@@ -4,6 +4,8 @@ on:
   issues:
     types: [opened]
 
+permissions: {}
+
 jobs:
   triage-issue:
     runs-on: ubuntu-latest
@@ -14,12 +16,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Run Claude Code for Issue Triage
-        uses: anthropics/claude-code-action@main
+        uses: anthropics/claude-code-action@3ba9f7c8c2d3f122d3465c267a87b26a1f4783a6 # main
         with:
           prompt: "/label-issue REPO: ${{ github.repository }} ISSUE_NUMBER${{ github.event.issue.number }}"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
