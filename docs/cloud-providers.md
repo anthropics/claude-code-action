@@ -144,12 +144,12 @@ For detailed setup instructions for Microsoft Foundry, see the [official documen
 
 ### Using API Key Authentication (Simpler Setup)
 
-Microsoft Foundry supports API key authentication, which is simpler than OIDC and doesn't require Azure login or GitHub App token setup:
+Microsoft Foundry also supports API key authentication, which is simpler than OIDC and doesn't require Azure login.
 
 ```yaml
 - uses: anthropics/claude-code-action@v1
   with:
-    github_token: ${{ secrets.GITHUB_TOKEN }}
+    github_token: ${{ secrets.GITHUB_TOKEN }} # Or set up your own GitHub App if you're using your own app like in previous examples
     use_foundry: "true"
     claude_args: |
       --model claude-sonnet-4-5
@@ -163,5 +163,3 @@ Microsoft Foundry supports API key authentication, which is simpler than OIDC an
 
 - `ANTHROPIC_FOUNDRY_RESOURCE`: Your Azure Foundry resource name (e.g., `my-foundry-resource`)
 - `ANTHROPIC_FOUNDRY_API_KEY`: Your Azure Foundry API key
-
-**Note:** This approach uses the built-in `GITHUB_TOKEN` which is automatically available in GitHub Actions - no additional GitHub App setup required.
