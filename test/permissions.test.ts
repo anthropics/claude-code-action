@@ -3,6 +3,7 @@ import * as core from "@actions/core";
 import { checkWritePermissions } from "../src/github/validation/permissions";
 import type { ParsedGitHubContext } from "../src/github/context";
 import { CLAUDE_APP_BOT_ID, CLAUDE_BOT_LOGIN } from "../src/github/constants";
+import { defaultStickyCommentInputs } from "./mockContext";
 
 describe("checkWritePermissions", () => {
   let coreInfoSpy: any;
@@ -67,6 +68,7 @@ describe("checkWritePermissions", () => {
       labelTrigger: "",
       branchPrefix: "claude/",
       useStickyComment: false,
+      ...defaultStickyCommentInputs,
       useCommitSigning: false,
       botId: String(CLAUDE_APP_BOT_ID),
       botName: CLAUDE_BOT_LOGIN,

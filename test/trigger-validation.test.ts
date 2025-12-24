@@ -20,6 +20,7 @@ import type {
   PullRequestReviewEvent,
 } from "@octokit/webhooks-types";
 import type { ParsedGitHubContext } from "../src/github/context";
+import { defaultStickyCommentInputs } from "./mockContext";
 
 describe("checkContainsTrigger", () => {
   describe("prompt trigger", () => {
@@ -34,6 +35,7 @@ describe("checkContainsTrigger", () => {
           labelTrigger: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          ...defaultStickyCommentInputs,
           useCommitSigning: false,
           allowedBots: "",
         },
@@ -62,6 +64,7 @@ describe("checkContainsTrigger", () => {
           labelTrigger: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          ...defaultStickyCommentInputs,
           useCommitSigning: false,
           allowedBots: "",
         },
@@ -274,6 +277,7 @@ describe("checkContainsTrigger", () => {
           labelTrigger: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          ...defaultStickyCommentInputs,
           useCommitSigning: false,
           allowedBots: "",
         },
@@ -303,6 +307,7 @@ describe("checkContainsTrigger", () => {
           labelTrigger: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          ...defaultStickyCommentInputs,
           useCommitSigning: false,
           allowedBots: "",
         },
@@ -332,6 +337,7 @@ describe("checkContainsTrigger", () => {
           labelTrigger: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          ...defaultStickyCommentInputs,
           useCommitSigning: false,
           allowedBots: "",
         },
