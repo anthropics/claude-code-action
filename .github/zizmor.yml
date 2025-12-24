@@ -1,0 +1,6 @@
+rules:
+  artipacked:
+    ignore:
+      # These checkouts need persist-credentials for git push to create/update tags
+      - release.yml:23
+      - release.yml:99
