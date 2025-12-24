@@ -72,6 +72,7 @@ describe("checkWritePermissions", () => {
       botName: CLAUDE_BOT_LOGIN,
       allowedBots: "",
       allowedNonWriteUsers: "",
+      excludedCommentUsers: "",
       trackProgress: false,
     },
   });
