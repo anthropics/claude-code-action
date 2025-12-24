@@ -13,11 +13,16 @@ const MARKETPLACE_URL_REGEX =
  * @returns true if the input is a local path, false if it's a URL
  */
 function isLocalPath(input: string): boolean {
-  // Local paths start with ./, ../, /, or a drive letter (Windows)
+  // Local paths start with:
+  // - ./ or ../ (relative paths)
+  // - / (Unix absolute paths)
+  // - .something/ (hidden folders like .claude-marketplace/)
+  // - Drive letter (Windows paths like C:\)
   return (
     input.startsWith("./") ||
     input.startsWith("../") ||
     input.startsWith("/") ||
+    /^\.[a-zA-Z0-9_-]+[\\\/]/.test(input) || // Hidden folders: .plugins/, .cache/
     /^[a-zA-Z]:[\\\/]/.test(input)
   );
 }

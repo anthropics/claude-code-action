@@ -703,4 +703,30 @@ describe("installPlugins", () => {
       { stdio: "inherit" },
     );
   });
+
+  test("should accept hidden folder path (.folder-name/)", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(".my-plugins/marketplace", "test-plugin");
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", ".my-plugins/marketplace"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept hidden folder path with Windows backslash", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(".hidden-folder\\marketplace", "test-plugin");
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", ".hidden-folder\\marketplace"],
+      { stdio: "inherit" },
+    );
+  });
 });
