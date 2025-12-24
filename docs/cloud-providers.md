@@ -3,15 +3,17 @@
 You can authenticate with Claude using any of these four methods:
 
 1. Direct Anthropic API (default)
-2. Amazon Bedrock with OIDC authentication
-3. Google Vertex AI with OIDC authentication
-4. Microsoft Foundry with OIDC authentication
+2. Amazon Bedrock
+3. Google Vertex AI
+4. Microsoft Foundry
 
 For detailed setup instructions for AWS Bedrock and Google Vertex AI, see the [official documentation](https://code.claude.com/docs/en/github-actions#for-aws-bedrock:).
 
 **Note**:
 
-- Bedrock, Vertex, and Microsoft Foundry use OIDC authentication exclusively
+- **AWS Bedrock** supports IAM access keys (`AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`), temporary credentials via OIDC, or bearer token (`AWS_BEARER_TOKEN_BEDROCK`)
+- **Google Vertex AI** supports service account key files (`GOOGLE_APPLICATION_CREDENTIALS`) or OIDC via Workload Identity Federation
+- **Microsoft Foundry** supports API key (`ANTHROPIC_FOUNDRY_API_KEY`) or OIDC via Azure login
 - AWS Bedrock automatically uses cross-region inference profiles for certain models
 - For cross-region inference profile models, you need to request and be granted access to the Claude models in all regions that the inference profile uses
 
@@ -139,3 +141,27 @@ permissions:
 ## Microsoft Foundry Setup
 
 For detailed setup instructions for Microsoft Foundry, see the [official documentation](https://code.claude.com/docs/en/microsoft-foundry).
+
+### Using API Key Authentication (Simpler Setup)
+
+Microsoft Foundry supports API key authentication, which is simpler than OIDC and doesn't require Azure login or GitHub App token setup:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    use_foundry: "true"
+    claude_args: |
+      --model claude-sonnet-4-5
+    # ... other inputs
+  env:
+    ANTHROPIC_FOUNDRY_RESOURCE: ${{ secrets.ANTHROPIC_FOUNDRY_RESOURCE }}
+    ANTHROPIC_FOUNDRY_API_KEY: ${{ secrets.ANTHROPIC_FOUNDRY_API_KEY }}
+```
+
+**Required secrets:**
+
+- `ANTHROPIC_FOUNDRY_RESOURCE`: Your Azure Foundry resource name (e.g., `my-foundry-resource`)
+- `ANTHROPIC_FOUNDRY_API_KEY`: Your Azure Foundry API key
+
+**Note:** This approach uses the built-in `GITHUB_TOKEN` which is automatically available in GitHub Actions - no additional GitHub App setup required.
