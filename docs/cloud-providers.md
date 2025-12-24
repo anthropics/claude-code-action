@@ -138,4 +138,4 @@ permissions:
 
 ## Microsoft Foundry Setup
 
-For detailed setup instructions for Microsoft Foundry, see the [official documentation](https://docs.anthropic.com/en/docs/claude-code/microsoft-foundry).
+For detailed setup instructions for Microsoft Foundry, see the [official documentation](https://code.claude.com/docs/en/microsoft-foundry).
