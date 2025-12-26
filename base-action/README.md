@@ -113,10 +113,12 @@ Add the following to your workflow file:
 
 ## Outputs
 
-| Output           | Description                                                |
-| ---------------- | ---------------------------------------------------------- |
-| `conclusion`     | Execution status of Claude Code ('success' or 'failure')   |
-| `execution_file` | Path to the JSON file containing Claude Code execution log |
+| Output              | Description                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `conclusion`        | Execution status of Claude Code ('success' or 'failure')                                                            |
+| `execution_file`    | Path to the JSON file containing Claude Code execution log                                                          |
+| `structured_output` | JSON string containing all structured output fields when `--json-schema` is provided in `claude_args`               |
+| `session_id`        | The Claude Code session ID that can be used with `--resume` to continue the conversation in subsequent workflow steps |
 
 ## Environment Variables
 
