@@ -25,6 +25,7 @@ const defaultInputs = {
   allowedBots: "",
   allowedNonWriteUsers: "",
   trackProgress: false,
+  includeFixLinks: true,
 };
 
 const defaultRepository = {
