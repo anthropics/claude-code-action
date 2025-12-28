@@ -52,3 +52,6 @@ jobs:
             ${{ github.event.inputs.issue_number && format('Related Issue: #{0}', github.event.inputs.issue_number) || '' }}
 
             Task: ${{ github.event.inputs.task }}
+          # Basic file operations - add more tools as needed (e.g., Bash commands)
+          claude_args: |
+            --allowedTools "Read,Write,Edit,MultiEdit,LS"
