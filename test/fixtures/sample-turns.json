@@ -1,0 +1,196 @@
+[
+  {
+    "type": "system",
+    "subtype": "init",
+    "session_id": "sample-session-id",
+    "tools": [
+      "Task",
+      "Bash",
+      "Read",
+      "Edit",
+      "Write",
+      "mcp__github__get_file_contents",
+      "mcp__github__create_or_update_file",
+      "mcp__github__add_pull_request_review_comment"
+    ],
+    "mcp_servers": [
+      {
+        "name": "github",
+        "status": "connected"
+      }
+    ]
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "msg_sample123",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-test-model",
+      "content": [
+        {
+          "type": "text",
+          "text": "I'll help you with this task. Let me start by examining the file to understand what needs to be changed."
+        },
+        {
+          "type": "tool_use",
+          "id": "tool_call_1",
+          "name": "Read",
+          "input": {
+            "file_path": "/path/to/sample/file.py"
+          }
+        }
+      ],
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 100,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 50,
+        "output_tokens": 75
+      }
+    },
+    "session_id": "sample-session-id"
+  },
+  {
+    "type": "user",
+    "message": {
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "tool_call_1",
+          "content": "def example_function():\n    print(\"Debug message\")  # This should be removed\n    return \"Hello World\"\n\nif __name__ == \"__main__\":\n    result = example_function()\n    print(result)",
+          "is_error": false
+        }
+      ]
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "msg_sample124",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-test-model",
+      "content": [
+        {
+          "type": "text",
+          "text": "I can see the debug print statement that needs to be removed. Let me fix this by editing the file."
+        },
+        {
+          "type": "tool_use",
+          "id": "tool_call_2",
+          "name": "Edit",
+          "input": {
+            "file_path": "/path/to/sample/file.py",
+            "old_string": "def example_function():\n    print(\"Debug message\")  # This should be removed\n    return \"Hello World\"",
+            "new_string": "def example_function():\n    return \"Hello World\""
+          }
+        }
+      ],
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 200,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 100,
+        "output_tokens": 50
+      }
+    },
+    "session_id": "sample-session-id"
+  },
+  {
+    "type": "user",
+    "message": {
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "tool_call_2",
+          "content": "File successfully edited. The debug print statement has been removed.",
+          "is_error": false
+        }
+      ]
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "msg_sample125",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-test-model",
+      "content": [
+        {
+          "type": "text",
+          "text": "Perfect! I've successfully removed the debug print statement from the function. Let me now create a pull request comment to document this change."
+        },
+        {
+          "type": "tool_use",
+          "id": "tool_call_3",
+          "name": "mcp__github__add_pull_request_review_comment",
+          "input": {
+            "owner": "example-org",
+            "repo": "example-repo",
+            "pull_number": 123,
+            "body": "Removed debug print statement as requested.",
+            "commit_id": "abc123def456",
+            "path": "sample/file.py",
+            "line": 2
+          }
+        }
+      ],
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 150,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 75,
+        "output_tokens": 80
+      }
+    },
+    "session_id": "sample-session-id"
+  },
+  {
+    "type": "user",
+    "message": {
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "tool_call_3",
+          "content": "Successfully posted review comment to PR #123",
+          "is_error": false
+        }
+      ]
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "msg_sample126",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-test-model",
+      "content": [
+        {
+          "type": "text",
+          "text": "Great! I've successfully completed the requested task:\n\n1. ✅ Located the debug print statement in the file\n2. ✅ Removed the print statement while preserving the function logic\n3. ✅ Added a review comment documenting the change\n\nThe debug print statement has been removed as requested by the reviewers."
+        }
+      ],
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 180,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 90,
+        "output_tokens": 60
+      }
+    },
+    "session_id": "sample-session-id"
+  },
+  {
+    "type": "result",
+    "total_cost_usd": 0.0347,
+    "duration_ms": 18750,
+    "result": "Successfully removed debug print statement from file and added review comment to document the change."
+  }
+]

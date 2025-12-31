@@ -1,0 +1,98 @@
+name: Sync Base Action to claude-code-base-action
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "base-action/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-base-action:
+    name: Sync base-action to claude-code-base-action repository
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup SSH and clone target repository
+        run: |
+          # Configure SSH with deploy key
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CLAUDE_CODE_BASE_ACTION_REPO_DEPLOY_KEY }}" > ~/.ssh/deploy_key_base
+          chmod 600 ~/.ssh/deploy_key_base
+
+          # Configure SSH host
+          cat > ~/.ssh/config <<EOL
+          Host base-action.github.com
+            HostName github.com
+            User git
+            IdentityFile ~/.ssh/deploy_key_base
+            StrictHostKeyChecking no
+          EOL
+
+          # Clone the target repository
+          git clone git@base-action.github.com:anthropics/claude-code-base-action.git target-repo
+
+      - name: Sync base-action contents
+        run: |
+          cd target-repo
+
+          # Configure git
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          # Remove all existing files except .git directory
+          find . -mindepth 1 -maxdepth 1 -name '.git' -prune -o -exec rm -rf {} +
+
+          # Copy all contents from base-action
+          cp -r ../base-action/. .
+
+          # Prepend mirror disclaimer to README if both files exist
+          if [ -f "README.md" ] && [ -f "MIRROR_DISCLAIMER.md" ]; then
+            cat MIRROR_DISCLAIMER.md README.md > README.tmp
+            mv README.tmp README.md
+          fi
+
+          # Check if there are any changes
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "No changes to sync"
+            exit 0
+          fi
+
+          # Stage all changes
+          git add -A
+
+          # Get source commit info for the commit message
+          SOURCE_COMMIT="${GITHUB_SHA:0:7}"
+          SOURCE_COMMIT_MESSAGE=$(git -C .. log -1 --pretty=format:"%s" || echo "Update from base-action")
+
+          # Commit with descriptive message
+          git commit -m "Sync from claude-code-action base-action@${SOURCE_COMMIT}" \
+                     -m "" \
+                     -m "Source: anthropics/claude-code-action@${GITHUB_SHA}" \
+                     -m "Original message: ${SOURCE_COMMIT_MESSAGE}"
+
+          # Push to main branch
+          git push origin main
+
+          echo "Successfully synced base-action to claude-code-base-action"
+
+      - name: Create sync summary
+        if: success()
+        run: |
+          echo "## Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Successfully synced \`base-action\` directory to [anthropics/claude-code-base-action](https://github.com/anthropics/claude-code-base-action)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Source commit**: [\`${GITHUB_SHA:0:7}\`](https://github.com/anthropics/claude-code-action/commit/${GITHUB_SHA})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by**: $GITHUB_EVENT_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "- **Actor**: @$GITHUB_ACTOR" >> $GITHUB_STEP_SUMMARY

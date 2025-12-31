@@ -1,0 +1,32 @@
+{
+  "name": "@anthropic-ai/claude-code-action",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "install-hooks": "bun run scripts/install-hooks.sh",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@actions/core": "^1.10.1",
+    "@actions/github": "^6.0.1",
+    "@anthropic-ai/claude-agent-sdk": "^0.1.52",
+    "@modelcontextprotocol/sdk": "^1.11.0",
+    "@octokit/graphql": "^8.2.2",
+    "@octokit/rest": "^21.1.1",
+    "@octokit/webhooks-types": "^7.6.1",
+    "node-fetch": "^3.3.2",
+    "shell-quote": "^1.8.3",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/bun": "1.2.11",
+    "@types/node": "^20.0.0",
+    "@types/node-fetch": "^2.6.12",
+    "@types/shell-quote": "^1.7.5",
+    "prettier": "3.5.3",
+    "typescript": "^5.8.3"
+  }
+}

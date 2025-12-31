@@ -1,0 +1,156 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (only show what would be created)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+    outputs:
+      next_version: ${{ steps.next_version.outputs.next_version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag
+        id: get_latest_tag
+        run: |
+          # Get only version tags (v + number pattern)
+          latest_tag=$(git tag -l 'v[0-9]*' | sort -V | tail -1 || echo "v0.0.0")
+          if [ -z "$latest_tag" ]; then
+            latest_tag="v0.0.0"
+          fi
+          echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
+          echo "Latest tag: $latest_tag"
+
+      - name: Calculate next version
+        id: next_version
+        run: |
+          latest_tag="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          # Remove 'v' prefix and split by dots
+          version=${latest_tag#v}
+          IFS='.' read -ra VERSION_PARTS <<< "$version"
+
+          # Increment patch version
+          major=${VERSION_PARTS[0]:-0}
+          minor=${VERSION_PARTS[1]:-0}
+          patch=${VERSION_PARTS[2]:-0}
+          patch=$((patch + 1))
+
+          next_version="v${major}.${minor}.${patch}"
+          echo "next_version=$next_version" >> $GITHUB_OUTPUT
+          echo "Next version: $next_version"
+
+      - name: Display dry run info
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo "🔍 DRY RUN MODE"
+          echo "Would create tag: ${{ steps.next_version.outputs.next_version }}"
+          echo "From commit: ${{ github.sha }}"
+          echo "Previous tag: ${{ steps.get_latest_tag.outputs.latest_tag }}"
+
+      - name: Create and push tag
+        if: ${{ !inputs.dry_run }}
+        run: |
+          next_version="${{ steps.next_version.outputs.next_version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$next_version" -m "Release $next_version"
+          git push origin "$next_version"
+
+      - name: Create Release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          next_version="${{ steps.next_version.outputs.next_version }}"
+
+          gh release create "$next_version" \
+            --title "$next_version" \
+            --generate-notes \
+            --latest=false # keep v1 as latest
+
+  update-major-tag:
+    needs: create-release
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Update major version tag
+        run: |
+          next_version="${{ needs.create-release.outputs.next_version }}"
+          # Extract major version (e.g., v0 from v0.0.20)
+          major_version=$(echo "$next_version" | cut -d. -f1)
+
+          # Update the major version tag to point to this release
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -fa "$major_version" -m "Update $major_version tag to $next_version"
+          git push origin "$major_version" --force
+
+          echo "Updated $major_version tag to point to $next_version"
+
+  release-base-action:
+    needs: create-release
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout base-action repo
+        uses: actions/checkout@v5
+        with:
+          repository: anthropics/claude-code-base-action
+          token: ${{ secrets.CLAUDE_CODE_BASE_ACTION_PAT }}
+          fetch-depth: 0
+
+      # - name: Create and push tag
+      #   run: |
+      #     next_version="${{ needs.create-release.outputs.next_version }}"
+
+      #     git config user.name "github-actions[bot]"
+      #     git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      #     # Create the version tag
+      #     git tag -a "$next_version" -m "Release $next_version - synced from claude-code-action"
+      #     git push origin "$next_version"
+
+      #     # Update the beta tag
+      #     git tag -fa beta -m "Update beta tag to ${next_version}"
+      #     git push origin beta --force
+
+      # - name: Create GitHub release
+      #   env:
+      #     GH_TOKEN: ${{ secrets.CLAUDE_CODE_BASE_ACTION_PAT }}
+      #   run: |
+      #     next_version="${{ needs.create-release.outputs.next_version }}"
+
+      #     # Create the release
+      #     gh release create "$next_version" \
+      #       --repo anthropics/claude-code-base-action \
+      #       --title "$next_version" \
+      #       --notes "Release $next_version - synced from anthropics/claude-code-action" \
+      #       --latest=false
+
+      #     # Update beta release to be latest
+      #     gh release edit beta \
+      #       --repo anthropics/claude-code-base-action \
+      #       --latest

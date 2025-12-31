@@ -1,0 +1,181 @@
+name: Test Settings Feature
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-settings-inline-allow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Test with inline settings JSON (echo allowed)
+        id: inline-settings-test
+        uses: ./base-action
+        with:
+          prompt: |
+            Use Bash to echo "Hello from settings test"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          settings: |
+            {
+              "permissions": {
+                "allow": ["Bash(echo:*)"]
+              }
+            }
+
+      - name: Verify echo worked
+        run: |
+          OUTPUT_FILE="${{ steps.inline-settings-test.outputs.execution_file }}"
+          CONCLUSION="${{ steps.inline-settings-test.outputs.conclusion }}"
+
+          echo "Conclusion: $CONCLUSION"
+
+          if [ "$CONCLUSION" = "success" ]; then
+            echo "✅ Action completed successfully"
+          else
+            echo "❌ Action failed"
+            exit 1
+          fi
+
+          # Check that permission was NOT denied
+          if grep -q "Permission to use Bash with command echo.*has been denied" "$OUTPUT_FILE"; then
+            echo "❌ Echo command was denied when it should have been allowed"
+            cat "$OUTPUT_FILE"
+            exit 1
+          fi
+
+          # Check if the echo command worked
+          if grep -q "Hello from settings test" "$OUTPUT_FILE"; then
+            echo "✅ Bash echo command worked (allowed by permissions)"
+          else
+            echo "❌ Bash echo command didn't work"
+            cat "$OUTPUT_FILE"
+            exit 1
+          fi
+
+  test-settings-inline-deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Test with inline settings JSON (echo denied)
+        id: inline-settings-test
+        uses: ./base-action
+        with:
+          prompt: |
+            Run the command `echo $HOME` to check the home directory path
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          settings: |
+            {
+              "permissions": {
+                "deny": ["Bash(echo:*)"]
+              }
+            }
+
+      - name: Verify echo was denied
+        run: |
+          OUTPUT_FILE="${{ steps.inline-settings-test.outputs.execution_file }}"
+
+          # Check that permission was denied in the tool_result
+          if grep -q "Permission to use Bash with command echo.*has been denied" "$OUTPUT_FILE"; then
+            echo "✅ Echo command was correctly denied by permissions"
+          else
+            echo "❌ Expected permission denied message not found"
+            cat "$OUTPUT_FILE"
+            exit 1
+          fi
+
+  test-settings-file-allow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Create settings file (echo allowed)
+        run: |
+          cat > test-settings.json << EOF
+          {
+            "permissions": {
+              "allow": ["Bash(echo:*)"]
+            }
+          }
+          EOF
+
+      - name: Test with settings file
+        id: file-settings-test
+        uses: ./base-action
+        with:
+          prompt: |
+            Use Bash to echo "Hello from settings file test"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          settings: "test-settings.json"
+
+      - name: Verify echo worked
+        run: |
+          OUTPUT_FILE="${{ steps.file-settings-test.outputs.execution_file }}"
+          CONCLUSION="${{ steps.file-settings-test.outputs.conclusion }}"
+
+          echo "Conclusion: $CONCLUSION"
+
+          if [ "$CONCLUSION" = "success" ]; then
+            echo "✅ Action completed successfully"
+          else
+            echo "❌ Action failed"
+            exit 1
+          fi
+
+          # Check that permission was NOT denied
+          if grep -q "Permission to use Bash with command echo.*has been denied" "$OUTPUT_FILE"; then
+            echo "❌ Echo command was denied when it should have been allowed"
+            cat "$OUTPUT_FILE"
+            exit 1
+          fi
+
+          # Check if the echo command worked
+          if grep -q "Hello from settings file test" "$OUTPUT_FILE"; then
+            echo "✅ Bash echo command worked (allowed by permissions)"
+          else
+            echo "❌ Bash echo command didn't work"
+            cat "$OUTPUT_FILE"
+            exit 1
+          fi
+
+  test-settings-file-deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Create settings file (echo denied)
+        run: |
+          cat > test-settings.json << EOF
+          {
+            "permissions": {
+              "deny": ["Bash(echo:*)"]
+            }
+          }
+          EOF
+
+      - name: Test with settings file
+        id: file-settings-test
+        uses: ./base-action
+        with:
+          prompt: |
+            Run the command `echo $HOME` to check the home directory path
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          settings: "test-settings.json"
+
+      - name: Verify echo was denied
+        run: |
+          OUTPUT_FILE="${{ steps.file-settings-test.outputs.execution_file }}"
+
+          # Check that permission was denied in the tool_result
+          if grep -q "Permission to use Bash with command echo.*has been denied" "$OUTPUT_FILE"; then
+            echo "✅ Echo command was correctly denied by permissions"
+          else
+            echo "❌ Expected permission denied message not found"
+            cat "$OUTPUT_FILE"
+            exit 1
+          fi

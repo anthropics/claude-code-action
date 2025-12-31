@@ -1,0 +1,178 @@
+name: Test Claude Code Action
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      test_prompt:
+        description: "Test prompt for Claude"
+        required: false
+        default: "List the files in the current directory starting with 'package'"
+
+jobs:
+  test-inline-prompt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Test with inline prompt
+        id: inline-test
+        uses: ./base-action
+        with:
+          prompt: ${{ github.event.inputs.test_prompt || 'List the files in the current directory starting with "package"' }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: "LS,Read"
+
+      - name: Verify inline prompt output
+        run: |
+          OUTPUT_FILE="${{ steps.inline-test.outputs.execution_file }}"
+          CONCLUSION="${{ steps.inline-test.outputs.conclusion }}"
+
+          echo "Conclusion: $CONCLUSION"
+          echo "Output file: $OUTPUT_FILE"
+
+          if [ "$CONCLUSION" = "success" ]; then
+            echo "✅ Action completed successfully"
+          else
+            echo "❌ Action failed"
+            exit 1
+          fi
+
+          if [ -f "$OUTPUT_FILE" ]; then
+            if [ -s "$OUTPUT_FILE" ]; then
+              echo "✅ Execution log file created successfully with content"
+              echo "Validating JSON format:"
+              if jq . "$OUTPUT_FILE" > /dev/null 2>&1; then
+                echo "✅ Output is valid JSON"
+                echo "Content preview:"
+                head -c 200 "$OUTPUT_FILE"
+              else
+                echo "❌ Output is not valid JSON"
+                exit 1
+              fi
+            else
+              echo "❌ Execution log file is empty"
+              exit 1
+            fi
+          else
+            echo "❌ Execution log file not found"
+            exit 1
+          fi
+
+  test-prompt-file:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Create test prompt file
+        run: |
+          cat > test-prompt.txt << EOF
+          ${PROMPT}
+          EOF
+        env:
+          PROMPT: ${{ github.event.inputs.test_prompt || 'List the files in the current directory starting with "package"' }}
+
+      - name: Test with prompt file and allowed tools
+        id: prompt-file-test
+        uses: ./base-action
+        with:
+          prompt_file: "test-prompt.txt"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: "LS,Read"
+
+      - name: Verify prompt file output
+        run: |
+          OUTPUT_FILE="${{ steps.prompt-file-test.outputs.execution_file }}"
+          CONCLUSION="${{ steps.prompt-file-test.outputs.conclusion }}"
+
+          echo "Conclusion: $CONCLUSION"
+          echo "Output file: $OUTPUT_FILE"
+
+          if [ "$CONCLUSION" = "success" ]; then
+            echo "✅ Action completed successfully"
+          else
+            echo "❌ Action failed"
+            exit 1
+          fi
+
+          if [ -f "$OUTPUT_FILE" ]; then
+            if [ -s "$OUTPUT_FILE" ]; then
+              echo "✅ Execution log file created successfully with content"
+              echo "Validating JSON format:"
+              if jq . "$OUTPUT_FILE" > /dev/null 2>&1; then
+                echo "✅ Output is valid JSON"
+                echo "Content preview:"
+                head -c 200 "$OUTPUT_FILE"
+              else
+                echo "❌ Output is not valid JSON"
+                exit 1
+              fi
+            else
+              echo "❌ Execution log file is empty"
+              exit 1
+            fi
+          else
+            echo "❌ Execution log file not found"
+            exit 1
+          fi
+
+  test-agent-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Test with Agent SDK
+        id: sdk-test
+        uses: ./base-action
+        env:
+          USE_AGENT_SDK: "true"
+        with:
+          prompt: ${{ github.event.inputs.test_prompt || 'List the files in the current directory starting with "package"' }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: "LS,Read"
+
+      - name: Verify SDK output
+        run: |
+          OUTPUT_FILE="${{ steps.sdk-test.outputs.execution_file }}"
+          CONCLUSION="${{ steps.sdk-test.outputs.conclusion }}"
+
+          echo "Conclusion: $CONCLUSION"
+          echo "Output file: $OUTPUT_FILE"
+
+          if [ "$CONCLUSION" = "success" ]; then
+            echo "✅ Action completed successfully with Agent SDK"
+          else
+            echo "❌ Action failed with Agent SDK"
+            exit 1
+          fi
+
+          if [ -f "$OUTPUT_FILE" ]; then
+            if [ -s "$OUTPUT_FILE" ]; then
+              echo "✅ Execution log file created successfully with content"
+              echo "Validating JSON format:"
+              if jq . "$OUTPUT_FILE" > /dev/null 2>&1; then
+                echo "✅ Output is valid JSON"
+                # Verify SDK output contains total_cost_usd (SDK field name)
+                if jq -e '.[] | select(.type == "result") | .total_cost_usd' "$OUTPUT_FILE" > /dev/null 2>&1; then
+                  echo "✅ SDK output contains total_cost_usd field"
+                else
+                  echo "❌ SDK output missing total_cost_usd field"
+                  exit 1
+                fi
+                echo "Content preview:"
+                head -c 500 "$OUTPUT_FILE"
+              else
+                echo "❌ Output is not valid JSON"
+                exit 1
+              fi
+            else
+              echo "❌ Execution log file is empty"
+              exit 1
+            fi
+          else
+            echo "❌ Execution log file not found"
+            exit 1
+          fi
