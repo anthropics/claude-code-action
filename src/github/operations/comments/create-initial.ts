@@ -48,6 +48,9 @@ export async function createInitialComment(
         const hiddenHeader = `<!-- bot: ${context.inputs.botName} -->`;
         const headerMatch = comment.body?.includes(hiddenHeader);
 
+        // Check if comment has ANY hidden header (to detect other bots)
+        const hasAnyHeader = comment.body?.includes("<!-- bot:");
+
         const botNameMatch =
           comment.user?.type === "Bot" &&
           comment.user?.login
@@ -55,8 +58,14 @@ export async function createInitialComment(
             .includes(context.inputs.botName.toLowerCase());
         const bodyMatch = comment.body === initialBody;
 
-        // Match by ID OR hidden header OR bot name OR body
-        return idMatch || headerMatch || botNameMatch || bodyMatch;
+        // If comment has a hidden header, ONLY match if it's OUR header
+        // This prevents bots with the same ID but different names from conflicting
+        if (hasAnyHeader) {
+          return headerMatch && idMatch;
+        }
+
+        // No header present: Match by ID OR bot name OR body (backward compatibility)
+        return idMatch || botNameMatch || bodyMatch;
       });
       if (existingComment) {
         response = await octokit.rest.issues.updateComment({
