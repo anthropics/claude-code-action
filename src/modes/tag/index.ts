@@ -4,7 +4,10 @@ import { checkContainsTrigger } from "../../github/validation/trigger";
 import { checkHumanActor } from "../../github/validation/actor";
 import { createInitialComment } from "../../github/operations/comments/create-initial";
 import { setupBranch } from "../../github/operations/branch";
-import { configureGitAuth } from "../../github/operations/git-config";
+import {
+  configureGitAuth,
+  setupSshSigning,
+} from "../../github/operations/git-config";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import {
   fetchGitHubData,
@@ -88,8 +91,28 @@ export const tagMode: Mode = {
     // Setup branch
     const branchInfo = await setupBranch(octokit, githubData, context);
 
-    // Configure git authentication if not using commit signing
-    if (!context.inputs.useCommitSigning) {
+    // Configure git authentication
+    // SSH signing takes precedence if provided
+    const useSshSigning = !!context.inputs.sshSigningKey;
+    const useApiCommitSigning =
+      context.inputs.useCommitSigning && !useSshSigning;
+
+    if (useSshSigning) {
+      // Setup SSH signing for commits
+      await setupSshSigning(context.inputs.sshSigningKey);
+
+      // Still configure git auth for push operations (user/email and remote URL)
+      const user = {
+        login: context.inputs.botName,
+        id: parseInt(context.inputs.botId),
+      };
+      try {
+        await configureGitAuth(githubToken, context, user);
+      } catch (error) {
+        console.error("Failed to configure git authentication:", error);
+        throw error;
+      }
+    } else if (!useApiCommitSigning) {
       // Use bot_id and bot_name from inputs directly
       const user = {
         login: context.inputs.botName,
@@ -135,8 +158,9 @@ export const tagMode: Mode = {
       ...userAllowedMCPTools,
     ];
 
-    // Add git commands when not using commit signing
-    if (!context.inputs.useCommitSigning) {
+    // Add git commands when using git CLI (no API commit signing, or SSH signing)
+    // SSH signing still uses git CLI, just with signing enabled
+    if (!useApiCommitSigning) {
       tagModeTools.push(
         "Bash(git add:*)",
         "Bash(git commit:*)",
@@ -147,7 +171,7 @@ export const tagMode: Mode = {
         "Bash(git rm:*)",
       );
     } else {
-      // When using commit signing, use MCP file ops tools
+      // When using API commit signing, use MCP file ops tools
       tagModeTools.push(
         "mcp__github_file_ops__commit_files",
         "mcp__github_file_ops__delete_files",

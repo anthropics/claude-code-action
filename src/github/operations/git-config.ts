@@ -6,8 +6,13 @@
  */
 
 import { $ } from "bun";
+import { mkdir, writeFile, rm, chmod } from "fs/promises";
+import { join } from "path";
+import { homedir } from "os";
 import type { GitHubContext } from "../context";
 import { GITHUB_SERVER_URL } from "../api/config";
+
+const SSH_SIGNING_KEY_PATH = join(homedir(), ".ssh", "claude_signing_key");
 
 type GitUser = {
   login: string;
@@ -53,4 +58,41 @@ export async function configureGitAuth(
   console.log("✓ Updated remote URL with authentication token");
 
   console.log("Git authentication configured successfully");
+}
+
+/**
+ * Configure git to use SSH signing for commits
+ * This is an alternative to GitHub API-based commit signing (use_commit_signing)
+ */
+export async function setupSshSigning(sshSigningKey: string): Promise<void> {
+  console.log("Configuring SSH signing for commits...");
+
+  // Create .ssh directory if it doesn't exist
+  const sshDir = join(homedir(), ".ssh");
+  await mkdir(sshDir, { recursive: true });
+
+  // Write the signing key with proper permissions (600)
+  await writeFile(SSH_SIGNING_KEY_PATH, sshSigningKey);
+  await chmod(SSH_SIGNING_KEY_PATH, 0o600);
+  console.log(`✓ SSH signing key written to ${SSH_SIGNING_KEY_PATH}`);
+
+  // Configure git to use SSH signing
+  await $`git config gpg.format ssh`;
+  await $`git config user.signingkey ${SSH_SIGNING_KEY_PATH}`;
+  await $`git config commit.gpgsign true`;
+
+  console.log("✓ Git configured to use SSH signing for commits");
+}
+
+/**
+ * Clean up the SSH signing key file
+ * Should be called in the post step for security
+ */
+export async function cleanupSshSigning(): Promise<void> {
+  try {
+    await rm(SSH_SIGNING_KEY_PATH, { force: true });
+    console.log("✓ SSH signing key cleaned up");
+  } catch (error) {
+    console.log("No SSH signing key to clean up");
+  }
 }

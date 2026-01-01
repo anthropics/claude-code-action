@@ -20,6 +20,7 @@ const defaultInputs = {
   branchPrefix: "claude/",
   useStickyComment: false,
   useCommitSigning: false,
+  sshSigningKey: "",
   botId: String(CLAUDE_APP_BOT_ID),
   botName: CLAUDE_BOT_LOGIN,
   allowedBots: "",

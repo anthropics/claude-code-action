@@ -26,6 +26,7 @@ export function collectActionInputsPresence(): void {
     max_turns: "",
     use_sticky_comment: "false",
     use_commit_signing: "false",
+    ssh_signing_key: "",
   };
 
   const allInputsJson = process.env.ALL_INPUTS;
