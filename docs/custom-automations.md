@@ -21,6 +21,7 @@ This action supports the following GitHub events ([learn more GitHub event trigg
 - `issues` - When issues are opened or assigned
 - `pull_request_review` - When PR reviews are submitted
 - `pull_request_review_comment` - When comments are made on PR reviews
+- `push` - When commits are pushed to a branch
 - `repository_dispatch` - Custom events triggered via API
 - `workflow_dispatch` - Manual workflow triggers (coming soon)
 
@@ -120,3 +121,42 @@ For more control over Claude's behavior, use the `claude_args` input to pass CLI
 ```
 
 This provides full access to Claude Code CLI capabilities while maintaining the simplified action interface.
+
+## Auto-Rebase PRs on Push
+
+Automatically keep PRs up to date when the main branch is updated:
+
+```yaml
+name: Auto-Rebase PRs
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  rebase-prs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            Find all open PRs that are behind main and merge main into them.
+            For each PR:
+            1. Check out the PR branch
+            2. Merge main into the branch
+            3. Push the updated branch
+
+            Skip any PRs with merge conflicts - just report them.
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+This workflow triggers whenever commits are pushed to main and uses Claude to automatically merge main into any stale PR branches, keeping them up to date.

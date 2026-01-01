@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { detectMode } from "../../src/modes/detector";
 import type { GitHubContext } from "../../src/github/context";
+import { isPushEvent } from "../../src/github/context";
 
 describe("detectMode with enhanced routing", () => {
   const baseContext = {
@@ -255,6 +256,67 @@ describe("detectMode with enhanced routing", () => {
       };
 
       expect(detectMode(context)).toBe("tag");
+    });
+  });
+
+  describe("Push Events", () => {
+    it("should use agent mode for push events", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "push",
+        payload: {} as any,
+        inputs: { ...baseContext.inputs, prompt: "Merge main into stale PRs" },
+      };
+
+      expect(detectMode(context)).toBe("agent");
+    });
+
+    it("should throw error when track_progress is used with push event", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "push",
+        payload: {} as any,
+        inputs: { ...baseContext.inputs, trackProgress: true },
+      };
+
+      expect(() => detectMode(context)).toThrow(
+        /track_progress is only supported /,
+      );
+    });
+  });
+
+  describe("isPushEvent type guard", () => {
+    it("should return true for push events", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "push",
+        payload: {} as any,
+      };
+
+      expect(isPushEvent(context)).toBe(true);
+    });
+
+    it("should return false for non-push events", () => {
+      const issueContext: GitHubContext = {
+        ...baseContext,
+        eventName: "issues",
+        eventAction: "opened",
+        payload: { issue: { number: 1, body: "Test" } } as any,
+        entityNumber: 1,
+        isPR: false,
+      };
+
+      expect(isPushEvent(issueContext)).toBe(false);
+    });
+
+    it("should return false for workflow_dispatch events", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "workflow_dispatch",
+        payload: {} as any,
+      };
+
+      expect(isPushEvent(context)).toBe(false);
     });
   });
 });
