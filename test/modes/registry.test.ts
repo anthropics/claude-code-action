@@ -60,6 +60,15 @@ describe("Mode Registry", () => {
     expect(mode.name).toBe("agent");
   });
 
+  test("getMode auto-detects agent for push event", () => {
+    const pushContext = createMockAutomationContext({
+      eventName: "push",
+    });
+    const mode = getMode(pushContext);
+    expect(mode).toBe(agentMode);
+    expect(mode.name).toBe("agent");
+  });
+
   test("getMode auto-detects agent for repository_dispatch with client_payload", () => {
     const contextWithPayload = createMockAutomationContext({
       eventName: "repository_dispatch",
