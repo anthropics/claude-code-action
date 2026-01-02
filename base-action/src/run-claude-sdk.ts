@@ -11,6 +11,9 @@ import type { ParsedSdkOptions } from "./parse-sdk-options";
 
 const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`;
 
+/** Filename for the user request file, written by prompt generation */
+const USER_REQUEST_FILENAME = "claude-user-request.txt";
+
 /**
  * Check if a file exists
  */
@@ -31,11 +34,12 @@ async function fileExists(path: string): Promise<boolean> {
  */
 async function createPromptConfig(
   promptPath: string,
+  showFullOutput: boolean,
 ): Promise<string | AsyncIterable<SDKUserMessage>> {
   const promptContent = await readFile(promptPath, "utf-8");
 
   // Check for user request file in the same directory
-  const userRequestPath = join(dirname(promptPath), "claude-user-request.txt");
+  const userRequestPath = join(dirname(promptPath), USER_REQUEST_FILENAME);
   const hasUserRequest = await fileExists(userRequestPath);
 
   if (!hasUserRequest) {
@@ -45,7 +49,11 @@ async function createPromptConfig(
 
   // User request file exists - create multi-block message
   const userRequest = await readFile(userRequestPath, "utf-8");
-  console.log("Using multi-block message with user request:", userRequest);
+  if (showFullOutput) {
+    console.log("Using multi-block message with user request:", userRequest);
+  } else {
+    console.log("Using multi-block message with user request (content hidden)");
+  }
 
   // Create an async generator that yields a single multi-block message
   // The context/instructions go first, then the user's actual request last
@@ -123,7 +131,7 @@ export async function runClaudeWithSdk(
   { sdkOptions, showFullOutput, hasJsonSchema }: ParsedSdkOptions,
 ): Promise<void> {
   // Create prompt configuration - may be a string or multi-block message
-  const prompt = await createPromptConfig(promptPath);
+  const prompt = await createPromptConfig(promptPath, showFullOutput);
 
   if (!showFullOutput) {
     console.log(

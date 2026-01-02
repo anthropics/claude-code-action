@@ -1,8 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import {
-  extractUserRequest,
-  extractUserRequestFromEvent,
-} from "../src/utils/extract-user-request";
+import { extractUserRequest } from "../src/utils/extract-user-request";
 
 describe("extractUserRequest", () => {
   test("extracts text after @claude trigger", () => {
@@ -75,88 +72,6 @@ Focus on security issues.`,
     );
     expect(extractUserRequest("@Claude /review-pr", "@claude")).toBe(
       "/review-pr",
-    );
-  });
-});
-
-describe("extractUserRequestFromEvent", () => {
-  test("extracts from issue_comment event", () => {
-    const result = extractUserRequestFromEvent(
-      {
-        eventName: "issue_comment",
-        commentBody: "@claude /review-pr",
-      },
-      "@claude",
-    );
-    expect(result).toBe("/review-pr");
-  });
-
-  test("extracts from pull_request_review_comment event", () => {
-    const result = extractUserRequestFromEvent(
-      {
-        eventName: "pull_request_review_comment",
-        commentBody: "@claude fix this bug",
-      },
-      "@claude",
-    );
-    expect(result).toBe("fix this bug");
-  });
-
-  test("extracts from pull_request_review event", () => {
-    const result = extractUserRequestFromEvent(
-      {
-        eventName: "pull_request_review",
-        commentBody: "@claude looks good but add tests",
-      },
-      "@claude",
-    );
-    expect(result).toBe("looks good but add tests");
-  });
-
-  test("extracts from issues event with body", () => {
-    const result = extractUserRequestFromEvent(
-      {
-        eventName: "issues",
-        issueBody: "@claude please implement this feature",
-      },
-      "@claude",
-    );
-    expect(result).toBe("please implement this feature");
-  });
-
-  test("extracts from pull_request event with body", () => {
-    const result = extractUserRequestFromEvent(
-      {
-        eventName: "pull_request",
-        prBody: "@claude review this PR",
-      },
-      "@claude",
-    );
-    expect(result).toBe("review this PR");
-  });
-
-  test("returns default message when no trigger found", () => {
-    const result = extractUserRequestFromEvent(
-      {
-        eventName: "issues",
-        issueBody: "Please fix the login bug",
-      },
-      "@claude",
-    );
-    expect(result).toBe(
-      "Please analyze the context and help with this request.",
-    );
-  });
-
-  test("returns default message for assigned events without trigger", () => {
-    const result = extractUserRequestFromEvent(
-      {
-        eventName: "issues",
-      },
-      "@claude",
-    );
-    expect(result).toBe(
-      "Please analyze the context and help with this request.",
     );
   });
 });

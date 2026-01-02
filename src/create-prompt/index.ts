@@ -24,6 +24,9 @@ import type { Mode, ModeContext } from "../modes/types";
 import { extractUserRequest } from "../utils/extract-user-request";
 export type { CommonFields, PreparedContext } from "./types";
 
+/** Filename for the user request file, read by the SDK runner */
+const USER_REQUEST_FILENAME = "claude-user-request.txt";
+
 // Tag mode defaults - these tools are needed for tag mode to function
 const BASE_ALLOWED_TOOLS = [
   "Edit",
@@ -850,8 +853,19 @@ f. If you are unable to complete certain steps, such as running a linter or test
 
 /**
  * Extracts the user's request from the prepared context and GitHub data.
+ *
  * This is used to send the user's actual command/request as a separate
  * content block, enabling slash command processing in the CLI.
+ *
+ * @param context - The prepared context containing event data and trigger phrase
+ * @param githubData - The fetched GitHub data containing issue/PR body content
+ * @returns The extracted user request text (e.g., "/review-pr" or "fix this bug"),
+ *          or null for assigned/labeled events without an explicit trigger in the body
+ *
+ * @example
+ * // Comment event: "@claude /review-pr" -> returns "/review-pr"
+ * // Issue body with "@claude fix this" -> returns "fix this"
+ * // Issue assigned without @claude in body -> returns null
  */
 function extractUserRequestFromContext(
   context: PreparedContext,
@@ -942,7 +956,7 @@ export async function createPrompt(
     );
     if (userRequest) {
       await writeFile(
-        `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts/claude-user-request.txt`,
+        `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts/${USER_REQUEST_FILENAME}`,
         userRequest,
       );
       console.log("===== USER REQUEST =====");
