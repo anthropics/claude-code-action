@@ -6,7 +6,7 @@
  */
 
 import { $ } from "bun";
-import { mkdir, writeFile, rm, chmod } from "fs/promises";
+import { mkdir, writeFile, rm } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 import type { GitHubContext } from "../context";
@@ -67,13 +67,23 @@ export async function configureGitAuth(
 export async function setupSshSigning(sshSigningKey: string): Promise<void> {
   console.log("Configuring SSH signing for commits...");
 
-  // Create .ssh directory if it doesn't exist
-  const sshDir = join(homedir(), ".ssh");
-  await mkdir(sshDir, { recursive: true });
+  // Validate SSH key format
+  if (!sshSigningKey.trim()) {
+    throw new Error("SSH signing key cannot be empty");
+  }
+  if (
+    !sshSigningKey.includes("BEGIN") ||
+    !sshSigningKey.includes("PRIVATE KEY")
+  ) {
+    throw new Error("Invalid SSH private key format");
+  }
 
-  // Write the signing key with proper permissions (600)
-  await writeFile(SSH_SIGNING_KEY_PATH, sshSigningKey);
-  await chmod(SSH_SIGNING_KEY_PATH, 0o600);
+  // Create .ssh directory with secure permissions (700)
+  const sshDir = join(homedir(), ".ssh");
+  await mkdir(sshDir, { recursive: true, mode: 0o700 });
+
+  // Write the signing key atomically with secure permissions (600)
+  await writeFile(SSH_SIGNING_KEY_PATH, sshSigningKey, { mode: 0o600 });
   console.log(`✓ SSH signing key written to ${SSH_SIGNING_KEY_PATH}`);
 
   // Configure git to use SSH signing

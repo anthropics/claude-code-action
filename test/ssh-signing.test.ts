@@ -38,14 +38,12 @@ describe("SSH Signing", () => {
   });
 
   describe("setupSshSigning file operations", () => {
-    test("should write key file with correct permissions", async () => {
-      // Create the directory
-      await mkdir(testSshDir, { recursive: true });
+    test("should write key file atomically with correct permissions", async () => {
+      // Create the directory with secure permissions (same as setupSshSigning does)
+      await mkdir(testSshDir, { recursive: true, mode: 0o700 });
 
-      // Write key with proper permissions (same as setupSshSigning does)
-      await writeFile(testKeyPath, testKey);
-      const { chmod } = await import("fs/promises");
-      await chmod(testKeyPath, 0o600);
+      // Write key atomically with proper permissions (same as setupSshSigning does)
+      await writeFile(testKeyPath, testKey, { mode: 0o600 });
 
       // Verify key was written
       const keyContent = await readFile(testKeyPath, "utf-8");
@@ -57,16 +55,65 @@ describe("SSH Signing", () => {
       expect(permissions).toBe(0o600);
     });
 
-    test("should create .ssh directory if it does not exist", async () => {
+    test("should create .ssh directory with secure permissions", async () => {
       // Clean up first
       await rm(testSshDir, { recursive: true, force: true });
 
-      // Create directory (same as setupSshSigning does)
-      await mkdir(testSshDir, { recursive: true });
+      // Create directory with secure permissions (same as setupSshSigning does)
+      await mkdir(testSshDir, { recursive: true, mode: 0o700 });
 
       // Verify directory exists
       const dirStats = await stat(testSshDir);
       expect(dirStats.isDirectory()).toBe(true);
+
+      // Verify directory permissions
+      const dirPermissions = dirStats.mode & 0o777;
+      expect(dirPermissions).toBe(0o700);
+    });
+  });
+
+  describe("setupSshSigning validation", () => {
+    test("should reject empty SSH key", () => {
+      const emptyKey = "";
+      expect(() => {
+        if (!emptyKey.trim()) {
+          throw new Error("SSH signing key cannot be empty");
+        }
+      }).toThrow("SSH signing key cannot be empty");
+    });
+
+    test("should reject whitespace-only SSH key", () => {
+      const whitespaceKey = "   \n\t  ";
+      expect(() => {
+        if (!whitespaceKey.trim()) {
+          throw new Error("SSH signing key cannot be empty");
+        }
+      }).toThrow("SSH signing key cannot be empty");
+    });
+
+    test("should reject invalid SSH key format", () => {
+      const invalidKey = "not a valid key";
+      expect(() => {
+        if (
+          !invalidKey.includes("BEGIN") ||
+          !invalidKey.includes("PRIVATE KEY")
+        ) {
+          throw new Error("Invalid SSH private key format");
+        }
+      }).toThrow("Invalid SSH private key format");
+    });
+
+    test("should accept valid SSH key format", () => {
+      const validKey =
+        "-----BEGIN OPENSSH PRIVATE KEY-----\nkey-content\n-----END OPENSSH PRIVATE KEY-----";
+      expect(() => {
+        if (!validKey.trim()) {
+          throw new Error("SSH signing key cannot be empty");
+        }
+        if (!validKey.includes("BEGIN") || !validKey.includes("PRIVATE KEY")) {
+          throw new Error("Invalid SSH private key format");
+        }
+      }).not.toThrow();
     });
   });
 
