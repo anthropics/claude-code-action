@@ -25,6 +25,9 @@ export async function createInitialComment(
   const { owner, repo } = context.repository;
   const { useStickyComment, jobId } = context.inputs;
 
+  // Debug logging for sticky comment isolation
+  console.log(`📝 Sticky comment config: useStickyComment=${useStickyComment}, jobId="${jobId}"`);
+
   const jobRunLink = createJobRunLink(owner, repo, context.runId);
   // Include jobId in comment body when using sticky comments for job isolation
   const initialBody = createCommentBody(
