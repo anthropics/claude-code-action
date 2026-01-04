@@ -25,6 +25,7 @@ export async function updateTrackingComment(
 ) {
   const { owner, repo } = context.repository;
 
+  const { useStickyComment, jobId } = context.inputs;
   const jobRunLink = createJobRunLink(owner, repo, context.runId);
 
   // Add branch link for issues (not PRs)
@@ -33,7 +34,12 @@ export async function updateTrackingComment(
     branchLink = createBranchLink(owner, repo, branch);
   }
 
-  const updatedBody = createCommentBody(jobRunLink, branchLink);
+  // Preserve sticky header for job isolation
+  const updatedBody = createCommentBody(
+    jobRunLink,
+    branchLink,
+    useStickyComment ? jobId : "",
+  );
 
   // Update the existing comment with the branch link
   try {
