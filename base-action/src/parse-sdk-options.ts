@@ -212,6 +212,8 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   if (process.env.INPUT_ACTION_INPUTS_PRESENT) {
     env.GITHUB_ACTION_INPUTS = process.env.INPUT_ACTION_INPUTS_PRESENT;
   }
+  // Ensure SDK path uses the same entrypoint as the CLI path
+  env.CLAUDE_CODE_ENTRYPOINT = "claude-code-github-action";
 
   // Build system prompt option - default to claude_code preset
   let systemPrompt: SdkOptions["systemPrompt"];
