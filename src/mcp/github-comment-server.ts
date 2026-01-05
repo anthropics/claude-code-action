@@ -8,12 +8,10 @@ import { Octokit } from "@octokit/rest";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 import { sanitizeContent } from "../github/utils/sanitizer";
 
-// Pattern to extract sticky job header from comment body
-const STICKY_HEADER_PATTERN = /^(<!-- sticky-job: [^>]+ -->)\n?/;
-
 // Get repository information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
 const REPO_NAME = process.env.REPO_NAME;
+const JOB_ID = process.env.GITHUB_JOB_ID || process.env.GITHUB_JOB || "";
 
 if (!REPO_OWNER || !REPO_NAME) {
   console.error(
@@ -58,33 +56,9 @@ server.tool(
       const isPullRequestReviewComment =
         eventName === "pull_request_review_comment";
 
-      // Fetch current comment to preserve sticky job header
-      let stickyHeader = "";
-      try {
-        const currentComment = isPullRequestReviewComment
-          ? await octokit.rest.pulls.getReviewComment({
-              owner,
-              repo,
-              comment_id: commentId,
-            })
-          : await octokit.rest.issues.getComment({
-              owner,
-              repo,
-              comment_id: commentId,
-            });
-
-        const currentBody = currentComment.data.body || "";
-        const headerMatch = currentBody.match(STICKY_HEADER_PATTERN);
-        if (headerMatch) {
-          stickyHeader = headerMatch[1] + "\n";
-        }
-      } catch (error) {
-        // If we can't fetch the comment, proceed without the header
-        console.error("Failed to fetch current comment for header preservation:", error);
-      }
-
       const sanitizedBody = sanitizeContent(body);
-      // Prepend sticky header if it existed in the original comment
+      // Prepend sticky header if job ID is available (for sticky comment isolation)
+      const stickyHeader = JOB_ID ? `<!-- sticky-job: ${JOB_ID} -->\n` : "";
       const finalBody = stickyHeader + sanitizedBody;
 
       const result = await updateClaudeComment(octokit, {
