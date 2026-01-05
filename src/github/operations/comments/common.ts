@@ -31,11 +31,9 @@ export function createCommentBody(
   jobId: string = "",
 ): string {
   const header = jobId ? `${createStickyCommentHeader(jobId)}\n` : "";
-  // Include visible job ID for debugging sticky comment isolation
-  const jobIdLabel = jobId ? `\n\n🏷️ Job: \`${jobId}\`` : "";
   return `${header}Claude Code is working… ${SPINNER_HTML}
 
 I'll analyze this and get back to you.
 
-${jobRunLink}${branchLink}${jobIdLabel}`;
+${jobRunLink}${branchLink}`;
 }

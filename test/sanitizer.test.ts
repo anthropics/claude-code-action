@@ -241,6 +241,20 @@ describe("sanitizeContent", () => {
     expect(sanitized).not.toContain('title="');
     expect(sanitized).toContain("<div>Test</div>");
   });
+
+  it("should preserve sticky job headers while stripping other HTML comments", () => {
+    const content = `<!-- sticky-job: my-workflow-job -->
+<!-- malicious hidden comment -->
+Claude Code is working...
+<img alt="hidden text" src="spinner.gif">`;
+
+    const sanitized = sanitizeContent(content);
+
+    expect(sanitized).toContain("<!-- sticky-job: my-workflow-job -->");
+    expect(sanitized).not.toContain("<!-- malicious hidden comment -->");
+    expect(sanitized).not.toContain("hidden text");
+    expect(sanitized).toContain("Claude Code is working...");
+  });
 });
 
 describe("redactGitHubTokens", () => {
@@ -346,7 +360,7 @@ describe("sanitizeContent with token redaction", () => {
   });
 });
 
-describe("stripHtmlComments (legacy)", () => {
+describe("stripHtmlComments", () => {
   it("should remove HTML comments", () => {
     expect(stripHtmlComments("Hello <!-- example -->World")).toBe(
       "Hello World",
@@ -359,5 +373,25 @@ describe("stripHtmlComments (legacy)", () => {
     expect(stripHtmlComments("Hello <!-- \nexample\n -->World")).toBe(
       "Hello World",
     );
+  });
+
+  it("should preserve sticky job headers", () => {
+    expect(
+      stripHtmlComments("<!-- sticky-job: my-job-id -->Content"),
+    ).toBe("<!-- sticky-job: my-job-id -->Content");
+    expect(
+      stripHtmlComments("<!-- sticky-job: claude-docs-review -->\nClaude Code is working"),
+    ).toBe("<!-- sticky-job: claude-docs-review -->\nClaude Code is working");
+  });
+
+  it("should strip other comments but preserve sticky job headers", () => {
+    const content = "<!-- sticky-job: test-job --><!-- malicious comment -->Content";
+    expect(stripHtmlComments(content)).toBe("<!-- sticky-job: test-job -->Content");
+  });
+
+  it("should not preserve comments that look similar but are not sticky job headers", () => {
+    expect(stripHtmlComments("<!--sticky-job: no-space -->Content")).toBe("Content");
+    expect(stripHtmlComments("<!-- sticky-jobs: plural -->Content")).toBe("Content");
+    expect(stripHtmlComments("<!-- sticky-job-fake: fake -->Content")).toBe("Content");
   });
 });
