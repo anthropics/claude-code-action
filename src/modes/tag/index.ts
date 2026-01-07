@@ -12,6 +12,7 @@ import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import {
   fetchGitHubData,
   extractTriggerTimestamp,
+  extractOriginalTitle,
 } from "../../github/data/fetcher";
 import { createPrompt, generateDefaultPrompt } from "../../create-prompt";
 import { isEntityContext } from "../../github/context";
@@ -78,6 +79,7 @@ export const tagMode: Mode = {
     const commentId = commentData.id;
 
     const triggerTime = extractTriggerTimestamp(context);
+    const originalTitle = extractOriginalTitle(context);
 
     const githubData = await fetchGitHubData({
       octokits: octokit,
@@ -86,6 +88,7 @@ export const tagMode: Mode = {
       isPR: context.isPR,
       triggerUsername: context.actor,
       triggerTime,
+      originalTitle,
     });
 
     // Setup branch

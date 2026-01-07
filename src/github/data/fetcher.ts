@@ -3,6 +3,8 @@ import type { Octokits } from "../api/client";
 import { ISSUE_QUERY, PR_QUERY, USER_QUERY } from "../api/queries/github";
 import {
   isIssueCommentEvent,
+  isIssuesEvent,
+  isPullRequestEvent,
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
   type ParsedGitHubContext,
@@ -35,6 +37,31 @@ export function extractTriggerTimestamp(
     return context.payload.review.submitted_at || undefined;
   } else if (isPullRequestReviewCommentEvent(context)) {
     return context.payload.comment.created_at || undefined;
+  }
+
+  return undefined;
+}
+
+/**
+ * Extracts the original title from the GitHub webhook payload.
+ * This is the title as it existed when the trigger event occurred.
+ *
+ * @param context - Parsed GitHub context from webhook
+ * @returns The original title string or undefined if not available
+ */
+export function extractOriginalTitle(
+  context: ParsedGitHubContext,
+): string | undefined {
+  if (isIssueCommentEvent(context)) {
+    return context.payload.issue?.title;
+  } else if (isPullRequestEvent(context)) {
+    return context.payload.pull_request?.title;
+  } else if (isPullRequestReviewEvent(context)) {
+    return context.payload.pull_request?.title;
+  } else if (isPullRequestReviewCommentEvent(context)) {
+    return context.payload.pull_request?.title;
+  } else if (isIssuesEvent(context)) {
+    return context.payload.issue?.title;
   }
 
   return undefined;
@@ -146,6 +173,7 @@ type FetchDataParams = {
   isPR: boolean;
   triggerUsername?: string;
   triggerTime?: string;
+  originalTitle?: string;
 };
 
 export type GitHubFileWithSHA = GitHubFile & {
@@ -169,6 +197,7 @@ export async function fetchGitHubData({
   isPR,
   triggerUsername,
   triggerTime,
+  originalTitle,
 }: FetchDataParams): Promise<FetchDataResult> {
   const [owner, repo] = repository.split("/");
   if (!owner || !repo) {
@@ -352,6 +381,11 @@ export async function fetchGitHubData({
   let triggerDisplayName: string | null | undefined;
   if (triggerUsername) {
     triggerDisplayName = await fetchUserDisplayName(octokits, triggerUsername);
+  }
+
+  // Use the original title from the webhook payload if provided
+  if (originalTitle !== undefined) {
+    contextData.title = originalTitle;
   }
 
   return {
