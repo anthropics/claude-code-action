@@ -4,11 +4,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { readFile, stat } from "fs/promises";
-import { join } from "path";
+import { resolve } from "path";
 import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
 import { retryWithBackoff } from "../utils/retry";
+import { validatePathWithinRepo } from "./path-validation";
 
 type GitHubRef = {
   object: {
@@ -213,12 +214,18 @@ server.tool(
         throw new Error("GITHUB_TOKEN environment variable is required");
       }
 
-      const processedFiles = files.map((filePath) => {
-        if (filePath.startsWith("/")) {
-          return filePath.slice(1);
-        }
-        return filePath;
-      });
+      // Validate all paths are within repository root and get full/relative paths
+      const resolvedRepoDir = resolve(REPO_DIR);
+      const validatedFiles = await Promise.all(
+        files.map(async (filePath) => {
+          const fullPath = await validatePathWithinRepo(filePath, REPO_DIR);
+          // Calculate the relative path for the git tree entry
+          // Use the original filePath (normalized) for the git path, not the symlink-resolved path
+          const normalizedPath = resolve(resolvedRepoDir, filePath);
+          const relativePath = normalizedPath.slice(resolvedRepoDir.length + 1);
+          return { fullPath, relativePath };
+        }),
+      );
 
       // 1. Get the branch reference (create if doesn't exist)
       const baseSha = await getOrCreateBranchRef(
@@ -247,18 +254,14 @@ server.tool(
 
       // 3. Create tree entries for all files
       const treeEntries = await Promise.all(
-        processedFiles.map(async (filePath) => {
-          const fullPath = filePath.startsWith("/")
-            ? filePath
-            : join(REPO_DIR, filePath);
-
+        validatedFiles.map(async ({ fullPath, relativePath }) => {
           // Get the proper file mode based on file permissions
           const fileMode = await getFileMode(fullPath);
 
           // Check if file is binary (images, etc.)
           const isBinaryFile =
             /\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|tar|gz|exe|bin|woff|woff2|ttf|eot)$/i.test(
-              filePath,
+              relativePath,
             );
 
           if (isBinaryFile) {
@@ -284,7 +287,7 @@ server.tool(
             if (!blobResponse.ok) {
               const errorText = await blobResponse.text();
               throw new Error(
-                `Failed to create blob for ${filePath}: ${blobResponse.status} - ${errorText}`,
+                `Failed to create blob for ${relativePath}: ${blobResponse.status} - ${errorText}`,
               );
             }
 
@@ -292,7 +295,7 @@ server.tool(
 
             // Return tree entry with blob SHA
             return {
-              path: filePath,
+              path: relativePath,
               mode: fileMode,
               type: "blob",
               sha: blobData.sha,
@@ -301,7 +304,7 @@ server.tool(
             // For text files, include content directly in tree
             const content = await readFile(fullPath, "utf-8");
             return {
-              path: filePath,
+              path: relativePath,
               mode: fileMode,
               type: "blob",
               content: content,
@@ -421,7 +424,9 @@ server.tool(
           author: newCommitData.author.name,
           date: newCommitData.author.date,
         },
-        files: processedFiles.map((path) => ({ path })),
+        files: validatedFiles.map(({ relativePath }) => ({
+          path: relativePath,
+        })),
         tree: {
           sha: treeData.sha,
         },
