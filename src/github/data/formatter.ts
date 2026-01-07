@@ -14,7 +14,8 @@ export function formatContext(
 ): string {
   if (isPR) {
     const prData = contextData as GitHubPullRequest;
-    return `PR Title: ${prData.title}
+    const sanitizedTitle = sanitizeContent(prData.title);
+    return `PR Title: ${sanitizedTitle}
 PR Author: ${prData.author.login}
 PR Branch: ${prData.headRefName} -> ${prData.baseRefName}
 PR State: ${prData.state}
@@ -24,7 +25,8 @@ Total Commits: ${prData.commits.totalCount}
 Changed Files: ${prData.files.nodes.length} files`;
   } else {
     const issueData = contextData as GitHubIssue;
-    return `Issue Title: ${issueData.title}
+    const sanitizedTitle = sanitizeContent(issueData.title);
+    return `Issue Title: ${sanitizedTitle}
 Issue Author: ${issueData.author.login}
 Issue State: ${issueData.state}`;
   }

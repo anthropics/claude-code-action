@@ -1059,4 +1059,44 @@ describe("fetchGitHubData integration with time filtering", () => {
 
     expect(result.contextData.title).toBe("Fetched Title From GraphQL");
   });
+
+  it("should use original title from webhook even if title was edited after trigger", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            number: 123,
+            title: "Edited Title (from GraphQL)",
+            body: "PR body",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            lastEditedAt: "2024-01-15T12:30:00Z", // Edited after trigger
+            additions: 10,
+            deletions: 5,
+            state: "OPEN",
+            commits: { totalCount: 1, nodes: [] },
+            files: { nodes: [] },
+            comments: { nodes: [] },
+            reviews: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "123",
+      isPR: true,
+      triggerUsername: "trigger-user",
+      triggerTime: "2024-01-15T12:00:00Z",
+      originalTitle: "Original Title (from webhook at trigger time)",
+    });
+
+    expect(result.contextData.title).toBe(
+      "Original Title (from webhook at trigger time)",
+    );
+  });
 });
