@@ -21,7 +21,26 @@ jobs:
       !startsWith(github.event.workflow_run.head_branch, 'claude-auto-fix-ci-')
     runs-on: ubuntu-latest
     steps:
+      - name: Check for clawd-stop label
+        id: check_label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ github.event.workflow_run.pull_requests[0].number }};
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+            const hasClawdStop = pr.labels.some(label => label.name === 'clawd-stop');
+            if (hasClawdStop) {
+              console.log('PR has clawd-stop label, skipping auto-fix');
+            }
+            return hasClawdStop;
+          result-encoding: string
+
       - name: Checkout code
+        if: steps.check_label.outputs.result != 'true'
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
@@ -29,11 +48,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup git identity
+        if: steps.check_label.outputs.result != 'true'
         run: |
           git config --global user.email "claude[bot]@users.noreply.github.com"
           git config --global user.name "claude[bot]"
 
       - name: Create fix branch
+        if: steps.check_label.outputs.result != 'true'
         id: branch
         run: |
           BRANCH_NAME="claude-auto-fix-ci-${{ github.event.workflow_run.head_branch }}-${{ github.run_id }}"
@@ -41,6 +62,7 @@ jobs:
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
       - name: Get CI failure details
+        if: steps.check_label.outputs.result != 'true'
         id: failure_details
         uses: actions/github-script@v7
         with:
@@ -79,6 +101,7 @@ jobs:
             };
 
       - name: Fix CI failures with Claude
+        if: steps.check_label.outputs.result != 'true'
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
