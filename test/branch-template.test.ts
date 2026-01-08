@@ -192,6 +192,19 @@ describe("branch template utilities", () => {
       expect(result).toBe("fix/add-user-registration-email-789");
     });
 
+    it("should truncate descriptions to exactly 5 words", () => {
+      const result = generateBranchName(
+        "{{prefix}}{{description}}/{{entityNumber}}",
+        "feature/",
+        "issue",
+        999,
+        undefined,
+        undefined,
+        "This is a very long title with many more than five words in it",
+      );
+      expect(result).toBe("feature/this-is-a-very-long/999");
+    });
+
     it("should handle empty description in template", () => {
       const template = "{{prefix}}{{description}}-{{entityNumber}}";
       const result = generateBranchName(
