@@ -35,10 +35,42 @@ describe("parseAllowedTools", () => {
     expect(parseAllowedTools("")).toEqual([]);
   });
 
-  test("handles duplicate --allowedTools flags", () => {
+  test("handles --allowedTools followed by another --allowedTools flag", () => {
     const args = "--allowedTools --allowedTools mcp__github__*";
-    // Should not match the first one since the value is another flag
+    // The second --allowedTools is consumed as a value of the first, then skipped.
+    // This is an edge case with malformed input - returns empty.
     expect(parseAllowedTools(args)).toEqual([]);
+  });
+
+  test("parses multiple separate --allowed-tools flags", () => {
+    const args =
+      "--allowed-tools 'mcp__context7__*' --allowed-tools 'Read,Glob' --allowed-tools 'mcp__github_inline_comment__*'";
+    expect(parseAllowedTools(args)).toEqual([
+      "mcp__context7__*",
+      "Read",
+      "Glob",
+      "mcp__github_inline_comment__*",
+    ]);
+  });
+
+  test("parses multiple --allowed-tools flags on separate lines", () => {
+    const args = `--model 'claude-haiku'
+--allowed-tools 'mcp__context7__*'
+--allowed-tools 'Read,Glob,Grep'
+--allowed-tools 'mcp__github_inline_comment__create_inline_comment'`;
+    expect(parseAllowedTools(args)).toEqual([
+      "mcp__context7__*",
+      "Read",
+      "Glob",
+      "Grep",
+      "mcp__github_inline_comment__create_inline_comment",
+    ]);
+  });
+
+  test("deduplicates tools from multiple flags", () => {
+    const args =
+      "--allowed-tools 'Read,Glob' --allowed-tools 'Glob,Grep' --allowed-tools 'Read'";
+    expect(parseAllowedTools(args)).toEqual(["Read", "Glob", "Grep"]);
   });
 
   test("handles typo --alloedTools", () => {
