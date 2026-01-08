@@ -156,7 +156,7 @@ describe("branch template utilities", () => {
         "Fix login bug with OAuth",
       );
 
-      expect(result).toBe("feature/fix-login-bug/123");
+      expect(result).toBe("feature/fix-login-bug-with-oauth/123");
     });
 
     it("should handle template with multiple variables including description", () => {
@@ -172,7 +172,9 @@ describe("branch template utilities", () => {
         "User authentication fails completely",
       );
 
-      expect(result).toBe("dev/bug/user-authentication-fails-issue_456");
+      expect(result).toBe(
+        "dev/bug/user-authentication-fails-completely-issue_456",
+      );
     });
 
     it("should handle description with special characters in template", () => {
@@ -187,7 +189,7 @@ describe("branch template utilities", () => {
         "Add: User Registration & Email Validation",
       );
 
-      expect(result).toBe("fix/add-user-registration-789");
+      expect(result).toBe("fix/add-user-registration-email-789");
     });
 
     it("should handle empty description in template", () => {

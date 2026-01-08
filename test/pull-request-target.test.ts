@@ -87,6 +87,7 @@ describe("pull_request_target event support", () => {
       },
       comments: { nodes: [] },
       reviews: { nodes: [] },
+      labels: { nodes: [] },
     },
     comments: [],
     changedFiles: [],

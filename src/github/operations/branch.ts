@@ -6,6 +6,7 @@
  * - For Issues: Create a new branch
  */
 
+import { $ } from "bun";
 import { execFileSync } from "child_process";
 import * as core from "@actions/core";
 import type { ParsedGitHubContext } from "../context";
