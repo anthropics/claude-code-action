@@ -67,8 +67,14 @@ server.tool(
       .describe(
         "Specific commit SHA to comment on (defaults to latest commit)",
       ),
+    in_reply_to: z
+      .number()
+      .optional()
+      .describe(
+        "Comment ID to reply to (creates a reply in an existing thread instead of a new thread)",
+      ),
   },
-  async ({ path, body, line, startLine, side, commit_id }) => {
+  async ({ path, body, line, startLine, side, commit_id, in_reply_to }) => {
     try {
       const githubToken = process.env.GITHUB_TOKEN;
 
@@ -122,6 +128,38 @@ server.tool(
         params.start_line = startLine;
         params.start_side = side || "RIGHT";
         params.line = line;
+      }
+
+      // If replying to an existing comment, add in_reply_to parameter
+      if (in_reply_to !== undefined) {
+        params.in_reply_to = in_reply_to;
+      } else {
+        // Auto-deduplication: Check if there's already a comment on this line
+        // If yes, automatically reply to the existing thread instead of creating a duplicate
+        const { data: existingComments } =
+          await octokit.rest.pulls.listReviewComments({
+            owner,
+            repo,
+            pull_number,
+            per_page: 100,
+          });
+
+        // Find existing comment on the same line and path
+        // Only consider root comments (not replies) to find the thread starter
+        const existingComment = existingComments.find(
+          (comment) =>
+            comment.path === path &&
+            (comment.line === line || comment.original_line === line) &&
+            !comment.in_reply_to_id, // Only root comments, not replies
+        );
+
+        if (existingComment) {
+          // Found existing comment on same line - reply to it instead
+          params.in_reply_to = existingComment.id;
+          console.log(
+            `Auto-deduplication: Found existing comment ${existingComment.id} on ${path}:${line}. Replying to existing thread instead of creating duplicate.`,
+          );
+        }
       }
 
       const result = await octokit.rest.pulls.createReviewComment(params);
