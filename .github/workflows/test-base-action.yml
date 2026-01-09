@@ -12,11 +12,17 @@ on:
         required: false
         default: "List the files in the current directory starting with 'package'"
 
+permissions: {}
+
 jobs:
   test-inline-prompt:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
 
       - name: Test with inline prompt
         id: inline-test
@@ -27,10 +33,10 @@ jobs:
           allowed_tools: "LS,Read"
 
       - name: Verify inline prompt output
+        env:
+          OUTPUT_FILE: ${{ steps.inline-test.outputs.execution_file }}
+          CONCLUSION: ${{ steps.inline-test.outputs.conclusion }}
         run: |
-          OUTPUT_FILE="${{ steps.inline-test.outputs.execution_file }}"
-          CONCLUSION="${{ steps.inline-test.outputs.conclusion }}"
-
           echo "Conclusion: $CONCLUSION"
           echo "Output file: $OUTPUT_FILE"
 
@@ -64,16 +70,20 @@ jobs:
 
   test-prompt-file:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
 
       - name: Create test prompt file
+        env:
+          PROMPT: ${{ github.event.inputs.test_prompt || 'List the files in the current directory starting with "package"' }}
         run: |
           cat > test-prompt.txt << EOF
           ${PROMPT}
           EOF
-        env:
-          PROMPT: ${{ github.event.inputs.test_prompt || 'List the files in the current directory starting with "package"' }}
 
       - name: Test with prompt file and allowed tools
         id: prompt-file-test
@@ -84,10 +94,10 @@ jobs:
           allowed_tools: "LS,Read"
 
       - name: Verify prompt file output
+        env:
+          OUTPUT_FILE: ${{ steps.prompt-file-test.outputs.execution_file }}
+          CONCLUSION: ${{ steps.prompt-file-test.outputs.conclusion }}
         run: |
-          OUTPUT_FILE="${{ steps.prompt-file-test.outputs.execution_file }}"
-          CONCLUSION="${{ steps.prompt-file-test.outputs.conclusion }}"
-
           echo "Conclusion: $CONCLUSION"
           echo "Output file: $OUTPUT_FILE"
 
@@ -121,8 +131,12 @@ jobs:
 
   test-agent-sdk:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
 
       - name: Test with Agent SDK
         id: sdk-test
@@ -135,10 +149,10 @@ jobs:
           allowed_tools: "LS,Read"
 
       - name: Verify SDK output
+        env:
+          OUTPUT_FILE: ${{ steps.sdk-test.outputs.execution_file }}
+          CONCLUSION: ${{ steps.sdk-test.outputs.conclusion }}
         run: |
-          OUTPUT_FILE="${{ steps.sdk-test.outputs.execution_file }}"
-          CONCLUSION="${{ steps.sdk-test.outputs.conclusion }}"
-
           echo "Conclusion: $CONCLUSION"
           echo "Output file: $OUTPUT_FILE"
 
