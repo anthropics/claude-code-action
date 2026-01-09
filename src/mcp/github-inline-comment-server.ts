@@ -134,8 +134,6 @@ server.tool(
       if (in_reply_to !== undefined) {
         params.in_reply_to = in_reply_to;
       } else {
-        // Auto-deduplication: Check if there's already a comment on this line
-        // If yes, automatically reply to the existing thread instead of creating a duplicate
         const { data: existingComments } =
           await octokit.rest.pulls.listReviewComments({
             owner,
@@ -144,17 +142,14 @@ server.tool(
             per_page: 100,
           });
 
-        // Find existing comment on the same line and path
-        // Only consider root comments (not replies) to find the thread starter
         const existingComment = existingComments.find(
           (comment) =>
             comment.path === path &&
             (comment.line === line || comment.original_line === line) &&
-            !comment.in_reply_to_id, // Only root comments, not replies
+            !comment.in_reply_to_id,
         );
 
         if (existingComment) {
-          // Found existing comment on same line - reply to it instead
           params.in_reply_to = existingComment.id;
           console.log(
             `Auto-deduplication: Found existing comment ${existingComment.id} on ${path}:${line}. Replying to existing thread instead of creating duplicate.`,
