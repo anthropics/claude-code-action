@@ -13,6 +13,10 @@ const execAsync = promisify(exec);
 const PIPE_PATH = `${process.env.RUNNER_TEMP}/claude_prompt_pipe`;
 const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`;
 const BASE_ARGS = ["--verbose", "--output-format", "stream-json"];
+const TIMEOUT_MS = parseInt(
+  process.env.INPUT_CLAUDE_CODE_TIMEOUT_MS || "900000",
+  10,
+); // 15 min default
 
 /**
  * Sanitizes JSON output to remove sensitive information when full output is disabled
@@ -297,8 +301,16 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
 
   // Capture output for parsing execution metrics
   let output = "";
+  let authErrorDetected = false;
+
   claudeProcess.stdout.on("data", (data) => {
     const text = data.toString();
+
+    // Check for authentication errors in the output
+    if (!authErrorDetected && containsAuthenticationError(text)) {
+      authErrorDetected = true;
+      logAuthenticationErrorGuidance();
+    }
 
     // Try to parse as JSON and handle based on verbose setting
     const lines = text.split("\n");
@@ -347,17 +359,20 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
     claudeProcess.kill("SIGTERM");
   });
 
-  // Wait for Claude to finish
-  const exitCode = await new Promise<number>((resolve) => {
-    claudeProcess.on("close", (code) => {
-      resolve(code || 0);
-    });
+  // Wait for Claude to finish with timeout protection
+  const exitCode = await Promise.race([
+    new Promise<number>((resolve) => {
+      claudeProcess.on("close", (code) => {
+        resolve(code || 0);
+      });
 
-    claudeProcess.on("error", (error) => {
-      console.error("Claude process error:", error);
-      resolve(1);
-    });
-  });
+      claudeProcess.on("error", (error) => {
+        console.error("Claude process error:", error);
+        resolve(1);
+      });
+    }),
+    createTimeoutPromise(TIMEOUT_MS, claudeProcess),
+  ]);
 
   // Clean up processes
   try {
@@ -436,4 +451,83 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
 
     process.exit(exitCode);
   }
+}
+
+/**
+ * Checks if the given text contains authentication-related error patterns
+ */
+export function containsAuthenticationError(text: string): boolean {
+  const lowerText = text.toLowerCase();
+  return (
+    lowerText.includes("authentication") ||
+    lowerText.includes("invalid token") ||
+    lowerText.includes("expired") ||
+    lowerText.includes("unauthorized") ||
+    lowerText.includes("subscription") ||
+    lowerText.includes("401") ||
+    lowerText.includes("403")
+  );
+}
+
+/**
+ * Displays helpful authentication error guidance to the user
+ */
+function logAuthenticationErrorGuidance(): void {
+  console.error("\n⚠️  Authentication Error Detected");
+  console.error("Your OAuth token or API key may be expired or invalid.");
+  console.error("Please check:");
+  console.error(
+    "  - CLAUDE_CODE_OAUTH_TOKEN is still valid (subscription active)",
+  );
+  console.error("  - ANTHROPIC_API_KEY has not been rotated");
+  console.error("  - Your subscription is active\n");
+}
+
+/**
+ * Creates a timeout promise that rejects after the specified duration
+ * Handles graceful and forced process termination
+ */
+function createTimeoutPromise(
+  timeoutMs: number,
+  processToKill: ReturnType<typeof spawn>,
+): Promise<number> {
+  return new Promise<number>((_, reject) => {
+    setTimeout(() => {
+      console.error(
+        `\n⚠️  Claude Code execution timed out after ${timeoutMs / 60000} minutes`,
+      );
+      console.error(
+        "This often indicates authentication issues (expired OAuth token or invalid API key).",
+      );
+      console.error("Please verify:");
+      console.error(
+        "  - Your CLAUDE_CODE_OAUTH_TOKEN is still valid (subscription active)",
+      );
+      console.error("  - Your ANTHROPIC_API_KEY has not been rotated");
+      console.error("  - Your Claude subscription is active");
+      console.error(
+        "\nYou can increase the timeout by setting the claude_code_timeout_ms input.\n",
+      );
+
+      // Attempt graceful shutdown first
+      processToKill.kill("SIGTERM");
+
+      // Force kill after 5 seconds if still running
+      setTimeout(() => {
+        try {
+          processToKill.kill("SIGKILL");
+        } catch (e) {
+          // Process may already be dead
+        }
+      }, 5000);
+
+      reject(
+        new Error(
+          `Claude Code execution timed out after ${timeoutMs / 60000} minutes. ` +
+            `This often indicates authentication issues (expired OAuth token or invalid API key). ` +
+            `Please verify your CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY is valid.`,
+        ),
+      );
+    }, timeoutMs);
+  });
 }
