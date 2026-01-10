@@ -198,6 +198,7 @@ runs:
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         CLAUDE_ARGS: ${{ inputs.claude_args }}
         ALL_INPUTS: ${{ toJson(inputs) }}
+        GITHUB_JOB_ID: ${{ github.job }}
 
     - name: Install Base Action Dependencies
       if: steps.prepare.outputs.contains_trigger == 'true'

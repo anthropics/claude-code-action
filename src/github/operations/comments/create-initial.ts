@@ -6,7 +6,11 @@
  */
 
 import { appendFileSync } from "fs";
-import { createJobRunLink, createCommentBody } from "./common";
+import {
+  createJobRunLink,
+  createCommentBody,
+  createStickyCommentHeader,
+} from "./common";
 import {
   isPullRequestReviewCommentEvent,
   isPullRequestEvent,
@@ -14,39 +18,42 @@ import {
 } from "../../context";
 import type { Octokit } from "@octokit/rest";
 
-const CLAUDE_APP_BOT_ID = 209825114;
-
 export async function createInitialComment(
   octokit: Octokit,
   context: ParsedGitHubContext,
 ) {
   const { owner, repo } = context.repository;
+  const { useStickyComment, jobId } = context.inputs;
+
+  // Debug logging for sticky comment isolation
+  console.log(`📝 Sticky comment config: useStickyComment=${useStickyComment}, jobId="${jobId}"`);
 
   const jobRunLink = createJobRunLink(owner, repo, context.runId);
-  const initialBody = createCommentBody(jobRunLink);
+  // Include jobId in comment body when using sticky comments for job isolation
+  const initialBody = createCommentBody(
+    jobRunLink,
+    "",
+    useStickyComment ? jobId : "",
+  );
 
   try {
     let response;
 
-    if (
-      context.inputs.useStickyComment &&
-      context.isPR &&
-      isPullRequestEvent(context)
-    ) {
+    if (useStickyComment && context.isPR && isPullRequestEvent(context)) {
       const comments = await octokit.rest.issues.listComments({
         owner,
         repo,
         issue_number: context.entityNumber,
       });
-      const existingComment = comments.data.find((comment) => {
-        const idMatch = comment.user?.id === CLAUDE_APP_BOT_ID;
-        const botNameMatch =
-          comment.user?.type === "Bot" &&
-          comment.user?.login.toLowerCase().includes("claude");
-        const bodyMatch = comment.body === initialBody;
 
-        return idMatch || botNameMatch || bodyMatch;
+      // Find existing comment that matches this job's sticky header
+      const stickyHeader = createStickyCommentHeader(jobId);
+      const existingComment = comments.data.find((comment) => {
+        // Only match comments with OUR job's sticky header
+        // This ensures each job gets its own isolated comment
+        return comment.body?.includes(stickyHeader);
       });
+
       if (existingComment) {
         response = await octokit.rest.issues.updateComment({
           owner,
@@ -55,7 +62,7 @@ export async function createInitialComment(
           body: initialBody,
         });
       } else {
-        // Create new comment if no existing one found
+        // Create new comment if no existing one found for this job
         response = await octokit.rest.issues.createComment({
           owner,
           repo,
