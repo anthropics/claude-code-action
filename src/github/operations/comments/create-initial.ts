@@ -14,8 +14,6 @@ import {
 } from "../../context";
 import type { Octokit } from "@octokit/rest";
 
-const CLAUDE_APP_BOT_ID = 209825114;
-
 export async function createInitialComment(
   octokit: Octokit,
   context: ParsedGitHubContext,
@@ -23,7 +21,12 @@ export async function createInitialComment(
   const { owner, repo } = context.repository;
 
   const jobRunLink = createJobRunLink(owner, repo, context.runId);
-  const initialBody = createCommentBody(jobRunLink);
+  // Add hidden header with bot name for sticky comment identification
+  const initialBody = createCommentBody(
+    jobRunLink,
+    "",
+    context.inputs.useStickyComment ? context.inputs.botName : "",
+  );
 
   try {
     let response;
@@ -39,12 +42,29 @@ export async function createInitialComment(
         issue_number: context.entityNumber,
       });
       const existingComment = comments.data.find((comment) => {
-        const idMatch = comment.user?.id === CLAUDE_APP_BOT_ID;
+        const idMatch = comment.user?.id === Number(context.inputs.botId);
+
+        // Check for hidden header match to support multiple bots
+        const hiddenHeader = `<!-- bot: ${context.inputs.botName} -->`;
+        const headerMatch = comment.body?.includes(hiddenHeader);
+
+        // Check if comment has ANY hidden header (to detect other bots)
+        const hasAnyHeader = comment.body?.includes("<!-- bot:");
+
         const botNameMatch =
           comment.user?.type === "Bot" &&
-          comment.user?.login.toLowerCase().includes("claude");
+          comment.user?.login
+            .toLowerCase()
+            .includes(context.inputs.botName.toLowerCase());
         const bodyMatch = comment.body === initialBody;
 
+        // If comment has a hidden header, ONLY match if it's OUR header
+        // This prevents bots with the same ID but different names from conflicting
+        if (hasAnyHeader) {
+          return headerMatch && idMatch;
+        }
+
+        // No header present: Match by ID OR bot name OR body (backward compatibility)
         return idMatch || botNameMatch || bodyMatch;
       });
       if (existingComment) {
