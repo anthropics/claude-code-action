@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { createOctokit } from "../github/api/client";
 import { sanitizeContent } from "../github/utils/sanitizer";
+import { resolveInReplyTo } from "./inline-comment-utils";
 
 // Get repository and PR information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -130,29 +131,28 @@ server.tool(
         params.line = line;
       }
 
-      // If replying to an existing comment, add in_reply_to parameter
-      if (in_reply_to !== undefined) {
-        params.in_reply_to = in_reply_to;
-      } else {
-        const { data: existingComments } =
-          await octokit.rest.pulls.listReviewComments({
-            owner,
-            repo,
-            pull_number,
-            per_page: 100,
-          });
+      // Resolve in_reply_to: use explicit value or auto-detect from existing comments
+      const { data: existingComments } =
+        await octokit.rest.pulls.listReviewComments({
+          owner,
+          repo,
+          pull_number,
+          per_page: 100,
+        });
 
-        const existingComment = existingComments.find(
-          (comment) =>
-            comment.path === path &&
-            (comment.line === line || comment.original_line === line) &&
-            !comment.in_reply_to_id,
-        );
+      const resolvedInReplyTo = resolveInReplyTo(
+        in_reply_to,
+        existingComments,
+        path,
+        line,
+      );
 
-        if (existingComment) {
-          params.in_reply_to = existingComment.id;
+      if (resolvedInReplyTo !== undefined) {
+        params.in_reply_to = resolvedInReplyTo;
+        if (in_reply_to === undefined) {
+          // Auto-deduplication case
           console.log(
-            `Auto-deduplication: Found existing comment ${existingComment.id} on ${path}:${line}. Replying to existing thread instead of creating duplicate.`,
+            `Auto-deduplication: Found existing comment ${resolvedInReplyTo} on ${path}:${line}. Replying to existing thread instead of creating duplicate.`,
           );
         }
       }
