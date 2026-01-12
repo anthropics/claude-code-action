@@ -10,6 +10,11 @@ import {
   isPullRequestReviewCommentEvent,
 } from "../context";
 import type { ParsedGitHubContext } from "../context";
+import {
+  detectActionableSuggestion,
+  isCommentActionableForAutofix,
+  type ActionableSuggestionResult,
+} from "../../utils/detect-actionable-suggestion";
 
 export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   const {
@@ -146,3 +151,89 @@ export async function checkTriggerAction(context: ParsedGitHubContext) {
   core.setOutput("contains_trigger", containsTrigger.toString());
   return containsTrigger;
 }
+
+/**
+ * Checks if the context contains an actionable suggestion that can be automatically fixed.
+ * This is useful for autofix workflows that want to respond to code review suggestions,
+ * even when they come from bot accounts like claude[bot].
+ *
+ * @param context - The parsed GitHub context
+ * @returns Detection result with confidence level and reason
+ */
+export function checkContainsActionableSuggestion(
+  context: ParsedGitHubContext,
+): ActionableSuggestionResult {
+  // Extract comment body based on event type
+  let commentBody: string | undefined;
+
+  if (isPullRequestReviewCommentEvent(context)) {
+    commentBody = context.payload.comment.body;
+  } else if (isIssueCommentEvent(context)) {
+    commentBody = context.payload.comment.body;
+  } else if (isPullRequestReviewEvent(context)) {
+    commentBody = context.payload.review.body ?? undefined;
+  }
+
+  return detectActionableSuggestion(commentBody);
+}
+
+/**
+ * Enhanced trigger check that also considers actionable suggestions.
+ * This function first checks for the standard trigger phrase, and if not found,
+ * optionally checks for actionable suggestions when `checkSuggestions` is true.
+ *
+ * @param context - The parsed GitHub context
+ * @param checkSuggestions - Whether to also check for actionable suggestions (default: false)
+ * @returns Whether the action should be triggered
+ */
+export function checkContainsTriggerOrActionableSuggestion(
+  context: ParsedGitHubContext,
+  checkSuggestions: boolean = false,
+): boolean {
+  // First, check for standard trigger
+  if (checkContainsTrigger(context)) {
+    return true;
+  }
+
+  // If checkSuggestions is enabled, also check for actionable suggestions
+  if (checkSuggestions) {
+    const suggestionResult = checkContainsActionableSuggestion(context);
+    if (suggestionResult.isActionable) {
+      console.log(
+        `Comment contains actionable suggestion: ${suggestionResult.reason} (confidence: ${suggestionResult.confidence})`,
+      );
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Checks if a PR comment is actionable for autofix purposes.
+ * This is a convenience function for workflows that want to automatically
+ * apply suggestions from code review comments.
+ *
+ * @param context - The parsed GitHub context
+ * @returns Whether the comment should be treated as actionable for autofix
+ */
+export function checkIsActionableForAutofix(
+  context: ParsedGitHubContext,
+): boolean {
+  // Only applicable to PR review comment events
+  if (!isPullRequestReviewCommentEvent(context)) {
+    return false;
+  }
+
+  const commentBody = context.payload.comment.body;
+  const authorUsername = context.payload.comment.user?.login;
+
+  return isCommentActionableForAutofix(commentBody, authorUsername);
+}
+
+// Re-export the types and functions from the utility module for convenience
+export {
+  detectActionableSuggestion,
+  isCommentActionableForAutofix,
+  type ActionableSuggestionResult,
+} from "../../utils/detect-actionable-suggestion";
