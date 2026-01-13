@@ -37,6 +37,7 @@ async function run() {
         context,
         context.inputs.allowedNonWriteUsers,
         githubTokenProvided,
+        context.inputs.bypassWritePermissionCheckAcknowledgment,
       );
       if (!hasWritePermissions) {
         throw new Error(

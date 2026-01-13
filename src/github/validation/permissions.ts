@@ -8,6 +8,7 @@ import type { Octokit } from "@octokit/rest";
  * @param context - The GitHub context
  * @param allowedNonWriteUsers - Comma-separated list of users allowed without write permissions, or '*' for all
  * @param githubTokenProvided - Whether github_token was provided as input (not from app)
+ * @param bypassAcknowledgment - Explicit acknowledgment required when using wildcard (*)
  * @returns true if the actor has write permissions, false otherwise
  */
 export async function checkWritePermissions(
@@ -15,6 +16,7 @@ export async function checkWritePermissions(
   context: ParsedGitHubContext,
   allowedNonWriteUsers?: string,
   githubTokenProvided?: boolean,
+  bypassAcknowledgment?: boolean,
 ): Promise<boolean> {
   const { repository, actor } = context;
 
@@ -25,6 +27,17 @@ export async function checkWritePermissions(
     if (allowedNonWriteUsers && githubTokenProvided) {
       const allowedUsers = allowedNonWriteUsers.trim();
       if (allowedUsers === "*") {
+        if (!bypassAcknowledgment) {
+          core.error(
+            `❌ SECURITY ERROR: Attempting to bypass write permission checks for all users with allowed_non_write_users='*' without explicit acknowledgment. ` +
+              `This is a critical security misconfiguration. To proceed, you must set bypass_write_permission_check_acknowledgment='true' ` +
+              `to explicitly acknowledge the security implications.`,
+          );
+          throw new Error(
+            "Cannot bypass write permission checks with wildcard (*) without explicit acknowledgment. " +
+              "Set bypass_write_permission_check_acknowledgment='true' to acknowledge security implications.",
+          );
+        }
         core.warning(
           `⚠️ SECURITY WARNING: Bypassing write permission check for ${actor} due to allowed_non_write_users='*'. This should only be used for workflows with very limited permissions.`,
         );

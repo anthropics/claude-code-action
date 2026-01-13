@@ -26,4 +26,5 @@ jobs:
 
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           allowed_non_write_users: "*" # Required for issue triage workflow, if users without repo write access create issues
+          bypass_write_permission_check_acknowledgment: true # Required when using wildcard
           github_token: ${{ secrets.GITHUB_TOKEN }}

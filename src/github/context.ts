@@ -96,6 +96,7 @@ type BaseContext = {
     botName: string;
     allowedBots: string;
     allowedNonWriteUsers: string;
+    bypassWritePermissionCheckAcknowledgment: boolean;
     trackProgress: boolean;
     includeFixLinks: boolean;
   };
@@ -154,6 +155,8 @@ export function parseGitHubContext(): GitHubContext {
       botName: process.env.BOT_NAME ?? CLAUDE_BOT_LOGIN,
       allowedBots: process.env.ALLOWED_BOTS ?? "",
       allowedNonWriteUsers: process.env.ALLOWED_NON_WRITE_USERS ?? "",
+      bypassWritePermissionCheckAcknowledgment:
+        process.env.BYPASS_WRITE_PERMISSION_CHECK_ACKNOWLEDGMENT === "true",
       trackProgress: process.env.TRACK_PROGRESS === "true",
       includeFixLinks: process.env.INCLUDE_FIX_LINKS === "true",
     },

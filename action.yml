@@ -35,6 +35,10 @@ inputs:
     description: "Comma-separated list of usernames to allow without write permissions, or '*' to allow all users. Only works when github_token input is provided. WARNING: Use with extreme caution - this bypasses security checks and should only be used for workflows with very limited permissions (e.g., issue labeling)."
     required: false
     default: ""
+  bypass_write_permission_check_acknowledgment:
+    description: "REQUIRED when using allowed_non_write_users='*'. Set to 'true' to explicitly acknowledge the security implications of bypassing write permission checks for all users. This flag serves as a safeguard against accidental security misconfigurations."
+    required: false
+    default: "false"
 
   # Claude Code configuration
   prompt:
@@ -186,6 +190,7 @@ runs:
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
+        BYPASS_WRITE_PERMISSION_CHECK_ACKNOWLEDGMENT: ${{ inputs.bypass_write_permission_check_acknowledgment }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}

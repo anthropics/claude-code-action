@@ -7,6 +7,7 @@
 - **⚠️ Non-Write User Access (RISKY)**: The `allowed_non_write_users` parameter allows bypassing the write permission requirement. **This is a significant security risk and should only be used for workflows with extremely limited permissions** (e.g., issue labeling workflows that only have `issues: write` permission). This feature:
   - Only works when `github_token` is provided as input (not with GitHub App authentication)
   - Accepts either a comma-separated list of specific usernames or `*` to allow all users
+  - **When using the wildcard (`*`)**, you MUST also set `bypass_write_permission_check_acknowledgment: true` to explicitly acknowledge the security implications. Without this flag, the action will fail as a safeguard against accidental security misconfigurations
   - **Should be used with extreme caution** as it bypasses the primary security mechanism of this action
   - Is designed for automation workflows where user permissions are already restricted by the workflow's permission scope
 - **Token Permissions**: The GitHub app receives only a short-lived token scoped specifically to the repository it's operating in
@@ -75,14 +76,12 @@ Commits will show as verified and attributed to the GitHub account that owns the
    ```
 
 2. Add the **public key** to your GitHub account:
-
    - Go to GitHub → Settings → SSH and GPG keys
    - Click "New SSH key"
    - Select **Key type: Signing Key** (important)
    - Paste the contents of `~/.ssh/signing_key.pub`
 
 3. Add the **private key** to your repository secrets:
-
    - Go to your repo → Settings → Secrets and variables → Actions
    - Create a new secret named `SSH_SIGNING_KEY`
    - Paste the contents of `~/.ssh/signing_key`

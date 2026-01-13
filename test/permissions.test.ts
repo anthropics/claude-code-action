@@ -73,6 +73,7 @@ describe("checkWritePermissions", () => {
       botName: CLAUDE_BOT_LOGIN,
       allowedBots: "",
       allowedNonWriteUsers: "",
+      bypassWritePermissionCheckAcknowledgment: false,
       trackProgress: false,
       includeFixLinks: true,
     },
@@ -197,7 +198,7 @@ describe("checkWritePermissions", () => {
       );
     });
 
-    test("should bypass permission check for all users with wildcard", async () => {
+    test("should bypass permission check for all users with wildcard when acknowledgment provided", async () => {
       const mockOctokit = createMockOctokit("read");
       const context = createContext();
 
@@ -206,11 +207,23 @@ describe("checkWritePermissions", () => {
         context,
         "*",
         true,
+        true, // acknowledgment provided
       );
 
       expect(result).toBe(true);
       expect(coreWarningSpy).toHaveBeenCalledWith(
         "⚠️ SECURITY WARNING: Bypassing write permission check for test-user due to allowed_non_write_users='*'. This should only be used for workflows with very limited permissions.",
+      );
+    });
+
+    test("should FAIL to bypass permission check with wildcard when acknowledgment NOT provided", async () => {
+      const mockOctokit = createMockOctokit("read");
+      const context = createContext();
+
+      await expect(
+        checkWritePermissions(mockOctokit, context, "*", true, false),
+      ).rejects.toThrow(
+        "Cannot bypass write permission checks with wildcard (*) without explicit acknowledgment",
       );
     });
 
