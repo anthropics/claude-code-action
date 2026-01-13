@@ -75,6 +75,8 @@ describe("checkWritePermissions", () => {
       allowedNonWriteUsers: "",
       trackProgress: false,
       includeFixLinks: true,
+      includeCommentsByActor: "",
+      excludeCommentsByActor: "",
     },
   });
 

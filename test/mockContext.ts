@@ -27,6 +27,8 @@ const defaultInputs = {
   allowedNonWriteUsers: "",
   trackProgress: false,
   includeFixLinks: true,
+  includeCommentsByActor: "",
+  excludeCommentsByActor: "",
 };
 
 const defaultRepository = {
@@ -55,7 +57,12 @@ export const createMockContext = (
   };
 
   const mergedInputs = overrides.inputs
-    ? { ...defaultInputs, ...overrides.inputs }
+    ? {
+        ...defaultInputs,
+        ...overrides.inputs,
+        includeCommentsByActor: overrides.inputs.includeCommentsByActor ?? "",
+        excludeCommentsByActor: overrides.inputs.excludeCommentsByActor ?? "",
+      }
     : defaultInputs;
 
   return { ...baseContext, ...overrides, inputs: mergedInputs };
@@ -79,7 +86,12 @@ export const createMockAutomationContext = (
   };
 
   const mergedInputs = overrides.inputs
-    ? { ...defaultInputs, ...overrides.inputs }
+    ? {
+        ...defaultInputs,
+        ...overrides.inputs,
+        includeCommentsByActor: overrides.inputs.includeCommentsByActor ?? "",
+        excludeCommentsByActor: overrides.inputs.excludeCommentsByActor ?? "",
+      }
     : { ...defaultInputs };
 
   return { ...baseContext, ...overrides, inputs: mergedInputs };

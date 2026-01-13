@@ -89,6 +89,8 @@ export const tagMode: Mode = {
       triggerUsername: context.actor,
       triggerTime,
       originalTitle,
+      includeCommentsByActor: context.inputs.includeCommentsByActor,
+      excludeCommentsByActor: context.inputs.excludeCommentsByActor,
     });
 
     // Setup branch

@@ -20,6 +20,10 @@ import type {
 } from "../types";
 import type { CommentWithImages } from "../utils/image-downloader";
 import { downloadCommentImages } from "../utils/image-downloader";
+import {
+  parseActorFilter,
+  shouldIncludeCommentByActor,
+} from "../utils/actor-filter";
 
 /**
  * Extracts the trigger timestamp from the GitHub webhook payload.
@@ -166,6 +170,35 @@ export function isBodySafeToUse(
   return true;
 }
 
+/**
+ * Filters comments by actor username based on include/exclude patterns
+ * @param comments - Array of comments to filter
+ * @param includeActors - Comma-separated actors to include
+ * @param excludeActors - Comma-separated actors to exclude
+ * @returns Filtered array of comments
+ */
+export function filterCommentsByActor<T extends { author: { login: string } }>(
+  comments: T[],
+  includeActors: string = "",
+  excludeActors: string = "",
+): T[] {
+  const includeParsed = parseActorFilter(includeActors);
+  const excludeParsed = parseActorFilter(excludeActors);
+
+  // No filters = return all
+  if (includeParsed.length === 0 && excludeParsed.length === 0) {
+    return comments;
+  }
+
+  return comments.filter((comment) =>
+    shouldIncludeCommentByActor(
+      comment.author.login,
+      includeParsed,
+      excludeParsed,
+    ),
+  );
+}
+
 type FetchDataParams = {
   octokits: Octokits;
   repository: string;
@@ -174,6 +207,8 @@ type FetchDataParams = {
   triggerUsername?: string;
   triggerTime?: string;
   originalTitle?: string;
+  includeCommentsByActor?: string;
+  excludeCommentsByActor?: string;
 };
 
 export type GitHubFileWithSHA = GitHubFile & {
@@ -198,6 +233,8 @@ export async function fetchGitHubData({
   triggerUsername,
   triggerTime,
   originalTitle,
+  includeCommentsByActor,
+  excludeCommentsByActor,
 }: FetchDataParams): Promise<FetchDataResult> {
   const [owner, repo] = repository.split("/");
   if (!owner || !repo) {
@@ -225,9 +262,13 @@ export async function fetchGitHubData({
         const pullRequest = prResult.repository.pullRequest;
         contextData = pullRequest;
         changedFiles = pullRequest.files.nodes || [];
-        comments = filterCommentsToTriggerTime(
-          pullRequest.comments?.nodes || [],
-          triggerTime,
+        comments = filterCommentsByActor(
+          filterCommentsToTriggerTime(
+            pullRequest.comments?.nodes || [],
+            triggerTime,
+          ),
+          includeCommentsByActor,
+          excludeCommentsByActor,
         );
         reviewData = pullRequest.reviews || [];
 
@@ -248,9 +289,13 @@ export async function fetchGitHubData({
 
       if (issueResult.repository.issue) {
         contextData = issueResult.repository.issue;
-        comments = filterCommentsToTriggerTime(
-          contextData?.comments?.nodes || [],
-          triggerTime,
+        comments = filterCommentsByActor(
+          filterCommentsToTriggerTime(
+            contextData?.comments?.nodes || [],
+            triggerTime,
+          ),
+          includeCommentsByActor,
+          excludeCommentsByActor,
         );
 
         console.log(`Successfully fetched issue #${prNumber} data`);
@@ -318,7 +363,27 @@ export async function fetchGitHubData({
     body: r.body,
   }));
 
-  // Filter review comments to trigger time
+  // Filter review comments to trigger time and by actor
+  if (reviewData && reviewData.nodes) {
+    // Filter reviews by actor
+    reviewData.nodes = filterCommentsByActor(
+      reviewData.nodes,
+      includeCommentsByActor,
+      excludeCommentsByActor,
+    );
+
+    // Also filter inline review comments within each review
+    reviewData.nodes.forEach((review) => {
+      if (review.comments?.nodes) {
+        review.comments.nodes = filterCommentsByActor(
+          review.comments.nodes,
+          includeCommentsByActor,
+          excludeCommentsByActor,
+        );
+      }
+    });
+  }
+
   const allReviewComments =
     reviewData?.nodes?.flatMap((r) => r.comments?.nodes ?? []) ?? [];
   const filteredReviewComments = filterCommentsToTriggerTime(

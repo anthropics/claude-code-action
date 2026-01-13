@@ -35,6 +35,14 @@ inputs:
     description: "Comma-separated list of usernames to allow without write permissions, or '*' to allow all users. Only works when github_token input is provided. WARNING: Use with extreme caution - this bypasses security checks and should only be used for workflows with very limited permissions (e.g., issue labeling)."
     required: false
     default: ""
+  include_comments_by_actor:
+    description: "Comma-separated list of actor usernames to INCLUDE in comments. Supports wildcards: '*[bot]' matches all bots, 'dependabot[bot]' matches specific bot. Empty (default) includes all actors."
+    required: false
+    default: ""
+  exclude_comments_by_actor:
+    description: "Comma-separated list of actor usernames to EXCLUDE from comments. Supports wildcards: '*[bot]' matches all bots, 'renovate[bot]' matches specific bot. Empty (default) excludes none. If actor is in both lists, exclusion takes priority."
+    required: false
+    default: ""
 
   # Claude Code configuration
   prompt:
@@ -186,6 +194,8 @@ runs:
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
+        INCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.include_comments_by_actor }}
+        EXCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.exclude_comments_by_actor }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
