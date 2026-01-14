@@ -11,7 +11,7 @@ Add the following to your workflow file:
 ```yaml
 # Using a direct prompt
 - name: Run Claude Code with direct prompt
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Your prompt here"
     allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
@@ -19,7 +19,7 @@ Add the following to your workflow file:
 
 # Or using a prompt from a file
 - name: Run Claude Code with prompt file
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt_file: "/path/to/prompt.txt"
     allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
@@ -27,7 +27,7 @@ Add the following to your workflow file:
 
 # Or limiting the conversation turns
 - name: Run Claude Code with limited turns
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Your prompt here"
     allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
@@ -36,7 +36,7 @@ Add the following to your workflow file:
 
 # Using custom system prompts
 - name: Run Claude Code with custom system prompt
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Build a REST API"
     system_prompt: "You are a senior backend engineer. Focus on security, performance, and maintainability."
@@ -45,7 +45,7 @@ Add the following to your workflow file:
 
 # Or appending to the default system prompt
 - name: Run Claude Code with appended system prompt
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Create a database schema"
     append_system_prompt: "After writing code, be sure to code review yourself."
@@ -54,7 +54,7 @@ Add the following to your workflow file:
 
 # Using custom environment variables
 - name: Run Claude Code with custom environment variables
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Deploy to staging environment"
     claude_env: |
@@ -66,7 +66,7 @@ Add the following to your workflow file:
 
 # Using fallback model for handling API errors
 - name: Run Claude Code with fallback model
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Review and fix TypeScript errors"
     model: "claude-opus-4-1-20250805"
@@ -76,7 +76,7 @@ Add the following to your workflow file:
 
 # Using OAuth token instead of API key
 - name: Run Claude Code with OAuth token
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Update dependencies"
     allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
@@ -130,7 +130,7 @@ Example usage:
 
 ```yaml
 - name: Run Claude Code with Node.js 20
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   env:
     NODE_VERSION: "20.x"
   with:
@@ -146,7 +146,7 @@ The `claude_env` input accepts YAML multiline format with key-value pairs:
 
 ```yaml
 - name: Deploy with custom environment
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Deploy the application to the staging environment"
     claude_env: |
@@ -200,7 +200,7 @@ Provide a path to a JSON file containing Claude Code settings:
 
 ```yaml
 - name: Run Claude Code with settings file
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Your prompt here"
     settings: "path/to/settings.json"
@@ -214,7 +214,7 @@ Provide the settings configuration directly as a JSON string:
 
 ```yaml
 - name: Run Claude Code with inline settings
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Your prompt here"
     settings: |
@@ -263,7 +263,7 @@ Provide a path to a JSON file containing MCP configuration:
 
 ```yaml
 - name: Run Claude Code with MCP config file
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Your prompt here"
     mcp_config: "path/to/mcp-config.json"
@@ -277,7 +277,7 @@ Provide the MCP configuration directly as a JSON string:
 
 ```yaml
 - name: Run Claude Code with inline MCP config
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Your prompt here"
     mcp_config: |
@@ -317,7 +317,7 @@ You can combine MCP config with other inputs like allowed tools:
 ```yaml
 # Using multiple inputs together
 - name: Run Claude Code with MCP and custom tools
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Access the custom MCP server and use its tools"
     mcp_config: "mcp-config.json"
@@ -345,7 +345,7 @@ jobs:
 
       - name: Run Code Review with Claude
         id: code-review
-        uses: anthropics/claude-code-base-action@beta
+        uses: anthropics/claude-code-base-action@v1
         with:
           prompt: "Review the PR changes. Focus on code quality, potential bugs, and performance issues. Suggest improvements where appropriate. Write your review as markdown text."
           allowed_tools: "Bash(git diff --name-only HEAD~1),Bash(git diff HEAD~1),View,GlobTool,GrepTool,Write"
@@ -408,7 +408,7 @@ Use provider-specific model names based on your chosen provider:
 ```yaml
 # For direct Anthropic API (default)
 - name: Run Claude Code with Anthropic API
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Your prompt here"
     model: "claude-3-7-sonnet-20250219"
@@ -422,7 +422,7 @@ Use provider-specific model names based on your chosen provider:
     aws-region: us-west-2
 
 - name: Run Claude Code with Bedrock
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Your prompt here"
     model: "anthropic.claude-3-7-sonnet-20250219-v1:0"
@@ -436,7 +436,7 @@ Use provider-specific model names based on your chosen provider:
     service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
 - name: Run Claude Code with Vertex AI
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Your prompt here"
     model: "claude-3-7-sonnet@20250219"
@@ -455,7 +455,7 @@ This example shows how to use OIDC authentication with AWS Bedrock:
     aws-region: us-west-2
 
 - name: Run Claude Code with AWS OIDC
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Your prompt here"
     use_bedrock: "true"
@@ -475,7 +475,7 @@ This example shows how to use OIDC authentication with GCP Vertex AI:
     service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
 - name: Run Claude Code with GCP OIDC
-  uses: anthropics/claude-code-base-action@beta
+  uses: anthropics/claude-code-base-action@v1
   with:
     prompt: "Your prompt here"
     use_vertex: "true"
