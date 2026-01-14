@@ -20,6 +20,7 @@ import {
 import type { ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
 import { GITHUB_SERVER_URL } from "../github/api/config";
+import { getNoreplyEmailDomain } from "../utils/noreply-email";
 import type { Mode, ModeContext } from "../modes/types";
 import { extractUserRequest } from "../utils/extract-user-request";
 export type { CommonFields, PreparedContext } from "./types";
@@ -403,11 +404,7 @@ function getCommitInstructions(
   useCommitSigning: boolean,
 ): string {
   // Determine the noreply email domain based on GITHUB_SERVER_URL (for GHES support)
-  const serverUrl = new URL(GITHUB_SERVER_URL);
-  const noreplyDomain =
-    serverUrl.hostname === "github.com"
-      ? "users.noreply.github.com"
-      : `users.noreply.${serverUrl.hostname}`;
+  const noreplyDomain = getNoreplyEmailDomain(GITHUB_SERVER_URL);
 
   const coAuthorLine =
     (githubData.triggerDisplayName ?? context.triggerUsername !== "Unknown")
