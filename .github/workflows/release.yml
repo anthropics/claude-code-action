@@ -124,6 +124,9 @@ jobs:
 
       - name: Create and push tag
         run: |
+          set -e  # Exit on any error
+          next_version="${{ needs.create-release.outputs.next_version }}"
+        run: |
           next_version="${{ needs.create-release.outputs.next_version }}"
 
           git config user.name "github-actions[bot]"
