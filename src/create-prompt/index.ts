@@ -402,9 +402,16 @@ function getCommitInstructions(
   context: PreparedContext,
   useCommitSigning: boolean,
 ): string {
+  // Determine the noreply email domain based on GITHUB_SERVER_URL (for GHES support)
+  const serverUrl = new URL(GITHUB_SERVER_URL);
+  const noreplyDomain =
+    serverUrl.hostname === "github.com"
+      ? "users.noreply.github.com"
+      : `users.noreply.${serverUrl.hostname}`;
+
   const coAuthorLine =
     (githubData.triggerDisplayName ?? context.triggerUsername !== "Unknown")
-      ? `Co-authored-by: ${githubData.triggerDisplayName ?? context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>`
+      ? `Co-authored-by: ${githubData.triggerDisplayName ?? context.triggerUsername} <${context.triggerUsername}@${noreplyDomain}>`
       : "";
 
   if (useCommitSigning) {
