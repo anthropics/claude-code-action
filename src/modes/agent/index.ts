@@ -8,6 +8,7 @@ import {
   configureGitAuth,
   setupSshSigning,
 } from "../../github/operations/git-config";
+import { checkHumanActor } from "../../github/validation/actor";
 import type { GitHubContext } from "../../github/context";
 import { isEntityContext } from "../../github/context";
 
@@ -80,7 +81,14 @@ export const agentMode: Mode = {
     return false;
   },
 
-  async prepare({ context, githubToken }: ModeOptions): Promise<ModeResult> {
+  async prepare({
+    context,
+    octokit,
+    githubToken,
+  }: ModeOptions): Promise<ModeResult> {
+    // Check if actor is human (prevents bot-triggered loops)
+    await checkHumanActor(octokit.rest, context);
+
     // Configure git authentication for agent mode (same as tag mode)
     // SSH signing takes precedence if provided
     const useSshSigning = !!context.inputs.sshSigningKey;
