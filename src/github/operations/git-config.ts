@@ -82,8 +82,13 @@ export async function setupSshSigning(sshSigningKey: string): Promise<void> {
   const sshDir = join(homedir(), ".ssh");
   await mkdir(sshDir, { recursive: true, mode: 0o700 });
 
+  // Ensure key ends with newline (required for ssh-keygen to parse it)
+  const normalizedKey = sshSigningKey.endsWith("\n")
+    ? sshSigningKey
+    : sshSigningKey + "\n";
+
   // Write the signing key atomically with secure permissions (600)
-  await writeFile(SSH_SIGNING_KEY_PATH, sshSigningKey, { mode: 0o600 });
+  await writeFile(SSH_SIGNING_KEY_PATH, normalizedKey, { mode: 0o600 });
   console.log(`✓ SSH signing key written to ${SSH_SIGNING_KEY_PATH}`);
 
   // Configure git to use SSH signing
