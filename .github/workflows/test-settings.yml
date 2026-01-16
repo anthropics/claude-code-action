@@ -7,11 +7,17 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   test-settings-inline-allow:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
 
       - name: Test with inline settings JSON (echo allowed)
         id: inline-settings-test
@@ -28,10 +34,10 @@ jobs:
             }
 
       - name: Verify echo worked
+        env:
+          OUTPUT_FILE: ${{ steps.inline-settings-test.outputs.execution_file }}
+          CONCLUSION: ${{ steps.inline-settings-test.outputs.conclusion }}
         run: |
-          OUTPUT_FILE="${{ steps.inline-settings-test.outputs.execution_file }}"
-          CONCLUSION="${{ steps.inline-settings-test.outputs.conclusion }}"
-
           echo "Conclusion: $CONCLUSION"
 
           if [ "$CONCLUSION" = "success" ]; then
@@ -59,8 +65,12 @@ jobs:
 
   test-settings-inline-deny:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
 
       - name: Test with inline settings JSON (echo denied)
         id: inline-settings-test
@@ -77,9 +87,9 @@ jobs:
             }
 
       - name: Verify echo was denied
+        env:
+          OUTPUT_FILE: ${{ steps.inline-settings-test.outputs.execution_file }}
         run: |
-          OUTPUT_FILE="${{ steps.inline-settings-test.outputs.execution_file }}"
-
           # Check that permission was denied in the tool_result
           if grep -q "Permission to use Bash with command echo.*has been denied" "$OUTPUT_FILE"; then
             echo "✅ Echo command was correctly denied by permissions"
@@ -91,8 +101,12 @@ jobs:
 
   test-settings-file-allow:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
 
       - name: Create settings file (echo allowed)
         run: |
@@ -114,10 +128,10 @@ jobs:
           settings: "test-settings.json"
 
       - name: Verify echo worked
+        env:
+          OUTPUT_FILE: ${{ steps.file-settings-test.outputs.execution_file }}
+          CONCLUSION: ${{ steps.file-settings-test.outputs.conclusion }}
         run: |
-          OUTPUT_FILE="${{ steps.file-settings-test.outputs.execution_file }}"
-          CONCLUSION="${{ steps.file-settings-test.outputs.conclusion }}"
-
           echo "Conclusion: $CONCLUSION"
 
           if [ "$CONCLUSION" = "success" ]; then
@@ -145,8 +159,12 @@ jobs:
 
   test-settings-file-deny:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
 
       - name: Create settings file (echo denied)
         run: |
@@ -168,9 +186,9 @@ jobs:
           settings: "test-settings.json"
 
       - name: Verify echo was denied
+        env:
+          OUTPUT_FILE: ${{ steps.file-settings-test.outputs.execution_file }}
         run: |
-          OUTPUT_FILE="${{ steps.file-settings-test.outputs.execution_file }}"
-
           # Check that permission was denied in the tool_result
           if grep -q "Permission to use Bash with command echo.*has been denied" "$OUTPUT_FILE"; then
             echo "✅ Echo command was correctly denied by permissions"
