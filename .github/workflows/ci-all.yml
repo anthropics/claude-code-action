@@ -1,3 +1,5 @@
+# Orchestrates all CI workflows - runs on PRs, pushes to main, and manual dispatch
+# Individual test workflows are called as reusable workflows
 name: CI All
 
 on:
@@ -7,13 +9,16 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
   test-base-action:
     uses: ./.github/workflows/test-base-action.yml
-    secrets: inherit
+    secrets: inherit # Required for ANTHROPIC_API_KEY
 
   test-custom-executables:
     uses: ./.github/workflows/test-custom-executables.yml
