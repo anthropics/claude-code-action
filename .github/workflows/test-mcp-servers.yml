@@ -1,11 +1,9 @@
 name: Test MCP Servers
 
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main]
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   test-mcp-integration:

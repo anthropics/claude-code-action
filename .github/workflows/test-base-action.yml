@@ -1,9 +1,6 @@
 name: Test Claude Code Action
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
   workflow_dispatch:
     inputs:
@@ -11,6 +8,7 @@ on:
         description: "Test prompt for Claude"
         required: false
         default: "List the files in the current directory starting with 'package'"
+  workflow_call:
 
 jobs:
   test-inline-prompt:
