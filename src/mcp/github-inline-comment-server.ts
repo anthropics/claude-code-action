@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { createOctokit } from "../github/api/client";
 import { sanitizeContent } from "../github/utils/sanitizer";
+import { resolveInReplyTo } from "./inline-comment-utils";
 
 // Get repository and PR information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -67,8 +68,14 @@ server.tool(
       .describe(
         "Specific commit SHA to comment on (defaults to latest commit)",
       ),
+    in_reply_to: z
+      .number()
+      .optional()
+      .describe(
+        "Comment ID to reply to (creates a reply in an existing thread instead of a new thread)",
+      ),
   },
-  async ({ path, body, line, startLine, side, commit_id }) => {
+  async ({ path, body, line, startLine, side, commit_id, in_reply_to }) => {
     try {
       const githubToken = process.env.GITHUB_TOKEN;
 
@@ -122,6 +129,32 @@ server.tool(
         params.start_line = startLine;
         params.start_side = side || "RIGHT";
         params.line = line;
+      }
+
+      // Resolve in_reply_to: use explicit value or auto-detect from existing comments
+      const { data: existingComments } =
+        await octokit.rest.pulls.listReviewComments({
+          owner,
+          repo,
+          pull_number,
+          per_page: 100,
+        });
+
+      const resolvedInReplyTo = resolveInReplyTo(
+        in_reply_to,
+        existingComments,
+        path,
+        line,
+      );
+
+      if (resolvedInReplyTo !== undefined) {
+        params.in_reply_to = resolvedInReplyTo;
+        if (in_reply_to === undefined) {
+          // Auto-deduplication case
+          console.log(
+            `Auto-deduplication: Found existing comment ${resolvedInReplyTo} on ${path}:${line}. Replying to existing thread instead of creating duplicate.`,
+          );
+        }
       }
 
       const result = await octokit.rest.pulls.createReviewComment(params);
