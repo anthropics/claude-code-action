@@ -167,7 +167,7 @@ runs:
       shell: bash
       run: |
         cd ${GITHUB_ACTION_PATH}
-        bun install
+        bun install --frozen-lockfile
 
     - name: Prepare action
       id: prepare
@@ -207,7 +207,7 @@ runs:
       run: |
         echo "Installing base-action dependencies..."
         cd ${GITHUB_ACTION_PATH}/base-action
-        bun install
+        bun install --frozen-lockfile
         echo "Base-action dependencies installed"
         cd -
 
