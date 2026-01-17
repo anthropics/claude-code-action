@@ -1,0 +1,32 @@
+name: CI All
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  test-base-action:
+    uses: ./.github/workflows/test-base-action.yml
+    secrets: inherit
+
+  test-custom-executables:
+    uses: ./.github/workflows/test-custom-executables.yml
+    secrets: inherit
+
+  test-mcp-servers:
+    uses: ./.github/workflows/test-mcp-servers.yml
+    secrets: inherit
+
+  test-settings:
+    uses: ./.github/workflows/test-settings.yml
+    secrets: inherit
+
+  test-structured-output:
+    uses: ./.github/workflows/test-structured-output.yml
+    secrets: inherit

@@ -8,10 +8,21 @@ on:
         required: false
         type: boolean
         default: false
+  workflow_run:
+    workflows: ["CI All"]
+    types:
+      - completed
+    branches:
+      - main
 
 jobs:
   create-release:
     runs-on: ubuntu-latest
+    # Run if: manual dispatch OR (CI All succeeded AND commit is a version bump)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       startsWith(github.event.workflow_run.head_commit.message, 'chore: bump Claude Code to'))
     environment: production
     permissions:
       contents: write
@@ -84,7 +95,8 @@ jobs:
 
   update-major-tag:
     needs: create-release
-    if: ${{ !inputs.dry_run }}
+    # Skip for dry runs (workflow_run events are never dry runs)
+    if: github.event_name == 'workflow_run' || !inputs.dry_run
     runs-on: ubuntu-latest
     environment: production
     permissions:
