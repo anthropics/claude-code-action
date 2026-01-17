@@ -37,6 +37,7 @@ describe("prepareMcpConfig", () => {
       botName: CLAUDE_BOT_LOGIN,
       allowedBots: "",
       allowedNonWriteUsers: "",
+      excludedCommentUsers: "",
       trackProgress: false,
       includeFixLinks: true,
     },
