@@ -1,7 +1,11 @@
 #!/usr/bin/env bun
 
 import { describe, test, expect } from "bun:test";
-import { prepareRunConfig, type ClaudeOptions } from "../src/run-claude";
+import {
+  prepareRunConfig,
+  containsAuthenticationError,
+  type ClaudeOptions,
+} from "../src/run-claude";
 
 describe("prepareRunConfig", () => {
   test("should prepare config with basic arguments", () => {
@@ -92,5 +96,60 @@ describe("prepareRunConfig", () => {
         '{"type":"object","properties":{"result":{"type":"boolean"}}}',
       );
     });
+  });
+});
+
+describe("containsAuthenticationError", () => {
+  test("should return true for 'authentication' keyword", () => {
+    expect(containsAuthenticationError("authentication failed")).toBe(true);
+    expect(containsAuthenticationError("Authentication error occurred")).toBe(
+      true,
+    );
+    expect(containsAuthenticationError("AUTHENTICATION system is down")).toBe(
+      true,
+    );
+  });
+
+  test("should return true for 'invalid token' keyword", () => {
+    expect(containsAuthenticationError("invalid token provided")).toBe(true);
+    expect(containsAuthenticationError("Token is Invalid")).toBe(true);
+  });
+
+  test("should return true for 'expired' keyword", () => {
+    expect(containsAuthenticationError("token expired")).toBe(true);
+    expect(containsAuthenticationError("Your session has Expired")).toBe(true);
+  });
+
+  test("should return true for 'unauthorized' keyword", () => {
+    expect(containsAuthenticationError("unauthorized access")).toBe(true);
+    expect(containsAuthenticationError("401 Unauthorized")).toBe(true);
+  });
+
+  test("should return true for 'subscription' keyword", () => {
+    expect(containsAuthenticationError("subscription has ended")).toBe(true);
+    expect(containsAuthenticationError("Your Subscription expired")).toBe(true);
+  });
+
+  test("should return true for HTTP error codes", () => {
+    expect(containsAuthenticationError("Error 401: Access denied")).toBe(true);
+    expect(containsAuthenticationError("HTTP 403 Forbidden")).toBe(true);
+  });
+
+  test("should return false for non-auth related text", () => {
+    expect(containsAuthenticationError("processing request")).toBe(false);
+    expect(containsAuthenticationError("success")).toBe(false);
+    expect(containsAuthenticationError("task completed")).toBe(false);
+    expect(containsAuthenticationError("Error 500: Server error")).toBe(false);
+  });
+
+  test("should be case-insensitive", () => {
+    expect(containsAuthenticationError("AUTHENTICATION FAILED")).toBe(true);
+    expect(containsAuthenticationError("InVaLiD tOkEn")).toBe(true);
+  });
+
+  test("should detect multiple keywords in same text", () => {
+    expect(
+      containsAuthenticationError("authentication failed: token expired (401)"),
+    ).toBe(true);
   });
 });
