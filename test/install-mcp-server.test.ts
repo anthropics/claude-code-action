@@ -39,6 +39,8 @@ describe("prepareMcpConfig", () => {
       allowedNonWriteUsers: "",
       trackProgress: false,
       includeFixLinks: true,
+      includeCommentsByActor: "",
+      excludeCommentsByActor: "",
     },
   };
 

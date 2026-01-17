@@ -1,4 +1,4 @@
-import { describe, expect, it, jest } from "bun:test";
+import { describe, expect, it, jest, test } from "bun:test";
 import {
   extractTriggerTimestamp,
   extractOriginalTitle,
@@ -1098,5 +1098,103 @@ describe("fetchGitHubData integration with time filtering", () => {
     expect(result.contextData.title).toBe(
       "Original Title (from webhook at trigger time)",
     );
+  });
+});
+
+describe("filterCommentsByActor", () => {
+  test("filters out excluded actors", () => {
+    const comments = [
+      { author: { login: "user1" }, body: "comment1" },
+      { author: { login: "bot[bot]" }, body: "comment2" },
+      { author: { login: "user2" }, body: "comment3" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "", "*[bot]");
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((c: any) => c.author.login)).toEqual([
+      "user1",
+      "user2",
+    ]);
+  });
+
+  test("includes only specified actors", () => {
+    const comments = [
+      { author: { login: "user1" }, body: "comment1" },
+      { author: { login: "user2" }, body: "comment2" },
+      { author: { login: "user3" }, body: "comment3" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "user1,user2", "");
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((c: any) => c.author.login)).toEqual([
+      "user1",
+      "user2",
+    ]);
+  });
+
+  test("returns all when no filters", () => {
+    const comments = [
+      { author: { login: "user1" }, body: "comment1" },
+      { author: { login: "user2" }, body: "comment2" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "", "");
+    expect(filtered).toHaveLength(2);
+  });
+
+  test("exclusion takes priority", () => {
+    const comments = [
+      { author: { login: "user1" }, body: "comment1" },
+      { author: { login: "user2" }, body: "comment2" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "user1,user2", "user1");
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].author.login).toBe("user2");
+  });
+
+  test("filters multiple bot types", () => {
+    const comments = [
+      { author: { login: "user1" }, body: "comment1" },
+      { author: { login: "dependabot[bot]" }, body: "comment2" },
+      { author: { login: "renovate[bot]" }, body: "comment3" },
+      { author: { login: "user2" }, body: "comment4" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "", "*[bot]");
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((c: any) => c.author.login)).toEqual([
+      "user1",
+      "user2",
+    ]);
+  });
+
+  test("filters specific bot only", () => {
+    const comments = [
+      { author: { login: "dependabot[bot]" }, body: "comment1" },
+      { author: { login: "renovate[bot]" }, body: "comment2" },
+      { author: { login: "user1" }, body: "comment3" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "", "dependabot[bot]");
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((c: any) => c.author.login)).toEqual([
+      "renovate[bot]",
+      "user1",
+    ]);
+  });
+
+  test("handles empty comment array", () => {
+    const comments: any[] = [];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "user1", "");
+    expect(filtered).toHaveLength(0);
   });
 });
