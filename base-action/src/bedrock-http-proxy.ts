@@ -69,20 +69,25 @@ function translateBedrockToAnthropic(bedrockResp: any): any {
 }
 
 /**
- * Extract model ID from Anthropic model name
+ * Extract model ID from Anthropic model name and convert to cross-region inference profile
+ * AWS Bedrock requires cross-region inference profiles for on-demand throughput
  * Examples:
- * - "claude-3-sonnet-20240229" -> "anthropic.claude-3-sonnet-20240229-v1:0"
- * - "anthropic.claude-sonnet-4-20250514-v1:0" -> "anthropic.claude-sonnet-4-20250514-v1:0"
+ * - "claude-3-sonnet-20240229" -> "us.anthropic.claude-3-sonnet-20240229-v1:0"
+ * - "anthropic.claude-sonnet-4-20250514-v1:0" -> "us.anthropic.claude-sonnet-4-20250514-v1:0"
  */
 function getBedrockModelId(anthropicModel: string): string {
-  // If already in Bedrock format (starts with "anthropic."), return as-is
-  if (anthropicModel.startsWith("anthropic.")) {
+  // If already in cross-region format (starts with "us."), return as-is
+  if (anthropicModel.startsWith("us.")) {
     return anthropicModel;
   }
 
-  // Otherwise, construct Bedrock model ID
-  // This is a simplified mapping - may need to be extended
-  return `anthropic.${anthropicModel}-v1:0`;
+  // If in standard Bedrock format (starts with "anthropic."), convert to cross-region
+  if (anthropicModel.startsWith("anthropic.")) {
+    return `us.${anthropicModel}`;
+  }
+
+  // Otherwise, construct cross-region inference profile ID
+  return `us.anthropic.${anthropicModel}-v1:0`;
 }
 
 /**
