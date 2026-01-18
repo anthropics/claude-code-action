@@ -204,6 +204,29 @@ You can route Claude API requests through your own LLM Gateway, proxy, or custom
 - API proxies like Portkey, LiteLLM, or custom solutions
 - Internal routing and load balancing
 - Observability and monitoring
+- **API Management with Bedrock format** (Azure APIM, AWS API Gateway routing to Bedrock)
+
+### Bedrock API Format with Custom Headers
+
+For API Management gateways that route to AWS Bedrock, the action includes a built-in HTTP proxy that enables using Bedrock API format with custom headers:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    use_bedrock: "true"  # Enable Bedrock API format
+    base_url: "https://your-apim.azure-api.net"
+    anthropic_api_key: "placeholder"  # APIM handles auth
+    custom_headers: |
+      {
+        "Ocp-Apim-Subscription-Key": "${{ secrets.APIM_SUBSCRIPTION_KEY }}",
+        "serviceName": "my-service",
+        "team": "my-team"
+      }
+```
+
+**What happens**: The action automatically starts a local translation proxy that converts between Anthropic and Bedrock API formats, allowing your APIM to receive Bedrock-formatted requests (`/bedrock/model/{model-id}/invoke`) with custom headers, without requiring AWS credentials.
+
+See [API Management section](#api-management-azure-apim-example) for detailed examples.
 
 ### Basic LLM Gateway Usage
 
@@ -280,14 +303,28 @@ For APIM routing to AWS Bedrock (using Bedrock API format):
         "Ocp-Apim-Subscription-Key": "${{ secrets.APIM_SUBSCRIPTION_KEY }}",
         "serviceName": "your-service",
         "team": "your-team",
-        "env": "${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}"
+        "env": "${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}",
+        "computer": "${{ runner.name }}"
       }
 ```
 
-**Note**: When using `use_bedrock: "true"` with a custom base URL, the action automatically:
-- Sets `ANTHROPIC_BEDROCK_BASE_URL` to your custom URL
-- Skips AWS credential validation (since APIM handles authentication)
-- Sends custom headers with each request
+**How It Works**: When using `use_bedrock: "true"` with `base_url` and `custom_headers`, the action automatically:
+
+1. **Starts a local HTTP proxy** on port 8765 that translates between Anthropic and Bedrock API formats
+2. **Routes Claude SDK** to the proxy: `localhost:8765`
+3. **Proxy translates** requests from Anthropic format to Bedrock format
+4. **Forwards to APIM** with your custom headers: `POST /bedrock/model/{model-id}/invoke`
+5. **APIM routes** to AWS Bedrock backend
+6. **Proxy translates** responses back to Anthropic format
+7. **Stops proxy** when execution completes
+
+This allows using Bedrock API format with custom HTTP headers **without AWS credentials or APIM configuration changes**.
+
+**Benefits**:
+- ✅ No AWS SDK authentication required
+- ✅ Custom headers sent with every request (authentication, routing policies, tracking)
+- ✅ APIM remains unchanged (continues using Bedrock format)
+- ✅ Full control over headers (subscription keys, service metadata, environment routing)
 
 ### Dynamic Headers
 

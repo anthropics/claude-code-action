@@ -445,6 +445,38 @@ Use provider-specific model names based on your chosen provider:
     use_vertex: "true"
 ```
 
+## Example: Bedrock API Format with API Management
+
+For API Management gateways (Azure APIM, AWS API Gateway) that route to AWS Bedrock, you can use Bedrock API format with custom headers:
+
+```yaml
+- name: Run Claude Code through APIM Gateway
+  uses: anthropics/claude-code-base-action@beta
+  with:
+    prompt: "Your prompt here"
+    model: "anthropic.claude-sonnet-4-20250514-v1:0"
+    use_bedrock: "true"
+    base_url: "https://your-apim.azure-api.net"
+    anthropic_api_key: "placeholder"  # APIM handles authentication
+    custom_headers: |
+      {
+        "Ocp-Apim-Subscription-Key": "${{ secrets.APIM_SUBSCRIPTION_KEY }}",
+        "serviceName": "my-service",
+        "team": "my-team",
+        "env": "${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}"
+      }
+```
+
+**How it works**: When you provide `use_bedrock`, `base_url`, and `custom_headers` together, the action automatically:
+
+1. Starts a local HTTP proxy that translates between Anthropic and Bedrock API formats
+2. Routes Claude SDK requests to the proxy
+3. Proxy forwards to your APIM with custom headers in Bedrock format: `POST /bedrock/model/{model-id}/invoke`
+4. APIM routes to AWS Bedrock backend
+5. Proxy translates responses back to Anthropic format
+
+This enables using Bedrock API format with custom headers without requiring AWS credentials or APIM configuration changes.
+
 ## Example: Using OIDC Authentication for AWS Bedrock
 
 This example shows how to use OIDC authentication with AWS Bedrock:
