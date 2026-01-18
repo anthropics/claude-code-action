@@ -333,4 +333,35 @@ describe("validateEnvironmentVariables", () => {
       );
     });
   });
+
+  describe("Custom headers and base URL", () => {
+    test("should pass when ANTHROPIC_CUSTOM_HEADERS is valid JSON", () => {
+      process.env.ANTHROPIC_API_KEY = "test-api-key";
+      process.env.ANTHROPIC_CUSTOM_HEADERS = '{"X-Custom-Header": "value"}';
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should pass when ANTHROPIC_BASE_URL is provided", () => {
+      process.env.ANTHROPIC_API_KEY = "test-api-key";
+      process.env.ANTHROPIC_BASE_URL = "https://gateway.example.com";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should pass with both custom headers and base URL", () => {
+      process.env.ANTHROPIC_API_KEY = "test-api-key";
+      process.env.ANTHROPIC_BASE_URL = "https://gateway.example.com";
+      process.env.ANTHROPIC_CUSTOM_HEADERS = '{"X-Gateway-Key": "secret"}';
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should pass when custom headers is empty string", () => {
+      process.env.ANTHROPIC_API_KEY = "test-api-key";
+      process.env.ANTHROPIC_CUSTOM_HEADERS = "";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+  });
 });
