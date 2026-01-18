@@ -196,6 +196,96 @@ You can pass custom environment variables to Claude Code execution using the `se
 
 These environment variables will be available to Claude Code during execution, allowing it to run tests, build processes, or other commands that depend on specific environment configurations.
 
+## LLM Gateway & Custom API Endpoints
+
+You can route Claude API requests through your own LLM Gateway, proxy, or custom endpoint using the `base_url` input. This is useful for:
+
+- Enterprise LLM Gateways (see [Anthropic LLM Gateway docs](https://docs.anthropic.com/en/docs/claude-code/llm-gateway))
+- API proxies like Portkey, LiteLLM, or custom solutions
+- Internal routing and load balancing
+- Observability and monitoring
+
+### Basic LLM Gateway Usage
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    base_url: "https://your-gateway.example.com/v1"
+```
+
+### Using with Portkey
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.PORTKEY_API_KEY }}
+    base_url: "https://api.portkey.ai"
+    custom_headers: '{"x-portkey-api-key": "${{ secrets.PORTKEY_API_KEY }}", "x-portkey-provider": "anthropic"}'
+```
+
+### Using with LiteLLM
+
+```yaml
+- name: Start LiteLLM proxy
+  run: docker run -d -e ANTHROPIC_API_KEY -p 4000:4000 ghcr.io/berriai/litellm:main-latest --model claude-sonnet-4-20250514
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: "sk-litellm"  # LiteLLM uses a placeholder key
+    base_url: "http://localhost:4000"
+```
+
+## Custom HTTP Headers
+
+You can pass custom HTTP headers to the Anthropic API using the `custom_headers` input. This is useful for:
+
+- API management policies (Azure APIM, AWS API Gateway, Kong, etc.)
+- Subscription keys and authentication tokens
+- Request routing and load balancing
+- Correlation IDs and request tracking
+
+### Basic Usage
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    custom_headers: '{"X-Custom-Policy": "premium", "X-Request-Source": "github-action"}'
+```
+
+### API Management (Azure APIM Example)
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    base_url: "https://your-apim.azure-api.net/anthropic"
+    custom_headers: '{"Ocp-Apim-Subscription-Key": "${{ secrets.APIM_SUBSCRIPTION_KEY }}"}'
+```
+
+### Dynamic Headers
+
+For complex configurations, construct headers dynamically:
+
+```yaml
+- name: Set custom headers
+  run: |
+    echo 'HEADERS={"X-Correlation-Id": "${{ github.run_id }}", "X-Repository": "${{ github.repository }}"}' >> $GITHUB_ENV
+
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    custom_headers: ${{ env.HEADERS }}
+```
+
+**Notes:**
+
+- The `base_url` and `custom_headers` inputs take precedence over `ANTHROPIC_BASE_URL` and `ANTHROPIC_CUSTOM_HEADERS` environment variables
+- Headers must be valid JSON format: `'{"Header-Name": "value"}'`
+- For sensitive header values, always use GitHub Secrets
+
 ## Limiting Conversation Turns
 
 You can limit the number of back-and-forth exchanges Claude can have during task execution using the `claude_args` input. This is useful for:
