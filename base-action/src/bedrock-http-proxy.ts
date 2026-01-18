@@ -120,6 +120,32 @@ export async function startBedrockProxy(
         `[Bedrock Proxy] Incoming ${req.method} ${url.pathname} from ${req.headers.get("user-agent")?.substring(0, 50)}`,
       );
 
+      // Handle token counting endpoint (SDK uses this for pre-flight checks)
+      if (url.pathname === "/v1/messages/count_tokens") {
+        console.log(`[Bedrock Proxy] Handling count_tokens request`);
+        const body = await req.json();
+        // Return a mock token count response
+        return new Response(
+          JSON.stringify({
+            input_tokens: body.messages?.length * 100 || 1000, // Rough estimate
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Handle event logging endpoint (SDK uses this for telemetry)
+      if (url.pathname === "/api/event_logging/batch") {
+        console.log(`[Bedrock Proxy] Ignoring event_logging request`);
+        // Return success to prevent SDK errors
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
       // Only handle /v1/messages endpoint (Anthropic API format)
       if (url.pathname !== "/v1/messages") {
         console.log(
