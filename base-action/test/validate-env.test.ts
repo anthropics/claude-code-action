@@ -153,8 +153,7 @@ describe("validateEnvironmentVariables", () => {
 
     test("should pass when using custom Bedrock endpoint without AWS credentials", () => {
       process.env.CLAUDE_CODE_USE_BEDROCK = "1";
-      process.env.ANTHROPIC_BEDROCK_BASE_URL =
-        "https://my-apim.azure-api.net";
+      process.env.ANTHROPIC_BEDROCK_BASE_URL = "https://my-apim.azure-api.net";
       process.env.ANTHROPIC_API_KEY = "apim-handles-auth";
 
       expect(() => validateEnvironmentVariables()).not.toThrow();

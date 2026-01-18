@@ -51,7 +51,7 @@ inputs:
     required: false
     default: ""
   custom_headers:
-    description: "Custom HTTP headers for Anthropic API requests as JSON string (e.g., '{\"X-Custom-Header\": \"value\"}'). Useful for API management policies, authentication, or request routing."
+    description: 'Custom HTTP headers for Anthropic API requests as JSON string (e.g., ''{"X-Custom-Header": "value"}''). Useful for API management policies, authentication, or request routing.'
     required: false
     default: ""
 
