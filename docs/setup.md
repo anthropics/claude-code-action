@@ -7,7 +7,15 @@
 1. Install the Claude GitHub app to your repository: https://github.com/apps/claude
 2. Add authentication to your repository secrets ([Learn how to use secrets in GitHub Actions](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions)):
    - Either `ANTHROPIC_API_KEY` for API key authentication
-   - Or `CLAUDE_CODE_OAUTH_TOKEN` for OAuth token authentication (Pro and Max users can generate this by running `claude setup-token` locally)
+   - Or `CLAUDE_CODE_OAUTH_TOKEN` for OAuth token authentication (Pro and Max users can generate this by running `claude setup-token` locally). Make sure to update your workflow file to use OAuth:
+      ```diff
+           - name: Run Claude Code
+              id: claude
+              uses: anthropics/claude-code-action@v1
+              with:
+      -          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      +          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ```
 3. Copy the workflow file from [`examples/claude.yml`](../examples/claude.yml) into your repository's `.github/workflows/`
 
 ## Using a Custom GitHub App
