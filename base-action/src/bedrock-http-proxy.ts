@@ -212,7 +212,7 @@ export async function startBedrockProxy(
           headers: {
             "Content-Type": "application/json",
             "anthropic-version": "2023-06-01",
-            "request-id": bedrockResp.id || "unknown",
+            "x-request-id": bedrockResp.id || "unknown",
           },
         });
       } catch (error) {
