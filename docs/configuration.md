@@ -258,12 +258,36 @@ You can pass custom HTTP headers to the Anthropic API using the `custom_headers`
 
 ### API Management (Azure APIM Example)
 
+For APIM routing to Anthropic API directly:
+
 ```yaml
 - uses: anthropics/claude-code-action@v1
   with:
     base_url: "https://your-apim.azure-api.net/anthropic"
     custom_headers: '{"Ocp-Apim-Subscription-Key": "${{ secrets.APIM_SUBSCRIPTION_KEY }}"}'
 ```
+
+For APIM routing to AWS Bedrock (using Bedrock API format):
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    use_bedrock: "true"
+    base_url: "https://your-apim.azure-api.net"
+    anthropic_api_key: "apim-handles-auth"  # Placeholder, APIM handles auth
+    custom_headers: |
+      {
+        "Ocp-Apim-Subscription-Key": "${{ secrets.APIM_SUBSCRIPTION_KEY }}",
+        "serviceName": "your-service",
+        "team": "your-team",
+        "env": "${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}"
+      }
+```
+
+**Note**: When using `use_bedrock: "true"` with a custom base URL, the action automatically:
+- Sets `ANTHROPIC_BEDROCK_BASE_URL` to your custom URL
+- Skips AWS credential validation (since APIM handles authentication)
+- Sends custom headers with each request
 
 ### Dynamic Headers
 
