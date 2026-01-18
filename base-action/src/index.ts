@@ -44,6 +44,7 @@ async function run() {
       process.env.CLAUDE_CODE_USE_BEDROCK = ""; // Disable Bedrock mode (use HTTP)
       process.env.ANTHROPIC_BASE_URL = `http://localhost:${proxyServer.port}`;
       delete process.env.ANTHROPIC_BEDROCK_BASE_URL; // Remove Bedrock base URL
+      delete process.env.ANTHROPIC_CUSTOM_HEADERS; // Headers handled by proxy, not SDK
 
       console.log(
         `[Base Action] SDK will use proxy at http://localhost:${proxyServer.port}`,

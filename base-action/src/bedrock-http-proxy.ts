@@ -193,16 +193,10 @@ export function parseCustomHeaders(
   }
 
   try {
-    console.log("[Bedrock Proxy] Raw headers input:", headersInput);
-    console.log("[Bedrock Proxy] Input type:", typeof headersInput);
-
     const parsed =
       typeof headersInput === "string"
         ? JSON.parse(headersInput)
         : headersInput;
-
-    console.log("[Bedrock Proxy] Parsed headers:", JSON.stringify(parsed, null, 2));
-    console.log("[Bedrock Proxy] Header keys:", Object.keys(parsed));
 
     return parsed as Record<string, string>;
   } catch (error) {
