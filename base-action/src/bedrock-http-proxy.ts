@@ -153,6 +153,11 @@ export async function startBedrockProxy(
         // Parse Anthropic request
         const anthropicReq = (await req.json()) as AnthropicRequest;
 
+        console.log(
+          `[Bedrock Proxy] Request body:`,
+          JSON.stringify(anthropicReq).substring(0, 1000),
+        );
+
         // Extract model ID
         const bedrockModelId = getBedrockModelId(anthropicReq.model);
 
