@@ -150,6 +150,35 @@ describe("validateEnvironmentVariables", () => {
         /AWS_REGION is required when using AWS Bedrock.*Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock/s,
       );
     });
+
+    test("should pass when using custom Bedrock endpoint without AWS credentials", () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.ANTHROPIC_BEDROCK_BASE_URL =
+        "https://my-apim.azure-api.net";
+      process.env.ANTHROPIC_API_KEY = "apim-handles-auth";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should pass when using custom Bedrock endpoint with AWS-like domain but non-standard path", () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.ANTHROPIC_BEDROCK_BASE_URL =
+        "https://custom-gateway.example.com/bedrock";
+      process.env.ANTHROPIC_API_KEY = "gateway-key";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should still require AWS credentials when using standard AWS Bedrock endpoint", () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.ANTHROPIC_BEDROCK_BASE_URL =
+        "https://bedrock-runtime.us-east-1.amazonaws.com";
+      // No AWS credentials
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+      );
+    });
   });
 
   describe("Google Vertex AI", () => {
