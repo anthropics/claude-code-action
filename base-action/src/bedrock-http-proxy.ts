@@ -63,14 +63,9 @@ function translateAnthropicToBedrock(
  * Bedrock and Anthropic responses are mostly compatible, but this ensures proper format
  */
 function translateBedrockToAnthropic(bedrockResp: any): any {
-  // Bedrock responses are mostly in Anthropic format, but with some differences:
-  // 1. Model name might not have the full "anthropic." prefix
-  // 2. Response structure is the same for non-streaming
-
-  // Ensure model field has correct format if it exists
-  if (bedrockResp.model && !bedrockResp.model.startsWith("anthropic.")) {
-    bedrockResp.model = `anthropic.${bedrockResp.model}`;
-  }
+  // Bedrock responses are already in Anthropic format
+  // The model name should remain as-is (e.g., "claude-sonnet-4-20250514")
+  // Do NOT add "anthropic." prefix - that's only for Bedrock model IDs in requests
 
   return bedrockResp;
 }
