@@ -212,12 +212,14 @@ export async function startBedrockProxy(
         console.log(`[Bedrock Proxy] Successfully proxied request`);
 
         // Return response with proper headers
-        return new Response(JSON.stringify(anthropicResp), {
+        const responseBody = JSON.stringify(anthropicResp);
+        return new Response(responseBody, {
           status: 200,
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type": "application/json; charset=utf-8",
             "anthropic-version": "2023-06-01",
             "x-request-id": bedrockResp.id || "unknown",
+            "Content-Length": String(Buffer.byteLength(responseBody, "utf8")),
           },
         });
       } catch (error) {
