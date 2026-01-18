@@ -63,8 +63,15 @@ function translateAnthropicToBedrock(
  * Bedrock and Anthropic responses are mostly compatible, but this ensures proper format
  */
 function translateBedrockToAnthropic(bedrockResp: any): any {
-  // Bedrock responses are already in Anthropic format for the most part
-  // Just ensure proper structure
+  // Bedrock responses are mostly in Anthropic format, but with some differences:
+  // 1. Model name might not have the full "anthropic." prefix
+  // 2. Response structure is the same for non-streaming
+
+  // Ensure model field has correct format if it exists
+  if (bedrockResp.model && !bedrockResp.model.startsWith("anthropic.")) {
+    bedrockResp.model = `anthropic.${bedrockResp.model}`;
+  }
+
   return bedrockResp;
 }
 
@@ -157,13 +164,22 @@ export async function startBedrockProxy(
 
         // Translate response back to Anthropic format
         const bedrockResp = await response.json();
+        console.log(
+          `[Bedrock Proxy] Bedrock response:`,
+          JSON.stringify(bedrockResp).substring(0, 500),
+        );
+
         const anthropicResp = translateBedrockToAnthropic(bedrockResp);
 
         console.log(`[Bedrock Proxy] Successfully proxied request`);
 
+        // Return response with proper headers
         return new Response(JSON.stringify(anthropicResp), {
+          status: 200,
           headers: {
             "Content-Type": "application/json",
+            "anthropic-version": "2023-06-01",
+            "request-id": bedrockResp.id || "unknown",
           },
         });
       } catch (error) {
