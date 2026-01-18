@@ -116,8 +116,15 @@ export async function startBedrockProxy(
     async fetch(req) {
       const url = new URL(req.url);
 
+      console.log(
+        `[Bedrock Proxy] Incoming ${req.method} ${url.pathname} from ${req.headers.get("user-agent")?.substring(0, 50)}`,
+      );
+
       // Only handle /v1/messages endpoint (Anthropic API format)
       if (url.pathname !== "/v1/messages") {
+        console.log(
+          `[Bedrock Proxy] Rejecting request to ${url.pathname} with 404`,
+        );
         return new Response("Not Found", { status: 404 });
       }
 
