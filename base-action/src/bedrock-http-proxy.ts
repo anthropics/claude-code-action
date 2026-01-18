@@ -199,6 +199,11 @@ export async function startBedrockProxy(
 
         const anthropicResp = translateBedrockToAnthropic(bedrockResp);
 
+        console.log(
+          `[Bedrock Proxy] Translated response:`,
+          JSON.stringify(anthropicResp).substring(0, 500),
+        );
+
         console.log(`[Bedrock Proxy] Successfully proxied request`);
 
         // Return response with proper headers
