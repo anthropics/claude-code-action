@@ -13,6 +13,16 @@
 - **No Cross-Repository Access**: Each action invocation is limited to the repository where it was triggered
 - **Limited Scope**: The token cannot access other repositories or perform actions beyond the configured permissions
 
+## Pull Request Creation
+
+In its default configuration, **Claude does not create pull requests automatically** when responding to `@claude` mentions. Instead:
+
+- Claude commits code changes to a new branch
+- Claude provides a **link to the GitHub PR creation page** in its response
+- **The user must click the link and create the PR themselves**, ensuring human oversight before any code is proposed for merging
+
+This design ensures that users retain full control over what pull requests are created and can review the changes before initiating the PR workflow.
+
 ## ⚠️ Prompt Injection Risks
 
 **Beware of potential hidden markdown when tagging Claude on untrusted content.** External contributors may include hidden instructions through HTML comments, invisible characters, hidden attributes, or other techniques. The action sanitizes content by stripping HTML comments, invisible characters, markdown image alt text, hidden HTML attributes, and HTML entities, but new bypass techniques may emerge. We recommend reviewing the raw content of all input coming from external contributors before allowing Claude to process it.

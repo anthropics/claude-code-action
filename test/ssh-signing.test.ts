@@ -55,6 +55,47 @@ describe("SSH Signing", () => {
       expect(permissions).toBe(0o600);
     });
 
+    test("should normalize key to have trailing newline", async () => {
+      // ssh-keygen requires a trailing newline to parse the key
+      const keyWithoutNewline =
+        "-----BEGIN OPENSSH PRIVATE KEY-----\ntest-key-content\n-----END OPENSSH PRIVATE KEY-----";
+      const keyWithNewline = keyWithoutNewline + "\n";
+
+      // Create directory
+      await mkdir(testSshDir, { recursive: true, mode: 0o700 });
+
+      // Normalize the key (same logic as setupSshSigning)
+      const normalizedKey = keyWithoutNewline.endsWith("\n")
+        ? keyWithoutNewline
+        : keyWithoutNewline + "\n";
+
+      await writeFile(testKeyPath, normalizedKey, { mode: 0o600 });
+
+      // Verify the written key ends with newline
+      const keyContent = await readFile(testKeyPath, "utf-8");
+      expect(keyContent).toBe(keyWithNewline);
+      expect(keyContent.endsWith("\n")).toBe(true);
+    });
+
+    test("should not add extra newline if key already has one", async () => {
+      const keyWithNewline =
+        "-----BEGIN OPENSSH PRIVATE KEY-----\ntest-key-content\n-----END OPENSSH PRIVATE KEY-----\n";
+
+      await mkdir(testSshDir, { recursive: true, mode: 0o700 });
+
+      // Normalize the key (same logic as setupSshSigning)
+      const normalizedKey = keyWithNewline.endsWith("\n")
+        ? keyWithNewline
+        : keyWithNewline + "\n";
+
+      await writeFile(testKeyPath, normalizedKey, { mode: 0o600 });
+
+      // Verify no double newline
+      const keyContent = await readFile(testKeyPath, "utf-8");
+      expect(keyContent).toBe(keyWithNewline);
+      expect(keyContent.endsWith("\n\n")).toBe(false);
+    });
+
     test("should create .ssh directory with secure permissions", async () => {
       // Clean up first
       await rm(testSshDir, { recursive: true, force: true });

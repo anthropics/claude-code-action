@@ -223,7 +223,7 @@ runs:
 
         # Install Claude Code if no custom executable is provided
         if [ -z "$PATH_TO_CLAUDE_CODE_EXECUTABLE" ]; then
-          CLAUDE_CODE_VERSION="2.1.4"
+          CLAUDE_CODE_VERSION="2.1.11"
           echo "Installing Claude Code v${CLAUDE_CODE_VERSION}..."
           for attempt in 1 2 3; do
             echo "Installation attempt $attempt..."
