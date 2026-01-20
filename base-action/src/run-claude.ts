@@ -11,7 +11,6 @@ export type ClaudeOptions = {
   mcpConfig?: string;
   systemPrompt?: string;
   appendSystemPrompt?: string;
-  claudeEnv?: string;
   fallbackModel?: string;
   showFullOutput?: string;
 };

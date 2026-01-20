@@ -178,6 +178,15 @@ export async function runClaudeWithSdk(
     core.warning(`Failed to write execution file: ${error}`);
   }
 
+  // Extract and set session_id from system.init message
+  const initMessage = messages.find(
+    (m) => m.type === "system" && "subtype" in m && m.subtype === "init",
+  );
+  if (initMessage && "session_id" in initMessage && initMessage.session_id) {
+    core.setOutput("session_id", initMessage.session_id);
+    core.info(`Set session_id: ${initMessage.session_id}`);
+  }
+
   if (!resultMessage) {
     core.setOutput("conclusion", "failure");
     core.error("No result message received from Claude");
