@@ -275,6 +275,14 @@ export async function fetchGitHubData({
         };
       }
 
+      // Don't compute SHA for newly added files (not in base branch checkout)
+      if (file.changeType === "ADDED") {
+        return {
+          ...file,
+          sha: "added",
+        };
+      }
+
       try {
         // Use git hash-object to compute the SHA for the current file content
         const sha = execFileSync("git", ["hash-object", file.path], {
