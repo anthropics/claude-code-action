@@ -174,8 +174,11 @@ jobs:
 
 - The GitHub token must have the corresponding permission in your workflow
 - If the permission is missing, Claude will warn you and suggest adding it
-- Any GitHub App permission can be requested (e.g. `actions: read`, `workflows: write`, `deployments: read`)
-- The GitHub App installation must have the requested permission enabled for it to take effect
+- The following additional permissions can be requested beyond the defaults:
+  - `actions: read`
+  - `checks: read`
+  - `discussions: read` or `discussions: write`
+  - `workflows: read` or `workflows: write`
 - Standard permissions (`contents: write`, `pull_requests: write`, `issues: write`) are always included and do not need to be specified
 
 ## Custom Environment Variables
