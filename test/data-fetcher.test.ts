@@ -1100,3 +1100,226 @@ describe("fetchGitHubData integration with time filtering", () => {
     );
   });
 });
+
+describe("fetchGitHubData SHA computation for changed files", () => {
+  it("should return 'added' SHA for ADDED files", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            number: 100,
+            title: "Test PR with added files",
+            body: "PR body",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            additions: 50,
+            deletions: 0,
+            state: "OPEN",
+            commits: { totalCount: 1, nodes: [] },
+            files: {
+              nodes: [
+                {
+                  path: "src/new-file.ts",
+                  additions: 50,
+                  deletions: 0,
+                  changeType: "ADDED",
+                },
+              ],
+            },
+            comments: { nodes: [] },
+            reviews: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "100",
+      isPR: true,
+      triggerUsername: "trigger-user",
+    });
+
+    expect(result.changedFilesWithSHA.length).toBe(1);
+    expect(result.changedFilesWithSHA[0]?.path).toBe("src/new-file.ts");
+    expect(result.changedFilesWithSHA[0]?.sha).toBe("added");
+    expect(result.changedFilesWithSHA[0]?.changeType).toBe("ADDED");
+  });
+
+  it("should return 'deleted' SHA for DELETED files", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            number: 101,
+            title: "Test PR with deleted files",
+            body: "PR body",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            additions: 0,
+            deletions: 30,
+            state: "OPEN",
+            commits: { totalCount: 1, nodes: [] },
+            files: {
+              nodes: [
+                {
+                  path: "src/old-file.ts",
+                  additions: 0,
+                  deletions: 30,
+                  changeType: "DELETED",
+                },
+              ],
+            },
+            comments: { nodes: [] },
+            reviews: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "101",
+      isPR: true,
+      triggerUsername: "trigger-user",
+    });
+
+    expect(result.changedFilesWithSHA.length).toBe(1);
+    expect(result.changedFilesWithSHA[0]?.path).toBe("src/old-file.ts");
+    expect(result.changedFilesWithSHA[0]?.sha).toBe("deleted");
+    expect(result.changedFilesWithSHA[0]?.changeType).toBe("DELETED");
+  });
+
+  it("should return 'unknown' SHA for MODIFIED files when git hash-object fails", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            number: 102,
+            title: "Test PR with modified files",
+            body: "PR body",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            additions: 10,
+            deletions: 5,
+            state: "OPEN",
+            commits: { totalCount: 1, nodes: [] },
+            files: {
+              nodes: [
+                {
+                  path: "src/non-existent-file.ts",
+                  additions: 10,
+                  deletions: 5,
+                  changeType: "MODIFIED",
+                },
+              ],
+            },
+            comments: { nodes: [] },
+            reviews: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "102",
+      isPR: true,
+      triggerUsername: "trigger-user",
+    });
+
+    // git hash-object will fail for non-existent file, should return "unknown"
+    expect(result.changedFilesWithSHA.length).toBe(1);
+    expect(result.changedFilesWithSHA[0]?.path).toBe(
+      "src/non-existent-file.ts",
+    );
+    expect(result.changedFilesWithSHA[0]?.sha).toBe("unknown");
+    expect(result.changedFilesWithSHA[0]?.changeType).toBe("MODIFIED");
+  });
+
+  it("should handle mixed file change types correctly", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            number: 103,
+            title: "Test PR with mixed file types",
+            body: "PR body",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            additions: 100,
+            deletions: 50,
+            state: "OPEN",
+            commits: { totalCount: 1, nodes: [] },
+            files: {
+              nodes: [
+                {
+                  path: "src/new-feature.ts",
+                  additions: 50,
+                  deletions: 0,
+                  changeType: "ADDED",
+                },
+                {
+                  path: "src/deprecated.ts",
+                  additions: 0,
+                  deletions: 30,
+                  changeType: "DELETED",
+                },
+                {
+                  path: "src/existing.ts",
+                  additions: 50,
+                  deletions: 20,
+                  changeType: "MODIFIED",
+                },
+              ],
+            },
+            comments: { nodes: [] },
+            reviews: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "103",
+      isPR: true,
+      triggerUsername: "trigger-user",
+    });
+
+    expect(result.changedFilesWithSHA.length).toBe(3);
+
+    // ADDED file should have sha: "added"
+    const addedFile = result.changedFilesWithSHA.find(
+      (f) => f.path === "src/new-feature.ts",
+    );
+    expect(addedFile?.sha).toBe("added");
+    expect(addedFile?.changeType).toBe("ADDED");
+
+    // DELETED file should have sha: "deleted"
+    const deletedFile = result.changedFilesWithSHA.find(
+      (f) => f.path === "src/deprecated.ts",
+    );
+    expect(deletedFile?.sha).toBe("deleted");
+    expect(deletedFile?.changeType).toBe("DELETED");
+
+    // MODIFIED file should have sha: "unknown" (file doesn't exist in test env)
+    const modifiedFile = result.changedFilesWithSHA.find(
+      (f) => f.path === "src/existing.ts",
+    );
+    expect(modifiedFile?.sha).toBe("unknown");
+    expect(modifiedFile?.changeType).toBe("MODIFIED");
+  });
+});
