@@ -16,15 +16,60 @@ async function getOidcToken(): Promise<string> {
   }
 }
 
-async function exchangeForAppToken(oidcToken: string): Promise<string> {
+const DEFAULT_PERMISSIONS: Record<string, string> = {
+  contents: "write",
+  pull_requests: "write",
+  issues: "write",
+};
+
+export function parseAdditionalPermissions():
+  | Record<string, string>
+  | undefined {
+  const raw = process.env.ADDITIONAL_PERMISSIONS;
+  if (!raw || !raw.trim()) {
+    return undefined;
+  }
+
+  const additional: Record<string, string> = {};
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const colonIndex = trimmed.indexOf(":");
+    if (colonIndex === -1) continue;
+    const key = trimmed.slice(0, colonIndex).trim();
+    const value = trimmed.slice(colonIndex + 1).trim();
+    if (key && value) {
+      additional[key] = value;
+    }
+  }
+
+  if (Object.keys(additional).length === 0) {
+    return undefined;
+  }
+
+  return { ...DEFAULT_PERMISSIONS, ...additional };
+}
+
+async function exchangeForAppToken(
+  oidcToken: string,
+  permissions?: Record<string, string>,
+): Promise<string> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${oidcToken}`,
+  };
+  const fetchOptions: RequestInit = {
+    method: "POST",
+    headers,
+  };
+
+  if (permissions) {
+    headers["Content-Type"] = "application/json";
+    fetchOptions.body = JSON.stringify({ permissions });
+  }
+
   const response = await fetch(
     "https://api.anthropic.com/api/github/github-app-token-exchange",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${oidcToken}`,
-      },
-    },
+    fetchOptions,
   );
 
   if (!response.ok) {
@@ -89,9 +134,11 @@ export async function setupGitHubToken(): Promise<string> {
     const oidcToken = await retryWithBackoff(() => getOidcToken());
     console.log("OIDC token successfully obtained");
 
+    const permissions = parseAdditionalPermissions();
+
     console.log("Exchanging OIDC token for app token...");
     const appToken = await retryWithBackoff(() =>
-      exchangeForAppToken(oidcToken),
+      exchangeForAppToken(oidcToken, permissions),
     );
     console.log("App token successfully obtained");
 
