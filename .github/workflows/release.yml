@@ -32,7 +32,7 @@ jobs:
       next_version: ${{ steps.next_version.outputs.next_version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -105,7 +105,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -130,7 +130,7 @@ jobs:
   #   environment: production
   #   steps:
   #     - name: Checkout base-action repo
-  #       uses: actions/checkout@v5
+  #       uses: actions/checkout@v6
   #       with:
   #         repository: anthropics/claude-code-base-action
   #         token: ${{ secrets.CLAUDE_CODE_BASE_ACTION_PAT }}
