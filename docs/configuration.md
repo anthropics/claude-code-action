@@ -172,14 +172,9 @@ jobs:
 
 **Important Notes**:
 
-- The GitHub token must have the corresponding permission in your workflow
+- The GitHub token must have the `actions: read` permission in your workflow
 - If the permission is missing, Claude will warn you and suggest adding it
-- The following additional permissions can be requested beyond the defaults:
-  - `actions: read`
-  - `checks: read`
-  - `discussions: read` or `discussions: write`
-  - `workflows: read` or `workflows: write`
-- Standard permissions (`contents: write`, `pull_requests: write`, `issues: write`) are always included and do not need to be specified
+- Currently, only `actions: read` is supported, but the format allows for future extensions
 
 ## Custom Environment Variables
 
