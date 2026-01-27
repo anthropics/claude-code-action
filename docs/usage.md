@@ -48,6 +48,8 @@ jobs:
           #   actions: read
           # Optional: allow bot users to trigger the action
           # allowed_bots: "dependabot[bot],renovate[bot]"
+          # Optional: exclude specific users' comments from context (e.g., bots)
+          # excluded_comment_users: "github-actions[bot],claude[bot]"
 ```
 
 ## Inputs
@@ -77,6 +79,7 @@ jobs:
 | `bot_name`                       | GitHub username to use for git operations (defaults to Claude's bot name). Required with `ssh_signing_key` for verified commits                                                        | No       | `claude[bot]` |
 | `allowed_bots`                   | Comma-separated list of allowed bot usernames, or '\*' to allow all bots. Empty string (default) allows no bots                                                                        | No       | ""            |
 | `allowed_non_write_users`        | **⚠️ RISKY**: Comma-separated list of usernames to allow without write permissions, or '\*' for all users. Only works with `github_token` input. See [Security](./security.md)         | No       | ""            |
+| `excluded_comment_users`         | Comma-separated list of usernames whose comments should be excluded from the prompt context. Useful for filtering out bot comments or previous Claude responses. Only applies in agent mode.                       | No       | ""            |
 | `path_to_claude_code_executable` | Optional path to a custom Claude Code executable. Skips automatic installation. Useful for Nix, custom containers, or specialized environments                                         | No       | ""            |
 | `path_to_bun_executable`         | Optional path to a custom Bun executable. Skips automatic Bun installation. Useful for Nix, custom containers, or specialized environments                                             | No       | ""            |
 | `plugin_marketplaces`            | Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., see example in workflow above). Marketplaces are added before plugin installation             | No       | ""            |
