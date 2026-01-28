@@ -312,4 +312,101 @@ describe("parseSdkOptions", () => {
       expect(result.hasJsonSchema).toBe(true);
     });
   });
+
+  describe("shell comment handling", () => {
+    test("should strip shell-style comments from claudeArgs", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: `--model 'claude-haiku'
+# This is a comment
+--allowed-tools 'Edit,Read'`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual(["Edit", "Read"]);
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
+    });
+
+    test("should handle multiline comments before flags", () => {
+      // This is the exact scenario from issue #800
+      const options: ClaudeOptions = {
+        claudeArgs: `--model 'claude-haiku-4-5'
+--fallback-model 'claude-sonnet-4-5'
+
+# Bug workaround: 'mcp__github_*' tools MUST be in the first --allowed-tools flag.
+# parseAllowedTools() only reads the first flag.
+# https://github.com/anthropics/claude-code-action/issues/800
+--allowed-tools 'mcp__github_inline_comment__create_inline_comment'
+
+--mcp-config '{"mcpServers": {"context7": {"type": "http"}}}'
+--allowed-tools 'mcp__context7__*'`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      // All flags should be parsed correctly, comments stripped
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku-4-5");
+      expect(result.sdkOptions.extraArgs?.["fallback-model"]).toBe(
+        "claude-sonnet-4-5",
+      );
+      expect(result.sdkOptions.allowedTools).toContain(
+        "mcp__github_inline_comment__create_inline_comment",
+      );
+      expect(result.sdkOptions.allowedTools).toContain("mcp__context7__*");
+      expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBeDefined();
+    });
+
+    test("should handle comments containing quoted strings", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: `--model 'claude-haiku'
+# Note: 'mcp__github_*' must be first
+--allowed-tools 'Edit'`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
+      expect(result.sdkOptions.allowedTools).toEqual(["Edit"]);
+    });
+
+    test("should handle comments containing flag-like text", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: `--model 'claude-haiku'
+# Use --allowed-tools to specify tools
+--allowed-tools 'Edit'`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      // The --allowed-tools in the comment should not be parsed
+      // Only the actual flag should be parsed
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
+      expect(result.sdkOptions.allowedTools).toEqual(["Edit"]);
+    });
+
+    test("should handle indented comments", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: `--model 'claude-haiku'
+  # This is an indented comment
+--allowed-tools 'Edit'`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
+      expect(result.sdkOptions.allowedTools).toEqual(["Edit"]);
+    });
+
+    test("should preserve hash characters inside quoted strings", () => {
+      // Hash characters inside quotes are NOT comments
+      const options: ClaudeOptions = {
+        claudeArgs: `--model 'claude#haiku'`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      // The hash inside quotes should be preserved
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude#haiku");
+    });
+  });
 });

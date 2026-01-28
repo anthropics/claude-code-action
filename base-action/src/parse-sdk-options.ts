@@ -80,6 +80,24 @@ function mergeMcpConfigs(configValues: string[]): string {
 }
 
 /**
+ * Strip shell-style comments from a string.
+ * Comments start with # at the beginning of a line (after optional whitespace)
+ * and continue to the end of the line.
+ *
+ * This is necessary because shell-quote treats # as a comment character
+ * and swallows ALL content after it (including newlines), which would
+ * cause subsequent flags to be lost.
+ */
+function stripShellComments(input: string): string {
+  // Match lines that start with optional whitespace followed by #
+  // and remove them entirely
+  return input
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("#"))
+    .join("\n");
+}
+
+/**
  * Parse claudeArgs string into extraArgs record for SDK pass-through
  * The SDK/CLI will handle --mcp-config, --json-schema, etc.
  * For allowedTools and disallowedTools, multiple occurrences are accumulated (null-char joined).
@@ -91,8 +109,12 @@ function parseClaudeArgsToExtraArgs(
 ): Record<string, string | null> {
   if (!claudeArgs?.trim()) return {};
 
+  // Strip shell-style comments before parsing to prevent shell-quote
+  // from treating everything after # as a comment
+  const cleanedArgs = stripShellComments(claudeArgs);
+
   const result: Record<string, string | null> = {};
-  const args = parseShellArgs(claudeArgs).filter(
+  const args = parseShellArgs(cleanedArgs).filter(
     (arg): arg is string => typeof arg === "string",
   );
 
