@@ -1,8 +1,21 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { parseSdkOptions } from "../src/parse-sdk-options";
 import type { ClaudeOptions } from "../src/run-claude";
+import { mkdirSync, writeFileSync, rmSync } from "fs";
+import { join } from "path";
+
+// Temp directory for test files
+const TEST_TMP_DIR = join(import.meta.dir, ".test-tmp");
+
+beforeAll(() => {
+  mkdirSync(TEST_TMP_DIR, { recursive: true });
+});
+
+afterAll(() => {
+  rmSync(TEST_TMP_DIR, { recursive: true, force: true });
+});
 
 describe("parseSdkOptions", () => {
   describe("allowedTools merging", () => {
@@ -221,33 +234,119 @@ describe("parseSdkOptions", () => {
       expect(mcpConfig.mcpServers).toHaveProperty("server3");
     });
 
-    test("should handle mcp-config file path when no inline JSON exists", () => {
+    test("should read and merge mcp-config file path when no inline JSON exists", () => {
+      // Create a test config file
+      const configPath = join(TEST_TMP_DIR, "solo-config.json");
+      writeFileSync(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            file_server: { command: "node", args: ["file-server.js"] },
+          },
+        }),
+      );
+
       const options: ClaudeOptions = {
-        claudeArgs: `--mcp-config /tmp/user-mcp-config.json`,
+        claudeArgs: `--mcp-config ${configPath}`,
       };
 
       const result = parseSdkOptions(options);
 
-      expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBe(
-        "/tmp/user-mcp-config.json",
+      const mcpConfig = JSON.parse(
+        result.sdkOptions.extraArgs?.["mcp-config"] as string,
       );
+      expect(mcpConfig.mcpServers).toHaveProperty("file_server");
+      expect(mcpConfig.mcpServers.file_server.command).toBe("node");
     });
 
-    test("should merge inline JSON configs when file path is also present", () => {
+    test("should merge file path config with inline JSON configs (fixes #754)", () => {
+      // This is the exact scenario from issue #754
       // When action provides inline JSON and user provides a file path,
-      // the inline JSON configs should be merged (file paths cannot be merged at parse time)
+      // BOTH should be merged together
+      const configPath = join(TEST_TMP_DIR, "user-config.json");
+      writeFileSync(
+        configPath,
+        JSON.stringify({
+          mcpServers: {
+            my_custom_server: { command: "docker", args: ["run", "my-server"] },
+          },
+        }),
+      );
+
       const options: ClaudeOptions = {
-        claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config '{"mcpServers":{"github_ci":{"command":"node"}}}' --mcp-config /tmp/user-config.json`,
+        claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config '{"mcpServers":{"github_ci":{"command":"node"}}}' --mcp-config ${configPath}`,
       };
 
       const result = parseSdkOptions(options);
 
-      // The inline JSON configs should be merged
+      const mcpConfig = JSON.parse(
+        result.sdkOptions.extraArgs?.["mcp-config"] as string,
+      );
+      // All servers should be present - inline JSON AND file config
+      expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
+      expect(mcpConfig.mcpServers).toHaveProperty("github_ci");
+      expect(mcpConfig.mcpServers).toHaveProperty("my_custom_server");
+      expect(mcpConfig.mcpServers.my_custom_server.command).toBe("docker");
+    });
+
+    test("should handle non-existent mcp-config file gracefully", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config /non/existent/path.json`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      // Should still have the inline config, non-existent file is skipped with warning
       const mcpConfig = JSON.parse(
         result.sdkOptions.extraArgs?.["mcp-config"] as string,
       );
       expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
-      expect(mcpConfig.mcpServers).toHaveProperty("github_ci");
+    });
+
+    test("should handle invalid JSON in mcp-config file gracefully", () => {
+      const configPath = join(TEST_TMP_DIR, "invalid-config.json");
+      writeFileSync(configPath, "not valid json {{{");
+
+      const options: ClaudeOptions = {
+        claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config ${configPath}`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      // Should still have the inline config, invalid file is skipped with warning
+      const mcpConfig = JSON.parse(
+        result.sdkOptions.extraArgs?.["mcp-config"] as string,
+      );
+      expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
+    });
+
+    test("should merge multiple file paths", () => {
+      const configPath1 = join(TEST_TMP_DIR, "config1.json");
+      const configPath2 = join(TEST_TMP_DIR, "config2.json");
+      writeFileSync(
+        configPath1,
+        JSON.stringify({
+          mcpServers: { server1: { command: "cmd1" } },
+        }),
+      );
+      writeFileSync(
+        configPath2,
+        JSON.stringify({
+          mcpServers: { server2: { command: "cmd2" } },
+        }),
+      );
+
+      const options: ClaudeOptions = {
+        claudeArgs: `--mcp-config ${configPath1} --mcp-config ${configPath2}`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      const mcpConfig = JSON.parse(
+        result.sdkOptions.extraArgs?.["mcp-config"] as string,
+      );
+      expect(mcpConfig.mcpServers).toHaveProperty("server1");
+      expect(mcpConfig.mcpServers).toHaveProperty("server2");
     });
 
     test("should handle mcp-config with other flags", () => {
