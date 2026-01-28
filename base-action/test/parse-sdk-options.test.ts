@@ -1,10 +1,21 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import { parseSdkOptions } from "../src/parse-sdk-options";
 import type { ClaudeOptions } from "../src/run-claude";
+import * as core from "@actions/core";
 
 describe("parseSdkOptions", () => {
+  let warningSpy: any;
+
+  beforeEach(() => {
+    warningSpy = spyOn(core, "warning").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warningSpy?.mockRestore();
+  });
+
   describe("allowedTools merging", () => {
     test("should extract allowedTools from claudeArgs", () => {
       const options: ClaudeOptions = {
@@ -310,6 +321,98 @@ describe("parseSdkOptions", () => {
         '{"type":"object"}',
       );
       expect(result.hasJsonSchema).toBe(true);
+    });
+  });
+
+  describe("multiline claude_args with spaces (issue #844)", () => {
+    test("should correctly parse quoted allowedTools with Bash tools containing spaces", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: `--max-turns 15 --allowedTools "Bash(git diff --name-only HEAD~1),Bash(git diff HEAD~1),Read,Glob,Grep"`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(git diff --name-only HEAD~1)",
+        "Bash(git diff HEAD~1)",
+        "Read",
+        "Glob",
+        "Grep",
+      ]);
+      expect(result.sdkOptions.extraArgs?.["max-turns"]).toBe("15");
+      expect(result.sdkOptions.extraArgs?.["name-only"]).toBeUndefined();
+    });
+
+    test("should correctly parse multiline YAML with quoted allowedTools", () => {
+      // Simulates multiline YAML: claude_args: |
+      //   --max-turns 15
+      //   --allowedTools "Bash(git diff --name-only HEAD~1),Read,Glob,Grep"
+      const options: ClaudeOptions = {
+        claudeArgs: `--max-turns 15
+--allowedTools "Bash(git diff --name-only HEAD~1),Read,Glob,Grep"`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(git diff --name-only HEAD~1)",
+        "Read",
+        "Glob",
+        "Grep",
+      ]);
+      expect(result.sdkOptions.extraArgs?.["max-turns"]).toBe("15");
+    });
+
+    test("should handle unquoted allowedTools without spaces (no warning)", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: `--max-turns 15 --allowedTools Edit,Read,Write,Bash`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Edit",
+        "Read",
+        "Write",
+        "Bash",
+      ]);
+      expect(warningSpy).not.toHaveBeenCalled();
+    });
+
+    test("should warn when unquoted allowedTools with spaces are incorrectly parsed", () => {
+      // This simulates the exact issue #844 scenario where unquoted values get split
+      // The shell-quote parser will split "Bash(git diff --name-only HEAD~1)" into
+      // ["Bash(git", "diff", "--name-only", "HEAD~1)"] or similar
+      const options: ClaudeOptions = {
+        claudeArgs: `--max-turns 15 --allowedTools Bash git diff`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      // The warning should be triggered because "Bash" followed by "git" suggests incorrect parsing
+      expect(warningSpy).toHaveBeenCalled();
+      const warningMessage = warningSpy.mock.calls[0]?.[0];
+      expect(warningMessage).toContain("incorrectly parsed");
+      expect(warningMessage).toContain("allowedTools");
+      expect(warningMessage).toContain("quote");
+    });
+
+    test("should warn when tool name with unclosed paren is detected", () => {
+      // This simulates the exact issue #844: unquoted "Bash(git diff --name-only HEAD~1)"
+      // gets split into ["Bash(git", "diff"] before hitting --name-only as a separate flag
+      // Note: We can't easily test the exact shell-quote behavior, but we can test
+      // that our detection logic works when we manually create the split scenario
+      const options: ClaudeOptions = {
+        // Simulating what shell-quote would produce: Bash(git and diff as separate args
+        // In reality, this would come from: --allowedTools Bash(git diff --name-only HEAD~1)
+        claudeArgs: `--max-turns 15 --allowedTools Bash\(git diff`,
+      };
+
+      parseSdkOptions(options);
+
+      // The warning should be triggered because "Bash(git" has opening paren but no closing paren
+      // OR because "Bash" is followed by "git" or "diff"
+      expect(warningSpy).toHaveBeenCalled();
     });
   });
 });
