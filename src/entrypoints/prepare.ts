@@ -28,7 +28,7 @@ async function run() {
     const githubToken = await setupGitHubToken();
     const octokit = createOctokit(githubToken);
 
-    // Step 3: Check write permissions (only for entity contexts)
+    // Check write permissions (only for entity contexts)
     if (isEntityContext(context)) {
       // Check if github_token was provided as input (not from app)
       const githubTokenProvided = !!process.env.OVERRIDE_GITHUB_TOKEN;
@@ -63,7 +63,7 @@ async function run() {
       return;
     }
 
-    // Step 5: Use the new modular prepare function
+    // Use the new modular prepare function
     const result = await prepare({
       context,
       octokit,
@@ -76,7 +76,7 @@ async function run() {
     // Expose the GitHub token (Claude App token) as an output
     core.setOutput("github_token", githubToken);
 
-    // Step 6: Get system prompt from mode if available
+    // Get system prompt from mode if available
     if (mode.getSystemPrompt) {
       const modeContext = mode.prepareContext(context, {
         commentId: result.commentId,
