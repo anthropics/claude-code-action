@@ -130,7 +130,7 @@ inputs:
     required: false
     default: ""
   plugin_marketplaces:
-    description: "Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., 'https://github.com/user/marketplace1.git\nhttps://github.com/user/marketplace2.git')"
+    description: "Newline-separated list of Claude Code plugin marketplace Git URLs to install from. Supports HTTPS and SSH formats (e.g., 'https://github.com/user/marketplace1.git\ngit@github.com:user/marketplace2.git')"
     required: false
     default: ""
 
