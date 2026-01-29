@@ -253,6 +253,14 @@ claude_args: |
   --mcp-config '{"mcpServers": {"custom": {"command": "npx", "args": ["-y", "@example/server"]}}}'
 ```
 
+> **⚠️ Important**: When using `--allowedTools` or `--disallowedTools` with Bash tools that contain spaces, you must quote the value. For example:
+> ```yaml
+> claude_args: |
+>   --max-turns 15
+>   --allowedTools "Bash(git diff --name-only HEAD~1),Bash(git diff HEAD~1),Read,Glob,Grep"
+> ```
+> Without quotes, spaces will cause the argument to be incorrectly parsed.
+
 ### Common claude_args Options
 
 | Option              | Description              | Example                                |

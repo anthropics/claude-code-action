@@ -1,3 +1,4 @@
+import * as core from "@actions/core";
 import { parse as parseShellArgs } from "shell-quote";
 import type { ClaudeOptions } from "./run-claude";
 import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
@@ -27,6 +28,67 @@ const ACCUMULATE_DELIMITER = "\x00";
 type McpConfig = {
   mcpServers?: Record<string, unknown>;
 };
+
+/**
+ * Detects if arguments appear to be incorrectly parsed due to missing quotes.
+ * Looks for patterns like:
+ * - "Bash(git" without a closing paren (suggesting it was split at a space)
+ * - Standalone words like "diff", "git" after "Bash" (suggesting Bash tool was split)
+ * - Flags like "--name-only" appearing as separate arguments when they should be part of a tool
+ */
+function detectIncorrectlyParsedArgs(
+  args: string[],
+  flag: string,
+): boolean {
+  if (!ACCUMULATING_FLAGS.has(flag)) {
+    return false;
+  }
+
+  // Look for patterns that suggest incorrect parsing
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (!arg) continue;
+
+    // Pattern 1: Tool name with opening paren but no closing paren (e.g., "Bash(git")
+    if (/^[A-Za-z]+\([^)]*$/.test(arg) && !arg.includes(")")) {
+      return true;
+    }
+
+    // Pattern 2: Standalone tool names followed by command words
+    // This suggests a Bash tool was split (e.g., "Bash" followed by "git", "diff", etc.)
+    if (
+      /^(Bash|Read|Write|Edit|Glob|Grep)$/i.test(arg) &&
+      i + 1 < args.length &&
+      /^(git|diff|npm|yarn|node|python|bash|sh|ls|cat|grep|find|cd|pwd)$/i.test(
+        args[i + 1]!,
+      )
+    ) {
+      return true;
+    }
+
+    // Pattern 3: Flag-like arguments (starting with --) in the values array
+    // This suggests something like "Bash(git diff --name-only HEAD~1)" was split
+    // and --name-only became a separate argument
+    if (arg.startsWith("--")) {
+      return true;
+    }
+
+    // Pattern 4: Command words that appear standalone (not part of a tool pattern)
+    // This suggests they were split from a Bash tool
+    if (
+      /^(git|diff|npm|yarn|node|python|bash|sh)$/i.test(arg) &&
+      i > 0 &&
+      !/^(Bash|Read|Write|Edit|Glob|Grep)\(/i.test(args[i - 1]!)
+    ) {
+      // Check if previous arg is a tool name without parens (suggesting split)
+      if (/^(Bash|Read|Write|Edit|Glob|Grep)$/i.test(args[i - 1]!)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
 
 /**
  * Merge multiple MCP config values into a single config.
@@ -112,6 +174,17 @@ function parseClaudeArgsToExtraArgs(
             i++;
             values.push(args[i]!);
           }
+          
+          // Check for incorrectly parsed arguments and warn
+          if (detectIncorrectlyParsedArgs(values, flag)) {
+            core.warning(
+              `Detected incorrectly parsed ${flag} argument. This usually happens when ` +
+                `multiline YAML values contain spaces without quotes. ` +
+                `Please quote values with spaces, e.g.: ` +
+                `--${flag} "Bash(git diff --name-only HEAD~1),Read,Glob"`,
+            );
+          }
+          
           const joinedValues = values.join(ACCUMULATE_DELIMITER);
           if (result[flag]) {
             result[flag] =
