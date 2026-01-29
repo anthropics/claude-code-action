@@ -11,6 +11,7 @@ import { sanitizeContent } from "../github/utils/sanitizer";
 // Get repository information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
 const REPO_NAME = process.env.REPO_NAME;
+const JOB_ID = process.env.GITHUB_JOB_ID || process.env.GITHUB_JOB || "";
 
 if (!REPO_OWNER || !REPO_NAME) {
   console.error(
@@ -56,12 +57,15 @@ server.tool(
         eventName === "pull_request_review_comment";
 
       const sanitizedBody = sanitizeContent(body);
+      // Prepend sticky header if job ID is available (for sticky comment isolation)
+      const stickyHeader = JOB_ID ? `<!-- sticky-job: ${JOB_ID} -->\n` : "";
+      const finalBody = stickyHeader + sanitizedBody;
 
       const result = await updateClaudeComment(octokit, {
         owner,
         repo,
         commentId,
-        body: sanitizedBody,
+        body: finalBody,
         isPullRequestReviewComment,
       });
 

@@ -94,6 +94,7 @@ type BaseContext = {
     sshSigningKey: string;
     botId: string;
     botName: string;
+    jobId: string;
     allowedBots: string;
     allowedNonWriteUsers: string;
     trackProgress: boolean;
@@ -154,6 +155,7 @@ export function parseGitHubContext(): GitHubContext {
       sshSigningKey: process.env.SSH_SIGNING_KEY || "",
       botId: process.env.BOT_ID ?? String(CLAUDE_APP_BOT_ID),
       botName: process.env.BOT_NAME ?? CLAUDE_BOT_LOGIN,
+      jobId: process.env.GITHUB_JOB_ID || process.env.GITHUB_JOB || "",
       allowedBots: process.env.ALLOWED_BOTS ?? "",
       allowedNonWriteUsers: process.env.ALLOWED_NON_WRITE_USERS ?? "",
       trackProgress: process.env.TRACK_PROGRESS === "true",

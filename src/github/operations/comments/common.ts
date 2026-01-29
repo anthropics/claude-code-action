@@ -21,11 +21,17 @@ export function createBranchLink(
   return `\n[View branch](${branchUrl})`;
 }
 
+export function createStickyCommentHeader(jobId: string): string {
+  return `<!-- sticky-job: ${jobId} -->`;
+}
+
 export function createCommentBody(
   jobRunLink: string,
   branchLink: string = "",
+  jobId: string = "",
 ): string {
-  return `Claude Code is working… ${SPINNER_HTML}
+  const header = jobId ? `${createStickyCommentHeader(jobId)}\n` : "";
+  return `${header}Claude Code is working… ${SPINNER_HTML}
 
 I'll analyze this and get back to you.
 
