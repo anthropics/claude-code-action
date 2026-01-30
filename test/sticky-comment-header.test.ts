@@ -19,4 +19,21 @@ describe("Sticky Comment Header Logic", () => {
     const body2 = createCommentBody("link", "", "bot2");
     expect(body1).not.toEqual(body2);
   });
+
+  test("header is placed at the beginning of the comment", () => {
+    const body = createCommentBody("http://example.com", "", "claude-bot");
+    expect(body.startsWith("<!-- bot: claude-bot -->")).toBe(true);
+  });
+
+  test("header format is consistent for matching", () => {
+    const body = createCommentBody("http://example.com", "", "test-bot");
+    // The header pattern used for matching in create-initial.ts
+    const headerPattern = /<!--\s*bot:\s*test-bot\s*-->/i;
+    expect(headerPattern.test(body)).toBe(true);
+  });
+
+  test("handles bot names with special characters", () => {
+    const body = createCommentBody("http://example.com", "", "claude.bot+test");
+    expect(body).toContain("<!-- bot: claude.bot+test -->");
+  });
 });
