@@ -4,7 +4,11 @@ import type { Mode, ModeOptions, ModeResult } from "../types";
 import type { PreparedContext } from "../../create-prompt/types";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { parseAllowedTools } from "./parse-tools";
-import { configureGitAuth } from "../../github/operations/git-config";
+import {
+  configureGitAuth,
+  setupSshSigning,
+} from "../../github/operations/git-config";
+import { checkHumanActor } from "../../github/validation/actor";
 import type { GitHubContext } from "../../github/context";
 import { isEntityContext } from "../../github/context";
 
@@ -77,9 +81,36 @@ export const agentMode: Mode = {
     return false;
   },
 
-  async prepare({ context, githubToken }: ModeOptions): Promise<ModeResult> {
+  async prepare({
+    context,
+    octokit,
+    githubToken,
+  }: ModeOptions): Promise<ModeResult> {
+    // Check if actor is human (prevents bot-triggered loops)
+    await checkHumanActor(octokit.rest, context);
+
     // Configure git authentication for agent mode (same as tag mode)
-    if (!context.inputs.useCommitSigning) {
+    // SSH signing takes precedence if provided
+    const useSshSigning = !!context.inputs.sshSigningKey;
+    const useApiCommitSigning =
+      context.inputs.useCommitSigning && !useSshSigning;
+
+    if (useSshSigning) {
+      // Setup SSH signing for commits
+      await setupSshSigning(context.inputs.sshSigningKey);
+
+      // Still configure git auth for push operations (user/email and remote URL)
+      const user = {
+        login: context.inputs.botName,
+        id: parseInt(context.inputs.botId),
+      };
+      try {
+        await configureGitAuth(githubToken, context, user);
+      } catch (error) {
+        console.error("Failed to configure git authentication:", error);
+        // Continue anyway - git operations may still work with default config
+      }
+    } else if (!useApiCommitSigning) {
       // Use bot_id and bot_name from inputs directly
       const user = {
         login: context.inputs.botName,

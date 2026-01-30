@@ -1,6 +1,7 @@
-import { describe, expect, it, jest } from "bun:test";
+import { describe, expect, it, jest, test } from "bun:test";
 import {
   extractTriggerTimestamp,
+  extractOriginalTitle,
   fetchGitHubData,
   filterCommentsToTriggerTime,
   filterReviewsToTriggerTime,
@@ -9,6 +10,7 @@ import {
 import {
   createMockContext,
   mockIssueCommentContext,
+  mockPullRequestCommentContext,
   mockPullRequestReviewContext,
   mockPullRequestReviewCommentContext,
   mockPullRequestOpenedContext,
@@ -60,6 +62,47 @@ describe("extractTriggerTimestamp", () => {
     });
     const timestamp = extractTriggerTimestamp(context);
     expect(timestamp).toBeUndefined();
+  });
+});
+
+describe("extractOriginalTitle", () => {
+  it("should extract title from IssueCommentEvent on PR", () => {
+    const title = extractOriginalTitle(mockPullRequestCommentContext);
+    expect(title).toBe("Fix: Memory leak in user service");
+  });
+
+  it("should extract title from PullRequestReviewEvent", () => {
+    const title = extractOriginalTitle(mockPullRequestReviewContext);
+    expect(title).toBe("Refactor: Improve error handling in API layer");
+  });
+
+  it("should extract title from PullRequestReviewCommentEvent", () => {
+    const title = extractOriginalTitle(mockPullRequestReviewCommentContext);
+    expect(title).toBe("Performance: Optimize search algorithm");
+  });
+
+  it("should extract title from pull_request event", () => {
+    const title = extractOriginalTitle(mockPullRequestOpenedContext);
+    expect(title).toBe("Feature: Add user authentication");
+  });
+
+  it("should extract title from issues event", () => {
+    const title = extractOriginalTitle(mockIssueOpenedContext);
+    expect(title).toBe("Bug: Application crashes on startup");
+  });
+
+  it("should return undefined for event without title", () => {
+    const context = createMockContext({
+      eventName: "issue_comment",
+      payload: {
+        comment: {
+          id: 123,
+          body: "test",
+        },
+      } as any,
+    });
+    const title = extractOriginalTitle(context);
+    expect(title).toBeUndefined();
   });
 });
 
@@ -944,5 +987,214 @@ describe("fetchGitHubData integration with time filtering", () => {
       key.includes("pr_body"),
     );
     expect(hasPrBodyInMap).toBe(false);
+  });
+
+  it("should use originalTitle when provided instead of fetched title", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            number: 123,
+            title: "Fetched Title From GraphQL",
+            body: "PR body",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            additions: 10,
+            deletions: 5,
+            state: "OPEN",
+            commits: { totalCount: 1, nodes: [] },
+            files: { nodes: [] },
+            comments: { nodes: [] },
+            reviews: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "123",
+      isPR: true,
+      triggerUsername: "trigger-user",
+      originalTitle: "Original Title From Webhook",
+    });
+
+    expect(result.contextData.title).toBe("Original Title From Webhook");
+  });
+
+  it("should use fetched title when originalTitle is not provided", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            number: 123,
+            title: "Fetched Title From GraphQL",
+            body: "PR body",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            additions: 10,
+            deletions: 5,
+            state: "OPEN",
+            commits: { totalCount: 1, nodes: [] },
+            files: { nodes: [] },
+            comments: { nodes: [] },
+            reviews: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "123",
+      isPR: true,
+      triggerUsername: "trigger-user",
+    });
+
+    expect(result.contextData.title).toBe("Fetched Title From GraphQL");
+  });
+
+  it("should use original title from webhook even if title was edited after trigger", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            number: 123,
+            title: "Edited Title (from GraphQL)",
+            body: "PR body",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            lastEditedAt: "2024-01-15T12:30:00Z", // Edited after trigger
+            additions: 10,
+            deletions: 5,
+            state: "OPEN",
+            commits: { totalCount: 1, nodes: [] },
+            files: { nodes: [] },
+            comments: { nodes: [] },
+            reviews: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "123",
+      isPR: true,
+      triggerUsername: "trigger-user",
+      triggerTime: "2024-01-15T12:00:00Z",
+      originalTitle: "Original Title (from webhook at trigger time)",
+    });
+
+    expect(result.contextData.title).toBe(
+      "Original Title (from webhook at trigger time)",
+    );
+  });
+});
+
+describe("filterCommentsByActor", () => {
+  test("filters out excluded actors", () => {
+    const comments = [
+      { author: { login: "user1" }, body: "comment1" },
+      { author: { login: "bot[bot]" }, body: "comment2" },
+      { author: { login: "user2" }, body: "comment3" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "", "*[bot]");
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((c: any) => c.author.login)).toEqual([
+      "user1",
+      "user2",
+    ]);
+  });
+
+  test("includes only specified actors", () => {
+    const comments = [
+      { author: { login: "user1" }, body: "comment1" },
+      { author: { login: "user2" }, body: "comment2" },
+      { author: { login: "user3" }, body: "comment3" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "user1,user2", "");
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((c: any) => c.author.login)).toEqual([
+      "user1",
+      "user2",
+    ]);
+  });
+
+  test("returns all when no filters", () => {
+    const comments = [
+      { author: { login: "user1" }, body: "comment1" },
+      { author: { login: "user2" }, body: "comment2" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "", "");
+    expect(filtered).toHaveLength(2);
+  });
+
+  test("exclusion takes priority", () => {
+    const comments = [
+      { author: { login: "user1" }, body: "comment1" },
+      { author: { login: "user2" }, body: "comment2" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "user1,user2", "user1");
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].author.login).toBe("user2");
+  });
+
+  test("filters multiple bot types", () => {
+    const comments = [
+      { author: { login: "user1" }, body: "comment1" },
+      { author: { login: "dependabot[bot]" }, body: "comment2" },
+      { author: { login: "renovate[bot]" }, body: "comment3" },
+      { author: { login: "user2" }, body: "comment4" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "", "*[bot]");
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((c: any) => c.author.login)).toEqual([
+      "user1",
+      "user2",
+    ]);
+  });
+
+  test("filters specific bot only", () => {
+    const comments = [
+      { author: { login: "dependabot[bot]" }, body: "comment1" },
+      { author: { login: "renovate[bot]" }, body: "comment2" },
+      { author: { login: "user1" }, body: "comment3" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "", "dependabot[bot]");
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((c: any) => c.author.login)).toEqual([
+      "renovate[bot]",
+      "user1",
+    ]);
+  });
+
+  test("handles empty comment array", () => {
+    const comments: any[] = [];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "user1", "");
+    expect(filtered).toHaveLength(0);
   });
 });

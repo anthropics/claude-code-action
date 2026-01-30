@@ -6,12 +6,22 @@
  * - For Issues: Create a new branch
  */
 
+import { $ } from "bun";
 import { execFileSync } from "child_process";
 import * as core from "@actions/core";
 import type { ParsedGitHubContext } from "../context";
 import type { GitHubPullRequest } from "../types";
 import type { Octokits } from "../api/client";
 import type { FetchDataResult } from "../data/fetcher";
+import { generateBranchName } from "../../utils/branch-template";
+
+/**
+ * Extracts the first label from GitHub data, or returns undefined if no labels exist
+ */
+function extractFirstLabel(githubData: FetchDataResult): string | undefined {
+  const labels = githubData.contextData.labels?.nodes;
+  return labels && labels.length > 0 ? labels[0]?.name : undefined;
+}
 
 /**
  * Validates a git branch name against a strict whitelist pattern.
@@ -125,7 +135,7 @@ export async function setupBranch(
 ): Promise<BranchInfo> {
   const { owner, repo } = context.repository;
   const entityNumber = context.entityNumber;
-  const { baseBranch, branchPrefix } = context.inputs;
+  const { baseBranch, branchPrefix, branchNameTemplate } = context.inputs;
   const isPR = context.isPR;
 
   if (isPR) {
@@ -191,17 +201,8 @@ export async function setupBranch(
   // Generate branch name for either an issue or closed/merged PR
   const entityType = isPR ? "pr" : "issue";
 
-  // Create Kubernetes-compatible timestamp: lowercase, hyphens only, shorter format
-  const now = new Date();
-  const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
-
-  // Ensure branch name is Kubernetes-compatible:
-  // - Lowercase only
-  // - Alphanumeric with hyphens
-  // - No underscores
-  // - Max 50 chars (to allow for prefixes)
-  const branchName = `${branchPrefix}${entityType}-${entityNumber}-${timestamp}`;
-  const newBranch = branchName.toLowerCase().substring(0, 50);
+  // Get the SHA of the source branch to use in template
+  let sourceSHA: string | undefined;
 
   try {
     // Get the SHA of the source branch to verify it exists
@@ -211,8 +212,46 @@ export async function setupBranch(
       ref: `heads/${sourceBranch}`,
     });
 
-    const currentSHA = sourceBranchRef.data.object.sha;
-    console.log(`Source branch SHA: ${currentSHA}`);
+    sourceSHA = sourceBranchRef.data.object.sha;
+    console.log(`Source branch SHA: ${sourceSHA}`);
+
+    // Extract first label from GitHub data
+    const firstLabel = extractFirstLabel(githubData);
+
+    // Extract title from GitHub data
+    const title = githubData.contextData.title;
+
+    // Generate branch name using template or default format
+    let newBranch = generateBranchName(
+      branchNameTemplate,
+      branchPrefix,
+      entityType,
+      entityNumber,
+      sourceSHA,
+      firstLabel,
+      title,
+    );
+
+    // Check if generated branch already exists on remote
+    try {
+      await $`git ls-remote --exit-code origin refs/heads/${newBranch}`.quiet();
+
+      // If we get here, branch exists (exit code 0)
+      console.log(
+        `Branch '${newBranch}' already exists, falling back to default format`,
+      );
+      newBranch = generateBranchName(
+        undefined, // Force default template
+        branchPrefix,
+        entityType,
+        entityNumber,
+        sourceSHA,
+        firstLabel,
+        title,
+      );
+    } catch {
+      // Branch doesn't exist (non-zero exit code), continue with generated name
+    }
 
     // For commit signing, defer branch creation to the file ops server
     if (context.inputs.useCommitSigning) {

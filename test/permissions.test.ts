@@ -68,12 +68,15 @@ describe("checkWritePermissions", () => {
       branchPrefix: "claude/",
       useStickyComment: false,
       useCommitSigning: false,
+      sshSigningKey: "",
       botId: String(CLAUDE_APP_BOT_ID),
       botName: CLAUDE_BOT_LOGIN,
       allowedBots: "",
       allowedNonWriteUsers: "",
       trackProgress: false,
       includeFixLinks: true,
+      includeCommentsByActor: "",
+      excludeCommentsByActor: "",
     },
   });
 

@@ -13,6 +13,16 @@
 - **No Cross-Repository Access**: Each action invocation is limited to the repository where it was triggered
 - **Limited Scope**: The token cannot access other repositories or perform actions beyond the configured permissions
 
+## Pull Request Creation
+
+In its default configuration, **Claude does not create pull requests automatically** when responding to `@claude` mentions. Instead:
+
+- Claude commits code changes to a new branch
+- Claude provides a **link to the GitHub PR creation page** in its response
+- **The user must click the link and create the PR themselves**, ensuring human oversight before any code is proposed for merging
+
+This design ensures that users retain full control over what pull requests are created and can review the changes before initiating the PR workflow.
+
 ## ⚠️ Prompt Injection Risks
 
 **Beware of potential hidden markdown when tagging Claude on untrusted content.** External contributors may include hidden instructions through HTML comments, invisible characters, hidden attributes, or other techniques. The action sanitizes content by stripping HTML comments, invisible characters, markdown image alt text, hidden HTML attributes, and HTML entities, but new bypass techniques may emerge. We recommend reviewing the raw content of all input coming from external contributors before allowing Claude to process it.
@@ -38,7 +48,64 @@ The following permissions are requested but not yet actively used. These will en
 
 ## Commit Signing
 
-Commits made by Claude through this action are no longer automatically signed with commit signatures. To enable commit signing set `use_commit_signing: True` in the workflow(s). This ensures the authenticity and integrity of commits, providing a verifiable trail of changes made by the action.
+By default, commits made by Claude are unsigned. You can enable commit signing using one of two methods:
+
+### Option 1: GitHub API Commit Signing (use_commit_signing)
+
+This uses GitHub's API to create commits, which automatically signs them as verified from the GitHub App:
+
+```yaml
+- uses: anthropics/claude-code-action@main
+  with:
+    use_commit_signing: true
+```
+
+This is the simplest option and requires no additional setup. However, because it uses the GitHub API instead of git CLI, it cannot perform complex git operations like rebasing, cherry-picking, or interactive history manipulation.
+
+### Option 2: SSH Signing Key (ssh_signing_key)
+
+This uses an SSH key to sign commits via git CLI. Use this option when you need both signed commits AND standard git operations (rebasing, cherry-picking, etc.):
+
+```yaml
+- uses: anthropics/claude-code-action@main
+  with:
+    ssh_signing_key: ${{ secrets.SSH_SIGNING_KEY }}
+    bot_id: "YOUR_GITHUB_USER_ID"
+    bot_name: "YOUR_GITHUB_USERNAME"
+```
+
+Commits will show as verified and attributed to the GitHub account that owns the signing key.
+
+**Setup steps:**
+
+1. Generate an SSH key pair for signing:
+
+   ```bash
+   ssh-keygen -t ed25519 -f ~/.ssh/signing_key -N "" -C "commit signing key"
+   ```
+
+2. Add the **public key** to your GitHub account:
+
+   - Go to GitHub → Settings → SSH and GPG keys
+   - Click "New SSH key"
+   - Select **Key type: Signing Key** (important)
+   - Paste the contents of `~/.ssh/signing_key.pub`
+
+3. Add the **private key** to your repository secrets:
+
+   - Go to your repo → Settings → Secrets and variables → Actions
+   - Create a new secret named `SSH_SIGNING_KEY`
+   - Paste the contents of `~/.ssh/signing_key`
+
+4. Get your GitHub user ID:
+
+   ```bash
+   gh api users/YOUR_USERNAME --jq '.id'
+   ```
+
+5. Update your workflow with `bot_id` and `bot_name` matching the account where you added the signing key.
+
+**Note:** If both `ssh_signing_key` and `use_commit_signing` are provided, `ssh_signing_key` takes precedence.
 
 ## ⚠️ Authentication Protection
 

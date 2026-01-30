@@ -127,7 +127,7 @@ For performance, Claude uses shallow clones:
 If you need full history, you can configure this in your workflow before calling Claude in the `actions/checkout` step.
 
 ```
-- uses: actions/checkout@v5
+- uses: actions/checkout@v6
   depth: 0 # will fetch full repo history
 ```
 

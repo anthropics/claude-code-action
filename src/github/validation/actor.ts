@@ -6,11 +6,11 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import type { ParsedGitHubContext } from "../context";
+import type { GitHubContext } from "../context";
 
 export async function checkHumanActor(
   octokit: Octokit,
-  githubContext: ParsedGitHubContext,
+  githubContext: GitHubContext,
 ) {
   // Fetch user information from GitHub API
   const { data: userData } = await octokit.users.getByUsername({

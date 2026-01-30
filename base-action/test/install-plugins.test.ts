@@ -596,4 +596,111 @@ describe("installPlugins", () => {
       { stdio: "inherit" },
     );
   });
+
+  // Local marketplace path tests
+  test("should accept local marketplace path with ./", async () => {
+    const spy = createMockSpawn();
+    await installPlugins("./my-local-marketplace", "test-plugin");
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "./my-local-marketplace"],
+      { stdio: "inherit" },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "install", "test-plugin"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept local marketplace path with absolute Unix path", async () => {
+    const spy = createMockSpawn();
+    await installPlugins("/home/user/my-marketplace", "test-plugin");
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "/home/user/my-marketplace"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept local marketplace path with Windows absolute path", async () => {
+    const spy = createMockSpawn();
+    await installPlugins("C:\\Users\\user\\marketplace", "test-plugin");
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "C:\\Users\\user\\marketplace"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept mixed local and remote marketplaces", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "./local-marketplace\nhttps://github.com/user/remote.git",
+      "test-plugin",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(3);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "./local-marketplace"],
+      { stdio: "inherit" },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "marketplace", "add", "https://github.com/user/remote.git"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept local path with ../ (parent directory)", async () => {
+    const spy = createMockSpawn();
+    await installPlugins("../shared-plugins/marketplace", "test-plugin");
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "../shared-plugins/marketplace"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept local path with nested directories", async () => {
+    const spy = createMockSpawn();
+    await installPlugins("./plugins/my-org/my-marketplace", "test-plugin");
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "./plugins/my-org/my-marketplace"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept local path with dots in directory name", async () => {
+    const spy = createMockSpawn();
+    await installPlugins("./my.plugin.marketplace", "test-plugin");
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "./my.plugin.marketplace"],
+      { stdio: "inherit" },
+    );
+  });
 });

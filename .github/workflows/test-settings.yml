@@ -1,11 +1,9 @@
 name: Test Settings Feature
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   test-settings-inline-allow:

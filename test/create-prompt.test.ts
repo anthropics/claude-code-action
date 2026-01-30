@@ -61,6 +61,7 @@ describe("generatePrompt", () => {
       body: "This is a test PR",
       author: { login: "testuser" },
       state: "OPEN",
+      labels: { nodes: [] },
       createdAt: "2023-01-01T00:00:00Z",
       additions: 15,
       deletions: 5,
@@ -475,6 +476,7 @@ describe("generatePrompt", () => {
         body: "The login form is not working",
         author: { login: "testuser" },
         state: "OPEN",
+        labels: { nodes: [] },
         createdAt: "2023-01-01T00:00:00Z",
         comments: {
           nodes: [],

@@ -27,7 +27,6 @@ This is a GitHub Action that allows running Claude Code within GitHub workflows.
 ### Key Design Patterns
 
 - Uses Bun runtime for development and execution
-- Named pipes for IPC between prompt input and Claude process
 - JSON streaming output format for execution logs
 - Composite action pattern to orchestrate multiple steps
 - Provider-agnostic design supporting Anthropic API, AWS Bedrock, and Google Vertex AI
@@ -54,7 +53,6 @@ This is a GitHub Action that allows running Claude Code within GitHub workflows.
 
 ## Important Technical Details
 
-- Uses `mkfifo` to create named pipes for prompt input
 - Outputs execution logs as JSON to `/tmp/claude-execution-output.json`
 - Timeout enforcement via `timeout` command wrapper
 - Strict TypeScript configuration with Bun-specific settings

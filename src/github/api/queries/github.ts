@@ -18,6 +18,11 @@ export const PR_QUERY = `
         additions
         deletions
         state
+        labels(first: 1) {
+          nodes {
+            name
+          }
+        }
         commits(first: 100) {
           totalCount
           nodes {
@@ -101,6 +106,11 @@ export const ISSUE_QUERY = `
         updatedAt
         lastEditedAt
         state
+        labels(first: 1) {
+          nodes {
+            name
+          }
+        }
         comments(first: 100) {
           nodes {
             id

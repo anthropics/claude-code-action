@@ -145,12 +145,12 @@ describe("Agent Mode", () => {
         users: {
           getAuthenticated: mock(() =>
             Promise.resolve({
-              data: { login: "test-user", id: 12345 },
+              data: { login: "test-user", id: 12345, type: "User" },
             }),
           ),
           getByUsername: mock(() =>
             Promise.resolve({
-              data: { login: "test-user", id: 12345 },
+              data: { login: "test-user", id: 12345, type: "User" },
             }),
           ),
         },
@@ -187,6 +187,65 @@ describe("Agent Mode", () => {
       process.env.GITHUB_REF_NAME = originalRefName;
   });
 
+  test("prepare method rejects bot actors without allowed_bots", async () => {
+    const contextWithPrompts = createMockAutomationContext({
+      eventName: "workflow_dispatch",
+    });
+    contextWithPrompts.actor = "claude[bot]";
+    contextWithPrompts.inputs.allowedBots = "";
+
+    const mockOctokit = {
+      rest: {
+        users: {
+          getByUsername: mock(() =>
+            Promise.resolve({
+              data: { login: "claude[bot]", id: 12345, type: "Bot" },
+            }),
+          ),
+        },
+      },
+    } as any;
+
+    await expect(
+      agentMode.prepare({
+        context: contextWithPrompts,
+        octokit: mockOctokit,
+        githubToken: "test-token",
+      }),
+    ).rejects.toThrow(
+      "Workflow initiated by non-human actor: claude (type: Bot)",
+    );
+  });
+
+  test("prepare method allows bot actors when in allowed_bots list", async () => {
+    const contextWithPrompts = createMockAutomationContext({
+      eventName: "workflow_dispatch",
+    });
+    contextWithPrompts.actor = "dependabot[bot]";
+    contextWithPrompts.inputs.allowedBots = "dependabot";
+
+    const mockOctokit = {
+      rest: {
+        users: {
+          getByUsername: mock(() =>
+            Promise.resolve({
+              data: { login: "dependabot[bot]", id: 12345, type: "Bot" },
+            }),
+          ),
+        },
+      },
+    } as any;
+
+    // Should not throw - bot is in allowed list
+    await expect(
+      agentMode.prepare({
+        context: contextWithPrompts,
+        octokit: mockOctokit,
+        githubToken: "test-token",
+      }),
+    ).resolves.toBeDefined();
+  });
+
   test("prepare method creates prompt file with correct content", async () => {
     const contextWithPrompts = createMockAutomationContext({
       eventName: "workflow_dispatch",
@@ -199,12 +258,12 @@ describe("Agent Mode", () => {
         users: {
           getAuthenticated: mock(() =>
             Promise.resolve({
-              data: { login: "test-user", id: 12345 },
+              data: { login: "test-user", id: 12345, type: "User" },
             }),
           ),
           getByUsername: mock(() =>
             Promise.resolve({
-              data: { login: "test-user", id: 12345 },
+              data: { login: "test-user", id: 12345, type: "User" },
             }),
           ),
         },

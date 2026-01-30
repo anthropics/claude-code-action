@@ -20,12 +20,15 @@ const defaultInputs = {
   branchPrefix: "claude/",
   useStickyComment: false,
   useCommitSigning: false,
+  sshSigningKey: "",
   botId: String(CLAUDE_APP_BOT_ID),
   botName: CLAUDE_BOT_LOGIN,
   allowedBots: "",
   allowedNonWriteUsers: "",
   trackProgress: false,
   includeFixLinks: true,
+  includeCommentsByActor: "",
+  excludeCommentsByActor: "",
 };
 
 const defaultRepository = {
@@ -54,7 +57,12 @@ export const createMockContext = (
   };
 
   const mergedInputs = overrides.inputs
-    ? { ...defaultInputs, ...overrides.inputs }
+    ? {
+        ...defaultInputs,
+        ...overrides.inputs,
+        includeCommentsByActor: overrides.inputs.includeCommentsByActor ?? "",
+        excludeCommentsByActor: overrides.inputs.excludeCommentsByActor ?? "",
+      }
     : defaultInputs;
 
   return { ...baseContext, ...overrides, inputs: mergedInputs };
@@ -78,7 +86,12 @@ export const createMockAutomationContext = (
   };
 
   const mergedInputs = overrides.inputs
-    ? { ...defaultInputs, ...overrides.inputs }
+    ? {
+        ...defaultInputs,
+        ...overrides.inputs,
+        includeCommentsByActor: overrides.inputs.includeCommentsByActor ?? "",
+        excludeCommentsByActor: overrides.inputs.excludeCommentsByActor ?? "",
+      }
     : { ...defaultInputs };
 
   return { ...baseContext, ...overrides, inputs: mergedInputs };
