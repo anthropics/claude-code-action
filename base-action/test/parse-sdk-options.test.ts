@@ -322,6 +322,8 @@ describe("parseSdkOptions", () => {
       process.env.OTEL_LOGS_EXPORTER = "otlp";
       process.env.OTEL_EXPORTER_OTLP_PROTOCOL = "http/json";
       process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "https://example.com";
+      process.env.OTEL_EXPORTER_OTLP_HEADERS =
+        "Authorization=Bearer test-token";
       process.env.OTEL_METRIC_EXPORT_INTERVAL = "10000";
       process.env.OTEL_LOGS_EXPORT_INTERVAL = "5000";
       process.env.OTEL_RESOURCE_ATTRIBUTES = "department=test";
@@ -339,6 +341,9 @@ describe("parseSdkOptions", () => {
         );
         expect(result.sdkOptions.env?.OTEL_EXPORTER_OTLP_ENDPOINT).toBe(
           "https://example.com",
+        );
+        expect(result.sdkOptions.env?.OTEL_EXPORTER_OTLP_HEADERS).toBe(
+          "Authorization=Bearer test-token",
         );
         expect(result.sdkOptions.env?.OTEL_METRIC_EXPORT_INTERVAL).toBe(
           "10000",
