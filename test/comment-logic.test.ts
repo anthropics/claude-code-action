@@ -312,6 +312,60 @@ describe("updateCommentBody", () => {
     });
   });
 
+  describe("bot header preservation", () => {
+    it("preserves bot header in sticky comments", () => {
+      const input = {
+        ...baseInput,
+        currentBody:
+          "<!-- bot: claude-review -->\nClaude Code is working…\n\n[View job run](https://github.com/owner/repo/actions/runs/123)",
+        executionDetails: { duration_ms: 5000 },
+        triggerUsername: "testuser",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result.startsWith("<!-- bot: claude-review -->")).toBe(true);
+      expect(result).toContain("**Claude finished @testuser's task in 5s**");
+    });
+
+    it("preserves bot header with different bot names", () => {
+      const input = {
+        ...baseInput,
+        currentBody:
+          "<!-- bot: claude-code-action -->\nClaude Code is working...",
+        executionDetails: { duration_ms: 30000 },
+        triggerUsername: "user",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result.startsWith("<!-- bot: claude-code-action -->")).toBe(true);
+    });
+
+    it("does not add bot header if not present in original", () => {
+      const input = {
+        ...baseInput,
+        currentBody: "Claude Code is working…",
+        executionDetails: { duration_ms: 5000 },
+        triggerUsername: "testuser",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result.startsWith("<!-- bot:")).toBe(false);
+      expect(result.startsWith("**Claude finished")).toBe(true);
+    });
+
+    it("preserves bot header with extra whitespace", () => {
+      const input = {
+        ...baseInput,
+        currentBody: "<!--  bot:  my-bot  -->\nClaude Code is working…",
+        executionDetails: { duration_ms: 5000 },
+        triggerUsername: "testuser",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result.startsWith("<!--  bot:  my-bot  -->")).toBe(true);
+    });
+  });
+
   describe("combined updates", () => {
     it("combines all updates in correct order", () => {
       const input = {
