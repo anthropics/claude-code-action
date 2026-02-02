@@ -182,7 +182,18 @@ async function installPlugin(
 }
 
 /**
- * Gets list of installed marketplace names
+ * Marketplace entry from JSON output
+ */
+interface MarketplaceEntry {
+  name: string;
+  source: string;
+  repo?: string;
+  url?: string;
+  installLocation: string;
+}
+
+/**
+ * Gets list of installed marketplace names using JSON output
  * @param claudeExecutable - Path to the Claude executable
  * @returns Promise that resolves with array of marketplace names
  */
@@ -192,7 +203,7 @@ async function getInstalledMarketplaces(
   return new Promise((resolve) => {
     const childProcess = spawn(
       claudeExecutable,
-      ["plugin", "marketplace", "list"],
+      ["plugin", "marketplace", "list", "--json"],
       { stdio: ["inherit", "pipe", "inherit"] },
     );
 
@@ -202,18 +213,14 @@ async function getInstalledMarketplaces(
     });
 
     childProcess.on("close", () => {
-      // Parse output to extract marketplace names
-      // Expected format:
-      //   Configured marketplaces:
-      //   ❯ marketplace-name
-      //     Source: Git (url)
-      // We only want lines starting with ❯ and extract the name after it
-      const names = output
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.startsWith("❯"))
-        .map((line) => line.replace(/^❯\s*/, "").trim());
-      resolve(names);
+      try {
+        const marketplaces: MarketplaceEntry[] = JSON.parse(output);
+        const names = marketplaces.map((m) => m.name);
+        resolve(names);
+      } catch {
+        // If JSON parsing fails, return empty array
+        resolve([]);
+      }
     });
 
     childProcess.on("error", () => {
