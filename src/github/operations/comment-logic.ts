@@ -1,4 +1,5 @@
 import { GITHUB_SERVER_URL } from "../api/config";
+import { extractBotHeader } from "./comments/common";
 
 export type ExecutionDetails = {
   total_cost_usd?: number;
@@ -80,8 +81,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   } = input;
 
   // Extract and preserve bot header for sticky comment identification
-  const botHeaderMatch = originalBody.match(/^(<!--\s*bot:\s*\S+\s*-->\n?)/);
-  const botHeader = botHeaderMatch ? botHeaderMatch[1] : "";
+  const botHeader = extractBotHeader(originalBody);
 
   // Extract content from the original comment body
   // First, remove the "Claude Code is working…" or "Claude Code is working..." message
