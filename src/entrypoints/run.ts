@@ -7,6 +7,7 @@
  */
 
 import * as core from "@actions/core";
+import { dirname } from "path";
 import { spawn } from "child_process";
 import { appendFile } from "fs/promises";
 import { existsSync, readFileSync } from "fs";
@@ -37,10 +38,7 @@ async function installClaudeCode(): Promise<void> {
   const customExecutable = process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
   if (customExecutable) {
     console.log(`Using custom Claude Code executable: ${customExecutable}`);
-    const claudeDir = customExecutable.substring(
-      0,
-      customExecutable.lastIndexOf("/"),
-    );
+    const claudeDir = dirname(customExecutable);
     // Add to PATH by appending to GITHUB_PATH
     const githubPath = process.env.GITHUB_PATH;
     if (githubPath) {
@@ -134,6 +132,8 @@ async function run() {
   let prepareError: string | undefined;
   let context: GitHubContext | undefined;
   let octokit: Octokits | undefined;
+  // Track whether we've completed prepare phase, so we can attribute errors correctly
+  let prepareCompleted = false;
   try {
     // Phase 1: Prepare
     const actionInputsPresent = collectActionInputsPresence();
@@ -195,6 +195,8 @@ async function run() {
     commentId = prepareResult.commentId;
     claudeBranch = prepareResult.branchInfo.claudeBranch;
     baseBranch = prepareResult.branchInfo.baseBranch;
+    prepareCompleted = true;
+
     // Set system prompt if available
     if (mode.getSystemPrompt) {
       const modeContext = mode.prepareContext(context, {
@@ -260,8 +262,11 @@ async function run() {
     core.setOutput("conclusion", claudeResult.conclusion);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    prepareSuccess = false;
-    prepareError = errorMessage;
+    // Only mark as prepare failure if we haven't completed the prepare phase
+    if (!prepareCompleted) {
+      prepareSuccess = false;
+      prepareError = errorMessage;
+    }
     core.setFailed(`Action failed with error: ${errorMessage}`);
   } finally {
     // Phase 4: Cleanup (always runs)

@@ -25,28 +25,35 @@ bun run typecheck       # Run TypeScript type checker
 
 ## Architecture Overview
 
-This is a GitHub Action that enables Claude to interact with GitHub PRs and issues. The action operates in two main phases:
+This is a GitHub Action that enables Claude to interact with GitHub PRs and issues. The action runs through a unified entrypoint (`src/entrypoints/run.ts`) that orchestrates four internal phases within a single composite step:
 
-### Phase 1: Preparation (`src/entrypoints/prepare.ts`)
+### Phase 1: Prepare
 
 1. **Authentication Setup**: Establishes GitHub token via OIDC or GitHub App
 2. **Permission Validation**: Verifies actor has write permissions
 3. **Trigger Detection**: Uses mode-specific logic to determine if Claude should respond
-4. **Context Creation**: Prepares GitHub context and initial tracking comment
+4. **Context Creation**: Prepares GitHub context, initial tracking comment, and branch
 
-### Phase 2: Execution (`base-action/`)
+### Phase 2: Install
 
-The `base-action/` directory contains the core Claude Code execution logic, which serves a dual purpose:
+1. **Claude Code CLI**: Installs the CLI (with retry logic), or uses a custom executable path
 
-- **Standalone Action**: Published separately as `@anthropic-ai/claude-code-base-action` for direct use
-- **Inner Logic**: Used internally by this GitHub Action after preparation phase completes
+### Phase 3: Execute
 
-Execution steps:
+Imports `base-action/` functions directly (no subprocess) to run Claude:
 
-1. **MCP Server Setup**: Installs and configures GitHub MCP server for tool access
-2. **Prompt Generation**: Creates context-rich prompts from GitHub data
+1. **Environment Setup**: Validates env vars, configures Claude Code settings, installs plugins
+2. **Prompt Preparation**: Writes the context-rich prompt to a temp file
 3. **Claude Integration**: Executes via multiple providers (Anthropic API, AWS Bedrock, Google Vertex AI)
-4. **Result Processing**: Updates comments and creates branches/PRs as needed
+
+The `base-action/` directory is also published separately as `@anthropic-ai/claude-code-base-action` for standalone use.
+
+### Phase 4: Cleanup (always runs)
+
+1. **Comment Update**: Updates the tracking comment with job link, branch, and status
+2. **Step Summary**: Formats Claude's output into the GitHub Actions step summary
+3. **SSH Signing Cleanup**: Removes SSH signing key (separate composite step, runs with `always()`)
+4. **Token Revocation**: Revokes the GitHub App installation token (separate composite step, runs with `always()`)
 
 ### Key Architectural Components
 
@@ -82,7 +89,7 @@ Execution steps:
 ```
 src/
 ├── entrypoints/           # Action entry points
-│   ├── prepare.ts         # Main preparation logic
+│   ├── run.ts             # Unified entrypoint (orchestrates all phases)
 │   ├── update-comment-link.ts  # Post-execution comment updates
 │   └── format-turns.ts    # Claude conversation formatting
 ├── github/               # GitHub integration layer
