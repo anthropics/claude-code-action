@@ -270,3 +270,20 @@ runs:
         OTEL_METRIC_EXPORT_INTERVAL: ${{ env.OTEL_METRIC_EXPORT_INTERVAL }}
         OTEL_LOGS_EXPORT_INTERVAL: ${{ env.OTEL_LOGS_EXPORT_INTERVAL }}
         OTEL_RESOURCE_ATTRIBUTES: ${{ env.OTEL_RESOURCE_ATTRIBUTES }}
+
+    - name: Cleanup SSH signing key
+      if: always() && inputs.ssh_signing_key != ''
+      shell: bash
+      run: |
+        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
+
+    - name: Revoke app token
+      if: always() && inputs.github_token == '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
+      shell: bash
+      run: |
+        curl -L \
+          -X DELETE \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer ${{ steps.run.outputs.github_token }}" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          ${GITHUB_API_URL:-https://api.github.com}/installation/token

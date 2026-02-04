@@ -22,9 +22,6 @@ import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
 import { formatTurnsFromData } from "./format-turns";
 import type { Turn } from "./format-turns";
-import { cleanupSshSigning } from "../github/operations/git-config";
-import { GITHUB_API_URL } from "../github/api/config";
-
 // Base-action imports (used directly instead of subprocess)
 import { validateEnvironmentVariables } from "../../base-action/src/validate-env";
 import { setupClaudeCodeSettings } from "../../base-action/src/setup-claude-code-settings";
@@ -126,32 +123,6 @@ async function writeStepSummary(executionFile: string): Promise<void> {
   }
 }
 
-/**
- * Revoke the GitHub App installation token.
- */
-async function revokeAppToken(githubToken: string): Promise<void> {
-  try {
-    const apiUrl = GITHUB_API_URL;
-    const response = await fetch(`${apiUrl}/installation/token`, {
-      method: "DELETE",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${githubToken}`,
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    });
-    if (response.ok) {
-      console.log("App token revoked successfully");
-    } else {
-      console.error(
-        `Failed to revoke app token: ${response.status} ${response.statusText}`,
-      );
-    }
-  } catch (error) {
-    console.error("Error revoking app token:", error);
-  }
-}
-
 async function run() {
   let githubToken: string | undefined;
   let commentId: number | undefined;
@@ -163,10 +134,6 @@ async function run() {
   let prepareError: string | undefined;
   let context: GitHubContext | undefined;
   let octokit: Octokits | undefined;
-  let useSshSigning = false;
-  let useOverrideToken = false;
-  let skippedDueToWorkflowValidation = false;
-
   try {
     // Phase 1: Prepare
     const actionInputsPresent = collectActionInputsPresence();
@@ -177,7 +144,6 @@ async function run() {
       githubToken = await setupGitHubToken();
     } catch (error) {
       if (error instanceof WorkflowValidationSkipError) {
-        skippedDueToWorkflowValidation = true;
         core.setOutput("skipped_due_to_workflow_validation_mismatch", "true");
         console.log("Exiting due to workflow validation skip");
         return;
@@ -185,7 +151,6 @@ async function run() {
       throw error;
     }
 
-    useOverrideToken = !!process.env.OVERRIDE_GITHUB_TOKEN;
     octokit = createOctokit(githubToken);
 
     // Set GITHUB_TOKEN and GH_TOKEN in process env for downstream usage
@@ -198,7 +163,7 @@ async function run() {
         octokit.rest,
         context,
         context.inputs.allowedNonWriteUsers,
-        useOverrideToken,
+        !!process.env.OVERRIDE_GITHUB_TOKEN,
       );
       if (!hasWritePermissions) {
         throw new Error(
@@ -230,8 +195,6 @@ async function run() {
     commentId = prepareResult.commentId;
     claudeBranch = prepareResult.branchInfo.claudeBranch;
     baseBranch = prepareResult.branchInfo.baseBranch;
-    useSshSigning = !!context.inputs.sshSigningKey;
-
     // Set system prompt if available
     if (mode.getSystemPrompt) {
       const modeContext = mode.prepareContext(context, {
@@ -334,20 +297,6 @@ async function run() {
     // Write step summary
     if (executionFile && existsSync(executionFile)) {
       await writeStepSummary(executionFile);
-    }
-
-    // Cleanup SSH signing key
-    if (useSshSigning) {
-      try {
-        await cleanupSshSigning();
-      } catch (error) {
-        console.error("Failed to cleanup SSH signing key:", error);
-      }
-    }
-
-    // Revoke app token (only if we're using the app token, not an override)
-    if (githubToken && !useOverrideToken && !skippedDueToWorkflowValidation) {
-      await revokeAppToken(githubToken);
     }
 
     // Set remaining action-level outputs
