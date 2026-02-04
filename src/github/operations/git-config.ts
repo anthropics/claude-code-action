@@ -11,6 +11,7 @@ import { join } from "path";
 import { homedir } from "os";
 import type { GitHubContext } from "../context";
 import { GITHUB_SERVER_URL } from "../api/config";
+import { getNoreplyEmailDomain } from "../../utils/noreply-email";
 
 const SSH_SIGNING_KEY_PATH = join(homedir(), ".ssh", "claude_signing_key");
 
@@ -28,10 +29,7 @@ export async function configureGitAuth(
 
   // Determine the noreply email domain based on GITHUB_SERVER_URL
   const serverUrl = new URL(GITHUB_SERVER_URL);
-  const noreplyDomain =
-    serverUrl.hostname === "github.com"
-      ? "users.noreply.github.com"
-      : `users.noreply.${serverUrl.hostname}`;
+  const noreplyDomain = getNoreplyEmailDomain(GITHUB_SERVER_URL);
 
   // Configure git user
   console.log("Configuring git user...");
