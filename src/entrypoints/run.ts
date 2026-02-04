@@ -17,8 +17,10 @@ import { createOctokit } from "../github/api/client";
 import type { Octokits } from "../github/api/client";
 import { parseGitHubContext, isEntityContext } from "../github/context";
 import type { GitHubContext } from "../github/context";
-import { getMode } from "../modes/registry";
-import { prepare } from "../prepare";
+import { detectMode } from "../modes/detector";
+import { prepareTagMode } from "../modes/tag";
+import { prepareAgentMode } from "../modes/agent";
+import { checkContainsTrigger } from "../github/validation/trigger";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
 import { formatTurnsFromData } from "./format-turns";
@@ -138,7 +140,10 @@ async function run() {
     // Phase 1: Prepare
     const actionInputsPresent = collectActionInputsPresence();
     context = parseGitHubContext();
-    const mode = getMode(context);
+    const modeName = detectMode(context);
+    console.log(
+      `Auto-detected mode: ${modeName} for event: ${context.eventName}`,
+    );
 
     try {
       githubToken = await setupGitHubToken();
@@ -173,8 +178,11 @@ async function run() {
     }
 
     // Check trigger conditions
-    const containsTrigger = mode.shouldTrigger(context);
-    console.log(`Mode: ${mode.name}`);
+    const containsTrigger =
+      modeName === "tag"
+        ? isEntityContext(context) && checkContainsTrigger(context)
+        : !!context.inputs?.prompt;
+    console.log(`Mode: ${modeName}`);
     console.log(`Context prompt: ${context.inputs?.prompt || "NO PROMPT"}`);
     console.log(`Trigger result: ${containsTrigger}`);
 
@@ -185,30 +193,18 @@ async function run() {
     }
 
     // Run prepare
-    const prepareResult = await prepare({
-      context,
-      octokit,
-      mode,
-      githubToken,
-    });
+    console.log(
+      `Preparing with mode: ${modeName} for event: ${context.eventName}`,
+    );
+    const prepareResult =
+      modeName === "tag"
+        ? await prepareTagMode({ context, octokit, githubToken })
+        : await prepareAgentMode({ context, octokit, githubToken });
 
     commentId = prepareResult.commentId;
     claudeBranch = prepareResult.branchInfo.claudeBranch;
     baseBranch = prepareResult.branchInfo.baseBranch;
     prepareCompleted = true;
-
-    // Set system prompt if available
-    if (mode.getSystemPrompt) {
-      const modeContext = mode.prepareContext(context, {
-        commentId: prepareResult.commentId,
-        baseBranch: prepareResult.branchInfo.baseBranch,
-        claudeBranch: prepareResult.branchInfo.claudeBranch,
-      });
-      const systemPrompt = mode.getSystemPrompt(modeContext);
-      if (systemPrompt) {
-        core.exportVariable("APPEND_SYSTEM_PROMPT", systemPrompt);
-      }
-    }
 
     // Phase 2: Install Claude Code CLI
     await installClaudeCode();

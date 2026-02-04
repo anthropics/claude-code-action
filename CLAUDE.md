@@ -11,7 +11,7 @@ bun run format:check    # Check formatting
 
 ## What This Is
 
-A GitHub Action that lets Claude respond to `@claude` mentions on issues/PRs (tag mode) or run tasks via `prompt` input (agent mode). Mode is auto-detected: if `prompt` is provided, it's agent mode; if triggered by a comment/issue event with `@claude`, it's tag mode. See `src/modes/registry.ts`.
+A GitHub Action that lets Claude respond to `@claude` mentions on issues/PRs (tag mode) or run tasks via `prompt` input (agent mode). Mode is auto-detected: if `prompt` is provided, it's agent mode; if triggered by a comment/issue event with `@claude`, it's tag mode. See `src/modes/detector.ts`.
 
 ## How It Runs
 
@@ -23,9 +23,9 @@ Single entrypoint: `src/entrypoints/run.ts` orchestrates everything — prepare 
 
 **Auth priority**: `github_token` input (user-provided) > GitHub App OIDC token (default). The `claude_code_oauth_token` and `anthropic_api_key` are for the Claude API, not GitHub. Token setup lives in `src/github/token.ts`.
 
-**Mode lifecycle**: Modes implement `shouldTrigger()` → `prepare()` → `prepareContext()` → `getSystemPrompt()`. The registry in `src/modes/registry.ts` picks the mode based on event type and inputs. To add a new mode, implement the `Mode` type from `src/modes/types.ts` and register it.
+**Mode lifecycle**: `detectMode()` in `src/modes/detector.ts` picks the mode name ("tag" or "agent"). Trigger checking and prepare dispatch are inlined in `run.ts`: tag mode calls `prepareTagMode()` from `src/modes/tag/`, agent mode calls `prepareAgentMode()` from `src/modes/agent/`.
 
-**Prompt construction**: `src/prepare/` builds the prompt by fetching GitHub data (`src/github/data/fetcher.ts`), formatting it as markdown (`src/github/data/formatter.ts`), and writing it to a temp file. The prompt includes issue/PR body, comments, diff, and CI status. This is the most important part of the action — it's what Claude sees.
+**Prompt construction**: Tag mode's `prepareTagMode()` builds the prompt by fetching GitHub data (`src/github/data/fetcher.ts`), formatting it as markdown (`src/github/data/formatter.ts`), and writing it to a temp file via `createPrompt()`. Agent mode writes the user's prompt directly. The prompt includes issue/PR body, comments, diff, and CI status. This is the most important part of the action — it's what Claude sees.
 
 ## Things That Will Bite You
 

@@ -20,7 +20,6 @@ import {
 import type { ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
 import { GITHUB_SERVER_URL } from "../github/api/config";
-import type { Mode, ModeContext } from "../modes/types";
 import { extractUserRequest } from "../utils/extract-user-request";
 export type { CommonFields, PreparedContext } from "./types";
 
@@ -458,9 +457,31 @@ export function generatePrompt(
   context: PreparedContext,
   githubData: FetchDataResult,
   useCommitSigning: boolean,
-  mode: Mode,
+  modeName: "tag" | "agent",
 ): string {
-  return mode.generatePrompt(context, githubData, useCommitSigning);
+  if (modeName === "agent") {
+    return context.prompt || `Repository: ${context.repository}`;
+  }
+
+  // Tag mode
+  const defaultPrompt = generateDefaultPrompt(
+    context,
+    githubData,
+    useCommitSigning,
+  );
+
+  if (context.githubContext?.inputs?.prompt) {
+    return (
+      defaultPrompt +
+      `
+
+<custom_instructions>
+${context.githubContext.inputs.prompt}
+</custom_instructions>`
+    );
+  }
+
+  return defaultPrompt;
 }
 
 /**
@@ -901,28 +922,20 @@ function extractUserRequestFromContext(
 }
 
 export async function createPrompt(
-  mode: Mode,
-  modeContext: ModeContext,
+  commentId: number,
+  baseBranch: string | undefined,
+  claudeBranch: string | undefined,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
 ) {
   try {
-    // Prepare the context for prompt generation
-    let claudeCommentId: string = "";
-    if (mode.name === "tag") {
-      if (!modeContext.commentId) {
-        throw new Error(
-          `${mode.name} mode requires a comment ID for prompt generation`,
-        );
-      }
-      claudeCommentId = modeContext.commentId.toString();
-    }
+    const claudeCommentId = commentId.toString();
 
     const preparedContext = prepareContext(
       context,
       claudeCommentId,
-      modeContext.baseBranch,
-      modeContext.claudeBranch,
+      baseBranch,
+      claudeBranch,
     );
 
     await mkdir(`${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`, {
@@ -934,7 +947,7 @@ export async function createPrompt(
       preparedContext,
       githubData,
       context.inputs.useCommitSigning,
-      mode,
+      "tag",
     );
 
     // Log the final prompt to console
@@ -967,19 +980,12 @@ export async function createPrompt(
     // Set allowed tools
     const hasActionsReadPermission = false;
 
-    // Get mode-specific tools
-    const modeAllowedTools = mode.getAllowedTools();
-    const modeDisallowedTools = mode.getDisallowedTools();
-
     const allAllowedTools = buildAllowedToolsString(
-      modeAllowedTools,
+      [],
       hasActionsReadPermission,
       context.inputs.useCommitSigning,
     );
-    const allDisallowedTools = buildDisallowedToolsString(
-      modeDisallowedTools,
-      modeAllowedTools,
-    );
+    const allDisallowedTools = buildDisallowedToolsString([], []);
 
     core.exportVariable("ALLOWED_TOOLS", allAllowedTools);
     core.exportVariable("DISALLOWED_TOOLS", allDisallowedTools);
