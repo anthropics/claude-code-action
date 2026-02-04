@@ -1,143 +1,44 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Development Tools
-
-- Runtime: Bun 1.2.11
-- TypeScript with strict configuration
-
-## Common Development Tasks
-
-### Available npm/bun scripts from package.json:
+## Commands
 
 ```bash
-# Test
-bun test
-
-# Formatting
-bun run format          # Format code with prettier
-bun run format:check    # Check code formatting
-
-# Type checking
-bun run typecheck       # Run TypeScript type checker
+bun test                # Run tests
+bun run typecheck       # TypeScript type checking
+bun run format          # Format with prettier
+bun run format:check    # Check formatting
 ```
 
-## Architecture Overview
+## What This Is
 
-This is a GitHub Action that enables Claude to interact with GitHub PRs and issues. The action runs through a unified entrypoint (`src/entrypoints/run.ts`) that orchestrates four internal phases within a single composite step:
+A GitHub Action that lets Claude respond to `@claude` mentions on issues/PRs (tag mode) or run tasks via `prompt` input (agent mode). Mode is auto-detected: if `prompt` is provided, it's agent mode; if triggered by a comment/issue event with `@claude`, it's tag mode. See `src/modes/registry.ts`.
 
-### Phase 1: Prepare
+## How It Runs
 
-1. **Authentication Setup**: Establishes GitHub token via OIDC or GitHub App
-2. **Permission Validation**: Verifies actor has write permissions
-3. **Trigger Detection**: Uses mode-specific logic to determine if Claude should respond
-4. **Context Creation**: Prepares GitHub context, initial tracking comment, and branch
+Single entrypoint: `src/entrypoints/run.ts` orchestrates everything — prepare (auth, permissions, trigger check, branch/comment creation), install Claude Code CLI, execute Claude via `base-action/` functions (imported directly, not subprocess), then cleanup (update tracking comment, write step summary). SSH signing cleanup and token revocation are separate `always()` steps in `action.yml`.
 
-### Phase 2: Install
+`base-action/` is also published standalone as `@anthropic-ai/claude-code-base-action`. Don't break its public API. It reads config from `INPUT_`-prefixed env vars (set by `action.yml`), not from action inputs directly.
 
-1. **Claude Code CLI**: Installs the CLI (with retry logic), or uses a custom executable path
+## Key Concepts
 
-### Phase 3: Execute
+**Auth priority**: `github_token` input (user-provided) > GitHub App OIDC token (default). The `claude_code_oauth_token` and `anthropic_api_key` are for the Claude API, not GitHub. Token setup lives in `src/github/token.ts`.
 
-Imports `base-action/` functions directly (no subprocess) to run Claude:
+**Mode lifecycle**: Modes implement `shouldTrigger()` → `prepare()` → `prepareContext()` → `getSystemPrompt()`. The registry in `src/modes/registry.ts` picks the mode based on event type and inputs. To add a new mode, implement the `Mode` type from `src/modes/types.ts` and register it.
 
-1. **Environment Setup**: Validates env vars, configures Claude Code settings, installs plugins
-2. **Prompt Preparation**: Writes the context-rich prompt to a temp file
-3. **Claude Integration**: Executes via multiple providers (Anthropic API, AWS Bedrock, Google Vertex AI)
+**Prompt construction**: `src/prepare/` builds the prompt by fetching GitHub data (`src/github/data/fetcher.ts`), formatting it as markdown (`src/github/data/formatter.ts`), and writing it to a temp file. The prompt includes issue/PR body, comments, diff, and CI status. This is the most important part of the action — it's what Claude sees.
 
-The `base-action/` directory is also published separately as `@anthropic-ai/claude-code-base-action` for standalone use.
+## Things That Will Bite You
 
-### Phase 4: Cleanup (always runs)
-
-1. **Comment Update**: Updates the tracking comment with job link, branch, and status
-2. **Step Summary**: Formats Claude's output into the GitHub Actions step summary
-3. **SSH Signing Cleanup**: Removes SSH signing key (separate composite step, runs with `always()`)
-4. **Token Revocation**: Revokes the GitHub App installation token (separate composite step, runs with `always()`)
-
-### Key Architectural Components
-
-#### Mode System (`src/modes/`)
-
-- **Tag Mode** (`tag/`): Responds to `@claude` mentions and issue assignments
-- **Agent Mode** (`agent/`): Direct execution when explicit prompt is provided
-- Extensible registry pattern in `modes/registry.ts`
-
-#### GitHub Integration (`src/github/`)
-
-- **Context Parsing** (`context.ts`): Unified GitHub event handling
-- **Data Fetching** (`data/fetcher.ts`): Retrieves PR/issue data via GraphQL/REST
-- **Data Formatting** (`data/formatter.ts`): Converts GitHub data to Claude-readable format
-- **Branch Operations** (`operations/branch.ts`): Handles branch creation and cleanup
-- **Comment Management** (`operations/comments/`): Creates and updates tracking comments
-
-#### MCP Server Integration (`src/mcp/`)
-
-- **GitHub Actions Server** (`github-actions-server.ts`): Workflow and CI access
-- **GitHub Comment Server** (`github-comment-server.ts`): Comment operations
-- **GitHub File Operations** (`github-file-ops-server.ts`): File system access
-- Auto-installation and configuration in `install-mcp-server.ts`
-
-#### Authentication & Security (`src/github/`)
-
-- **Token Management** (`token.ts`): OIDC token exchange and GitHub App authentication
-- **Permission Validation** (`validation/permissions.ts`): Write access verification
-- **Actor Validation** (`validation/actor.ts`): Human vs bot detection
-
-### Project Structure
-
-```
-src/
-├── entrypoints/           # Action entry points
-│   ├── run.ts             # Unified entrypoint (orchestrates all phases)
-│   ├── update-comment-link.ts  # Post-execution comment updates
-│   └── format-turns.ts    # Claude conversation formatting
-├── github/               # GitHub integration layer
-│   ├── api/              # REST/GraphQL clients
-│   ├── data/             # Data fetching and formatting
-│   ├── operations/       # Branch, comment, git operations
-│   ├── validation/       # Permission and trigger validation
-│   └── utils/            # Image downloading, sanitization
-├── modes/                # Execution modes
-│   ├── tag/              # @claude mention mode
-│   ├── agent/            # Automation mode
-│   └── registry.ts       # Mode selection logic
-├── mcp/                  # MCP server implementations
-├── prepare/              # Preparation orchestration
-└── utils/                # Shared utilities
-```
-
-## Important Implementation Notes
-
-### Authentication Flow
-
-- Uses GitHub OIDC token exchange for secure authentication
-- Supports custom GitHub Apps via `APP_ID` and `APP_PRIVATE_KEY`
-- Falls back to official Claude GitHub App if no custom app provided
-
-### MCP Server Architecture
-
-- Each MCP server has specific GitHub API access patterns
-- Servers are auto-installed in `~/.claude/mcp/github-{type}-server/`
-- Configuration merged with user-provided MCP config via `mcp_config` input
-
-### Mode System Design
-
-- Modes implement `Mode` interface with `shouldTrigger()` and `prepare()` methods
-- Registry validates mode compatibility with GitHub event types
-- Agent mode triggers when explicit prompt is provided
-
-### Comment Threading
-
-- Single tracking comment updated throughout execution
-- Progress indicated via dynamic checkboxes
-- Links to job runs and created branches/PRs
-- Sticky comment option for consolidated PR comments
+- **Strict TypeScript**: `noUnusedLocals` and `noUnusedParameters` are enabled. Typecheck will fail on unused variables.
+- **Discriminated unions for GitHub context**: `GitHubContext` is a union type — call `isEntityContext(context)` before accessing entity-specific fields like `context.issue` or `context.pullRequest`.
+- **Token lifecycle matters**: The GitHub App token is obtained early and revoked in a separate `always()` step in `action.yml`. If you move token revocation into `run.ts`, it won't run if the process crashes. Same for SSH signing cleanup.
+- **Error phase attribution**: The catch block in `run.ts` uses `prepareCompleted` to distinguish prepare failures from execution failures. The tracking comment shows different messages for each.
+- **`action.yml` outputs reference step IDs**: Outputs like `execution_file`, `branch_name`, `github_token` reference `steps.run.outputs.*`. If you rename the step ID, update the outputs section too.
+- **Integration testing** happens in a separate repo (`install-test`), not here. The tests in this repo are unit tests.
 
 ## Code Conventions
 
-- Use Bun-specific TypeScript configuration with `moduleResolution: "bundler"`
-- Strict TypeScript with `noUnusedLocals` and `noUnusedParameters` enabled
-- Prefer explicit error handling with detailed error messages
-- Use discriminated unions for GitHub context types
-- Implement retry logic for GitHub API operations via `utils/retry.ts`
+- Runtime is Bun, not Node. Use `bun test`, not `jest`.
+- `moduleResolution: "bundler"` — imports don't need `.js` extensions.
+- GitHub API calls should use retry logic (`src/utils/retry.ts`).
+- MCP servers are auto-installed at runtime to `~/.claude/mcp/github-{type}-server/`.
