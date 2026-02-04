@@ -10,6 +10,7 @@ export type PrepareResult = {
     currentBranch: string;
   };
   mcpConfig: string;
+  claudeArgs: string;
 };
 
 export type PrepareOptions = {

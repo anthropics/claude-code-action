@@ -183,8 +183,6 @@ export const agentMode: Mode = {
     // Append user's claude_args (which may have more --mcp-config flags)
     claudeArgs = `${claudeArgs} ${userClaudeArgs}`.trim();
 
-    core.setOutput("claude_args", claudeArgs);
-
     return {
       commentId: undefined,
       branchInfo: {
@@ -193,6 +191,7 @@ export const agentMode: Mode = {
         claudeBranch: claudeBranch,
       },
       mcpConfig: ourMcpConfig,
+      claudeArgs,
     };
   },
 

@@ -97,4 +97,5 @@ export type ModeResult = {
     currentBranch: string;
   };
   mcpConfig: string;
+  claudeArgs: string;
 };

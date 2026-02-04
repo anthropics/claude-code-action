@@ -29,6 +29,7 @@ describe("pull_request_target event support", () => {
         claudeBranch: undefined,
       },
       mcpConfig: "{}",
+      claudeArgs: "",
     }),
   };
 
@@ -313,6 +314,7 @@ describe("pull_request_target event support", () => {
             claudeBranch: undefined,
           },
           mcpConfig: "{}",
+          claudeArgs: "",
         }),
       };
 

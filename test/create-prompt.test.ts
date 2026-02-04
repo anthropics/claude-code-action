@@ -31,6 +31,7 @@ describe("generatePrompt", () => {
         claudeBranch: undefined,
       },
       mcpConfig: "{}",
+      claudeArgs: "",
     }),
   };
 
@@ -52,6 +53,7 @@ describe("generatePrompt", () => {
         claudeBranch: undefined,
       },
       mcpConfig: "{}",
+      claudeArgs: "",
     }),
   };
 

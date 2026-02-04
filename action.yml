@@ -137,19 +137,19 @@ inputs:
 outputs:
   execution_file:
     description: "Path to the Claude Code execution output file"
-    value: ${{ steps.claude-code.outputs.execution_file }}
+    value: ${{ steps.run.outputs.execution_file }}
   branch_name:
     description: "The branch created by Claude Code for this execution"
-    value: ${{ steps.prepare.outputs.CLAUDE_BRANCH }}
+    value: ${{ steps.run.outputs.branch_name }}
   github_token:
     description: "The GitHub token used by the action (Claude App token if available)"
-    value: ${{ steps.prepare.outputs.github_token }}
+    value: ${{ steps.run.outputs.github_token }}
   structured_output:
     description: "JSON string containing all structured output fields when --json-schema is provided in claude_args. Use fromJSON() to parse: fromJSON(steps.id.outputs.structured_output).field_name"
-    value: ${{ steps.claude-code.outputs.structured_output }}
+    value: ${{ steps.run.outputs.structured_output }}
   session_id:
     description: "The Claude Code session ID that can be used with --resume to continue this conversation"
-    value: ${{ steps.claude-code.outputs.session_id }}
+    value: ${{ steps.run.outputs.session_id }}
 
 runs:
   using: "composite"
@@ -178,12 +178,13 @@ runs:
         cd ${GITHUB_ACTION_PATH}
         bun install
 
-    - name: Prepare action
-      id: prepare
+    - name: Run Claude Code Action
+      id: run
       shell: bash
       run: |
-        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/prepare.ts
+        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
       env:
+        # Prepare inputs
         MODE: ${{ inputs.mode }}
         PROMPT: ${{ inputs.prompt }}
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
@@ -210,73 +211,19 @@ runs:
         CLAUDE_ARGS: ${{ inputs.claude_args }}
         ALL_INPUTS: ${{ toJson(inputs) }}
 
-    - name: Install Base Action Dependencies
-      if: steps.prepare.outputs.contains_trigger == 'true'
-      shell: bash
-      env:
-        PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
-      run: |
-        echo "Installing base-action dependencies..."
-        cd ${GITHUB_ACTION_PATH}/base-action
-        bun install
-        echo "Base-action dependencies installed"
-        cd -
-
-        # Install Claude Code if no custom executable is provided
-        if [ -z "$PATH_TO_CLAUDE_CODE_EXECUTABLE" ]; then
-          CLAUDE_CODE_VERSION="2.1.31"
-          echo "Installing Claude Code v${CLAUDE_CODE_VERSION}..."
-          for attempt in 1 2 3; do
-            echo "Installation attempt $attempt..."
-            if command -v timeout &> /dev/null; then
-              # Use --foreground to kill entire process group on timeout, --kill-after to send SIGKILL if SIGTERM fails
-              timeout --foreground --kill-after=10 120 bash -c "curl -fsSL https://claude.ai/install.sh | bash -s -- $CLAUDE_CODE_VERSION" && break
-            else
-              curl -fsSL https://claude.ai/install.sh | bash -s -- "$CLAUDE_CODE_VERSION" && break
-            fi
-            if [ $attempt -eq 3 ]; then
-              echo "Failed to install Claude Code after 3 attempts"
-              exit 1
-            fi
-            echo "Installation failed, retrying..."
-            sleep 5
-          done
-          echo "Claude Code installed successfully"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-        else
-          echo "Using custom Claude Code executable: $PATH_TO_CLAUDE_CODE_EXECUTABLE"
-          # Add the directory containing the custom executable to PATH
-          CLAUDE_DIR=$(dirname "$PATH_TO_CLAUDE_CODE_EXECUTABLE")
-          echo "$CLAUDE_DIR" >> "$GITHUB_PATH"
-        fi
-
-    - name: Run Claude Code
-      id: claude-code
-      if: steps.prepare.outputs.contains_trigger == 'true'
-      shell: bash
-      run: |
-
-        # Run the base-action
-        bun run ${GITHUB_ACTION_PATH}/base-action/src/index.ts
-      env:
         # Base-action inputs
-        CLAUDE_CODE_ACTION: "1"
         INPUT_PROMPT_FILE: ${{ runner.temp }}/claude-prompts/claude-prompt.txt
         INPUT_SETTINGS: ${{ inputs.settings }}
-        INPUT_CLAUDE_ARGS: ${{ steps.prepare.outputs.claude_args }}
         INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ github.action_path }}/slash-commands
-        INPUT_ACTION_INPUTS_PRESENT: ${{ steps.prepare.outputs.action_inputs_present }}
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
         INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}
         INPUT_PLUGINS: ${{ inputs.plugins }}
         INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
+        PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
 
         # Model configuration
-        GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
-        GH_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
         NODE_VERSION: ${{ env.NODE_VERSION }}
-        DETAILED_PERMISSION_MESSAGES: "1"
 
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
@@ -323,63 +270,3 @@ runs:
         OTEL_METRIC_EXPORT_INTERVAL: ${{ env.OTEL_METRIC_EXPORT_INTERVAL }}
         OTEL_LOGS_EXPORT_INTERVAL: ${{ env.OTEL_LOGS_EXPORT_INTERVAL }}
         OTEL_RESOURCE_ATTRIBUTES: ${{ env.OTEL_RESOURCE_ATTRIBUTES }}
-
-    - name: Update comment with job link
-      if: steps.prepare.outputs.contains_trigger == 'true' && steps.prepare.outputs.claude_comment_id && always()
-      shell: bash
-      run: |
-        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/update-comment-link.ts
-      env:
-        REPOSITORY: ${{ github.repository }}
-        PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
-        CLAUDE_COMMENT_ID: ${{ steps.prepare.outputs.claude_comment_id }}
-        GITHUB_RUN_ID: ${{ github.run_id }}
-        GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
-        GH_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
-        GITHUB_EVENT_NAME: ${{ github.event_name }}
-        TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
-        CLAUDE_BRANCH: ${{ steps.prepare.outputs.CLAUDE_BRANCH }}
-        IS_PR: ${{ github.event.issue.pull_request != null || github.event_name == 'pull_request_target' || github.event_name == 'pull_request_review_comment' }}
-        BASE_BRANCH: ${{ steps.prepare.outputs.BASE_BRANCH }}
-        CLAUDE_SUCCESS: ${{ steps.claude-code.outputs.conclusion == 'success' }}
-        OUTPUT_FILE: ${{ steps.claude-code.outputs.execution_file || '' }}
-        TRIGGER_USERNAME: ${{ github.event.comment.user.login || github.event.issue.user.login || github.event.pull_request.user.login || github.event.sender.login || github.triggering_actor || github.actor || '' }}
-        PREPARE_SUCCESS: ${{ steps.prepare.outcome == 'success' }}
-        PREPARE_ERROR: ${{ steps.prepare.outputs.prepare_error || '' }}
-        USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
-        USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
-        TRACK_PROGRESS: ${{ inputs.track_progress }}
-
-    - name: Display Claude Code Report
-      if: steps.prepare.outputs.contains_trigger == 'true' && steps.claude-code.outputs.execution_file != ''
-      shell: bash
-      run: |
-        # Try to format the turns, but if it fails, dump the raw JSON
-        if bun run ${{ github.action_path }}/src/entrypoints/format-turns.ts "${{ steps.claude-code.outputs.execution_file }}" >> $GITHUB_STEP_SUMMARY 2>/dev/null; then
-          echo "Successfully formatted Claude Code report"
-        else
-          echo "## Claude Code Report (Raw Output)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Failed to format output (please report). Here's the raw JSON:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```json' >> $GITHUB_STEP_SUMMARY
-          cat "${{ steps.claude-code.outputs.execution_file }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-        fi
-
-    - name: Cleanup SSH signing key
-      if: always() && inputs.ssh_signing_key != ''
-      shell: bash
-      run: |
-        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
-
-    - name: Revoke app token
-      if: always() && inputs.github_token == '' && steps.prepare.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
-      shell: bash
-      run: |
-        curl -L \
-          -X DELETE \
-          -H "Accept: application/vnd.github+json" \
-          -H "Authorization: Bearer ${{ steps.prepare.outputs.GITHUB_TOKEN }}" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          ${GITHUB_API_URL:-https://api.github.com}/installation/token

@@ -1,6 +1,4 @@
-import * as core from "@actions/core";
-
-export function collectActionInputsPresence(): void {
+export function collectActionInputsPresence(): string {
   const inputDefaults: Record<string, string> = {
     trigger_phrase: "@claude",
     assignee_trigger: "",
@@ -32,8 +30,7 @@ export function collectActionInputsPresence(): void {
   const allInputsJson = process.env.ALL_INPUTS;
   if (!allInputsJson) {
     console.log("ALL_INPUTS environment variable not found");
-    core.setOutput("action_inputs_present", JSON.stringify({}));
-    return;
+    return JSON.stringify({});
   }
 
   let allInputs: Record<string, string>;
@@ -41,8 +38,7 @@ export function collectActionInputsPresence(): void {
     allInputs = JSON.parse(allInputsJson);
   } catch (e) {
     console.error("Failed to parse ALL_INPUTS JSON:", e);
-    core.setOutput("action_inputs_present", JSON.stringify({}));
-    return;
+    return JSON.stringify({});
   }
 
   const presentInputs: Record<string, boolean> = {};
@@ -54,5 +50,5 @@ export function collectActionInputsPresence(): void {
     presentInputs[name] = isSet;
   }
 
-  core.setOutput("action_inputs_present", JSON.stringify(presentInputs));
+  return JSON.stringify(presentInputs);
 }

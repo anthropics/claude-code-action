@@ -163,10 +163,8 @@ describe("Agent Mode", () => {
     });
 
     // Verify claude_args includes user args (no MCP config in agent mode without allowed tools)
-    const callArgs = setOutputSpy.mock.calls[0];
-    expect(callArgs[0]).toBe("claude_args");
-    expect(callArgs[1]).toBe("--model claude-sonnet-4 --max-turns 10");
-    expect(callArgs[1]).not.toContain("--mcp-config");
+    expect(result.claudeArgs).toBe("--model claude-sonnet-4 --max-turns 10");
+    expect(result.claudeArgs).not.toContain("--mcp-config");
 
     // Verify return structure - should use "main" as fallback when no env vars set
     expect(result).toEqual({
@@ -177,6 +175,7 @@ describe("Agent Mode", () => {
         claudeBranch: undefined,
       },
       mcpConfig: expect.any(String),
+      claudeArgs: "--model claude-sonnet-4 --max-turns 10",
     });
 
     // Clean up
@@ -269,7 +268,7 @@ describe("Agent Mode", () => {
         },
       },
     } as any;
-    await agentMode.prepare({
+    const result = await agentMode.prepare({
       context: contextWithPrompts,
       octokit: mockOctokit,
       githubToken: "test-token",
@@ -279,9 +278,7 @@ describe("Agent Mode", () => {
     // but we can verify the method completes without errors
     // With our conditional MCP logic, agent mode with no allowed tools
     // should not include any MCP config
-    const callArgs = setOutputSpy.mock.calls[0];
-    expect(callArgs[0]).toBe("claude_args");
     // Should be empty or just whitespace when no MCP servers are included
-    expect(callArgs[1]).not.toContain("--mcp-config");
+    expect(result.claudeArgs).not.toContain("--mcp-config");
   });
 });

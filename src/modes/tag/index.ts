@@ -1,4 +1,3 @@
-import * as core from "@actions/core";
 import type { Mode, ModeOptions, ModeResult } from "../types";
 import { checkContainsTrigger } from "../../github/validation/trigger";
 import { checkHumanActor } from "../../github/validation/actor";
@@ -211,12 +210,11 @@ export const tagMode: Mode = {
       claudeArgs += ` ${userClaudeArgs}`;
     }
 
-    core.setOutput("claude_args", claudeArgs.trim());
-
     return {
       commentId,
       branchInfo,
       mcpConfig: ourMcpConfig,
+      claudeArgs: claudeArgs.trim(),
     };
   },
 
