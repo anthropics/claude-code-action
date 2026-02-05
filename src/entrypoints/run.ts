@@ -28,7 +28,10 @@ import { validateEnvironmentVariables } from "../../base-action/src/validate-env
 import { setupClaudeCodeSettings } from "../../base-action/src/setup-claude-code-settings";
 import { installPlugins } from "../../base-action/src/install-plugins";
 import { preparePrompt } from "../../base-action/src/prepare-prompt";
-import { runClaude } from "../../base-action/src/run-claude";
+import {
+  runClaude,
+  isOpenAICompatibleMode,
+} from "../../base-action/src/run-claude";
 import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
 
 /**
@@ -210,10 +213,6 @@ async function run() {
       }
     }
 
-    // Phase 2: Install Claude Code CLI
-    await installClaudeCode();
-
-    // Phase 3: Run Claude (import base-action directly)
     // Set env vars needed by the base-action code
     process.env.INPUT_ACTION_INPUTS_PRESENT = actionInputsPresent;
     process.env.CLAUDE_CODE_ACTION = "1";
@@ -221,14 +220,27 @@ async function run() {
 
     validateEnvironmentVariables();
 
-    await setupClaudeCodeSettings(process.env.INPUT_SETTINGS);
+    const useOpenAI = isOpenAICompatibleMode();
 
-    await installPlugins(
-      process.env.INPUT_PLUGIN_MARKETPLACES,
-      process.env.INPUT_PLUGINS,
-      process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE,
-    );
+    if (useOpenAI) {
+      // Phase 2 (OpenAI-compatible): Skip Claude Code CLI installation
+      console.log(
+        "Using OpenAI-compatible provider — skipping Claude Code CLI installation.",
+      );
+    } else {
+      // Phase 2 (Claude): Install Claude Code CLI
+      await installClaudeCode();
 
+      await setupClaudeCodeSettings(process.env.INPUT_SETTINGS);
+
+      await installPlugins(
+        process.env.INPUT_PLUGIN_MARKETPLACES,
+        process.env.INPUT_PLUGINS,
+        process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE,
+      );
+    }
+
+    // Phase 3: Run model (Claude SDK or OpenAI-compatible)
     const promptFile =
       process.env.INPUT_PROMPT_FILE ||
       `${process.env.RUNNER_TEMP}/claude-prompts/claude-prompt.txt`;
