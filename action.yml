@@ -76,6 +76,23 @@ inputs:
     description: "Use Microsoft Foundry with OIDC authentication instead of direct Anthropic API"
     required: false
     default: "false"
+  use_openai_compatible:
+    description: "Use an OpenAI-compatible API provider (e.g., OpenRouter, z.ai, Together, Groq) instead of Claude Code SDK. When enabled, the action sends prompts via the OpenAI chat completions API."
+    required: false
+    default: "false"
+  openai_compatible_api_key:
+    description: "API key for the OpenAI-compatible provider. Store this in GitHub Secrets."
+    required: false
+  openai_compatible_base_url:
+    description: "Base URL for the OpenAI-compatible API (e.g., https://api.z.ai/api/paas/v4, https://openrouter.ai/api/v1). Must support /chat/completions endpoint."
+    required: false
+  openai_compatible_model:
+    description: "Model name to use with the OpenAI-compatible provider (e.g., glm-4.7, meta-llama/llama-3-70b-instruct)"
+    required: false
+  openai_compatible_max_tokens:
+    description: "Maximum tokens for the OpenAI-compatible model response"
+    required: false
+    default: "4096"
 
   claude_args:
     description: "Additional arguments to pass directly to Claude CLI"
@@ -229,10 +246,17 @@ runs:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
         ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
+        ANTHROPIC_AUTH_TOKEN: ${{ env.ANTHROPIC_AUTH_TOKEN }}
+        ANTHROPIC_MODEL: ${{ env.ANTHROPIC_MODEL }}
         ANTHROPIC_CUSTOM_HEADERS: ${{ env.ANTHROPIC_CUSTOM_HEADERS }}
         CLAUDE_CODE_USE_BEDROCK: ${{ inputs.use_bedrock == 'true' && '1' || '' }}
         CLAUDE_CODE_USE_VERTEX: ${{ inputs.use_vertex == 'true' && '1' || '' }}
         CLAUDE_CODE_USE_FOUNDRY: ${{ inputs.use_foundry == 'true' && '1' || '' }}
+        USE_OPENAI_COMPATIBLE: ${{ inputs.use_openai_compatible == 'true' && '1' || '' }}
+        OPENAI_COMPATIBLE_API_KEY: ${{ inputs.openai_compatible_api_key }}
+        OPENAI_COMPATIBLE_BASE_URL: ${{ inputs.openai_compatible_base_url }}
+        OPENAI_COMPATIBLE_MODEL: ${{ inputs.openai_compatible_model }}
+        OPENAI_COMPATIBLE_MAX_TOKENS: ${{ inputs.openai_compatible_max_tokens }}
 
         # AWS configuration
         AWS_REGION: ${{ env.AWS_REGION }}

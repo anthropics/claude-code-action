@@ -26,6 +26,10 @@ describe("validateEnvironmentVariables", () => {
     delete process.env.ANTHROPIC_VERTEX_BASE_URL;
     delete process.env.ANTHROPIC_FOUNDRY_RESOURCE;
     delete process.env.ANTHROPIC_FOUNDRY_BASE_URL;
+    delete process.env.USE_OPENAI_COMPATIBLE;
+    delete process.env.OPENAI_COMPATIBLE_API_KEY;
+    delete process.env.OPENAI_COMPATIBLE_BASE_URL;
+    delete process.env.OPENAI_COMPATIBLE_MODEL;
   });
 
   afterEach(() => {
@@ -248,6 +252,65 @@ describe("validateEnvironmentVariables", () => {
     });
   });
 
+  describe("OpenAI-compatible provider", () => {
+    test("should pass when all required OpenAI-compatible variables are provided", () => {
+      process.env.USE_OPENAI_COMPATIBLE = "1";
+      process.env.OPENAI_COMPATIBLE_API_KEY = "test-api-key";
+      process.env.OPENAI_COMPATIBLE_BASE_URL = "https://api.z.ai/api/paas/v4";
+      process.env.OPENAI_COMPATIBLE_MODEL = "glm-4.7";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should fail when OPENAI_COMPATIBLE_API_KEY is missing", () => {
+      process.env.USE_OPENAI_COMPATIBLE = "1";
+      process.env.OPENAI_COMPATIBLE_BASE_URL = "https://api.z.ai/api/paas/v4";
+      process.env.OPENAI_COMPATIBLE_MODEL = "glm-4.7";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "OPENAI_COMPATIBLE_API_KEY is required when using an OpenAI-compatible provider.",
+      );
+    });
+
+    test("should fail when OPENAI_COMPATIBLE_BASE_URL is missing", () => {
+      process.env.USE_OPENAI_COMPATIBLE = "1";
+      process.env.OPENAI_COMPATIBLE_API_KEY = "test-api-key";
+      process.env.OPENAI_COMPATIBLE_MODEL = "glm-4.7";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "OPENAI_COMPATIBLE_BASE_URL is required when using an OpenAI-compatible provider.",
+      );
+    });
+
+    test("should fail when OPENAI_COMPATIBLE_MODEL is missing", () => {
+      process.env.USE_OPENAI_COMPATIBLE = "1";
+      process.env.OPENAI_COMPATIBLE_API_KEY = "test-api-key";
+      process.env.OPENAI_COMPATIBLE_BASE_URL = "https://api.z.ai/api/paas/v4";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "OPENAI_COMPATIBLE_MODEL is required when using an OpenAI-compatible provider.",
+      );
+    });
+
+    test("should report all missing OpenAI-compatible variables", () => {
+      process.env.USE_OPENAI_COMPATIBLE = "1";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        /OPENAI_COMPATIBLE_API_KEY is required.*OPENAI_COMPATIBLE_BASE_URL is required.*OPENAI_COMPATIBLE_MODEL is required/s,
+      );
+    });
+
+    test("should not require ANTHROPIC_API_KEY when using OpenAI-compatible", () => {
+      process.env.USE_OPENAI_COMPATIBLE = "1";
+      process.env.OPENAI_COMPATIBLE_API_KEY = "test-api-key";
+      process.env.OPENAI_COMPATIBLE_BASE_URL = "https://api.z.ai/api/paas/v4";
+      process.env.OPENAI_COMPATIBLE_MODEL = "glm-4.7";
+      // No ANTHROPIC_API_KEY set
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+  });
+
   describe("Multiple providers", () => {
     test("should fail when both Bedrock and Vertex are enabled", () => {
       process.env.CLAUDE_CODE_USE_BEDROCK = "1";
@@ -260,7 +323,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.CLOUD_ML_REGION = "us-central1";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+        "Cannot use multiple providers simultaneously.",
       );
     });
 
@@ -274,7 +337,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.ANTHROPIC_FOUNDRY_RESOURCE = "test-resource";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+        "Cannot use multiple providers simultaneously.",
       );
     });
 
@@ -287,11 +350,26 @@ describe("validateEnvironmentVariables", () => {
       process.env.ANTHROPIC_FOUNDRY_RESOURCE = "test-resource";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+        "Cannot use multiple providers simultaneously.",
       );
     });
 
-    test("should fail when all three providers are enabled", () => {
+    test("should fail when OpenAI-compatible and Bedrock are both enabled", () => {
+      process.env.USE_OPENAI_COMPATIBLE = "1";
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.OPENAI_COMPATIBLE_API_KEY = "test-key";
+      process.env.OPENAI_COMPATIBLE_BASE_URL = "https://api.example.com/v1";
+      process.env.OPENAI_COMPATIBLE_MODEL = "test-model";
+      process.env.AWS_REGION = "us-east-1";
+      process.env.AWS_ACCESS_KEY_ID = "test-access-key";
+      process.env.AWS_SECRET_ACCESS_KEY = "test-secret-key";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "Cannot use multiple providers simultaneously.",
+      );
+    });
+
+    test("should fail when all providers are enabled", () => {
       process.env.CLAUDE_CODE_USE_BEDROCK = "1";
       process.env.CLAUDE_CODE_USE_VERTEX = "1";
       process.env.CLAUDE_CODE_USE_FOUNDRY = "1";
@@ -304,7 +382,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.ANTHROPIC_FOUNDRY_RESOURCE = "test-resource";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+        "Cannot use multiple providers simultaneously.",
       );
     });
   });

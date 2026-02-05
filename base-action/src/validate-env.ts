@@ -1,25 +1,51 @@
 /**
  * Validates the environment variables required for running Claude Code
- * based on the selected provider (Anthropic API, AWS Bedrock, Google Vertex AI, or Microsoft Foundry)
+ * based on the selected provider (Anthropic API, AWS Bedrock, Google Vertex AI, Microsoft Foundry, or OpenAI-compatible)
  */
 export function validateEnvironmentVariables() {
   const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK === "1";
   const useVertex = process.env.CLAUDE_CODE_USE_VERTEX === "1";
   const useFoundry = process.env.CLAUDE_CODE_USE_FOUNDRY === "1";
+  const useOpenAICompatible = process.env.USE_OPENAI_COMPATIBLE === "1";
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
   const claudeCodeOAuthToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
 
   const errors: string[] = [];
 
   // Check for mutual exclusivity between providers
-  const activeProviders = [useBedrock, useVertex, useFoundry].filter(Boolean);
+  const activeProviders = [
+    useBedrock,
+    useVertex,
+    useFoundry,
+    useOpenAICompatible,
+  ].filter(Boolean);
   if (activeProviders.length > 1) {
     errors.push(
-      "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+      "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY, or USE_OPENAI_COMPATIBLE.",
     );
   }
 
-  if (!useBedrock && !useVertex && !useFoundry) {
+  if (useOpenAICompatible) {
+    const apiKey = process.env.OPENAI_COMPATIBLE_API_KEY;
+    const baseUrl = process.env.OPENAI_COMPATIBLE_BASE_URL;
+    const model = process.env.OPENAI_COMPATIBLE_MODEL;
+
+    if (!apiKey) {
+      errors.push(
+        "OPENAI_COMPATIBLE_API_KEY is required when using an OpenAI-compatible provider.",
+      );
+    }
+    if (!baseUrl) {
+      errors.push(
+        "OPENAI_COMPATIBLE_BASE_URL is required when using an OpenAI-compatible provider.",
+      );
+    }
+    if (!model) {
+      errors.push(
+        "OPENAI_COMPATIBLE_MODEL is required when using an OpenAI-compatible provider.",
+      );
+    }
+  } else if (!useBedrock && !useVertex && !useFoundry) {
     if (!anthropicApiKey && !claudeCodeOAuthToken) {
       errors.push(
         "Either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is required when using direct Anthropic API.",
