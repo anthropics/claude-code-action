@@ -1294,6 +1294,41 @@ describe("fetchGitHubData integration with time filtering", () => {
     // null originalBody means the issue had no body at trigger time
     expect(result.contextData.body).toBe("");
   });
+
+  it("should use null originalBody over malicious GraphQL body edited after trigger", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          issue: {
+            number: 123,
+            title: "Test Issue",
+            body: "Malicious body added after trigger",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            lastEditedAt: "2024-01-15T12:30:00Z", // Edited after trigger
+            state: "OPEN",
+            labels: { nodes: [] },
+            comments: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "123",
+      isPR: false,
+      triggerUsername: "trigger-user",
+      triggerTime: "2024-01-15T12:00:00Z",
+      originalBody: null,
+    });
+
+    // Webhook says no body at trigger time — attacker-added GraphQL body must not be used
+    expect(result.contextData.body).toBe("");
+  });
 });
 
 describe("filterCommentsByActor", () => {
