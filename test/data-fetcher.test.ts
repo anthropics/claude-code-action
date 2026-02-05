@@ -2,6 +2,7 @@ import { describe, expect, it, jest, test } from "bun:test";
 import {
   extractTriggerTimestamp,
   extractOriginalTitle,
+  extractOriginalBody,
   fetchGitHubData,
   filterCommentsToTriggerTime,
   filterReviewsToTriggerTime,
@@ -103,6 +104,55 @@ describe("extractOriginalTitle", () => {
     });
     const title = extractOriginalTitle(context);
     expect(title).toBeUndefined();
+  });
+});
+
+describe("extractOriginalBody", () => {
+  it("should extract body from IssueCommentEvent on PR", () => {
+    const body = extractOriginalBody(mockPullRequestCommentContext);
+    expect(body).toBe("This PR fixes the memory leak issue reported in #788");
+  });
+
+  it("should extract body from PullRequestReviewEvent", () => {
+    const body = extractOriginalBody(mockPullRequestReviewContext);
+    expect(body).toBe(
+      "This PR improves error handling across all API endpoints",
+    );
+  });
+
+  it("should extract body from PullRequestReviewCommentEvent", () => {
+    const body = extractOriginalBody(mockPullRequestReviewCommentContext);
+    expect(body).toBe(
+      "This PR optimizes the search algorithm for better performance",
+    );
+  });
+
+  it("should extract body from pull_request event", () => {
+    const body = extractOriginalBody(mockPullRequestOpenedContext);
+    expect(body).toBe(
+      "## Summary\n\nThis PR adds JWT-based authentication to the API.\n\n## Changes\n\n- Added auth middleware\n- Added login endpoint\n- Added JWT token generation\n\n/claude please review the security aspects",
+    );
+  });
+
+  it("should extract body from issues event", () => {
+    const body = extractOriginalBody(mockIssueOpenedContext);
+    expect(body).toBe(
+      "## Description\n\nThe application crashes immediately after launching.\n\n## Steps to reproduce\n\n1. Install the app\n2. Launch it\n3. See crash\n\n/claude please help me fix this",
+    );
+  });
+
+  it("should return undefined for event without body", () => {
+    const context = createMockContext({
+      eventName: "issue_comment",
+      payload: {
+        comment: {
+          id: 123,
+          body: "test",
+        },
+      } as any,
+    });
+    const body = extractOriginalBody(context);
+    expect(body).toBeUndefined();
   });
 });
 
@@ -1098,6 +1148,151 @@ describe("fetchGitHubData integration with time filtering", () => {
     expect(result.contextData.title).toBe(
       "Original Title (from webhook at trigger time)",
     );
+  });
+
+  it("should use originalBody when provided instead of fetched body", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            number: 123,
+            title: "Test PR",
+            body: "Malicious body injected after trigger",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            additions: 10,
+            deletions: 5,
+            state: "OPEN",
+            commits: { totalCount: 1, nodes: [] },
+            files: { nodes: [] },
+            comments: { nodes: [] },
+            reviews: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "123",
+      isPR: true,
+      triggerUsername: "trigger-user",
+      originalBody: "Original safe body from webhook",
+    });
+
+    expect(result.contextData.body).toBe("Original safe body from webhook");
+  });
+
+  it("should use fetched body when originalBody is not provided", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            number: 123,
+            title: "Test PR",
+            body: "Fetched body from GraphQL",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            additions: 10,
+            deletions: 5,
+            state: "OPEN",
+            commits: { totalCount: 1, nodes: [] },
+            files: { nodes: [] },
+            comments: { nodes: [] },
+            reviews: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "123",
+      isPR: true,
+      triggerUsername: "trigger-user",
+    });
+
+    expect(result.contextData.body).toBe("Fetched body from GraphQL");
+  });
+
+  it("should use original body from webhook even if body was edited after trigger (TOCTOU prevention)", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            number: 123,
+            title: "Test PR",
+            body: "Malicious body (edited after trigger via GraphQL)",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            lastEditedAt: "2024-01-15T12:30:00Z", // Edited after trigger
+            additions: 10,
+            deletions: 5,
+            state: "OPEN",
+            commits: { totalCount: 1, nodes: [] },
+            files: { nodes: [] },
+            comments: { nodes: [] },
+            reviews: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "123",
+      isPR: true,
+      triggerUsername: "trigger-user",
+      triggerTime: "2024-01-15T12:00:00Z",
+      originalBody: "Original safe body (from webhook at trigger time)",
+    });
+
+    // Body should be from webhook, not the malicious GraphQL-fetched version
+    expect(result.contextData.body).toBe(
+      "Original safe body (from webhook at trigger time)",
+    );
+  });
+
+  it("should handle null originalBody by setting body to empty string", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          issue: {
+            number: 123,
+            title: "Test Issue",
+            body: "Some body from GraphQL",
+            author: { login: "author" },
+            createdAt: "2024-01-15T10:00:00Z",
+            state: "OPEN",
+            labels: { nodes: [] },
+            comments: { nodes: [] },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: jest.fn() as any,
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "123",
+      isPR: false,
+      triggerUsername: "trigger-user",
+      originalBody: null,
+    });
+
+    // null originalBody means the issue had no body at trigger time
+    expect(result.contextData.body).toBe("");
   });
 });
 

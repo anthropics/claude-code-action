@@ -12,6 +12,7 @@ import {
   fetchGitHubData,
   extractTriggerTimestamp,
   extractOriginalTitle,
+  extractOriginalBody,
 } from "../../github/data/fetcher";
 import { createPrompt, generateDefaultPrompt } from "../../create-prompt";
 import { isEntityContext } from "../../github/context";
@@ -79,6 +80,7 @@ export const tagMode: Mode = {
 
     const triggerTime = extractTriggerTimestamp(context);
     const originalTitle = extractOriginalTitle(context);
+    const originalBody = extractOriginalBody(context);
 
     const githubData = await fetchGitHubData({
       octokits: octokit,
@@ -88,6 +90,7 @@ export const tagMode: Mode = {
       triggerUsername: context.actor,
       triggerTime,
       originalTitle,
+      originalBody,
       includeCommentsByActor: context.inputs.includeCommentsByActor,
       excludeCommentsByActor: context.inputs.excludeCommentsByActor,
     });
