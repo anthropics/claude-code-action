@@ -79,10 +79,20 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     errorDetails,
   } = input;
 
+  // Extract and preserve sticky header for job isolation
+  const stickyHeaderPattern = /^(<!-- sticky-job: [^>]+ -->)\n?/;
+  const stickyHeaderMatch = originalBody.match(stickyHeaderPattern);
+  const stickyHeader = stickyHeaderMatch ? stickyHeaderMatch[1] : "";
+
+  // Remove sticky header before processing content
+  const bodyWithoutHeader = stickyHeader
+    ? originalBody.replace(stickyHeaderPattern, "")
+    : originalBody;
+
   // Extract content from the original comment body
   // First, remove the "Claude Code is working…" or "Claude Code is working..." message
   const workingPattern = /Claude Code is working[…\.]{1,3}(?:\s*<img[^>]*>)?/i;
-  let bodyContent = originalBody.replace(workingPattern, "").trim();
+  let bodyContent = bodyWithoutHeader.replace(workingPattern, "").trim();
 
   // Check if there's a PR link in the content
   let prLinkFromContent = "";
@@ -199,5 +209,10 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   // Add the cleaned body content
   newBody += bodyContent;
 
-  return newBody.trim();
+  // Prepend sticky header if it existed in the original comment
+  const finalBody = stickyHeader
+    ? `${stickyHeader}\n${newBody.trim()}`
+    : newBody.trim();
+
+  return finalBody;
 }
