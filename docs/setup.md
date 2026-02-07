@@ -31,23 +31,27 @@ The fastest way to create a custom GitHub App is using our pre-configured manife
    **🚀 [Download the Quick Setup Tool](./create-app.html)** (Right-click → "Save Link As" or "Download Linked File")
 
    After downloading, open `create-app.html` in your web browser:
+
    - **For Personal Accounts:** Click the "Create App for Personal Account" button
    - **For Organizations:** Enter your organization name and click "Create App for Organization"
 
    The tool will automatically configure all required permissions and submit the manifest.
 
    Alternatively, you can use the manifest file directly:
+
    - Use the [`github-app-manifest.json`](../github-app-manifest.json) file from this repository
    - Visit https://github.com/settings/apps/new (for personal) or your organization's app settings
    - Look for the "Create from manifest" option and paste the JSON content
 
 2. **Complete the creation flow:**
+
    - GitHub will show you a preview of the app configuration
    - Confirm the app name (you can customize it)
    - Click "Create GitHub App"
    - The app will be created with all required permissions automatically configured
 
 3. **Generate and download a private key:**
+
    - After creating the app, you'll be redirected to the app settings
    - Scroll down to "Private keys"
    - Click "Generate a private key"
@@ -60,6 +64,7 @@ The fastest way to create a custom GitHub App is using our pre-configured manife
 If you prefer to configure the app manually or need custom permissions:
 
 1. **Create a new GitHub App:**
+
    - Go to https://github.com/settings/apps (for personal apps) or your organization's settings
    - Click "New GitHub App"
    - Configure the app with these minimum permissions:
@@ -72,16 +77,19 @@ If you prefer to configure the app manually or need custom permissions:
    - Create the app
 
 2. **Generate and download a private key:**
+
    - After creating the app, scroll down to "Private keys"
    - Click "Generate a private key"
    - Download the `.pem` file (keep this secure!)
 
 3. **Install the app on your repository:**
+
    - Go to the app's settings page
    - Click "Install App"
    - Select the repositories where you want to use Claude
 
 4. **Add the app credentials to your repository secrets:**
+
    - Go to your repository's Settings → Secrets and variables → Actions
    - Add these secrets:
      - `APP_ID`: Your GitHub App's ID (found in the app settings)
@@ -130,6 +138,7 @@ For more information on creating GitHub Apps, see the [GitHub documentation](htt
 To securely use your Anthropic API key:
 
 1. Add your API key as a repository secret:
+
    - Go to your repository's Settings
    - Navigate to "Secrets and variables" → "Actions"
    - Click "New repository secret"

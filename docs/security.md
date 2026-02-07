@@ -85,12 +85,14 @@ Commits will show as verified and attributed to the GitHub account that owns the
    ```
 
 2. Add the **public key** to your GitHub account:
+
    - Go to GitHub → Settings → SSH and GPG keys
    - Click "New SSH key"
    - Select **Key type: Signing Key** (important)
    - Paste the contents of `~/.ssh/signing_key.pub`
 
 3. Add the **private key** to your repository secrets:
+
    - Go to your repo → Settings → Secrets and variables → Actions
    - Create a new secret named `SSH_SIGNING_KEY`
    - Paste the contents of `~/.ssh/signing_key`

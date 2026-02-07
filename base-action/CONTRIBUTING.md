@@ -57,6 +57,7 @@ Thank you for your interest in contributing to Claude Code Base Action! This doc
    ```
 
    This script:
+
    - Installs `act` if not present (requires Homebrew on macOS)
    - Runs the GitHub Action workflow locally using Docker
    - Requires your `ANTHROPIC_API_KEY` to be set
