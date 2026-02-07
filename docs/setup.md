@@ -131,6 +131,24 @@ If you prefer to configure the app manually or need custom permissions:
 
 For more information on creating GitHub Apps, see the [GitHub documentation](https://docs.github.com/en/apps/creating-github-apps).
 
+### GitHub Enterprise Server (GHES) Setup
+
+When running this action on GitHub Enterprise Server, you should provide a GitHub.com token separately to avoid rate limits when downloading dependencies:
+
+1. Create a GitHub.com personal access token (classic) with no scopes (public access only)
+2. Add it as a repository secret (e.g., `GITHUB_DOTCOM_TOKEN`)
+3. Pass it to the action:
+
+   ```yaml
+   - uses: anthropics/claude-code-action@v1
+     with:
+       anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+       github_token: ${{ steps.app-token.outputs.token }}  # GHES token
+       github_dotcom_token: ${{ secrets.GITHUB_DOTCOM_TOKEN }}  # GitHub.com token
+   ```
+
+**GitHub.com deployments:** You don't need to set `github_dotcom_token`, it automatically falls back to the workflow's default token.
+
 ## Security Best Practices
 
 **⚠️ IMPORTANT: Never commit API keys directly to your repository! Always use GitHub Actions secrets.**
