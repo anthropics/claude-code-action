@@ -25,3 +25,4 @@ jobs:
           prompt: "/review-pr REPO: ${{ github.repository }} PR_NUMBER: ${{ github.event.pull_request.number }}"
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment"
+            --model "claude-opus-4-6"
