@@ -17,6 +17,16 @@ function createMockOctokit(userType: string): Octokit {
   } as unknown as Octokit;
 }
 
+function createMockOctokitThatThrows(): Octokit {
+  return {
+    users: {
+      getByUsername: async () => {
+        throw new Error("Not Found - https://docs.github.com/rest");
+      },
+    },
+  } as unknown as Octokit;
+}
+
 describe("checkHumanActor", () => {
   test("should pass for human actor", async () => {
     const mockOctokit = createMockOctokit("User");
@@ -91,6 +101,39 @@ describe("checkHumanActor", () => {
 
     await expect(checkHumanActor(mockOctokit, context)).rejects.toThrow(
       "Workflow initiated by non-human actor: other-bot (type: Bot). Add bot to allowed_bots list or use '*' to allow all bots.",
+    );
+  });
+
+  test("should pass for allowed bot even when API would return 404", async () => {
+    const mockOctokit = createMockOctokitThatThrows();
+    const context = createMockContext();
+    context.actor = "github-merge-queue[bot]";
+    context.inputs.allowedBots = "github-merge-queue";
+
+    await expect(
+      checkHumanActor(mockOctokit, context),
+    ).resolves.toBeUndefined();
+  });
+
+  test("should pass for wildcard allowed_bots even when API would return 404", async () => {
+    const mockOctokit = createMockOctokitThatThrows();
+    const context = createMockContext();
+    context.actor = "github-merge-queue[bot]";
+    context.inputs.allowedBots = "*";
+
+    await expect(
+      checkHumanActor(mockOctokit, context),
+    ).resolves.toBeUndefined();
+  });
+
+  test("should throw API error for unknown bot not in allowed list", async () => {
+    const mockOctokit = createMockOctokitThatThrows();
+    const context = createMockContext();
+    context.actor = "unknown-bot[bot]";
+    context.inputs.allowedBots = "";
+
+    await expect(checkHumanActor(mockOctokit, context)).rejects.toThrow(
+      "Not Found",
     );
   });
 });

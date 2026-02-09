@@ -12,6 +12,37 @@ export async function checkHumanActor(
   octokit: Octokit,
   githubContext: GitHubContext,
 ) {
+  const allowedBots = githubContext.inputs.allowedBots;
+
+  // Check if all bots are allowed before making any API calls
+  if (allowedBots.trim() === "*") {
+    console.log(
+      `All bots are allowed, skipping human actor check for: ${githubContext.actor}`,
+    );
+    return;
+  }
+
+  // Parse allowed bots list and check if this actor is allowed before the API call,
+  // since bot accounts (e.g. github-merge-queue[bot]) return 404 from the users API
+  const allowedBotsList = allowedBots
+    .split(",")
+    .map((bot) =>
+      bot
+        .trim()
+        .toLowerCase()
+        .replace(/\[bot\]$/, ""),
+    )
+    .filter((bot) => bot.length > 0);
+
+  const botName = githubContext.actor.toLowerCase().replace(/\[bot\]$/, "");
+
+  if (allowedBotsList.includes(botName)) {
+    console.log(
+      `Bot ${botName} is in allowed list, skipping human actor check`,
+    );
+    return;
+  }
+
   // Fetch user information from GitHub API
   const { data: userData } = await octokit.users.getByUsername({
     username: githubContext.actor,
@@ -23,37 +54,6 @@ export async function checkHumanActor(
 
   // Check bot permissions if actor is not a User
   if (actorType !== "User") {
-    const allowedBots = githubContext.inputs.allowedBots;
-
-    // Check if all bots are allowed
-    if (allowedBots.trim() === "*") {
-      console.log(
-        `All bots are allowed, skipping human actor check for: ${githubContext.actor}`,
-      );
-      return;
-    }
-
-    // Parse allowed bots list
-    const allowedBotsList = allowedBots
-      .split(",")
-      .map((bot) =>
-        bot
-          .trim()
-          .toLowerCase()
-          .replace(/\[bot\]$/, ""),
-      )
-      .filter((bot) => bot.length > 0);
-
-    const botName = githubContext.actor.toLowerCase().replace(/\[bot\]$/, "");
-
-    // Check if specific bot is allowed
-    if (allowedBotsList.includes(botName)) {
-      console.log(
-        `Bot ${botName} is in allowed list, skipping human actor check`,
-      );
-      return;
-    }
-
     // Bot not allowed
     throw new Error(
       `Workflow initiated by non-human actor: ${botName} (type: ${actorType}). Add bot to allowed_bots list or use '*' to allow all bots.`,
