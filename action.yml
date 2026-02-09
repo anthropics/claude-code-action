@@ -176,7 +176,7 @@ runs:
       shell: bash
       run: |
         cd ${GITHUB_ACTION_PATH}
-        bun install
+        bun install --production
 
     - name: Run Claude Code Action
       id: run
