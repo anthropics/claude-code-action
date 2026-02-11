@@ -292,6 +292,9 @@ describe("prepareMcpConfig", () => {
 
     const parsed = JSON.parse(result);
     expect(parsed.mcpServers.github_ci).not.toBeDefined();
+    expect(consoleWarningSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Skipping CI server installation"),
+    );
 
     delete process.env.DEFAULT_WORKFLOW_TOKEN;
   });

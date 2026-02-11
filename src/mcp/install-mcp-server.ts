@@ -178,8 +178,9 @@ export async function prepareMcpConfig(
         core.warning(
           "The github_ci MCP server requires 'actions: read' permission. " +
             "Skipping CI server installation. " +
-            "To enable CI status checks, add 'actions: read' to your workflow permissions. " +
-            "See: https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token",
+            "To enable CI status checks, add 'actions: read' to your workflow permissions " +
+            "and set 'additional_permissions: actions: read' in the action's with: inputs. " +
+            "See: https://github.com/anthropics/claude-code-action/blob/main/docs/configuration.md#additional-permissions-for-cicd-integration",
         );
       } else {
         baseMcpConfig.mcpServers.github_ci = {
