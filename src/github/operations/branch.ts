@@ -151,7 +151,10 @@ export async function setupBranch(
       // Handle open PR: Checkout the PR branch
       console.log("This is an open PR, checking out PR branch...");
 
-      const branchName = prData.headRefName;
+      const originalBranchName = prData.headRefName;
+      // Use unique local branch name to avoid conflicts with existing branches
+      // Format: pr-{number} ensures uniqueness since PR numbers are unique per repo
+      const localBranchName = `pr-${entityNumber}`;
 
       // Determine optimal fetch depth based on PR commit count, with a minimum of 20
       const commitCount = prData.commits.totalCount;
@@ -160,22 +163,28 @@ export async function setupBranch(
       console.log(
         `PR #${entityNumber}: ${commitCount} commits, using fetch depth ${fetchDepth}`,
       );
+      console.log(
+        `Fetching PR branch '${originalBranchName}' as local branch '${localBranchName}'`,
+      );
 
       // Validate branch names before use to prevent command injection
-      validateBranchName(branchName);
+      validateBranchName(localBranchName);
 
       // Execute git commands to checkout PR branch (dynamic depth based on PR size)
       // Using execFileSync instead of shell template literals for security
       // Use GitHub's PR ref which works for both same-repo and fork PRs
+      // The local branch name uses pr-{number} format to ensure uniqueness
       execGit([
         "fetch",
         "origin",
         `--depth=${fetchDepth}`,
-        `pull/${entityNumber}/head:${branchName}`,
+        `pull/${entityNumber}/head:${localBranchName}`,
       ]);
-      execGit(["checkout", branchName, "--"]);
+      execGit(["checkout", localBranchName, "--"]);
 
-      console.log(`Successfully checked out PR branch for PR #${entityNumber}`);
+      console.log(
+        `Successfully checked out PR #${entityNumber} as local branch '${localBranchName}'`,
+      );
 
       // For open PRs, we need to get the base branch of the PR
       const baseBranch = prData.baseRefName;
@@ -183,7 +192,7 @@ export async function setupBranch(
 
       return {
         baseBranch,
-        currentBranch: branchName,
+        currentBranch: localBranchName,
       };
     }
   }
