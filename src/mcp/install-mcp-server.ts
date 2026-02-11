@@ -177,25 +177,27 @@ export async function prepareMcpConfig(
       if (!actuallyHasPermission) {
         core.warning(
           "The github_ci MCP server requires 'actions: read' permission. " +
-            "Please ensure your GitHub token has this permission. " +
+            "Skipping CI server installation. " +
+            "To enable CI status checks, add 'actions: read' to your workflow permissions. " +
             "See: https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token",
         );
+      } else {
+        baseMcpConfig.mcpServers.github_ci = {
+          command: "bun",
+          args: [
+            "run",
+            `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-actions-server.ts`,
+          ],
+          env: {
+            // Use workflow github token, not app token
+            GITHUB_TOKEN: process.env.DEFAULT_WORKFLOW_TOKEN,
+            REPO_OWNER: owner,
+            REPO_NAME: repo,
+            PR_NUMBER: context.entityNumber?.toString() || "",
+            RUNNER_TEMP: process.env.RUNNER_TEMP || "/tmp",
+          },
+        };
       }
-      baseMcpConfig.mcpServers.github_ci = {
-        command: "bun",
-        args: [
-          "run",
-          `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-actions-server.ts`,
-        ],
-        env: {
-          // Use workflow github token, not app token
-          GITHUB_TOKEN: process.env.DEFAULT_WORKFLOW_TOKEN,
-          REPO_OWNER: owner,
-          REPO_NAME: repo,
-          PR_NUMBER: context.entityNumber?.toString() || "",
-          RUNNER_TEMP: process.env.RUNNER_TEMP || "/tmp",
-        },
-      };
     }
 
     if (hasGitHubMcpTools) {

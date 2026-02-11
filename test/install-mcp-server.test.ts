@@ -9,6 +9,7 @@ describe("prepareMcpConfig", () => {
   let consoleWarningSpy: any;
   let setFailedSpy: any;
   let processExitSpy: any;
+  let fetchSpy: any;
 
   // Create a mock context for tests
   const mockContext: ParsedGitHubContext = {
@@ -66,6 +67,10 @@ describe("prepareMcpConfig", () => {
     processExitSpy = spyOn(process, "exit").mockImplementation(() => {
       throw new Error("Process exit");
     });
+    // Mock fetch so checkActionsReadPermission succeeds (returns 200 for actions API)
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 }),
+    );
 
     // Set up required environment variables
     if (!process.env.GITHUB_ACTION_PATH) {
@@ -78,6 +83,7 @@ describe("prepareMcpConfig", () => {
     consoleWarningSpy.mockRestore();
     setFailedSpy.mockRestore();
     processExitSpy.mockRestore();
+    fetchSpy.mockRestore();
   });
 
   test("should return comment server when commit signing is disabled", async () => {
@@ -261,6 +267,33 @@ describe("prepareMcpConfig", () => {
 
     const parsed = JSON.parse(result);
     expect(parsed.mcpServers.github_ci).not.toBeDefined();
+  });
+
+  test("should not include github_ci server when actions:read permission is missing", async () => {
+    process.env.DEFAULT_WORKFLOW_TOKEN = "workflow-token";
+    // Simulate 403 from actions API
+    fetchSpy.mockResolvedValue(
+      new Response(
+        JSON.stringify({ message: "Resource not accessible by integration" }),
+        { status: 403 },
+      ),
+    );
+
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: [],
+      mode: "tag",
+      context: mockPRContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_ci).not.toBeDefined();
+
+    delete process.env.DEFAULT_WORKFLOW_TOKEN;
   });
 
   test("should not include github_ci server when DEFAULT_WORKFLOW_TOKEN is missing", async () => {
