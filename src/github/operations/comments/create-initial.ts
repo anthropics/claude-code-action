@@ -50,10 +50,6 @@ export async function createInitialComment(
       );
 
       const existingComment = comments.find((comment) => {
-        // Must be from the correct bot user
-        const idMatch = comment.user?.id === Number(context.inputs.botId);
-        if (!idMatch) return false;
-
         if (botIdentifier) {
           // Check for our hidden header (case-insensitive, whitespace-tolerant)
           const headerPattern = new RegExp(
@@ -67,12 +63,15 @@ export async function createInitialComment(
             comment.body || "",
           );
 
-          // If comment has a header, ONLY match if it's ours
+          // Header match is authoritative — no bot ID check needed
           if (hasAnyHeader) {
             return hasOurHeader;
           }
 
-          // Legacy comments (no header): match if it looks like a Claude comment
+          // Legacy comments (no header): require bot ID + Claude content
+          const idMatch = comment.user?.id === Number(context.inputs.botId);
+          if (!idMatch) return false;
+
           const isClaudeComment =
             comment.body?.includes("Claude Code is working") ||
             comment.body?.includes("View job run");
@@ -80,11 +79,12 @@ export async function createInitialComment(
           return isClaudeComment;
         }
 
-        // Fallback when no botIdentifier: match any Claude-looking comment
+        // Fallback when no botIdentifier: match by bot user
+        const idMatch = comment.user?.id === Number(context.inputs.botId);
         const botNameMatch =
           comment.user?.type === "Bot" &&
           comment.user?.login.toLowerCase().includes("claude");
-        return botNameMatch;
+        return idMatch || botNameMatch;
       });
 
       if (existingComment) {
