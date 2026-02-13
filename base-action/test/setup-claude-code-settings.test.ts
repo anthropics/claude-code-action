@@ -28,7 +28,7 @@ describe("setupClaudeCodeSettings", () => {
   });
 
   test("should always set enableAllProjectMcpServers to true when no input", async () => {
-    await setupClaudeCodeSettings(undefined, testHomeDir);
+    await setupClaudeCodeSettings(undefined, false, testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
@@ -42,7 +42,7 @@ describe("setupClaudeCodeSettings", () => {
       env: { API_KEY: "test-key" },
     });
 
-    await setupClaudeCodeSettings(inputSettings, testHomeDir);
+    await setupClaudeCodeSettings(inputSettings, false, testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
@@ -69,7 +69,7 @@ describe("setupClaudeCodeSettings", () => {
 
     await writeFile(testSettingsPath, JSON.stringify(testSettings, null, 2));
 
-    await setupClaudeCodeSettings(testSettingsPath, testHomeDir);
+    await setupClaudeCodeSettings(testSettingsPath, false, testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
@@ -79,13 +79,13 @@ describe("setupClaudeCodeSettings", () => {
     expect(settings.permissions).toEqual(testSettings.permissions);
   });
 
-  test("should override enableAllProjectMcpServers even if false in input", async () => {
+  test("should override enableAllProjectMcpServers even if false in input when mcpJsonChanged is false", async () => {
     const inputSettings = JSON.stringify({
       enableAllProjectMcpServers: false,
       model: "test-model",
     });
 
-    await setupClaudeCodeSettings(inputSettings, testHomeDir);
+    await setupClaudeCodeSettings(inputSettings, false, testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
@@ -94,20 +94,49 @@ describe("setupClaudeCodeSettings", () => {
     expect(settings.model).toBe("test-model");
   });
 
+  test("should not set enableAllProjectMcpServers to true when mcpJsonChanged is true", async () => {
+    const inputSettings = JSON.stringify({
+      model: "test-model",
+    });
+
+    await setupClaudeCodeSettings(inputSettings, true, testHomeDir);
+
+    const settingsContent = await readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsContent);
+
+    expect(settings.enableAllProjectMcpServers).toBeUndefined();
+    expect(settings.model).toBe("test-model");
+  });
+
+  test("should not override enableAllProjectMcpServers when mcpJsonChanged is true and input sets it false", async () => {
+    const inputSettings = JSON.stringify({
+      enableAllProjectMcpServers: false,
+      model: "test-model",
+    });
+
+    await setupClaudeCodeSettings(inputSettings, true, testHomeDir);
+
+    const settingsContent = await readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsContent);
+
+    expect(settings.enableAllProjectMcpServers).toBe(false);
+    expect(settings.model).toBe("test-model");
+  });
+
   test("should throw error for invalid JSON string", async () => {
     expect(() =>
-      setupClaudeCodeSettings("{ invalid json", testHomeDir),
+      setupClaudeCodeSettings("{ invalid json", false, testHomeDir),
     ).toThrow();
   });
 
   test("should throw error for non-existent file path", async () => {
     expect(() =>
-      setupClaudeCodeSettings("/non/existent/file.json", testHomeDir),
+      setupClaudeCodeSettings("/non/existent/file.json", false, testHomeDir),
     ).toThrow();
   });
 
   test("should handle empty string input", async () => {
-    await setupClaudeCodeSettings("", testHomeDir);
+    await setupClaudeCodeSettings("", false, testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
@@ -116,7 +145,7 @@ describe("setupClaudeCodeSettings", () => {
   });
 
   test("should handle whitespace-only input", async () => {
-    await setupClaudeCodeSettings("   \n\t  ", testHomeDir);
+    await setupClaudeCodeSettings("   \n\t  ", false, testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
@@ -128,6 +157,7 @@ describe("setupClaudeCodeSettings", () => {
     // First, create some existing settings
     await setupClaudeCodeSettings(
       JSON.stringify({ existingKey: "existingValue" }),
+      false,
       testHomeDir,
     );
 
@@ -137,7 +167,7 @@ describe("setupClaudeCodeSettings", () => {
       model: "claude-opus-4-1-20250805",
     });
 
-    await setupClaudeCodeSettings(newSettings, testHomeDir);
+    await setupClaudeCodeSettings(newSettings, false, testHomeDir);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
