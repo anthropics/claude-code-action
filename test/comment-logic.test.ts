@@ -443,4 +443,36 @@ describe("updateCommentBody", () => {
       expect(result).not.toContain("tree/claude/issue-123");
     });
   });
+
+  describe("sticky-job header preservation", () => {
+    it("should preserve sticky-job header through comment update", () => {
+      const input: CommentUpdateInput = {
+        currentBody:
+          "<!-- sticky-job: claude-review -->\nClaude Code is working…\n\nI'll analyze this and get back to you.\n\n[View job run](https://github.com/owner/repo/actions/runs/123)",
+        actionFailed: false,
+        executionDetails: { duration_ms: 30000 },
+        jobUrl: "https://github.com/owner/repo/actions/runs/123",
+        triggerUsername: "test-user",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).toStartWith("<!-- sticky-job: claude-review -->\n");
+      expect(result).toContain("Claude finished @test-user's task");
+    });
+
+    it("should work without sticky-job header", () => {
+      const input: CommentUpdateInput = {
+        currentBody:
+          "Claude Code is working…\n\nI'll analyze this and get back to you.",
+        actionFailed: false,
+        executionDetails: { duration_ms: 30000 },
+        jobUrl: "https://github.com/owner/repo/actions/runs/123",
+        triggerUsername: "test-user",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).not.toContain("sticky-job");
+      expect(result).toContain("Claude finished @test-user's task");
+    });
+  });
 });

@@ -360,4 +360,27 @@ describe("stripHtmlComments (legacy)", () => {
       "Hello World",
     );
   });
+
+  it("should preserve sticky-job headers", () => {
+    expect(stripHtmlComments("<!-- sticky-job: claude-review -->Text")).toBe(
+      "<!-- sticky-job: claude-review -->Text",
+    );
+  });
+
+  it("should preserve sticky-job headers while stripping other comments", () => {
+    const input =
+      "<!-- sticky-job: my-job -->\n<!-- hidden prompt -->Hello World";
+    expect(stripHtmlComments(input)).toBe(
+      "<!-- sticky-job: my-job -->\nHello World",
+    );
+  });
+});
+
+describe("sanitizeContent with sticky-job headers", () => {
+  it("should preserve sticky-job headers through full sanitization", () => {
+    const content = "<!-- sticky-job: claude-review -->\nSome response text";
+    const sanitized = sanitizeContent(content);
+    expect(sanitized).toContain("<!-- sticky-job: claude-review -->");
+    expect(sanitized).toContain("Some response text");
+  });
 });

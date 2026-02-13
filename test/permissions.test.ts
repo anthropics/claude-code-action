@@ -68,6 +68,7 @@ describe("checkWritePermissions", () => {
       branchPrefix: "claude/",
       useStickyComment: false,
       classifyInlineComments: true,
+      jobId: "",
       useCommitSigning: false,
       sshSigningKey: "",
       botId: String(CLAUDE_APP_BOT_ID),

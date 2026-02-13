@@ -6,24 +6,28 @@
  */
 
 import { appendFileSync } from "fs";
-import { createJobRunLink, createCommentBody } from "./common";
+import {
+  createJobRunLink,
+  createCommentBody,
+  hasStickyJobHeader,
+} from "./common";
 import {
   isPullRequestReviewCommentEvent,
   isPullRequestEvent,
   type ParsedGitHubContext,
 } from "../../context";
+import { CLAUDE_APP_BOT_ID } from "../../constants";
 import type { Octokit } from "@octokit/rest";
-
-const CLAUDE_APP_BOT_ID = 209825114;
 
 export async function createInitialComment(
   octokit: Octokit,
   context: ParsedGitHubContext,
 ) {
   const { owner, repo } = context.repository;
+  const jobId = context.inputs.jobId;
 
   const jobRunLink = createJobRunLink(owner, repo, context.runId);
-  const initialBody = createCommentBody(jobRunLink);
+  const initialBody = createCommentBody(jobRunLink, "", jobId);
 
   try {
     let response;
@@ -33,20 +37,28 @@ export async function createInitialComment(
       context.isPR &&
       isPullRequestEvent(context)
     ) {
-      const comments = await octokit.rest.issues.listComments({
-        owner,
-        repo,
-        issue_number: context.entityNumber,
-      });
-      const existingComment = comments.data.find((comment) => {
+      const comments = await octokit.paginate(
+        octokit.rest.issues.listComments,
+        {
+          owner,
+          repo,
+          issue_number: context.entityNumber,
+          per_page: 100,
+        },
+      );
+
+      const existingComment = comments.find((comment) => {
+        if (jobId) {
+          return hasStickyJobHeader(comment.body ?? "", jobId);
+        }
+        // Fallback for backward compat when no jobId is available
         const idMatch = comment.user?.id === CLAUDE_APP_BOT_ID;
         const botNameMatch =
           comment.user?.type === "Bot" &&
           comment.user?.login.toLowerCase().includes("claude");
-        const bodyMatch = comment.body === initialBody;
-
-        return idMatch || botNameMatch || bodyMatch;
+        return idMatch || botNameMatch;
       });
+
       if (existingComment) {
         response = await octokit.rest.issues.updateComment({
           owner,
