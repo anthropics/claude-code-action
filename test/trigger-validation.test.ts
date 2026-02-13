@@ -449,6 +449,120 @@ describe("checkContainsTrigger", () => {
       });
     });
   });
+
+  describe("case-insensitive trigger matching", () => {
+    it("should match trigger phrase regardless of case in issue comments", () => {
+      const baseContext = {
+        ...mockIssueCommentContext,
+        inputs: {
+          ...mockIssueCommentContext.inputs,
+          triggerPhrase: "@claude",
+        },
+      };
+
+      const testCases = [
+        { commentBody: "@Claude do this", expected: true },
+        { commentBody: "@CLAUDE fix the bug", expected: true },
+        { commentBody: "@cLaUdE help me", expected: true },
+        { commentBody: "@claude review this", expected: true },
+      ];
+
+      testCases.forEach(({ commentBody, expected }) => {
+        const context = {
+          ...baseContext,
+          payload: {
+            ...baseContext.payload,
+            comment: {
+              ...(baseContext.payload as IssueCommentEvent).comment,
+              body: commentBody,
+            },
+          },
+        } as ParsedGitHubContext;
+        expect(checkContainsTrigger(context)).toBe(expected);
+      });
+    });
+
+    it("should match trigger phrase regardless of case in issue body", () => {
+      const baseContext = {
+        ...mockIssueOpenedContext,
+        inputs: {
+          ...mockIssueOpenedContext.inputs,
+          triggerPhrase: "@claude",
+        },
+      };
+
+      const testCases = [
+        { issueBody: "@Claude, can you help?", expected: true },
+        { issueBody: "@CLAUDE fix this", expected: true },
+        { issueBody: "Hey @Claude! This is urgent", expected: true },
+      ];
+
+      testCases.forEach(({ issueBody, expected }) => {
+        const context = {
+          ...baseContext,
+          payload: {
+            ...baseContext.payload,
+            issue: {
+              ...(baseContext.payload as IssuesEvent).issue,
+              body: issueBody,
+            },
+          },
+        } as ParsedGitHubContext;
+        expect(checkContainsTrigger(context)).toBe(expected);
+      });
+    });
+
+    it("should match trigger phrase regardless of case in PR body", () => {
+      const context = createMockContext({
+        eventName: "pull_request",
+        eventAction: "opened",
+        isPR: true,
+        payload: {
+          action: "opened",
+          pull_request: {
+            number: 123,
+            title: "Test PR",
+            body: "@Claude can you review this?",
+            created_at: "2023-01-01T00:00:00Z",
+            user: { login: "testuser" },
+          },
+        } as PullRequestEvent,
+        inputs: {
+          prompt: "",
+          triggerPhrase: "@claude",
+          assigneeTrigger: "",
+          labelTrigger: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          useCommitSigning: false,
+          allowedBots: "",
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(true);
+    });
+
+    it("should match trigger phrase regardless of case in PR review body", () => {
+      const baseContext = {
+        ...mockPullRequestReviewContext,
+        inputs: {
+          ...mockPullRequestReviewContext.inputs,
+          triggerPhrase: "@claude",
+        },
+      };
+
+      const context = {
+        ...baseContext,
+        payload: {
+          ...baseContext.payload,
+          review: {
+            ...(baseContext.payload as PullRequestReviewEvent).review,
+            body: "@Claude, please review",
+          },
+        },
+      } as ParsedGitHubContext;
+      expect(checkContainsTrigger(context)).toBe(true);
+    });
+  });
 });
 
 describe("escapeRegExp", () => {
