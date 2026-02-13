@@ -139,3 +139,17 @@ permissions:
 ## Microsoft Foundry Setup
 
 For detailed setup instructions for Microsoft Foundry, see the [official documentation](https://docs.anthropic.com/en/docs/claude-code/microsoft-foundry).
+
+## LLM Gateways & Proxies
+
+If you're routing Claude requests through an LLM Gateway or proxy (Portkey, LiteLLM, custom gateways), use the `base_url` and `custom_headers` inputs:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.YOUR_API_KEY }}
+    base_url: "https://your-gateway.example.com"
+    custom_headers: '{"X-Gateway-Auth": "${{ secrets.GATEWAY_TOKEN }}"}'
+```
+
+See [Configuration - LLM Gateway](./configuration.md#llm-gateway--custom-api-endpoints) for detailed examples.
