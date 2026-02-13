@@ -67,6 +67,7 @@ describe("checkWritePermissions", () => {
       labelTrigger: "",
       branchPrefix: "claude/",
       useStickyComment: false,
+      jobId: "",
       useCommitSigning: false,
       sshSigningKey: "",
       botId: String(CLAUDE_APP_BOT_ID),

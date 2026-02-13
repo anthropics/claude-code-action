@@ -19,6 +19,7 @@ describe("detectMode with enhanced routing", () => {
       labelTrigger: "",
       branchPrefix: "claude/",
       useStickyComment: false,
+      jobId: "",
       useCommitSigning: false,
       sshSigningKey: "",
       botId: "123456",

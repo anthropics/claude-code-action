@@ -33,7 +33,11 @@ export async function updateTrackingComment(
     branchLink = createBranchLink(owner, repo, branch);
   }
 
-  const updatedBody = createCommentBody(jobRunLink, branchLink);
+  const updatedBody = createCommentBody(
+    jobRunLink,
+    branchLink,
+    context.inputs.jobId,
+  );
 
   // Update the existing comment with the branch link
   try {
