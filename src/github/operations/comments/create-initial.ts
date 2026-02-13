@@ -6,28 +6,29 @@
  */
 
 import { appendFileSync } from "fs";
-import {
-  createJobRunLink,
-  createCommentBody,
-  hasStickyJobHeader,
-} from "./common";
+import { createJobRunLink, createCommentBody } from "./common";
 import {
   isPullRequestReviewCommentEvent,
   isPullRequestEvent,
   type ParsedGitHubContext,
 } from "../../context";
-import { CLAUDE_APP_BOT_ID } from "../../constants";
 import type { Octokit } from "@octokit/rest";
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 export async function createInitialComment(
   octokit: Octokit,
   context: ParsedGitHubContext,
 ) {
   const { owner, repo } = context.repository;
-  const jobId = context.inputs.jobId;
+  const botIdentifier = context.inputs.useStickyComment
+    ? context.inputs.jobId
+    : "";
 
   const jobRunLink = createJobRunLink(owner, repo, context.runId);
-  const initialBody = createCommentBody(jobRunLink, "", jobId);
+  const initialBody = createCommentBody(jobRunLink, "", botIdentifier);
 
   try {
     let response;
@@ -37,6 +38,7 @@ export async function createInitialComment(
       context.isPR &&
       isPullRequestEvent(context)
     ) {
+      // Use pagination to fetch all comments (handles PRs with 30+ comments)
       const comments = await octokit.paginate(
         octokit.rest.issues.listComments,
         {
@@ -48,15 +50,41 @@ export async function createInitialComment(
       );
 
       const existingComment = comments.find((comment) => {
-        if (jobId) {
-          return hasStickyJobHeader(comment.body ?? "", jobId);
+        // Must be from the correct bot user
+        const idMatch = comment.user?.id === Number(context.inputs.botId);
+        if (!idMatch) return false;
+
+        if (botIdentifier) {
+          // Check for our hidden header (case-insensitive, whitespace-tolerant)
+          const headerPattern = new RegExp(
+            `<!--\\s*bot:\\s*${escapeRegex(botIdentifier)}\\s*-->`,
+            "i",
+          );
+          const hasOurHeader = headerPattern.test(comment.body || "");
+
+          // Check if comment has ANY bot header
+          const hasAnyHeader = /<!--\s*bot:\s*\S+\s*-->/.test(
+            comment.body || "",
+          );
+
+          // If comment has a header, ONLY match if it's ours
+          if (hasAnyHeader) {
+            return hasOurHeader;
+          }
+
+          // Legacy comments (no header): match if it looks like a Claude comment
+          const isClaudeComment =
+            comment.body?.includes("Claude Code is working") ||
+            comment.body?.includes("View job run");
+
+          return isClaudeComment;
         }
-        // Fallback for backward compat when no jobId is available
-        const idMatch = comment.user?.id === CLAUDE_APP_BOT_ID;
+
+        // Fallback when no botIdentifier: match any Claude-looking comment
         const botNameMatch =
           comment.user?.type === "Bot" &&
           comment.user?.login.toLowerCase().includes("claude");
-        return idMatch || botNameMatch;
+        return botNameMatch;
       });
 
       if (existingComment) {

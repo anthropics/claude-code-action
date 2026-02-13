@@ -21,23 +21,20 @@ export function createBranchLink(
   return `\n[View branch](${branchUrl})`;
 }
 
-export function createStickyJobHeader(jobId: string): string {
-  return `<!-- sticky-job: ${jobId} -->`;
-}
-
-export function hasStickyJobHeader(body: string, jobId: string): boolean {
-  return body.includes(createStickyJobHeader(jobId));
-}
-
 export function createCommentBody(
   jobRunLink: string,
   branchLink: string = "",
-  jobId: string = "",
+  botName: string = "",
 ): string {
-  const header = jobId ? `${createStickyJobHeader(jobId)}\n` : "";
+  const header = botName ? `<!-- bot: ${botName} -->\n` : "";
   return `${header}Claude Code is working… ${SPINNER_HTML}
 
 I'll analyze this and get back to you.
 
 ${jobRunLink}${branchLink}`;
+}
+
+export function extractBotHeader(body: string): string {
+  const match = body.match(/^(<!--\s*bot:\s*\S+\s*-->\n?)/);
+  return match?.[1] ?? "";
 }

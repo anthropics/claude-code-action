@@ -1,4 +1,5 @@
 import { GITHUB_SERVER_URL } from "../api/config";
+import { extractBotHeader } from "./comments/common";
 
 export type ExecutionDetails = {
   total_cost_usd?: number;
@@ -79,21 +80,18 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     errorDetails,
   } = input;
 
-  // Preserve sticky-job header if present
-  const stickyHeaderMatch = originalBody.match(
-    /^(<!-- sticky-job: [^\n]+ -->)\n?/,
-  );
-  const stickyHeader = stickyHeaderMatch ? stickyHeaderMatch[1] + "\n" : "";
+  // Extract and preserve bot header for sticky comment identification
+  const botHeader = extractBotHeader(originalBody);
 
   // Extract content from the original comment body
   // First, remove the "Claude Code is working…" or "Claude Code is working..." message
   const workingPattern = /Claude Code is working[…\.]{1,3}(?:\s*<img[^>]*>)?/i;
   let bodyContent = originalBody.replace(workingPattern, "").trim();
 
-  // Remove sticky-job header from body content (it's re-prepended separately)
-  bodyContent = bodyContent
-    .replace(/^<!-- sticky-job: [^\n]+ -->\n?/, "")
-    .trim();
+  // Remove bot header from body content since we'll prepend it at the end
+  if (botHeader) {
+    bodyContent = bodyContent.replace(/^<!--\s*bot:\s*\S+\s*-->\n?/, "").trim();
+  }
 
   // Check if there's a PR link in the content
   let prLinkFromContent = "";
@@ -190,7 +188,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   }
 
   // Build the new body with blank line between header and separator
-  let newBody = `${stickyHeader}${header}${links}`;
+  let newBody = `${header}${links}`;
 
   // Add error details if available
   if (actionFailed && errorDetails) {
@@ -209,6 +207,11 @@ export function updateCommentBody(input: CommentUpdateInput): string {
 
   // Add the cleaned body content
   newBody += bodyContent;
+
+  // Prepend bot header if it existed in the original comment
+  if (botHeader) {
+    return (botHeader + newBody).trim();
+  }
 
   return newBody.trim();
 }
