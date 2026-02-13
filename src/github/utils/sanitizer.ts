@@ -159,9 +159,4 @@ export function redactGitHubTokens(content: string): string {
 }
 
 export const stripHtmlComments = (content: string) =>
-  content.replace(/<!--[\s\S]*?-->/g, (match) => {
-    if (match.startsWith("<!-- sticky-job:")) {
-      return match;
-    }
-    return "";
-  });
+  content.replace(/<!--[\s\S]*?-->/g, "");
