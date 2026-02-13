@@ -50,41 +50,13 @@ export async function createInitialComment(
       );
 
       const existingComment = comments.find((comment) => {
-        if (botIdentifier) {
-          // Check for our hidden header (case-insensitive, whitespace-tolerant)
-          const headerPattern = new RegExp(
-            `<!--\\s*bot:\\s*${escapeRegex(botIdentifier)}\\s*-->`,
-            "i",
-          );
-          const hasOurHeader = headerPattern.test(comment.body || "");
+        if (!botIdentifier) return false;
 
-          // Check if comment has ANY bot header
-          const hasAnyHeader = /<!--\s*bot:\s*\S+\s*-->/.test(
-            comment.body || "",
-          );
-
-          // Header match is authoritative — no bot ID check needed
-          if (hasAnyHeader) {
-            return hasOurHeader;
-          }
-
-          // Legacy comments (no header): require bot ID + Claude content
-          const idMatch = comment.user?.id === Number(context.inputs.botId);
-          if (!idMatch) return false;
-
-          const isClaudeComment =
-            comment.body?.includes("Claude Code is working") ||
-            comment.body?.includes("View job run");
-
-          return isClaudeComment;
-        }
-
-        // Fallback when no botIdentifier: match by bot user
-        const idMatch = comment.user?.id === Number(context.inputs.botId);
-        const botNameMatch =
-          comment.user?.type === "Bot" &&
-          comment.user?.login.toLowerCase().includes("claude");
-        return idMatch || botNameMatch;
+        const headerPattern = new RegExp(
+          `<!--\\s*bot:\\s*${escapeRegex(botIdentifier)}\\s*-->`,
+          "i",
+        );
+        return headerPattern.test(comment.body || "");
       });
 
       if (existingComment) {
