@@ -576,7 +576,13 @@ ${sanitizeContent(eventData.commentBody)}
 Your request is in <trigger_comment> above${eventData.eventName === "issues" ? ` (or the ${entityType} body for assigned/labeled events)` : ""}.
 
 Decide what's being asked:
-1. **Question or code review** - Answer directly or provide feedback
+1. **Question or code review** - Answer directly or provide feedback${
+    eventData.isPR
+      ? `
+   - For inline comments: Use mcp__github_inline_comment__create_inline_comment to add specific feedback on lines
+   - Duplicate comments are automatically prevented - if a comment exists on a line, yours will be added as a reply`
+      : ""
+  }
 2. **Code change** - Implement the change, commit, and push
 
 Communication:
@@ -756,7 +762,15 @@ ${eventData.eventName === "issue_comment" || eventData.eventName === "pull_reque
         - Look for bugs, security issues, performance problems, and other issues
         - Suggest improvements for readability and maintainability
         - Check for best practices and coding standards
-        - Reference specific code sections with file paths and line numbers${eventData.isPR ? `\n      - AFTER reading files and analyzing code, you MUST call mcp__github_comment__update_claude_comment to post your review` : ""}
+        - Reference specific code sections with file paths and line numbers${
+          eventData.isPR
+            ? `\n      - AFTER reading files and analyzing code, you MUST call mcp__github_comment__update_claude_comment to post your review
+      - INLINE COMMENTS (PR reviews):
+        - You have access to mcp__github_inline_comment__create_inline_comment to add inline comments on specific lines
+        - The tool automatically prevents duplicate comments - if a comment already exists on a line, your comment will be added as a reply to the existing thread
+        - If you see existing comments in the <review_comments> section with comment IDs, you can reference them in your feedback`
+            : ""
+        }
       - Formulate a concise, technical, and helpful response based on the context.
       - Reference specific code with inline formatting or code blocks.
       - Include relevant file paths and line numbers when applicable.${
