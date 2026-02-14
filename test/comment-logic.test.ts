@@ -443,4 +443,79 @@ describe("updateCommentBody", () => {
       expect(result).not.toContain("tree/claude/issue-123");
     });
   });
+
+  describe("bot header preservation", () => {
+    it("should preserve bot header through comment update", () => {
+      const input: CommentUpdateInput = {
+        currentBody:
+          "<!-- bot: claude-review -->\nClaude Code is working…\n\nI'll analyze this and get back to you.\n\n[View job run](https://github.com/owner/repo/actions/runs/123)",
+        actionFailed: false,
+        executionDetails: { duration_ms: 30000 },
+        jobUrl: "https://github.com/owner/repo/actions/runs/123",
+        triggerUsername: "test-user",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).toStartWith("<!-- bot: claude-review -->\n");
+      expect(result).toContain("Claude finished @test-user's task");
+    });
+
+    it("should preserve bot header with different bot names", () => {
+      const input: CommentUpdateInput = {
+        currentBody:
+          "<!-- bot: claude-docs-review -->\nClaude Code is working...",
+        actionFailed: false,
+        executionDetails: { duration_ms: 30000 },
+        jobUrl: "https://github.com/owner/repo/actions/runs/123",
+        triggerUsername: "user",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).toStartWith("<!-- bot: claude-docs-review -->");
+    });
+
+    it("should work without bot header", () => {
+      const input: CommentUpdateInput = {
+        currentBody:
+          "Claude Code is working…\n\nI'll analyze this and get back to you.",
+        actionFailed: false,
+        executionDetails: { duration_ms: 30000 },
+        jobUrl: "https://github.com/owner/repo/actions/runs/123",
+        triggerUsername: "test-user",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).not.toContain("<!-- bot:");
+      expect(result).toContain("Claude finished @test-user's task");
+    });
+
+    it("should preserve bot header when action fails", () => {
+      const input: CommentUpdateInput = {
+        currentBody: "<!-- bot: claude-review -->\nClaude Code is working…",
+        actionFailed: true,
+        executionDetails: { duration_ms: 10000 },
+        jobUrl: "https://github.com/owner/repo/actions/runs/123",
+        errorDetails: "Something went wrong",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).toStartWith("<!-- bot: claude-review -->");
+      expect(result).toContain("**Claude encountered an error after 10s**");
+    });
+
+    it("should not preserve bot header if not at start of comment", () => {
+      const input: CommentUpdateInput = {
+        currentBody:
+          "Some text before\n<!-- bot: claude-review -->\nClaude Code is working…",
+        actionFailed: false,
+        executionDetails: { duration_ms: 5000 },
+        jobUrl: "https://github.com/owner/repo/actions/runs/123",
+        triggerUsername: "testuser",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result.startsWith("<!-- bot:")).toBe(false);
+      expect(result).toContain("**Claude finished");
+    });
+  });
 });
