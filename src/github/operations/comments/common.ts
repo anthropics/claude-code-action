@@ -24,10 +24,25 @@ export function createBranchLink(
 export function createCommentBody(
   jobRunLink: string,
   branchLink: string = "",
+  botName: string = "",
 ): string {
-  return `Claude Code is working… ${SPINNER_HTML}
+  const header = botName ? `<!-- bot: ${botName} -->\n` : "";
+  return `${header}Claude Code is working… ${SPINNER_HTML}
 
 I'll analyze this and get back to you.
 
 ${jobRunLink}${branchLink}`;
+}
+
+/**
+ * Extracts the bot header from a comment body if present.
+ * The bot header is used for sticky comment identification.
+ * Format: <!-- bot: bot-name -->
+ *
+ * @param body - The comment body to extract the header from
+ * @returns The bot header including trailing newline if present, empty string otherwise
+ */
+export function extractBotHeader(body: string): string {
+  const match = body.match(/^(<!--\s*bot:\s*\S+\s*-->\n?)/);
+  return match?.[1] ?? "";
 }
