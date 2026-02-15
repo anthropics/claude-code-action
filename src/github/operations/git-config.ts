@@ -42,13 +42,39 @@ export async function configureGitAuth(
   await $`git config user.email "${botId}+${botName}@${noreplyDomain}"`;
   console.log(`✓ Set git user as ${botName}`);
 
-  // Remove the authorization header that actions/checkout sets
+  // Remove the authorization header that actions/checkout sets.
+  // Newer versions of actions/checkout store credentials in external config files
+  // referenced via includeIf, so --unset-all on local config may not find them.
+  // We clear both: local config entries and any includeIf credential files.
   console.log("Removing existing git authentication headers...");
   try {
     await $`git config --unset-all http.${GITHUB_SERVER_URL}/.extraheader`;
-    console.log("✓ Removed existing authentication headers");
-  } catch (e) {
-    console.log("No existing authentication headers to remove");
+    console.log("✓ Removed existing authentication headers from local config");
+  } catch {
+    console.log("No existing authentication headers in local config to remove");
+  }
+
+  // Clear extraheader from includeIf credential config files set by actions/checkout
+  try {
+    const configOutput = await $`git config --list --show-origin`.text();
+    const extraheaderPattern = `http.${GITHUB_SERVER_URL}/.extraheader=`;
+    for (const line of configOutput.split("\n")) {
+      if (!line.includes(extraheaderPattern)) continue;
+      // Format: "file:<path>\t<key>=<value>"
+      const match = line.match(/^file:(.+?)\t/);
+      if (!match) continue;
+      const configFile = match[1]!;
+      // Skip the local .git/config — we already handled that above
+      if (configFile.endsWith("/.git/config")) continue;
+      try {
+        await $`git config --file ${configFile} --unset-all http.${GITHUB_SERVER_URL}/.extraheader`;
+        console.log(`✓ Removed authentication headers from ${configFile}`);
+      } catch {
+        // Already removed or not present
+      }
+    }
+  } catch {
+    console.log("Could not enumerate git config origins");
   }
 
   // Update the remote URL to include the token for authentication
