@@ -894,9 +894,9 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("Write");
 
     // Default is no commit signing, so should have specific Bash git commands
-    expect(result).toContain("Bash(git add *)");
-    expect(result).toContain("Bash(git commit *)");
-    expect(result).toContain("Bash(git push *)");
+    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("Bash(git push:*)");
     expect(result).toContain("mcp__github_comment__update_claude_comment");
 
     // Should not have commit signing tools
@@ -916,8 +916,8 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("Write");
 
     // Should have specific Bash git commands for non-signing mode
-    expect(result).toContain("Bash(git add *)");
-    expect(result).toContain("Bash(git commit *)");
+    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("Bash(git commit:*)");
     expect(result).toContain("mcp__github_comment__update_claude_comment");
 
     // Should not have commit signing tools
@@ -1009,13 +1009,13 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("Write");
 
     // Specific Bash git commands should be included
-    expect(result).toContain("Bash(git add *)");
-    expect(result).toContain("Bash(git commit *)");
-    expect(result).toContain("Bash(git push *)");
-    expect(result).toContain("Bash(git status *)");
-    expect(result).toContain("Bash(git diff *)");
-    expect(result).toContain("Bash(git log *)");
-    expect(result).toContain("Bash(git rm *)");
+    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("Bash(git push:*)");
+    expect(result).toContain("Bash(git status:*)");
+    expect(result).toContain("Bash(git diff:*)");
+    expect(result).toContain("Bash(git log:*)");
+    expect(result).toContain("Bash(git rm:*)");
 
     // Comment tool from minimal server should be included
     expect(result).toContain("mcp__github_comment__update_claude_comment");
@@ -1031,7 +1031,7 @@ describe("buildAllowedToolsString", () => {
 
     // Base tools should be present
     expect(result).toContain("Edit");
-    expect(result).toContain("Bash(git add *)");
+    expect(result).toContain("Bash(git add:*)");
 
     // Custom tools should be included
     expect(result).toContain("CustomTool1");

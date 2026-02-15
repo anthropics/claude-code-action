@@ -57,13 +57,13 @@ export function buildAllowedToolsString(
   } else {
     // When not using commit signing, add specific Bash git commands
     baseTools.push(
-      "Bash(git add *)",
-      "Bash(git commit *)",
-      "Bash(git push *)",
-      "Bash(git status *)",
-      "Bash(git diff *)",
-      "Bash(git log *)",
-      "Bash(git rm *)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git rm:*)",
     );
   }
 

@@ -135,13 +135,13 @@ export async function prepareTagMode({
   // SSH signing still uses git CLI, just with signing enabled
   if (!useApiCommitSigning) {
     tagModeTools.push(
-      "Bash(git add *)",
-      "Bash(git commit *)",
-      "Bash(git push *)",
-      "Bash(git status *)",
-      "Bash(git diff *)",
-      "Bash(git log *)",
-      "Bash(git rm *)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git rm:*)",
     );
   } else {
     // When using API commit signing, use MCP file ops tools
