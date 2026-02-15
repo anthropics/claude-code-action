@@ -66,6 +66,12 @@ Each solution includes complete working examples, configuration details, and exp
 
 Having issues or questions? Check out our [Frequently Asked Questions](./docs/faq.md) for solutions to common problems and detailed explanations of Claude's capabilities and limitations.
 
+## 😄 Dev Joke
+
+> Why do programmers prefer dark mode?
+>
+> Because light attracts bugs.
+
 ## License
 
 This project is licensed under the MIT License—see the LICENSE file for details.
