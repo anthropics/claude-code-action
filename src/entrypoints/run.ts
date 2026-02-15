@@ -223,12 +223,15 @@ async function run() {
     let mcpJsonChanged = false;
     if (isEntityContext(context) && context.isPR) {
       try {
-        const { data: changedFiles } = await octokit.rest.pulls.listFiles({
-          owner: context.repository.owner,
-          repo: context.repository.repo,
-          pull_number: context.entityNumber,
-          per_page: 100,
-        });
+        const changedFiles = await octokit.rest.paginate(
+          octokit.rest.pulls.listFiles,
+          {
+            owner: context.repository.owner,
+            repo: context.repository.repo,
+            pull_number: context.entityNumber,
+            per_page: 100,
+          },
+        );
         mcpJsonChanged = changedFiles.some(
           (f) =>
             f.filename === ".mcp.json" || f.filename.endsWith("/.mcp.json"),
@@ -240,8 +243,9 @@ async function run() {
         }
       } catch (e) {
         console.log(
-          `Could not check PR changed files: ${e}. Defaulting to mcpJsonChanged=false.`,
+          `Could not check PR changed files: ${e}. Defaulting to mcpJsonChanged=true (fail-closed).`,
         );
+        mcpJsonChanged = true;
       }
     }
 
