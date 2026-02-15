@@ -295,8 +295,12 @@ async function run() {
       }
     }
 
-    // Write step summary
-    if (executionFile && existsSync(executionFile)) {
+    // Write step summary (unless display_report is set to false)
+    if (
+      executionFile &&
+      existsSync(executionFile) &&
+      process.env.DISPLAY_REPORT !== "false"
+    ) {
       await writeStepSummary(executionFile);
     }
 
