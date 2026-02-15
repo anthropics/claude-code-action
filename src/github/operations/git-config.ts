@@ -58,23 +58,39 @@ export async function configureGitAuth(
   try {
     const configOutput = await $`git config --list --show-origin`.text();
     const extraheaderPattern = `http.${GITHUB_SERVER_URL}/.extraheader=`;
+    console.log(
+      `Scanning git config origins for extraheader pattern: ${extraheaderPattern}`,
+    );
+    let foundExternalEntries = false;
     for (const line of configOutput.split("\n")) {
       if (!line.includes(extraheaderPattern)) continue;
       // Format: "file:<path>\t<key>=<value>"
       const match = line.match(/^file:(.+?)\t/);
-      if (!match) continue;
+      if (!match) {
+        console.log(
+          `Found extraheader but could not parse origin: ${line.substring(0, 80)}`,
+        );
+        continue;
+      }
       const configFile = match[1]!;
       // Skip the local .git/config — we already handled that above
-      if (configFile.endsWith("/.git/config")) continue;
+      if (configFile.endsWith("/.git/config")) {
+        console.log("Skipping .git/config (already handled)");
+        continue;
+      }
+      foundExternalEntries = true;
       try {
         await $`git config --file ${configFile} --unset-all http.${GITHUB_SERVER_URL}/.extraheader`;
         console.log(`✓ Removed authentication headers from ${configFile}`);
       } catch {
-        // Already removed or not present
+        console.log(`Could not unset extraheader from ${configFile}`);
       }
     }
-  } catch {
-    console.log("Could not enumerate git config origins");
+    if (!foundExternalEntries) {
+      console.log("No external credential config files found");
+    }
+  } catch (error) {
+    console.log(`Could not enumerate git config origins: ${error}`);
   }
 
   // Update the remote URL to include the token for authentication
