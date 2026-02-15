@@ -124,16 +124,16 @@ describe("parseSdkOptions", () => {
       // This is the exact scenario from issue #746
       const options: ClaudeOptions = {
         claudeArgs:
-          '--allowed-tools "Bash(git log:*)" "Bash(git diff:*)" "Bash(git fetch:*)" "Bash(gh pr:*)"',
+          '--allowed-tools "Bash(git log *)" "Bash(git diff *)" "Bash(git fetch *)" "Bash(gh pr *)"',
       };
 
       const result = parseSdkOptions(options);
 
       expect(result.sdkOptions.allowedTools).toEqual([
-        "Bash(git log:*)",
-        "Bash(git diff:*)",
-        "Bash(git fetch:*)",
-        "Bash(gh pr:*)",
+        "Bash(git log *)",
+        "Bash(git diff *)",
+        "Bash(git fetch *)",
+        "Bash(gh pr *)",
       ]);
     });
 

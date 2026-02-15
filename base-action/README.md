@@ -14,7 +14,7 @@ Add the following to your workflow file:
   uses: anthropics/claude-code-base-action@beta
   with:
     prompt: "Your prompt here"
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
 # Or using a prompt from a file
@@ -22,7 +22,7 @@ Add the following to your workflow file:
   uses: anthropics/claude-code-base-action@beta
   with:
     prompt_file: "/path/to/prompt.txt"
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
 # Or limiting the conversation turns
@@ -30,7 +30,7 @@ Add the following to your workflow file:
   uses: anthropics/claude-code-base-action@beta
   with:
     prompt: "Your prompt here"
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
     max_turns: "5" # Limit conversation to 5 turns
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
@@ -40,7 +40,7 @@ Add the following to your workflow file:
   with:
     prompt: "Build a REST API"
     system_prompt: "You are a senior backend engineer. Focus on security, performance, and maintainability."
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
 # Or appending to the default system prompt
@@ -49,7 +49,7 @@ Add the following to your workflow file:
   with:
     prompt: "Create a database schema"
     append_system_prompt: "After writing code, be sure to code review yourself."
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
 # Using custom environment variables
@@ -61,7 +61,7 @@ Add the following to your workflow file:
       ENVIRONMENT: staging
       API_URL: https://api-staging.example.com
       DEBUG: true
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
 # Using fallback model for handling API errors
@@ -71,7 +71,7 @@ Add the following to your workflow file:
     prompt: "Review and fix TypeScript errors"
     model: "claude-opus-4-1-20250805"
     fallback_model: "claude-sonnet-4-20250514"
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
 # Using OAuth token instead of API key
@@ -79,7 +79,7 @@ Add the following to your workflow file:
   uses: anthropics/claude-code-base-action@beta
   with:
     prompt: "Update dependencies"
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 ```
 
@@ -155,7 +155,7 @@ The `claude_env` input accepts YAML multiline format with key-value pairs:
       DATABASE_URL: ${{ secrets.STAGING_DB_URL }}
       DEBUG: true
       LOG_LEVEL: debug
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
@@ -204,7 +204,7 @@ Provide a path to a JSON file containing Claude Code settings:
   with:
     prompt: "Your prompt here"
     settings: "path/to/settings.json"
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
@@ -238,7 +238,7 @@ Provide the settings configuration directly as a JSON string:
           }]
         }
       }
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
@@ -267,7 +267,7 @@ Provide a path to a JSON file containing MCP configuration:
   with:
     prompt: "Your prompt here"
     mcp_config: "path/to/mcp-config.json"
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
@@ -292,7 +292,7 @@ Provide the MCP configuration directly as a JSON string:
           }
         }
       }
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
@@ -321,7 +321,7 @@ You can combine MCP config with other inputs like allowed tools:
   with:
     prompt: "Access the custom MCP server and use its tools"
     mcp_config: "mcp-config.json"
-    allowed_tools: "Bash(git:*),View,mcp__server-name__custom_tool"
+    allowed_tools: "Bash(git *),View,mcp__server-name__custom_tool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
@@ -460,7 +460,7 @@ This example shows how to use OIDC authentication with AWS Bedrock:
     prompt: "Your prompt here"
     use_bedrock: "true"
     model: "anthropic.claude-3-7-sonnet-20250219-v1:0"
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
 ```
 
 ## Example: Using OIDC Authentication for GCP Vertex AI
@@ -480,7 +480,7 @@ This example shows how to use OIDC authentication with GCP Vertex AI:
     prompt: "Your prompt here"
     use_vertex: "true"
     model: "claude-3-7-sonnet@20250219"
-    allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+    allowed_tools: "Bash(git *),View,GlobTool,GrepTool,BatchTool"
 ```
 
 ## Security Best Practices

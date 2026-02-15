@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(gh label list:*),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh search:*)
+allowed-tools: Bash(gh label list *),Bash(gh issue view *),Bash(gh issue edit *),Bash(gh search *)
 description: Apply labels to GitHub issues
 ---
 
@@ -21,10 +21,10 @@ TASK OVERVIEW:
    - Use `gh issue view ${{ github.event.issue.number }}` to retrieve the current issue's details
    - Use `gh search issues` to find similar issues that might provide context for proper categorization
    - You have access to these Bash commands:
-     - Bash(gh label list:\*) - to get available labels
-     - Bash(gh issue view:\*) - to view issue details
-     - Bash(gh issue edit:\*) - to apply labels to the issue
-     - Bash(gh search:\*) - to search for similar issues
+     - Bash(gh label list \*) - to get available labels
+     - Bash(gh issue view \*) - to view issue details
+     - Bash(gh issue edit \*) - to apply labels to the issue
+     - Bash(gh search \*) - to search for similar issues
 
 3. Analyze the issue content, considering:
 

@@ -59,7 +59,7 @@ jobs:
             Only post GitHub comments - don't submit review text as messages.
 
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment *),Bash(gh pr diff *),Bash(gh pr view *)"
 ```
 
 **Key Configuration:**
@@ -110,7 +110,7 @@ jobs:
             Provide detailed feedback using inline comments for specific issues.
 
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment *),Bash(gh pr diff *),Bash(gh pr view *)"
 ```
 
 **Benefits of Progress Tracking:**
@@ -177,7 +177,7 @@ jobs:
             Post detailed security findings as PR comments.
 
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment *)"
 ```
 
 **Key Configuration:**
@@ -235,7 +235,7 @@ jobs:
             Be welcoming but thorough in your review. Use inline comments for code-specific feedback.
 
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr view:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment *),Bash(gh pr view *)"
 ```
 
 **Key Configuration:**
@@ -309,7 +309,7 @@ jobs:
             Post a summary comment with checklist results.
 
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment *)"
 ```
 
 **Key Configuration:**
@@ -366,7 +366,7 @@ jobs:
             If critical security issues are found, also comment on open PRs.
 
           claude_args: |
-            --allowedTools "Read,Bash(npm:*),Bash(gh issue:*),Bash(git:*)"
+            --allowedTools "Read,Bash(npm *),Bash(gh issue *),Bash(git *)"
 ```
 
 **Key Configuration:**
@@ -420,7 +420,7 @@ jobs:
             If it appears to be a duplicate, post a comment mentioning the original issue.
 
           claude_args: |
-            --allowedTools "Bash(gh issue:*),Bash(gh search:*)"
+            --allowedTools "Bash(gh issue *),Bash(gh search *)"
 ```
 
 **Key Configuration:**
@@ -479,7 +479,7 @@ jobs:
             Commit any documentation updates to this PR branch.
 
           claude_args: |
-            --allowedTools "Read,Write,Edit,Bash(git:*)"
+            --allowedTools "Read,Write,Edit,Bash(git *)"
 ```
 
 **Key Configuration:**
@@ -551,7 +551,7 @@ jobs:
             Post detailed findings with recommendations.
 
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment *),Bash(gh pr diff *)"
 ```
 
 **Key Configuration:**
@@ -577,10 +577,10 @@ prompt: |
 
 ### Common Tool Permissions
 
-- **PR Comments**: `Bash(gh pr comment:*)`
+- **PR Comments**: `Bash(gh pr comment *)`
 - **Inline Comments**: `mcp__github_inline_comment__create_inline_comment`
 - **File Operations**: `Read,Write,Edit`
-- **Git Operations**: `Bash(git:*)`
+- **Git Operations**: `Bash(git *)`
 
 ### Best Practices
 
