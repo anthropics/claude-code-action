@@ -29,6 +29,7 @@ jobs:
             - boolean_true: true
             - boolean_false: false
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          show_full_output: true
           claude_args: |
             --allowedTools Bash
             --json-schema '{"type":"object","properties":{"text_field":{"type":"string"},"number_field":{"type":"number"},"boolean_true":{"type":"boolean"},"boolean_false":{"type":"boolean"}},"required":["text_field","number_field","boolean_true","boolean_false"]}'
@@ -87,6 +88,7 @@ jobs:
             - config: {"key": "value", "count": 3}
             - empty_array: []
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          show_full_output: true
           claude_args: |
             --allowedTools Bash
             --json-schema '{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}},"config":{"type":"object"},"empty_array":{"type":"array"}},"required":["items","config","empty_array"]}'
@@ -139,6 +141,7 @@ jobs:
             - negative: -5
             - decimal: 3.14
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          show_full_output: true
           claude_args: |
             --allowedTools Bash
             --json-schema '{"type":"object","properties":{"zero":{"type":"number"},"empty_string":{"type":"string"},"negative":{"type":"number"},"decimal":{"type":"number"}},"required":["zero","empty_string","negative","decimal"]}'
@@ -193,6 +196,7 @@ jobs:
             Run: echo "test"
             Return EXACTLY: {test-result: "passed", item_count: 10}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          show_full_output: true
           claude_args: |
             --allowedTools Bash
             --json-schema '{"type":"object","properties":{"test-result":{"type":"string"},"item_count":{"type":"number"}},"required":["test-result","item_count"]}'
@@ -231,6 +235,7 @@ jobs:
         with:
           prompt: "Run: echo 'complete'. Return: {done: true}"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          show_full_output: true
           claude_args: |
             --allowedTools Bash
             --json-schema '{"type":"object","properties":{"done":{"type":"boolean"}},"required":["done"]}'
