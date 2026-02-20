@@ -45,4 +45,4 @@ jobs:
             Provide detailed feedback and suggestions for improvement.
 
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment *), Bash(gh pr diff *), Bash(gh pr view *)"

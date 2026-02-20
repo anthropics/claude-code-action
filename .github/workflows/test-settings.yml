@@ -21,7 +21,7 @@ jobs:
           settings: |
             {
               "permissions": {
-                "allow": ["Bash(echo:*)"]
+                "allow": ["Bash(echo *)"]
               }
             }
 
@@ -70,7 +70,7 @@ jobs:
           settings: |
             {
               "permissions": {
-                "deny": ["Bash(echo:*)"]
+                "deny": ["Bash(echo *)"]
               }
             }
 
@@ -97,7 +97,7 @@ jobs:
           cat > test-settings.json << EOF
           {
             "permissions": {
-              "allow": ["Bash(echo:*)"]
+              "allow": ["Bash(echo *)"]
             }
           }
           EOF
@@ -151,7 +151,7 @@ jobs:
           cat > test-settings.json << EOF
           {
             "permissions": {
-              "deny": ["Bash(echo:*)"]
+              "deny": ["Bash(echo *)"]
             }
           }
           EOF
