@@ -203,6 +203,44 @@ describe("checkContainsTrigger", () => {
       });
     });
 
+    it("should match trigger phrase preceded by non-whitespace punctuation", () => {
+      const baseContext = {
+        ...mockIssueOpenedContext,
+        inputs: {
+          ...mockIssueOpenedContext.inputs,
+          triggerPhrase: "@claude",
+        },
+      };
+
+      // These patterns were previously rejected because the leading boundary
+      // only allowed whitespace (issue #941)
+      const testCases = [
+        { issueBody: "(@claude) can you check?", expected: true },
+        { issueBody: '"@claude can you check?"', expected: true },
+        { issueBody: ">@claude can you check?", expected: true },
+        { issueBody: "cc:@claude", expected: true },
+        { issueBody: "/@claude help", expected: true },
+        { issueBody: "'@claude' is the trigger", expected: true },
+        // Still reject when embedded in a word
+        { issueBody: "email@claude.com", expected: false },
+        { issueBody: "test_@claude_test", expected: false },
+      ];
+
+      testCases.forEach(({ issueBody, expected }) => {
+        const context = {
+          ...baseContext,
+          payload: {
+            ...baseContext.payload,
+            issue: {
+              ...(baseContext.payload as IssuesEvent).issue,
+              body: issueBody,
+            },
+          },
+        } as ParsedGitHubContext;
+        expect(checkContainsTrigger(context)).toBe(expected);
+      });
+    });
+
     it("should return false when trigger phrase is part of another word", () => {
       const context = {
         ...mockIssueOpenedContext,
