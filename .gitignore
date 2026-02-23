@@ -1,4 +1,11 @@
 .DS_Store
 node_modules
+dist/
+*.log
+.env
+.env.*
+!.env.example
+coverage/
+*.tsbuildinfo
 
 **/.claude/settings.local.json
