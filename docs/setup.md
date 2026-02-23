@@ -149,6 +149,10 @@ To securely use your Anthropic API key:
    ```yaml
    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
    ```
+Alternatively, you could use a Claude code OAuth token:
+   ```yaml
+   claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+   ```
 
 **Never do this:**
 
