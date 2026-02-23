@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(gh label list:*),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh search:*)
+allowed-tools: Bash(gh label list:*),Bash(gh issue view:*),Bash(./scripts/edit-issue-labels.sh:*),Bash(gh search issues:*)
 description: Apply labels to GitHub issues
 ---
 
@@ -23,8 +23,8 @@ TASK OVERVIEW:
    - You have access to these Bash commands:
      - Bash(gh label list:\*) - to get available labels
      - Bash(gh issue view:\*) - to view issue details
-     - Bash(gh issue edit:\*) - to apply labels to the issue
-     - Bash(gh search:\*) - to search for similar issues
+     - Bash(./scripts/edit-issue-labels.sh:\*) - to apply labels to the issue
+     - Bash(gh search issues:\*) - to search for similar issues
 
 3. Analyze the issue content, considering:
 
@@ -44,7 +44,7 @@ TASK OVERVIEW:
    - If you find similar issues using gh search, consider using a "duplicate" label if appropriate. Only do so if the issue is a duplicate of another OPEN issue.
 
 5. Apply the selected labels:
-   - Use `gh issue edit` to apply your selected labels
+   - Use `./scripts/edit-issue-labels.sh --issue NUMBER --add-label LABEL1 --add-label LABEL2` to apply your selected labels
    - DO NOT post any comments explaining your decision
    - DO NOT communicate directly with users
    - If no labels are clearly applicable, do not apply any labels
@@ -54,7 +54,7 @@ IMPORTANT GUIDELINES:
 - Be thorough in your analysis
 - Only select labels from the provided list above
 - DO NOT post any comments to the issue
-- Your ONLY action should be to apply labels using gh issue edit
+- Your ONLY action should be to apply labels using ./scripts/edit-issue-labels.sh
 - It's okay to not add any labels if none are clearly applicable
 
 ---

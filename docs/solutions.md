@@ -415,12 +415,12 @@ jobs:
             4. Check if it duplicates existing issues
 
             Based on your analysis, add the appropriate labels using:
-            `gh issue edit [number] --add-label "label1,label2"`
+            `./scripts/edit-issue-labels.sh --issue [number] --add-label "label1" --add-label "label2"`
 
             If it appears to be a duplicate, post a comment mentioning the original issue.
 
           claude_args: |
-            --allowedTools "Bash(gh issue:*),Bash(gh search:*)"
+            --allowedTools "Bash(gh issue view:*),Bash(gh search issues:*),Bash(./scripts/edit-issue-labels.sh:*)"
 ```
 
 **Key Configuration:**
