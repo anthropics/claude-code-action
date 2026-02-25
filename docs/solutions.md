@@ -398,6 +398,7 @@ jobs:
       issues: write
       id-token: write
     steps:
+      - uses: actions/checkout@v4
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -414,13 +415,18 @@ jobs:
             3. Suggest appropriate labels
             4. Check if it duplicates existing issues
 
+            Use ./scripts/gh.sh to interact with GitHub:
+            - `./scripts/gh.sh issue view [number]` to view the issue
+            - `./scripts/gh.sh search issues "query"` to find similar issues
+            - `./scripts/gh.sh label list` to see available labels
+
             Based on your analysis, add the appropriate labels using:
             `./scripts/edit-issue-labels.sh --issue [number] --add-label "label1" --add-label "label2"`
 
             If it appears to be a duplicate, post a comment mentioning the original issue.
 
           claude_args: |
-            --allowedTools "Bash(gh issue view:*),Bash(gh search issues:*),Bash(./scripts/edit-issue-labels.sh:*)"
+            --allowedTools "Bash(./scripts/gh.sh:*),Bash(./scripts/edit-issue-labels.sh:*)"
 ```
 
 **Key Configuration:**
@@ -428,6 +434,7 @@ jobs:
 - Triggered on new issues
 - Issue context in prompt
 - Label management capabilities
+- Requires `scripts/gh.sh` and `scripts/edit-issue-labels.sh` in your repo (see this repo's `scripts/` directory for examples)
 
 **Expected Output:** Automatically labeled and categorized issues.
 
