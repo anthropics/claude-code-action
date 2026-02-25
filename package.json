@@ -5,6 +5,8 @@
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "install-hooks": "bun run scripts/install-hooks.sh",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
@@ -26,6 +28,9 @@
     "@types/node": "^20.0.0",
     "@types/node-fetch": "^2.6.12",
     "@types/shell-quote": "^1.7.5",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
     "prettier": "3.5.3",
     "typescript": "^5.8.3"
   }
