@@ -26,6 +26,190 @@ const server = new McpServer({
 });
 
 server.tool(
+  "list_review_threads",
+  "List all review threads on this PR, including their thread IDs (for resolving), authors, and resolution status",
+  {},
+  async () => {
+    try {
+      const githubToken = process.env.GITHUB_TOKEN;
+
+      if (!githubToken) {
+        throw new Error("GITHUB_TOKEN environment variable is required");
+      }
+
+      const owner = REPO_OWNER;
+      const repo = REPO_NAME;
+      const pull_number = parseInt(PR_NUMBER, 10);
+
+      const octokit = createOctokit(githubToken);
+
+      type Comment = {
+        databaseId: number;
+        body: string;
+        createdAt: string;
+        author: { login: string } | null;
+        path: string;
+        line: number | null;
+        originalLine: number | null;
+        url: string;
+      };
+      type ReviewThread = {
+        id: string;
+        isResolved: boolean;
+        isOutdated: boolean;
+        comments: { nodes: Comment[] };
+      };
+      type QueryResult = {
+        repository: {
+          pullRequest: {
+            reviewThreads: {
+              nodes: ReviewThread[];
+            };
+          };
+        };
+      };
+
+      const result = await octokit.graphql<QueryResult>(
+        `query ListReviewThreads($owner: String!, $repo: String!, $pullNumber: Int!) {
+          repository(owner: $owner, name: $repo) {
+            pullRequest(number: $pullNumber) {
+              reviewThreads(first: 100) {
+                nodes {
+                  id
+                  isResolved
+                  isOutdated
+                  comments(first: 50) {
+                    nodes {
+                      databaseId
+                      body
+                      createdAt
+                      author { login }
+                      path
+                      line
+                      originalLine
+                      url
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }`,
+        { owner, repo, pullNumber: pull_number },
+      );
+
+      const threads = result.repository.pullRequest.reviewThreads.nodes.map(
+        (thread) => ({
+          thread_id: thread.id,
+          is_resolved: thread.isResolved,
+          is_outdated: thread.isOutdated,
+          comments: thread.comments.nodes.map((c) => ({
+            comment_id: c.databaseId,
+            author: c.author?.login ?? "unknown",
+            body: c.body,
+            path: c.path,
+            line: c.line ?? c.originalLine,
+            created_at: c.createdAt,
+            url: c.url,
+          })),
+        }),
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              { total_threads: threads.length, threads },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error listing review threads: ${errorMessage}`,
+          },
+        ],
+        error: errorMessage,
+        isError: true,
+      };
+    }
+  },
+);
+
+server.tool(
+  "resolve_review_thread",
+  "Resolve a review thread by its thread ID (obtained from list_review_threads)",
+  {
+    thread_id: z
+      .string()
+      .describe("The thread ID to resolve (from list_review_threads)"),
+  },
+  async ({ thread_id }) => {
+    try {
+      const githubToken = process.env.GITHUB_TOKEN;
+
+      if (!githubToken) {
+        throw new Error("GITHUB_TOKEN environment variable is required");
+      }
+
+      const octokit = createOctokit(githubToken);
+
+      await octokit.graphql(
+        `mutation ResolveReviewThread($threadId: ID!) {
+          resolveReviewThread(input: {threadId: $threadId}) {
+            thread {
+              id
+              isResolved
+            }
+          }
+        }`,
+        { threadId: thread_id },
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                success: true,
+                thread_id,
+                message: `Successfully resolved review thread ${thread_id}`,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error resolving review thread: ${errorMessage}`,
+          },
+        ],
+        error: errorMessage,
+        isError: true,
+      };
+    }
+  },
+);
+
+server.tool(
   "create_inline_comment",
   "Create an inline comment on a specific line or lines in a PR file",
   {
