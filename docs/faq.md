@@ -12,6 +12,8 @@ The `github-actions` user cannot trigger subsequent GitHub Actions workflows. Th
 
 Only users with **write permissions** to the repository can trigger Claude. This is a security feature to prevent unauthorized use. Make sure the user commenting has at least write access to the repository.
 
+**For fork PR contributors**: Fork contributors typically don't have write access. To allow them to trigger Claude, see the [Fork PR Support documentation](fork-pr-support.md).
+
 ### Why can't I assign @claude to an issue on my repository?
 
 If you're in a public repository, you should be able to assign to Claude without issue. If it's a private organization repository, you can only assign to users in your own organization, which Claude isn't. In this case, you'll need to make a custom user in that case.
@@ -251,6 +253,20 @@ For specialized environments like Nix, NixOS, or custom container setups where y
 - The action will skip automatic installation when custom paths are provided
 - Ensure the custom executables are available in your GitHub Actions environment
 
+## Fork Pull Requests
+
+### Why does Claude fail on fork PRs with "couldn't find remote ref" error?
+
+Fork branches don't exist in the base repository, causing checkout to fail. This requires special workflow configuration. See the complete [Fork PR Support guide](fork-pr-support.md) for solutions.
+
+### Why do I get "Invalid OIDC token" errors on fork PRs?
+
+When using `pull_request_target` for automated reviews on fork PRs, OIDC authentication can fail. The solution is to provide an explicit `github_token` parameter. See [Fork PR Support](fork-pr-support.md#fix-2-bypass-oidc-authentication) for details.
+
+### Can fork contributors trigger automated reviews?
+
+Yes, but you must explicitly allow it with `allowed_non_write_users: '*'` in your workflow. This is safe for review-only workflows. See the [Fork PR Support guide](fork-pr-support.md) for complete setup instructions.
+
 ## Best Practices
 
 1. **Always specify permissions explicitly** in your workflow file
@@ -259,6 +275,7 @@ For specialized environments like Nix, NixOS, or custom container setups where y
 4. **Test in a separate branch** before using on important PRs
 5. **Monitor Claude's token usage** to avoid hitting API limits
 6. **Review Claude's changes** carefully before merging
+7. **For fork PR support**, follow the [Fork PR Support guide](fork-pr-support.md) to avoid common pitfalls
 
 ## Getting Help
 
