@@ -69,20 +69,25 @@ export async function prepareMcpConfig(
     // Detect if we're in agent mode (explicit prompt provided)
     const isAgentMode = mode === "agent";
 
-    const hasGitHubCommentTools = allowedToolsList.some((tool) =>
-      tool.startsWith("mcp__github_comment__"),
+    const hasGitHubCommentTools = allowedToolsList.some(
+      (tool) =>
+        tool.startsWith("mcp__github_comment__") ||
+        tool === "mcp__github_comment",
     );
 
-    const hasGitHubMcpTools = allowedToolsList.some((tool) =>
-      tool.startsWith("mcp__github__"),
+    const hasGitHubMcpTools = allowedToolsList.some(
+      (tool) => tool.startsWith("mcp__github__") || tool === "mcp__github",
     );
 
-    const hasInlineCommentTools = allowedToolsList.some((tool) =>
-      tool.startsWith("mcp__github_inline_comment__"),
+    const hasInlineCommentTools = allowedToolsList.some(
+      (tool) =>
+        tool.startsWith("mcp__github_inline_comment__") ||
+        tool === "mcp__github_inline_comment",
     );
 
-    const hasGitHubCITools = allowedToolsList.some((tool) =>
-      tool.startsWith("mcp__github_ci__"),
+    const hasGitHubCITools = allowedToolsList.some(
+      (tool) =>
+        tool.startsWith("mcp__github_ci__") || tool === "mcp__github_ci",
     );
 
     const baseMcpConfig: { mcpServers: Record<string, unknown> } = {
