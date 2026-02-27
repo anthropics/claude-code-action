@@ -41,6 +41,7 @@ async function run() {
       pathToClaudeCodeExecutable:
         process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE,
       showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
+      contextWindow: process.env.INPUT_CONTEXT_WINDOW,
     });
 
     // Set outputs for the standalone base-action
