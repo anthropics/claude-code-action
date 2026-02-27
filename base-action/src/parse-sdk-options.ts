@@ -86,15 +86,43 @@ function mergeMcpConfigs(configValues: string[]): string {
  * Accumulating flags also consume all consecutive non-flag values
  * (e.g., --allowed-tools "Tool1" "Tool2" "Tool3" captures all three).
  */
+/**
+ * Splits a CLI arg string into tokens.
+ * Respects double-quoted strings (preserves spaces inside quotes).
+ * Does NOT interpret shell metacharacters (no $, !, #, ~, etc.).
+ *
+ * Examples:
+ *   '--model foo'                          → ['--model', 'foo']
+ *   '--prompt "hello world"'               → ['--prompt', 'hello world']
+ *   '--append-system-prompt "# heading"'   → ['--append-system-prompt', '# heading']
+ *   '--append-system-prompt #comment'      → ['--append-system-prompt', '#comment']
+ */
+function splitArgString(input: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let inQuote = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === '"' && !inQuote) { inQuote = true; continue; }
+    if (ch === '"' && inQuote) { inQuote = false; continue; }
+    if ((ch === " " || ch === "\n" || ch === "\t") && !inQuote) {
+      if (current.length > 0) { tokens.push(current); current = ""; }
+      continue;
+    }
+    current += ch;
+  }
+  if (current.length > 0) tokens.push(current);
+  return tokens;
+}
+
 function parseClaudeArgsToExtraArgs(
   claudeArgs?: string,
 ): Record<string, string | null> {
   if (!claudeArgs?.trim()) return {};
 
   const result: Record<string, string | null> = {};
-  const args = parseShellArgs(claudeArgs).filter(
-    (arg): arg is string => typeof arg === "string",
-  );
+  const args = splitArgString(claudeArgs);
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
