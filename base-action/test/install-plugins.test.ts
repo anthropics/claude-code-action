@@ -691,6 +691,74 @@ describe("installPlugins", () => {
     );
   });
 
+  // SHA-pinned marketplace URL tests
+  test("should accept marketplace URL with short SHA pin", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "https://github.com/org/repo.git#abc123def456",
+      "test-plugin",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "https://github.com/org/repo.git#abc123def456",
+      ],
+      { stdio: "inherit" },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "install", "test-plugin"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept marketplace URL with full SHA pin", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "https://github.com/org/repo.git#55b58ec6e5649104f926ba7558b567dc8d33c5ff",
+      "test-plugin",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "https://github.com/org/repo.git#55b58ec6e5649104f926ba7558b567dc8d33c5ff",
+      ],
+      { stdio: "inherit" },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "install", "test-plugin"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should reject marketplace URL with non-hex characters after #", async () => {
+    const spy = createMockSpawn();
+
+    await expect(
+      installPlugins(
+        "https://github.com/org/repo.git#not-a-hex",
+        "test-plugin",
+      ),
+    ).rejects.toThrow("Invalid marketplace URL format");
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   test("should accept local path with dots in directory name", async () => {
     const spy = createMockSpawn();
     await installPlugins("./my.plugin.marketplace", "test-plugin");

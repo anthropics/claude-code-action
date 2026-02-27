@@ -5,7 +5,7 @@ const MAX_PLUGIN_NAME_LENGTH = 512;
 const PATH_TRAVERSAL_REGEX =
   /\.\.\/|\/\.\.|\.\/|\/\.|(?:^|\/)\.\.$|(?:^|\/)\.$|\.\.(?![0-9])/;
 const MARKETPLACE_URL_REGEX =
-  /^https:\/\/[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=%]+\.git$/;
+  /^https:\/\/[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=%]+\.git(#[a-fA-F0-9]+)?$/;
 
 /**
  * Checks if a marketplace input is a local path (not a URL)
