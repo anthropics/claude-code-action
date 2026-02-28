@@ -27,6 +27,10 @@ on:
   pull_request:
     types: [opened, synchronize]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   review:
     runs-on: ubuntu-latest
@@ -80,6 +84,10 @@ name: Claude Auto Review with Tracking
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   review:
@@ -145,6 +153,10 @@ on:
       - "src/api/**"
       - "config/security.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   security-review:
     runs-on: ubuntu-latest
@@ -201,6 +213,10 @@ name: External Contributor Review
 on:
   pull_request:
     types: [opened, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   external-review:
@@ -259,6 +275,10 @@ name: PR Review Checklist
 on:
   pull_request:
     types: [opened, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   checklist-review:
@@ -455,6 +475,10 @@ on:
       - "src/api/**/*.ts"
       - "src/routes/**/*.ts"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   doc-sync:
     runs-on: ubuntu-latest
@@ -510,6 +534,10 @@ name: Security Review
 on:
   pull_request:
     types: [opened, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   security:
@@ -596,3 +624,4 @@ prompt: |
 - Set clear success criteria
 - Provide context about the repository
 - Use inline comments for code-specific feedback
+- **Always add a `concurrency` group** for PR-triggered workflows — without it, every push to a PR starts a new review job without cancelling the previous one, causing a pile-up that exhausts your API token and leaves jobs hanging indefinitely
