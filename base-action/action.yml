@@ -24,6 +24,10 @@ inputs:
     description: "Additional arguments to pass directly to Claude CLI (e.g., '--max-turns 3 --mcp-config /path/to/config.json')"
     required: false
     default: ""
+  context_window:
+    description: "Context window size. Use '1m' to enable the 1M token context window (beta, requires usage tier 4). Supported models: Claude Opus 4.6, Sonnet 4.6, Sonnet 4.5, and Sonnet 4. Default uses the standard 200K context window."
+    required: false
+    default: ""
 
   # Authentication settings
   anthropic_api_key:
@@ -166,6 +170,7 @@ runs:
         INPUT_PROMPT_FILE: ${{ inputs.prompt_file }}
         INPUT_SETTINGS: ${{ inputs.settings }}
         INPUT_CLAUDE_ARGS: ${{ inputs.claude_args }}
+        INPUT_CONTEXT_WINDOW: ${{ inputs.context_window }}
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
         INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}

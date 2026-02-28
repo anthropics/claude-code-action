@@ -313,6 +313,36 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("context window / betas", () => {
+    test("should set betas with context-1m when contextWindow is '1m'", () => {
+      const options: ClaudeOptions = {
+        contextWindow: "1m",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.betas).toEqual(["context-1m-2025-08-07"]);
+    });
+
+    test("should not set betas when contextWindow is not provided", () => {
+      const options: ClaudeOptions = {};
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.betas).toBeUndefined();
+    });
+
+    test("should not set betas when contextWindow is empty string", () => {
+      const options: ClaudeOptions = {
+        contextWindow: "",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.betas).toBeUndefined();
+    });
+  });
+
   describe("environment variables passthrough", () => {
     test("should include OTEL environment variables in sdkOptions.env", () => {
       // Set up test environment variables

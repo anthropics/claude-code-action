@@ -246,6 +246,10 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     fallbackModel: options.fallbackModel,
     pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
 
+    // Enable 1M token context window beta if requested
+    betas:
+      options.contextWindow === "1m" ? ["context-1m-2025-08-07"] : undefined,
+
     // Pass through claudeArgs as extraArgs - CLI handles --mcp-config, --json-schema, etc.
     // Note: allowedTools and disallowedTools have been removed from extraArgs to prevent duplicates
     extraArgs,

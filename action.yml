@@ -81,6 +81,10 @@ inputs:
     description: "Additional arguments to pass directly to Claude CLI"
     required: false
     default: ""
+  context_window:
+    description: "Context window size. Use '1m' to enable the 1M token context window (beta, requires usage tier 4). Supported models: Claude Opus 4.6, Sonnet 4.6, Sonnet 4.5, and Sonnet 4. Default uses the standard 200K context window."
+    required: false
+    default: ""
   additional_permissions:
     description: "Additional GitHub permissions to request (e.g., 'actions: read')"
     required: false
@@ -213,6 +217,7 @@ runs:
         INCLUDE_FIX_LINKS: ${{ inputs.include_fix_links }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         CLAUDE_ARGS: ${{ inputs.claude_args }}
+        CONTEXT_WINDOW: ${{ inputs.context_window }}
         ALL_INPUTS: ${{ toJson(inputs) }}
 
         # Base-action inputs
