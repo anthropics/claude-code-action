@@ -24,10 +24,17 @@ export function createBranchLink(
 export function createCommentBody(
   jobRunLink: string,
   branchLink: string = "",
+  botName: string = "",
 ): string {
-  return `Claude Code is working… ${SPINNER_HTML}
+  const header = botName ? `<!-- bot: ${botName} -->\n` : "";
+  return `${header}Claude Code is working… ${SPINNER_HTML}
 
 I'll analyze this and get back to you.
 
 ${jobRunLink}${branchLink}`;
+}
+
+export function extractBotHeader(body: string): string {
+  const match = body.match(/^(<!--\s*bot:\s*\S+\s*-->\n?)/);
+  return match?.[1] ?? "";
 }
