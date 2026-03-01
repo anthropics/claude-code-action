@@ -11,6 +11,18 @@ import {
 } from "../context";
 import type { ParsedGitHubContext } from "../context";
 
+/**
+ * Build a regex that matches the trigger phrase only when it appears as a
+ * standalone token — i.e. not embedded inside a word like "email@claude.com".
+ *
+ * Uses negative lookbehind/lookahead for word characters (`\w`) so that any
+ * non-word character (punctuation, brackets, quotes, etc.) is accepted as a
+ * boundary without needing an explicit allowlist.
+ */
+function buildTriggerRegex(triggerPhrase: string): RegExp {
+  return new RegExp(`(?<!\\w)${escapeRegExp(triggerPhrase)}(?!\\w)`, "i");
+}
+
 export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   const {
     inputs: { assigneeTrigger, labelTrigger, triggerPhrase, prompt },
@@ -24,7 +36,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
 
   // Check for assignee trigger
   if (isIssuesAssignedEvent(context)) {
-    // Remove @ symbol from assignee_trigger if present
+    // Remove @ symbol from assignee trigger if present
     let triggerUser = assigneeTrigger.replace(/^@/, "");
     const assigneeUsername = context.payload.assignee?.login || "";
 
@@ -48,11 +60,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   if (isIssuesEvent(context) && context.eventAction === "opened") {
     const issueBody = context.payload.issue.body || "";
     const issueTitle = context.payload.issue.title || "";
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|[\\s(>"'/])${escapeRegExp(triggerPhrase)}([\\s.,!?;:)"']|$)`,
-      "i",
-    );
+    const regex = buildTriggerRegex(triggerPhrase);
 
     // Check in body
     if (regex.test(issueBody)) {
@@ -75,11 +83,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   if (isPullRequestEvent(context)) {
     const prBody = context.payload.pull_request.body || "";
     const prTitle = context.payload.pull_request.title || "";
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|[\\s(>"'/])${escapeRegExp(triggerPhrase)}([\\s.,!?;:)"']|$)`,
-      "i",
-    );
+    const regex = buildTriggerRegex(triggerPhrase);
 
     // Check in body
     if (regex.test(prBody)) {
@@ -104,11 +108,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     (context.eventAction === "submitted" || context.eventAction === "edited")
   ) {
     const reviewBody = context.payload.review.body || "";
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|[\\s(>"'/])${escapeRegExp(triggerPhrase)}([\\s.,!?;:)"']|$)`,
-      "i",
-    );
+    const regex = buildTriggerRegex(triggerPhrase);
     if (regex.test(reviewBody)) {
       console.log(
         `Pull request review contains exact trigger phrase '${triggerPhrase}'`,
@@ -125,11 +125,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     const commentBody = isIssueCommentEvent(context)
       ? context.payload.comment.body
       : context.payload.comment.body;
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|[\\s(>"'/])${escapeRegExp(triggerPhrase)}([\\s.,!?;:)"']|$)`,
-      "i",
-    );
+    const regex = buildTriggerRegex(triggerPhrase);
     if (regex.test(commentBody)) {
       console.log(`Comment contains exact trigger phrase '${triggerPhrase}'`);
       return true;

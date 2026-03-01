@@ -211,7 +211,7 @@ Check the GitHub Action log for Claude's run for the full execution trace.
 
 ### Why can't I trigger Claude with `@claude-mention` or `claude@mention`?
 
-The trigger uses word boundaries, so `@claude` must be a complete word. Variations like `@claude-bot` or `claude@mention` won't work unless you customize the `trigger_phrase`. However, common punctuation around the trigger phrase is supported—`@claude!`, `(@claude)`, `"@claude"`, and `>@claude` will all trigger correctly. The matching is also case-insensitive, so `@Claude` and `@CLAUDE` work too.
+The trigger uses word boundaries, so `@claude` must not be embedded inside a word. Variations like `@claude-bot` or `claude@mention` won't work unless you customize the `trigger_phrase`. However, any non-word character around the trigger phrase is supported—`@claude!`, `(@claude)`, `"@claude"`, `>@claude`, `cc:@claude`, and `` `@claude` `` will all trigger correctly. The matching is also case-insensitive, so `@Claude` and `@CLAUDE` work too.
 
 ### How can I use custom executables in specialized environments?
 
