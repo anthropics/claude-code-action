@@ -341,11 +341,19 @@ export async function fetchGitHubData({
   let changedFilesWithSHA: GitHubFileWithSHA[] = [];
   if (isPR && changedFiles.length > 0) {
     changedFilesWithSHA = changedFiles.map((file) => {
-      // Don't compute SHA for deleted files
+      // Don't compute SHA for deleted or added files - deleted files no longer
+      // exist, and added files may not exist yet if the PR branch hasn't been
+      // checked out (fetchGitHubData runs before setupBranch).
       if (file.changeType === "DELETED") {
         return {
           ...file,
           sha: "deleted",
+        };
+      }
+      if (file.changeType === "ADDED") {
+        return {
+          ...file,
+          sha: "added",
         };
       }
 
