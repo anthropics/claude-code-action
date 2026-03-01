@@ -184,8 +184,44 @@ describe("checkContainsTrigger", () => {
         { issueBody: "@claude: here's the issue", expected: true },
         { issueBody: "@claude; and another thing", expected: true },
         { issueBody: "Hey @claude, can you help?", expected: true },
+        { issueBody: "(@claude) can you check?", expected: true },
+        { issueBody: '"@claude can you check?"', expected: true },
+        { issueBody: ">@claude can you check?", expected: true },
+        { issueBody: "'@claude can you check?'", expected: true },
+        { issueBody: "/@claude can you check?", expected: true },
         { issueBody: "claudette contains claude", expected: false },
         { issueBody: "email@claude.com", expected: false },
+        { issueBody: "user@claude.com", expected: false },
+      ];
+
+      testCases.forEach(({ issueBody, expected }) => {
+        const context = {
+          ...baseContext,
+          payload: {
+            ...baseContext.payload,
+            issue: {
+              ...(baseContext.payload as IssuesEvent).issue,
+              body: issueBody,
+            },
+          },
+        } as ParsedGitHubContext;
+        expect(checkContainsTrigger(context)).toBe(expected);
+      });
+    });
+
+    it("should match trigger phrase case-insensitively", () => {
+      const baseContext = {
+        ...mockIssueOpenedContext,
+        inputs: {
+          ...mockIssueOpenedContext.inputs,
+          triggerPhrase: "@claude",
+        },
+      };
+
+      const testCases = [
+        { issueBody: "@Claude help", expected: true },
+        { issueBody: "@CLAUDE help", expected: true },
+        { issueBody: "@cLaUdE help", expected: true },
       ];
 
       testCases.forEach(({ issueBody, expected }) => {
@@ -230,6 +266,8 @@ describe("checkContainsTrigger", () => {
         { issueTitle: "@claude, can you help?", expected: true },
         { issueTitle: "@claude: Fix this bug", expected: true },
         { issueTitle: "Bug: @claude please review", expected: true },
+        { issueTitle: "(@claude) Fix this bug", expected: true },
+        { issueTitle: "@Claude: Fix this bug", expected: true },
         { issueTitle: "email@claude.com issue", expected: false },
         { issueTitle: "claudette needs help", expected: false },
       ];
