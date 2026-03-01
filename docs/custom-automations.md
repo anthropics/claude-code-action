@@ -120,3 +120,53 @@ For more control over Claude's behavior, use the `claude_args` input to pass CLI
 ```
 
 This provides full access to Claude Code CLI capabilities while maintaining the simplified action interface.
+
+## Conversation Resumption
+
+The action outputs a `session_id` that allows you to resume Claude conversations across multiple workflow steps. This enables powerful multi-step workflows where you can run intermediate GitHub Actions steps and then continue the same Claude conversation with full context preserved.
+
+### Multi-Step Analysis Workflow
+
+```yaml
+steps:
+  # Step 1: Initial Claude analysis
+  - uses: actions/checkout@v4
+
+  - uses: anthropics/claude-code-action@v1
+    id: claude-analyze
+    with:
+      prompt: "Analyze this codebase and identify what dependencies need to be checked"
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+  # Step 2: Run intermediate steps
+  - uses: actions/checkout@v4
+    with:
+      repository: my-org/shared-dependencies
+      path: ./deps
+
+  - name: Run dependency analysis
+    id: deps
+    run: |
+      echo "dep_report=$(./deps/analyze.sh)" >> $GITHUB_OUTPUT
+
+  - name: Fetch external API data
+    run: |
+      curl -s https://api.example.com/status > status.json
+
+  # Step 3: Resume Claude conversation with new context
+  - uses: anthropics/claude-code-action@v1
+    with:
+      prompt: |
+        I've gathered the dependency report: ${{ steps.deps.outputs.dep_report }}.
+        I also fetched the API status (see status.json).
+        Please continue your analysis with this new information.
+      claude_args: "--resume ${{ steps.claude-analyze.outputs.session_id }}"
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+### Use Cases for Conversation Resumption
+
+- **Multi-repo analysis**: Check out additional repositories and let Claude analyze them in context
+- **External data integration**: Fetch data from APIs, databases, or other services mid-conversation
+- **Staged execution**: Run tests or builds between Claude interactions
+- **Human-in-the-loop**: Allow manual approval steps before continuing automation
