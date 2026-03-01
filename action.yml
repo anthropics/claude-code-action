@@ -100,7 +100,7 @@ inputs:
   bot_id:
     description: "GitHub user ID to use for git operations (defaults to Claude's bot ID)"
     required: false
-    default: "41898282" # Claude's bot ID - see src/github/constants.ts
+    default: "209825114" # claude[bot] ID - see src/github/constants.ts
   bot_name:
     description: "GitHub username to use for git operations (defaults to Claude's bot name)"
     required: false
