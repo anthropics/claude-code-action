@@ -313,7 +313,8 @@ describe("parseSdkOptions", () => {
 
     test("should handle unquoted # by converting comment object back to string", () => {
       const options: ClaudeOptions = {
-        claudeArgs: "--model claude-sonnet-4-5-20250929 --append-system-prompt #Use",
+        claudeArgs:
+          "--model claude-sonnet-4-5-20250929 --append-system-prompt #Use",
       };
 
       const result = parseSdkOptions(options);
