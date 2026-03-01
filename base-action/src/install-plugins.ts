@@ -182,11 +182,81 @@ async function installPlugin(
 }
 
 /**
+ * Marketplace entry from JSON output
+ */
+interface MarketplaceEntry {
+  name: string;
+  source: string;
+  repo?: string;
+  url?: string;
+  installLocation: string;
+}
+
+/**
+ * Gets list of installed marketplace names using JSON output
+ * @param claudeExecutable - Path to the Claude executable
+ * @returns Promise that resolves with array of marketplace names
+ */
+async function getInstalledMarketplaces(
+  claudeExecutable: string,
+): Promise<string[]> {
+  return new Promise((resolve) => {
+    const childProcess = spawn(
+      claudeExecutable,
+      ["plugin", "marketplace", "list", "--json"],
+      { stdio: ["inherit", "pipe", "inherit"] },
+    );
+
+    let output = "";
+    childProcess.stdout?.on("data", (data: Buffer) => {
+      output += data.toString();
+    });
+
+    childProcess.on("close", () => {
+      try {
+        const marketplaces: MarketplaceEntry[] = JSON.parse(output);
+        const names = marketplaces.map((m) => m.name);
+        resolve(names);
+      } catch {
+        // If JSON parsing fails, return empty array
+        resolve([]);
+      }
+    });
+
+    childProcess.on("error", () => {
+      resolve([]);
+    });
+  });
+}
+
+/**
+ * Removes a marketplace by name (silently ignores errors)
+ * @param claudeExecutable - Path to the Claude executable
+ * @param name - The marketplace name to remove
+ */
+async function removeMarketplace(
+  claudeExecutable: string,
+  name: string,
+): Promise<void> {
+  console.log(`Removing marketplace: ${name}`);
+
+  return new Promise((resolve) => {
+    const childProcess = spawn(
+      claudeExecutable,
+      ["plugin", "marketplace", "remove", name],
+      { stdio: "inherit" },
+    );
+
+    childProcess.on("close", () => resolve());
+    childProcess.on("error", () => resolve());
+  });
+}
+
+/**
  * Adds a Claude Code plugin marketplace
  * @param claudeExecutable - Path to the Claude executable
  * @param marketplace - The marketplace Git URL or local path to add
- * @returns Promise that resolves when the marketplace add command completes
- * @throws {Error} If the command fails to execute
+ * @returns Promise that resolves when the marketplace is added
  */
 async function addMarketplace(
   claudeExecutable: string,
@@ -221,6 +291,19 @@ export async function installPlugins(
   const marketplaces = parseMarketplaces(marketplacesInput);
 
   if (marketplaces.length > 0) {
+    // Remove all existing marketplaces first to ensure fresh install
+    console.log("Checking for existing marketplaces to remove...");
+    const existingMarketplaces =
+      await getInstalledMarketplaces(resolvedExecutable);
+    if (existingMarketplaces.length > 0) {
+      console.log(
+        `Found ${existingMarketplaces.length} existing marketplace(s), removing...`,
+      );
+      for (const name of existingMarketplaces) {
+        await removeMarketplace(resolvedExecutable, name);
+      }
+    }
+
     console.log(`Adding ${marketplaces.length} marketplace(s)...`);
     for (const marketplace of marketplaces) {
       await addMarketplace(resolvedExecutable, marketplace);
