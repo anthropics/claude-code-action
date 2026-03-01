@@ -30,20 +30,30 @@ export function validateEnvironmentVariables() {
     const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
     const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
     const awsBearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
+    const bedrockBaseUrl = process.env.ANTHROPIC_BEDROCK_BASE_URL;
 
-    // AWS_REGION is always required for Bedrock
-    if (!awsRegion) {
+    // Check if using a custom Bedrock endpoint (e.g., API Management gateway)
+    const isCustomBedrockEndpoint =
+      bedrockBaseUrl &&
+      !bedrockBaseUrl.includes("bedrock-runtime") &&
+      !bedrockBaseUrl.includes("amazonaws.com");
+
+    // AWS_REGION is required unless using a custom Bedrock endpoint
+    if (!awsRegion && !isCustomBedrockEndpoint) {
       errors.push("AWS_REGION is required when using AWS Bedrock.");
     }
 
-    // Either bearer token OR access key credentials must be provided
-    const hasAccessKeyCredentials = awsAccessKeyId && awsSecretAccessKey;
-    const hasBearerToken = awsBearerToken;
+    // AWS credentials are required unless using a custom Bedrock endpoint
+    // Custom endpoints (e.g., API Management) may handle authentication via custom headers
+    if (!isCustomBedrockEndpoint) {
+      const hasAccessKeyCredentials = awsAccessKeyId && awsSecretAccessKey;
+      const hasBearerToken = awsBearerToken;
 
-    if (!hasAccessKeyCredentials && !hasBearerToken) {
-      errors.push(
-        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
-      );
+      if (!hasAccessKeyCredentials && !hasBearerToken) {
+        errors.push(
+          "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+        );
+      }
     }
   } else if (useVertex) {
     const requiredVertexVars = {
