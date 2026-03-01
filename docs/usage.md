@@ -130,7 +130,7 @@ Both parameters accept comma-separated usernames and support the `*[bot]` wildca
     include_comments_by_actor: "maintainer1,maintainer2"
 ```
 
-**Example: Include all bots except a specific one**
+**Example: Exclude a specific bot**
 
 ```yaml
 - uses: anthropics/claude-code-action@v1
