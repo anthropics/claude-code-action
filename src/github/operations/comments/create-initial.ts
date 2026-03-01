@@ -14,7 +14,12 @@ import {
 } from "../../context";
 import type { Octokit } from "@octokit/rest";
 
-const CLAUDE_APP_BOT_ID = 209825114;
+/**
+ * Escapes special regex characters in a string
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 export async function createInitialComment(
   octokit: Octokit,
@@ -23,7 +28,12 @@ export async function createInitialComment(
   const { owner, repo } = context.repository;
 
   const jobRunLink = createJobRunLink(owner, repo, context.runId);
-  const initialBody = createCommentBody(jobRunLink);
+  // Add hidden header with bot name for sticky comment identification
+  const initialBody = createCommentBody(
+    jobRunLink,
+    "",
+    context.inputs.useStickyComment ? context.inputs.botName : "",
+  );
 
   try {
     let response;
@@ -33,19 +43,42 @@ export async function createInitialComment(
       context.isPR &&
       isPullRequestEvent(context)
     ) {
-      const comments = await octokit.rest.issues.listComments({
-        owner,
-        repo,
-        issue_number: context.entityNumber,
-      });
-      const existingComment = comments.data.find((comment) => {
-        const idMatch = comment.user?.id === CLAUDE_APP_BOT_ID;
-        const botNameMatch =
-          comment.user?.type === "Bot" &&
-          comment.user?.login.toLowerCase().includes("claude");
-        const bodyMatch = comment.body === initialBody;
+      // Use pagination to fetch all comments (handles PRs with 30+ comments)
+      const comments = await octokit.paginate(
+        octokit.rest.issues.listComments,
+        {
+          owner,
+          repo,
+          issue_number: context.entityNumber,
+          per_page: 100,
+        },
+      );
+      const existingComment = comments.find((comment) => {
+        // Must be from the correct bot user
+        const idMatch = comment.user?.id === Number(context.inputs.botId);
+        if (!idMatch) return false;
 
-        return idMatch || botNameMatch || bodyMatch;
+        // Check for our hidden header (case-insensitive, whitespace-tolerant)
+        const headerPattern = new RegExp(
+          `<!--\\s*bot:\\s*${escapeRegex(context.inputs.botName)}\\s*-->`,
+          "i",
+        );
+        const hasOurHeader = headerPattern.test(comment.body || "");
+
+        // Check if comment has ANY bot header
+        const hasAnyHeader = /<!--\s*bot:\s*\S+\s*-->/.test(comment.body || "");
+
+        // If comment has a header, ONLY match if it's ours
+        if (hasAnyHeader) {
+          return hasOurHeader;
+        }
+
+        // Legacy comments (no header): match if it looks like a Claude comment
+        const isClaudeComment =
+          comment.body?.includes("Claude Code is working") ||
+          comment.body?.includes("View job run");
+
+        return isClaudeComment;
       });
       if (existingComment) {
         response = await octokit.rest.issues.updateComment({

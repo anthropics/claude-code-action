@@ -33,7 +33,9 @@ export async function updateTrackingComment(
     branchLink = createBranchLink(owner, repo, branch);
   }
 
-  const updatedBody = createCommentBody(jobRunLink, branchLink);
+  // Preserve hidden header for sticky comment identification
+  const botName = context.inputs.useStickyComment ? context.inputs.botName : "";
+  const updatedBody = createCommentBody(jobRunLink, branchLink, botName);
 
   // Update the existing comment with the branch link
   try {
