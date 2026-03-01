@@ -86,7 +86,7 @@ async function createPromptConfig(
 /**
  * Sanitizes SDK output to match CLI sanitization behavior
  */
-function sanitizeSdkOutput(
+export function sanitizeSdkOutput(
   message: SDKMessage,
   showFullOutput: boolean,
 ): string | null {
@@ -120,6 +120,9 @@ function sanitizeSdkOutput(
         num_turns: resultMsg.num_turns,
         total_cost_usd: resultMsg.total_cost_usd,
         permission_denials: resultMsg.permission_denials,
+        // Include result field when there's an error so users can see what went wrong
+        ...(resultMsg.is_error &&
+          "result" in resultMsg && { result: resultMsg.result }),
       },
       null,
       2,
