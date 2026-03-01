@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 import { parse as parseShellArgs } from "shell-quote";
 import type { ClaudeOptions } from "./run-claude";
 import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
@@ -31,52 +32,53 @@ type McpConfig = {
 /**
  * Merge multiple MCP config values into a single config.
  * Each config can be a JSON string or a file path.
- * For JSON strings, mcpServers objects are merged.
- * For file paths, they are kept as-is (user's file takes precedence and is used last).
+ * Both inline JSON and file paths are read and merged together.
  */
 function mergeMcpConfigs(configValues: string[]): string {
   const merged: McpConfig = { mcpServers: {} };
-  let lastFilePath: string | null = null;
 
   for (const config of configValues) {
     const trimmed = config.trim();
     if (!trimmed) continue;
 
+    let configToMerge: McpConfig | null = null;
+
     // Check if it's a JSON string (starts with {) or a file path
     if (trimmed.startsWith("{")) {
       try {
-        const parsed = JSON.parse(trimmed) as McpConfig;
-        if (parsed.mcpServers) {
-          Object.assign(merged.mcpServers!, parsed.mcpServers);
-        }
+        configToMerge = JSON.parse(trimmed) as McpConfig;
       } catch {
         // If JSON parsing fails, treat as file path
-        lastFilePath = trimmed;
+        configToMerge = readMcpConfigFile(trimmed);
       }
     } else {
-      // It's a file path - store it to handle separately
-      lastFilePath = trimmed;
+      // It's a file path - read and parse
+      configToMerge = readMcpConfigFile(trimmed);
+    }
+
+    if (configToMerge?.mcpServers) {
+      Object.assign(merged.mcpServers!, configToMerge.mcpServers);
     }
   }
 
-  // If we have file paths, we need to keep the merged JSON and let the file
-  // be handled separately. Since we can only return one value, merge what we can.
-  // If there's a file path, we need a different approach - read the file at runtime.
-  // For now, if there's a file path, we'll stringify the merged config.
-  // The action prepends its config as JSON, so we can safely merge inline JSON configs.
-
-  // If no inline configs were found (all file paths), return the last file path
-  if (Object.keys(merged.mcpServers!).length === 0 && lastFilePath) {
-    return lastFilePath;
-  }
-
-  // Note: If user passes a file path, we cannot merge it at parse time since
-  // we don't have access to the file system here. The action's built-in MCP
-  // servers are always passed as inline JSON, so they will be merged.
-  // If user also passes inline JSON, it will be merged.
-  // If user passes a file path, they should ensure it includes all needed servers.
-
   return JSON.stringify(merged);
+}
+
+/**
+ * Read and parse an MCP config file.
+ * Returns null if the file cannot be read or parsed.
+ */
+function readMcpConfigFile(filePath: string): McpConfig | null {
+  try {
+    const fileContent = readFileSync(filePath, "utf-8");
+    return JSON.parse(fileContent) as McpConfig;
+  } catch (error) {
+    // Log warning but don't fail - allow action to continue without this config
+    console.warn(
+      `Warning: Failed to read MCP config file "${filePath}": ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
 }
 
 /**
