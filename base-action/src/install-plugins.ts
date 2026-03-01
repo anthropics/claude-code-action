@@ -6,6 +6,7 @@ const PATH_TRAVERSAL_REGEX =
   /\.\.\/|\/\.\.|\.\/|\/\.|(?:^|\/)\.\.$|(?:^|\/)\.$|\.\.(?![0-9])/;
 const MARKETPLACE_URL_REGEX =
   /^https:\/\/[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=%]+\.git$/;
+const SSH_URL_REGEX = /^git@[a-zA-Z0-9\-._]+:[a-zA-Z0-9\-._~\/@]+\.git$/;
 
 /**
  * Checks if a marketplace input is a local path (not a URL)
@@ -39,17 +40,26 @@ function validateMarketplaceInput(input: string): void {
     return;
   }
 
-  // Validate as URL
-  if (!MARKETPLACE_URL_REGEX.test(normalized)) {
-    throw new Error(`Invalid marketplace URL format: ${input}`);
+  // Check if it's a valid SSH URL
+  const isSSH = SSH_URL_REGEX.test(normalized);
+  // Check if it's a valid HTTPS URL
+  const isHTTPS = MARKETPLACE_URL_REGEX.test(normalized);
+
+  if (!isSSH && !isHTTPS) {
+    throw new Error(
+      `Invalid marketplace URL format (must be HTTPS or SSH): ${input}`,
+    );
   }
 
-  // Additional check for valid URL structure
-  try {
-    new URL(normalized);
-  } catch {
-    throw new Error(`Invalid marketplace URL: ${input}`);
+  // Additional check for valid URL structure (only for HTTPS URLs)
+  if (isHTTPS) {
+    try {
+      new URL(normalized);
+    } catch {
+      throw new Error(`Invalid marketplace URL: ${input}`);
+    }
   }
+  // SSH URLs don't need URL constructor validation as they're not valid HTTP URLs
 }
 
 /**
