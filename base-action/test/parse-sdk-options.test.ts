@@ -298,6 +298,32 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("hash character handling", () => {
+    test("should preserve # in flag values instead of treating as comment", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--append-system-prompt "# Use best practices"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["append-system-prompt"]).toBe(
+        "# Use best practices",
+      );
+    });
+
+    test("should handle unquoted # by converting comment object back to string", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--model claude-sonnet-4-5-20250929 --append-system-prompt #Use",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["append-system-prompt"]).toBe(
+        "#Use",
+      );
+    });
+  });
+
   describe("other extraArgs passthrough", () => {
     test("should pass through json-schema in extraArgs", () => {
       const options: ClaudeOptions = {
