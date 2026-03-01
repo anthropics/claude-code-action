@@ -13,14 +13,15 @@ import type { ParsedGitHubContext } from "../context";
 
 /**
  * Build a regex that matches the trigger phrase only when it appears as a
- * standalone token — i.e. not embedded inside a word like "email@claude.com".
+ * standalone token — i.e. not embedded inside a word like "email@claude.com"
+ * or a hyphenated username like "@claude-bot".
  *
- * Uses negative lookbehind/lookahead for word characters (`\w`) so that any
- * non-word character (punctuation, brackets, quotes, etc.) is accepted as a
+ * Uses negative lookbehind/lookahead for word characters and hyphens so that
+ * any other character (punctuation, brackets, quotes, etc.) is accepted as a
  * boundary without needing an explicit allowlist.
  */
 function buildTriggerRegex(triggerPhrase: string): RegExp {
-  return new RegExp(`(?<!\\w)${escapeRegExp(triggerPhrase)}(?!\\w)`, "i");
+  return new RegExp(`(?<![\\w-])${escapeRegExp(triggerPhrase)}(?![\\w-])`, "i");
 }
 
 export function checkContainsTrigger(context: ParsedGitHubContext): boolean {

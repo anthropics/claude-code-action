@@ -197,6 +197,8 @@ describe("checkContainsTrigger", () => {
         { issueBody: "claudette contains claude", expected: false },
         { issueBody: "email@claude.com", expected: false },
         { issueBody: "user@claude.com", expected: false },
+        { issueBody: "@claude-bot helped me", expected: false },
+        { issueBody: "@claude-mention won't work", expected: false },
       ];
 
       testCases.forEach(({ issueBody, expected }) => {
