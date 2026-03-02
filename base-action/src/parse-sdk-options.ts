@@ -92,7 +92,17 @@ function parseClaudeArgsToExtraArgs(
   if (!claudeArgs?.trim()) return {};
 
   const result: Record<string, string | null> = {};
-  const args = parseShellArgs(claudeArgs).filter(
+
+  // Strip shell-style comment lines before parsing.
+  // shell-quote treats '#' as a comment character and silently swallows
+  // everything after it, including subsequent flags on new lines.
+  // See: https://github.com/anthropics/claude-code-action/issues/802
+  const sanitizedArgs = claudeArgs
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("#"))
+    .join("\n");
+
+  const args = parseShellArgs(sanitizedArgs).filter(
     (arg): arg is string => typeof arg === "string",
   );
 

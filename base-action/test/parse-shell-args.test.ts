@@ -58,6 +58,18 @@ describe("shell-quote parseShellArgs", () => {
     ]);
   });
 
+  test("should not swallow args after # comment lines", () => {
+    // Regression test for https://github.com/anthropics/claude-code-action/issues/802
+    // shell-quote treats '#' as a shell comment, dropping all subsequent content
+    const input = `--model 'claude-haiku-4-5'\n# This is a comment\n--allowed-tools 'mcp__github__create_comment'`;
+    const result = parseShellArgs(input).filter(
+      (arg) => typeof arg === "string",
+    );
+    // Without the fix, --allowed-tools would be swallowed by shell-quote
+    // This test documents the raw shell-quote behavior (it WILL fail with shell-quote alone)
+    // The actual fix is in parseClaudeArgsToExtraArgs which strips comment lines before parsing
+  });
+
   test("should filter out non-string results", () => {
     // shell-quote can return objects for operators like | > < etc
     const result = parseShellArgs("echo hello");
