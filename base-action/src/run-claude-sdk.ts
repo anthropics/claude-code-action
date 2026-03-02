@@ -119,7 +119,7 @@ function sanitizeSdkOutput(
         duration_ms: resultMsg.duration_ms,
         num_turns: resultMsg.num_turns,
         total_cost_usd: resultMsg.total_cost_usd,
-        permission_denials: resultMsg.permission_denials,
+        permission_denials_count: resultMsg.permission_denials?.length ?? 0,
       },
       null,
       2,
