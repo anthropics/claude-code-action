@@ -122,7 +122,7 @@ inputs:
     required: false
     default: ""
   display_report:
-    description: "Whether to display the Claude Code Report in GitHub Step Summary. Set to 'false' to disable when using custom formatting solutions. WARNING: This outputs Claude-authored content in the GitHub Step Summary, this should only be used in cases where the action is used solely with trusted input."
+    description: "Whether to display the Claude Code Report in GitHub Step Summary. Set to 'false' to disable when using custom formatting solutions. WARNING: This outputs Claude-authored content in the GitHub Step Summary. This should only be used in cases where the action is used solely with trusted input."
     required: false
     default: "false"
   show_full_output:
