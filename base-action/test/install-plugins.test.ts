@@ -521,7 +521,7 @@ describe("installPlugins", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  test("should reject marketplace URL with non-https protocol", async () => {
+  test("should reject marketplace URL with http protocol (non-https)", async () => {
     const spy = createMockSpawn();
 
     await expect(
@@ -593,6 +593,199 @@ describe("installPlugins", () => {
       2,
       "/custom/path/to/claude",
       ["plugin", "install", "test-plugin"],
+      { stdio: "inherit" },
+    );
+  });
+
+  // SSH marketplace URL tests
+  test("should accept SSH URL for GitHub marketplace", async () => {
+    const spy = createMockSpawn();
+    await installPlugins("git@github.com:user/marketplace.git", "test-plugin");
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "git@github.com:user/marketplace.git"],
+      { stdio: "inherit" },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "install", "test-plugin"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept SSH URL for GitLab marketplace", async () => {
+    const spy = createMockSpawn();
+    await installPlugins("git@gitlab.com:org/project.git", "test-plugin");
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "git@gitlab.com:org/project.git"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept SSH URL with custom hostname", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "git@git.example.com:team/marketplace.git",
+      "test-plugin",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "git@git.example.com:team/marketplace.git"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept SSH URL with nested path", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "git@github.com:org/team/project.git",
+      "test-plugin",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "git@github.com:org/team/project.git"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept SSH URL with hyphens and underscores", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "git@github.com:my-org/my_marketplace.git",
+      "test-plugin",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "git@github.com:my-org/my_marketplace.git"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept SSH URL with dots in hostname", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "git@git.corp.example.com:org/repo.git",
+      "test-plugin",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "git@git.corp.example.com:org/repo.git"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should reject SSH URL without .git extension", async () => {
+    const spy = createMockSpawn();
+
+    await expect(
+      installPlugins("git@github.com:user/marketplace", "test-plugin"),
+    ).rejects.toThrow("Invalid marketplace URL format");
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test("should reject SSH URL with invalid format (missing colon)", async () => {
+    const spy = createMockSpawn();
+
+    await expect(
+      installPlugins("git@github.com/user/marketplace.git", "test-plugin"),
+    ).rejects.toThrow("Invalid marketplace URL format");
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test("should reject SSH URL with invalid format (missing git@ prefix)", async () => {
+    const spy = createMockSpawn();
+
+    await expect(
+      installPlugins("github.com:user/marketplace.git", "test-plugin"),
+    ).rejects.toThrow("Invalid marketplace URL format");
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test("should reject SSH URL with spaces", async () => {
+    const spy = createMockSpawn();
+
+    await expect(
+      installPlugins("git@github.com:user name/marketplace.git", "test-plugin"),
+    ).rejects.toThrow("Invalid marketplace URL format");
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test("should accept mixed HTTPS and SSH marketplace URLs", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "https://github.com/user/m1.git\ngit@gitlab.com:org/m2.git\nhttps://example.com/m3.git",
+      "test-plugin",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(4); // 3 marketplaces + 1 plugin
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "https://github.com/user/m1.git"],
+      { stdio: "inherit" },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "marketplace", "add", "git@gitlab.com:org/m2.git"],
+      { stdio: "inherit" },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      3,
+      "claude",
+      ["plugin", "marketplace", "add", "https://example.com/m3.git"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should accept mixed SSH, HTTPS, and local marketplace paths", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "git@github.com:user/m1.git\nhttps://example.com/m2.git\n./local-marketplace",
+      "test-plugin",
+    );
+
+    expect(spy).toHaveBeenCalledTimes(4); // 3 marketplaces + 1 plugin
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "add", "git@github.com:user/m1.git"],
+      { stdio: "inherit" },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "marketplace", "add", "https://example.com/m2.git"],
+      { stdio: "inherit" },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      3,
+      "claude",
+      ["plugin", "marketplace", "add", "./local-marketplace"],
       { stdio: "inherit" },
     );
   });
