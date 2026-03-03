@@ -36,6 +36,14 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("refs/heads/main")).not.toThrow();
       expect(() => validateBranchName("bugfix/JIRA-1234")).not.toThrow();
     });
+
+    it("should accept names with '@' (e.g. polecat-style branches)", () => {
+      expect(() =>
+        validateBranchName("polecat/rust/tw-w1y@mm95deze"),
+      ).not.toThrow();
+      expect(() => validateBranchName("feature/thing@abc123")).not.toThrow();
+      expect(() => validateBranchName("user@host/branch")).not.toThrow();
+    });
   });
 
   describe("command injection attempts", () => {
