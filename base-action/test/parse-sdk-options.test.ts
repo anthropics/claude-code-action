@@ -366,5 +366,26 @@ describe("parseSdkOptions", () => {
         "claude-code-github-action",
       );
     });
+
+    test("should strip ACTIONS_ID_TOKEN_REQUEST_URL and ACTIONS_ID_TOKEN_REQUEST_TOKEN from env", () => {
+      const originalEnv = { ...process.env };
+      process.env.ACTIONS_ID_TOKEN_REQUEST_URL =
+        "https://token.actions.githubusercontent.com";
+      process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN = "secret-token-value";
+
+      try {
+        const options: ClaudeOptions = {};
+        const result = parseSdkOptions(options);
+
+        expect(
+          result.sdkOptions.env?.ACTIONS_ID_TOKEN_REQUEST_URL,
+        ).toBeUndefined();
+        expect(
+          result.sdkOptions.env?.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
+        ).toBeUndefined();
+      } finally {
+        process.env = originalEnv;
+      }
+    });
   });
 });
