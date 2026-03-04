@@ -135,7 +135,7 @@ describe("pull_request_target event support", () => {
       const prompt = generatePrompt(envVars, mockGitHubData, false, "tag");
 
       // Should include git commands for non-commit-signing mode
-      expect(prompt).toContain("git push");
+      expect(prompt).toContain("scripts/git-push.sh origin");
       expect(prompt).toContain(
         "Always push to the existing branch when triggered on a PR",
       );
