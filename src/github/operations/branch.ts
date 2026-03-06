@@ -58,14 +58,15 @@ export function validateBranchName(branchName: string): void {
     );
   }
 
-  // Strict whitelist pattern: alphanumeric start, then alphanumeric/slash/hyphen/underscore/period/hash.
-  // # is valid per git-check-ref-format and commonly used in branch names like "fix/#123-description".
-  // All git calls use execFileSync (not shell interpolation), so # carries no injection risk.
-  const validPattern = /^[a-zA-Z0-9][a-zA-Z0-9/_.#-]*$/;
+  // Strict whitelist pattern: alphanumeric or Unicode letter start, then those plus
+  // slash/hyphen/underscore/period/#/@/+. `#`, `@`, and `+` are valid in git branch
+  // names; only `@{` is reserved (checked separately below). Unicode letters (\p{L})
+  // support non-ASCII branch names (e.g. Japanese, Chinese characters).
+  const validPattern = /^[\p{L}\p{N}][\p{L}\p{N}/_.#\-@+]*$/u;
 
   if (!validPattern.test(branchName)) {
     throw new Error(
-      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric character and contain only alphanumeric characters, forward slashes, hyphens, underscores, periods, or hashes (#).`,
+      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric or Unicode letter character and contain only alphanumeric characters, Unicode letters, forward slashes, hyphens, underscores, periods, hashes (#), @, or +.`,
     );
   }
 
