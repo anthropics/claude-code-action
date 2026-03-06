@@ -36,6 +36,17 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("refs/heads/main")).not.toThrow();
       expect(() => validateBranchName("bugfix/JIRA-1234")).not.toThrow();
     });
+
+    it("should accept branch names with @ character", () => {
+      expect(() => validateBranchName("TICKET-123@add-feature")).not.toThrow();
+      expect(() => validateBranchName("user@branch")).not.toThrow();
+    });
+
+    it("should accept branch names with non-ASCII Unicode characters", () => {
+      expect(() => validateBranchName("feat/add-機能追加")).not.toThrow();
+      expect(() => validateBranchName("修复/bug-123")).not.toThrow();
+      expect(() => validateBranchName("фича/новая")).not.toThrow();
+    });
   });
 
   describe("command injection attempts", () => {
