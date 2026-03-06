@@ -52,35 +52,37 @@ jobs:
 
 ## Inputs
 
-| Input                            | Description                                                                                                                                                                            | Required | Default       |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------- |
-| `anthropic_api_key`              | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                                                                                             | No\*     | -             |
-| `claude_code_oauth_token`        | Claude Code OAuth token (alternative to anthropic_api_key)                                                                                                                             | No\*     | -             |
-| `prompt`                         | Instructions for Claude. Can be a direct prompt or custom template for automation workflows                                                                                            | No       | -             |
-| `track_progress`                 | Force tag mode with tracking comments. Only works with specific PR/issue events. Preserves GitHub context                                                                              | No       | `false`       |
-| `include_fix_links`              | Include 'Fix this' links in PR code review feedback that open Claude Code with context to fix the identified issue                                                                     | No       | `true`        |
-| `claude_args`                    | Additional [arguments to pass directly to Claude CLI](https://docs.claude.com/en/docs/claude-code/cli-reference#cli-flags) (e.g., `--max-turns 10 --model claude-4-0-sonnet-20250805`) | No       | ""            |
-| `base_branch`                    | The base branch to use for creating new branches (e.g., 'main', 'develop')                                                                                                             | No       | -             |
-| `use_sticky_comment`             | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                                                                                            | No       | `false`       |
-| `github_token`                   | GitHub token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!**                                                                   | No       | -             |
-| `use_bedrock`                    | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                                                                                                            | No       | `false`       |
-| `use_vertex`                     | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API                                                                                                          | No       | `false`       |
-| `assignee_trigger`               | The assignee username that triggers the action (e.g. @claude). Only used for issue assignment                                                                                          | No       | -             |
-| `label_trigger`                  | The label name that triggers the action when applied to an issue (e.g. "claude")                                                                                                       | No       | -             |
-| `trigger_phrase`                 | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                                                                                          | No       | `@claude`     |
-| `branch_prefix`                  | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                                                                                           | No       | `claude/`     |
-| `settings`                       | Claude Code settings as JSON string or path to settings JSON file                                                                                                                      | No       | ""            |
-| `additional_permissions`         | Additional permissions to enable. Currently supports 'actions: read' for viewing workflow results                                                                                      | No       | ""            |
-| `use_commit_signing`             | Enable commit signing using GitHub's API. Simple but cannot perform complex git operations like rebasing. See [Security](./security.md#commit-signing)                                 | No       | `false`       |
-| `ssh_signing_key`                | SSH private key for signing commits. Enables signed commits with full git CLI support (rebasing, etc.). See [Security](./security.md#commit-signing)                                   | No       | ""            |
-| `bot_id`                         | GitHub user ID to use for git operations (defaults to Claude's bot ID). Required with `ssh_signing_key` for verified commits                                                           | No       | `41898282`    |
-| `bot_name`                       | GitHub username to use for git operations (defaults to Claude's bot name). Required with `ssh_signing_key` for verified commits                                                        | No       | `claude[bot]` |
-| `allowed_bots`                   | Comma-separated list of allowed bot usernames, or '\*' to allow all bots. Empty string (default) allows no bots                                                                        | No       | ""            |
-| `allowed_non_write_users`        | **⚠️ RISKY**: Comma-separated list of usernames to allow without write permissions, or '\*' for all users. Only works with `github_token` input. See [Security](./security.md)         | No       | ""            |
-| `path_to_claude_code_executable` | Optional path to a custom Claude Code executable. Skips automatic installation. Useful for Nix, custom containers, or specialized environments                                         | No       | ""            |
-| `path_to_bun_executable`         | Optional path to a custom Bun executable. Skips automatic Bun installation. Useful for Nix, custom containers, or specialized environments                                             | No       | ""            |
-| `plugin_marketplaces`            | Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., see example in workflow above). Marketplaces are added before plugin installation             | No       | ""            |
-| `plugins`                        | Newline-separated list of Claude Code plugin names to install (e.g., see example in workflow above). Plugins are installed before Claude Code execution                                | No       | ""            |
+| Input                            | Description                                                                                                                                                                                 | Required | Default       |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------- |
+| `anthropic_api_key`              | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                                                                                                  | No\*     | -             |
+| `claude_code_oauth_token`        | Claude Code OAuth token (alternative to anthropic_api_key)                                                                                                                                  | No\*     | -             |
+| `prompt`                         | Instructions for Claude. Can be a direct prompt or custom template for automation workflows                                                                                                 | No       | -             |
+| `track_progress`                 | Force tag mode with tracking comments. Only works with specific PR/issue events. Preserves GitHub context                                                                                   | No       | `false`       |
+| `include_fix_links`              | Include 'Fix this' links in PR code review feedback that open Claude Code with context to fix the identified issue                                                                          | No       | `true`        |
+| `claude_args`                    | Additional [arguments to pass directly to Claude CLI](https://docs.claude.com/en/docs/claude-code/cli-reference#cli-flags) (e.g., `--max-turns 10 --model claude-4-0-sonnet-20250805`)      | No       | ""            |
+| `base_branch`                    | The base branch to use for creating new branches (e.g., 'main', 'develop')                                                                                                                  | No       | -             |
+| `use_sticky_comment`             | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                                                                                                 | No       | `false`       |
+| `github_token`                   | GitHub token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!**                                                                        | No       | -             |
+| `use_bedrock`                    | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                                                                                                                 | No       | `false`       |
+| `use_vertex`                     | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API                                                                                                               | No       | `false`       |
+| `assignee_trigger`               | The assignee username that triggers the action (e.g. @claude). Only used for issue assignment                                                                                               | No       | -             |
+| `label_trigger`                  | The label name that triggers the action when applied to an issue (e.g. "claude")                                                                                                            | No       | -             |
+| `trigger_phrase`                 | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                                                                                               | No       | `@claude`     |
+| `branch_prefix`                  | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                                                                                                | No       | `claude/`     |
+| `settings`                       | Claude Code settings as JSON string or path to settings JSON file                                                                                                                           | No       | ""            |
+| `additional_permissions`         | Additional permissions to enable. Currently supports 'actions: read' for viewing workflow results                                                                                           | No       | ""            |
+| `use_commit_signing`             | Enable commit signing using GitHub's API. Simple but cannot perform complex git operations like rebasing. See [Security](./security.md#commit-signing)                                      | No       | `false`       |
+| `ssh_signing_key`                | SSH private key for signing commits. Enables signed commits with full git CLI support (rebasing, etc.). See [Security](./security.md#commit-signing)                                        | No       | ""            |
+| `bot_id`                         | GitHub user ID to use for git operations (defaults to Claude's bot ID). Required with `ssh_signing_key` for verified commits                                                                | No       | `41898282`    |
+| `bot_name`                       | GitHub username to use for git operations (defaults to Claude's bot name). Required with `ssh_signing_key` for verified commits                                                             | No       | `claude[bot]` |
+| `allowed_bots`                   | Comma-separated list of allowed bot usernames, or '\*' to allow all bots. Empty string (default) allows no bots                                                                             | No       | ""            |
+| `allowed_non_write_users`        | **⚠️ RISKY**: Comma-separated list of usernames to allow without write permissions, or '\*' for all users. Only works with `github_token` input. See [Security](./security.md)              | No       | ""            |
+| `include_comments_by_actor`      | Comma-separated list of actor usernames whose comments to include. Supports wildcards (e.g., `*[bot]`). Empty (default) includes all actors. If an actor matches both lists, exclusion wins | No       | ""            |
+| `exclude_comments_by_actor`      | Comma-separated list of actor usernames whose comments to exclude. Supports wildcards (e.g., `*[bot]`). Empty (default) excludes none. If an actor matches both lists, exclusion wins       | No       | ""            |
+| `path_to_claude_code_executable` | Optional path to a custom Claude Code executable. Skips automatic installation. Useful for Nix, custom containers, or specialized environments                                              | No       | ""            |
+| `path_to_bun_executable`         | Optional path to a custom Bun executable. Skips automatic Bun installation. Useful for Nix, custom containers, or specialized environments                                                  | No       | ""            |
+| `plugin_marketplaces`            | Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., see example in workflow above). Marketplaces are added before plugin installation                  | No       | ""            |
+| `plugins`                        | Newline-separated list of Claude Code plugin names to install (e.g., see example in workflow above). Plugins are installed before Claude Code execution                                     | No       | ""            |
 
 ### Deprecated Inputs
 
@@ -103,6 +105,39 @@ These inputs are deprecated and will be removed in a future version:
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 
 > **Note**: This action is currently in beta. Features and APIs may change as we continue to improve the integration.
+
+### Comment Filtering
+
+Use `include_comments_by_actor` and `exclude_comments_by_actor` to control which comments Claude sees. This is useful for filtering out noisy bot comments or restricting context to specific actors on public repositories.
+
+Both parameters accept comma-separated usernames and support the `*[bot]` wildcard pattern to match all bot accounts (any username ending in `[bot]`). When an actor matches both the include and exclude lists, **exclusion takes priority**.
+
+**Example: Only include comments from humans (exclude all bots)**
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    exclude_comments_by_actor: "*[bot]"
+```
+
+**Example: Only include comments from specific trusted users**
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    include_comments_by_actor: "maintainer1,maintainer2"
+```
+
+**Example: Exclude a specific bot**
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    exclude_comments_by_actor: "renovate[bot]"
+```
 
 ## Upgrading from v0.x?
 

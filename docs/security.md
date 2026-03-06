@@ -27,6 +27,8 @@ This design ensures that users retain full control over what pull requests are c
 
 **Beware of potential hidden markdown when tagging Claude on untrusted content.** External contributors may include hidden instructions through HTML comments, invisible characters, hidden attributes, or other techniques. The action sanitizes content by stripping HTML comments, invisible characters, markdown image alt text, hidden HTML attributes, and HTML entities, but new bypass techniques may emerge. We recommend reviewing the raw content of all input coming from external contributors before allowing Claude to process it.
 
+For public repositories, you can further reduce the attack surface by filtering which comments Claude sees. Use `include_comments_by_actor` to restrict context to comments from trusted users only, or use `exclude_comments_by_actor` to drop comments from specific actors. See [Usage - Comment Filtering](./usage.md#comment-filtering) for details.
+
 ## GitHub App Permissions
 
 The [Claude Code GitHub app](https://github.com/apps/claude) requests the following permissions:
