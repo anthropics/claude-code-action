@@ -62,6 +62,17 @@ export function sanitizeContent(content: string): string {
   return content;
 }
 
+export function unescapeExclamationMarks(content: string): string {
+  return content.replace(/\\!/g, "!");
+}
+
+export function sanitizeOutputContent(content: string): string {
+  content = unescapeExclamationMarks(content);
+  content = stripInvisibleCharacters(content);
+  content = redactGitHubTokens(content);
+  return content;
+}
+
 export function redactGitHubTokens(content: string): string {
   // GitHub Personal Access Tokens (classic): ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (40 chars)
   content = content.replace(

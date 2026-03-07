@@ -3,7 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { createOctokit } from "../github/api/client";
-import { sanitizeContent } from "../github/utils/sanitizer";
+import { sanitizeOutputContent } from "../github/utils/sanitizer";
 
 // Get repository and PR information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -83,7 +83,7 @@ server.tool(
       const octokit = createOctokit(githubToken).rest;
 
       // Sanitize the comment body to remove any potential GitHub tokens
-      const sanitizedBody = sanitizeContent(body);
+      const sanitizedBody = sanitizeOutputContent(body);
 
       // Validate that either line or both startLine and line are provided
       if (!line && !startLine) {

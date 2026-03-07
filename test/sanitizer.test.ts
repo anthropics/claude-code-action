@@ -6,6 +6,8 @@ import {
   stripHiddenAttributes,
   normalizeHtmlEntities,
   sanitizeContent,
+  sanitizeOutputContent,
+  unescapeExclamationMarks,
   stripHtmlComments,
   redactGitHubTokens,
 } from "../src/github/utils/sanitizer";
@@ -343,6 +345,61 @@ describe("sanitizeContent with token redaction", () => {
     expect(sanitized).not.toContain("\u200B");
     expect(sanitized).toContain("[REDACTED_GITHUB_TOKEN]");
     expect(sanitized).toContain("Here's some text with a token:");
+  });
+});
+
+describe("unescapeExclamationMarks", () => {
+  it("should unescape \\! to !", () => {
+    expect(unescapeExclamationMarks("<\\!-- marker -->")).toBe("<!-- marker -->");
+    expect(unescapeExclamationMarks("<\\!-- marker \\!-->")).toBe(
+      "<!-- marker !-->",
+    );
+  });
+
+  it("should handle multiple escaped exclamation marks", () => {
+    expect(unescapeExclamationMarks("Hello\\! World\\!")).toBe("Hello! World!");
+  });
+
+  it("should preserve text without escaped exclamation marks", () => {
+    expect(unescapeExclamationMarks("Hello! World!")).toBe("Hello! World!");
+    expect(unescapeExclamationMarks("No exclamation marks")).toBe(
+      "No exclamation marks",
+    );
+  });
+});
+
+describe("sanitizeOutputContent", () => {
+  it("should preserve HTML comments in output", () => {
+    const body = "<!-- claude-code-review -->\n## Review\nLooks good!";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toContain("<!-- claude-code-review -->");
+  });
+
+  it("should unescape \\! in HTML comments", () => {
+    const body = "<\\!-- claude-code-review -->\n## Review\nLooks good!";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toContain("<!-- claude-code-review -->");
+    expect(sanitized).not.toContain("<\\!--");
+  });
+
+  it("should still redact GitHub tokens in output", () => {
+    const body =
+      "Token: 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 should be redacted";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toContain("[REDACTED_GITHUB_TOKEN]");
+    expect(sanitized).not.toContain("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");
+  });
+
+  it("should still strip invisible characters in output", () => {
+    const body = "Text with\u200Bhidden chars";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toBe("Text withhidden chars");
+  });
+
+  it("should not strip markdown image alt text in output", () => {
+    const body = "![example alt text](image.png)";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toContain("example alt text");
   });
 });
 
