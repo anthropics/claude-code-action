@@ -24,6 +24,19 @@ const ACCUMULATING_FLAGS = new Set([
 // Delimiter used to join accumulated flag values
 const ACCUMULATE_DELIMITER = "\x00";
 
+/**
+ * Strip shell-style comments from input before parsing.
+ * Shell-quote treats # as a comment character, swallowing all content after it.
+ * This function removes lines that start with # (after trimming) to prevent
+ * flags after comments from being swallowed.
+ */
+function stripShellComments(input: string): string {
+  return input
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("#"))
+    .join("\n");
+}
+
 type McpConfig = {
   mcpServers?: Record<string, unknown>;
 };
@@ -91,8 +104,11 @@ function parseClaudeArgsToExtraArgs(
 ): Record<string, string | null> {
   if (!claudeArgs?.trim()) return {};
 
+  // Strip shell comments before parsing to prevent # from swallowing subsequent flags
+  const strippedArgs = stripShellComments(claudeArgs);
+
   const result: Record<string, string | null> = {};
-  const args = parseShellArgs(claudeArgs).filter(
+  const args = parseShellArgs(strippedArgs).filter(
     (arg): arg is string => typeof arg === "string",
   );
 
