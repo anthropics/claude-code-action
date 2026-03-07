@@ -356,27 +356,27 @@ describe("unescapeHtmlCommentMarkers", () => {
   });
 
   it("should handle multiple escaped HTML comments", () => {
-    expect(
-      unescapeHtmlCommentMarkers("<\\!-- a -->\n<\\!-- b -->"),
-    ).toBe("<!-- a -->\n<!-- b -->");
+    expect(unescapeHtmlCommentMarkers("<\\!-- a -->\n<\\!-- b -->")).toBe(
+      "<!-- a -->\n<!-- b -->",
+    );
   });
 
   it("should handle adjacent comments with no whitespace", () => {
-    expect(
-      unescapeHtmlCommentMarkers("<\\!-- a --><\\!-- b -->"),
-    ).toBe("<!-- a --><!-- b -->");
+    expect(unescapeHtmlCommentMarkers("<\\!-- a --><\\!-- b -->")).toBe(
+      "<!-- a --><!-- b -->",
+    );
   });
 
   it("should handle multiline HTML comments", () => {
-    expect(
-      unescapeHtmlCommentMarkers("<\\!--\nmultiline\n-->"),
-    ).toBe("<!--\nmultiline\n-->");
+    expect(unescapeHtmlCommentMarkers("<\\!--\nmultiline\n-->")).toBe(
+      "<!--\nmultiline\n-->",
+    );
   });
 
   it("should NOT unescape unclosed <\\!-- (no matching -->)", () => {
-    expect(
-      unescapeHtmlCommentMarkers("<\\!-- never closed"),
-    ).toBe("<\\!-- never closed");
+    expect(unescapeHtmlCommentMarkers("<\\!-- never closed")).toBe(
+      "<\\!-- never closed",
+    );
   });
 
   it("should NOT unescape \\! outside HTML comment context", () => {
