@@ -62,12 +62,12 @@ export function sanitizeContent(content: string): string {
   return content;
 }
 
-export function unescapeExclamationMarks(content: string): string {
-  return content.replace(/\\!/g, "!");
+export function unescapeHtmlCommentMarkers(content: string): string {
+  return content.replace(/<\\!--/g, "<!--").replace(/--\\!>/g, "--!>");
 }
 
 export function sanitizeOutputContent(content: string): string {
-  content = unescapeExclamationMarks(content);
+  content = unescapeHtmlCommentMarkers(content);
   content = stripInvisibleCharacters(content);
   content = redactGitHubTokens(content);
   return content;

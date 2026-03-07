@@ -7,7 +7,7 @@ import {
   normalizeHtmlEntities,
   sanitizeContent,
   sanitizeOutputContent,
-  unescapeExclamationMarks,
+  unescapeHtmlCommentMarkers,
   stripHtmlComments,
   redactGitHubTokens,
 } from "../src/github/utils/sanitizer";
@@ -348,22 +348,34 @@ describe("sanitizeContent with token redaction", () => {
   });
 });
 
-describe("unescapeExclamationMarks", () => {
-  it("should unescape \\! to !", () => {
-    expect(unescapeExclamationMarks("<\\!-- marker -->")).toBe("<!-- marker -->");
-    expect(unescapeExclamationMarks("<\\!-- marker \\!-->")).toBe(
-      "<!-- marker !-->",
+describe("unescapeHtmlCommentMarkers", () => {
+  it("should unescape <\\!-- to <!--", () => {
+    expect(unescapeHtmlCommentMarkers("<\\!-- marker -->")).toBe(
+      "<!-- marker -->",
     );
   });
 
-  it("should handle multiple escaped exclamation marks", () => {
-    expect(unescapeExclamationMarks("Hello\\! World\\!")).toBe("Hello! World!");
+  it("should handle multiple escaped HTML comments", () => {
+    expect(
+      unescapeHtmlCommentMarkers("<\\!-- a -->\n<\\!-- b -->"),
+    ).toBe("<!-- a -->\n<!-- b -->");
   });
 
-  it("should preserve text without escaped exclamation marks", () => {
-    expect(unescapeExclamationMarks("Hello! World!")).toBe("Hello! World!");
-    expect(unescapeExclamationMarks("No exclamation marks")).toBe(
-      "No exclamation marks",
+  it("should NOT unescape \\! outside HTML comment context", () => {
+    expect(unescapeHtmlCommentMarkers("Hello\\! World\\!")).toBe(
+      "Hello\\! World\\!",
+    );
+    expect(unescapeHtmlCommentMarkers("echo \\!important")).toBe(
+      "echo \\!important",
+    );
+  });
+
+  it("should preserve text without escaped markers", () => {
+    expect(unescapeHtmlCommentMarkers("<!-- already fine -->")).toBe(
+      "<!-- already fine -->",
+    );
+    expect(unescapeHtmlCommentMarkers("No comments here")).toBe(
+      "No comments here",
     );
   });
 });
