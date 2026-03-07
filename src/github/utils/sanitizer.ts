@@ -63,7 +63,7 @@ export function sanitizeContent(content: string): string {
 }
 
 export function unescapeHtmlCommentMarkers(content: string): string {
-  return content.replace(/<\\!--/g, "<!--").replace(/--\\!>/g, "--!>");
+  return content.replace(/<\\!--([\s\S]*?)-->/g, "<!--$1-->");
 }
 
 export function sanitizeOutputContent(content: string): string {

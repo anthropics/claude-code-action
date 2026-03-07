@@ -349,7 +349,7 @@ describe("sanitizeContent with token redaction", () => {
 });
 
 describe("unescapeHtmlCommentMarkers", () => {
-  it("should unescape <\\!-- to <!--", () => {
+  it("should unescape <\\!-- to <!-- when properly closed", () => {
     expect(unescapeHtmlCommentMarkers("<\\!-- marker -->")).toBe(
       "<!-- marker -->",
     );
@@ -359,6 +359,24 @@ describe("unescapeHtmlCommentMarkers", () => {
     expect(
       unescapeHtmlCommentMarkers("<\\!-- a -->\n<\\!-- b -->"),
     ).toBe("<!-- a -->\n<!-- b -->");
+  });
+
+  it("should handle adjacent comments with no whitespace", () => {
+    expect(
+      unescapeHtmlCommentMarkers("<\\!-- a --><\\!-- b -->"),
+    ).toBe("<!-- a --><!-- b -->");
+  });
+
+  it("should handle multiline HTML comments", () => {
+    expect(
+      unescapeHtmlCommentMarkers("<\\!--\nmultiline\n-->"),
+    ).toBe("<!--\nmultiline\n-->");
+  });
+
+  it("should NOT unescape unclosed <\\!-- (no matching -->)", () => {
+    expect(
+      unescapeHtmlCommentMarkers("<\\!-- never closed"),
+    ).toBe("<\\!-- never closed");
   });
 
   it("should NOT unescape \\! outside HTML comment context", () => {
@@ -412,6 +430,20 @@ describe("sanitizeOutputContent", () => {
     const body = "![example alt text](image.png)";
     const sanitized = sanitizeOutputContent(body);
     expect(sanitized).toContain("example alt text");
+  });
+
+  it("should not unescape unclosed <\\!-- to prevent eating page content", () => {
+    const body = "<\\!-- never closed\nVisible text should stay visible.";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toContain("<\\!--");
+    expect(sanitized).toContain("Visible text should stay visible.");
+  });
+
+  it("should not unescape \\! inside code blocks", () => {
+    const body = "```bash\necho \\!important\nhistory \\!42\n```";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toContain("\\!important");
+    expect(sanitized).toContain("\\!42");
   });
 });
 
