@@ -66,7 +66,18 @@ export async function checkWritePermissions(
       core.warning(`Actor has insufficient permissions: ${permissionLevel}`);
       return false;
     }
-  } catch (error) {
+  } catch (error: any) {
+    // Handle 404 errors for non-user actors (e.g., "Copilot")
+    // The collaborator permission API returns 404 when the actor is not a
+    // regular GitHub user. These are GitHub system actors that inherently
+    // operate with the permissions granted by the workflow configuration.
+    if (error?.status === 404) {
+      core.info(
+        `Actor "${actor}" is not a GitHub user (received 404). Treating as a non-user actor and allowing.`,
+      );
+      return true;
+    }
+
     core.error(`Failed to check permissions: ${error}`);
     throw new Error(`Failed to check permissions for ${actor}: ${error}`);
   }

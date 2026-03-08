@@ -140,7 +140,53 @@ describe("checkWritePermissions", () => {
     expect(result).toBe(true);
   });
 
-  test("should throw error when permission check fails", async () => {
+  test("should return true when API returns 404 for non-user actor", async () => {
+    const httpError = Object.assign(
+      new Error("Copilot is not a user"),
+      { status: 404 },
+    );
+    const mockOctokit = {
+      repos: {
+        getCollaboratorPermissionLevel: async () => {
+          throw httpError;
+        },
+      },
+    } as any;
+    const context = createContext();
+    context.actor = "Copilot";
+
+    const result = await checkWritePermissions(mockOctokit, context);
+
+    expect(result).toBe(true);
+    expect(coreInfoSpy).toHaveBeenCalledWith(
+      'Actor "Copilot" is not a GitHub user (received 404). Treating as a non-user actor and allowing.',
+    );
+  });
+
+  test("should return true when API returns 404 for any non-user actor name", async () => {
+    const httpError = Object.assign(
+      new Error("some-service is not a user"),
+      { status: 404 },
+    );
+    const mockOctokit = {
+      repos: {
+        getCollaboratorPermissionLevel: async () => {
+          throw httpError;
+        },
+      },
+    } as any;
+    const context = createContext();
+    context.actor = "some-service";
+
+    const result = await checkWritePermissions(mockOctokit, context);
+
+    expect(result).toBe(true);
+    expect(coreInfoSpy).toHaveBeenCalledWith(
+      'Actor "some-service" is not a GitHub user (received 404). Treating as a non-user actor and allowing.',
+    );
+  });
+
+  test("should throw error when permission check fails with non-404 error", async () => {
     const error = new Error("API error");
     const mockOctokit = {
       repos: {
@@ -158,6 +204,27 @@ describe("checkWritePermissions", () => {
     expect(coreErrorSpy).toHaveBeenCalledWith(
       "Failed to check permissions: Error: API error",
     );
+  });
+
+  test("should throw error for 500 server errors", async () => {
+    const httpError = Object.assign(
+      new Error("Internal Server Error"),
+      { status: 500 },
+    );
+    const mockOctokit = {
+      repos: {
+        getCollaboratorPermissionLevel: async () => {
+          throw httpError;
+        },
+      },
+    } as any;
+    const context = createContext();
+
+    await expect(checkWritePermissions(mockOctokit, context)).rejects.toThrow(
+      "Failed to check permissions for test-user",
+    );
+
+    expect(coreErrorSpy).toHaveBeenCalled();
   });
 
   test("should call API with correct parameters", async () => {
