@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "fs/promises";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { parseAllowedTools } from "./parse-tools";
+import { buildDisallowedToolsString } from "../../create-prompt";
 import {
   configureGitAuth,
   setupSshSigning,
@@ -116,6 +117,14 @@ export async function prepareAgentMode({
   if (ourConfig.mcpServers && Object.keys(ourConfig.mcpServers).length > 0) {
     const escapedOurConfig = ourMcpConfig.replace(/'/g, "'\\''");
     claudeArgs = `--mcp-config '${escapedOurConfig}'`;
+  }
+
+  // Disable WebSearch and WebFetch by default for security, but respect
+  // user's --allowedTools from claude_args (e.g., --allowedTools WebSearch
+  // removes WebSearch from the disallowed list)
+  const disallowedTools = buildDisallowedToolsString([], allowedTools);
+  if (disallowedTools) {
+    claudeArgs = `${claudeArgs} --disallowedTools "${disallowedTools}"`;
   }
 
   // Append user's claude_args (which may have more --mcp-config flags)
