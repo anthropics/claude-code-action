@@ -164,9 +164,23 @@ export async function setupBranch(
       // Validate branch names before use to prevent command injection
       validateBranchName(branchName);
 
-      // Execute git commands to checkout PR branch (dynamic depth based on PR size)
-      // Using execFileSync instead of shell template literals for security
-      execGit(["fetch", "origin", `--depth=${fetchDepth}`, branchName]);
+      // For cross-repository (fork) PRs, fetch via the pull ref since the
+      // branch only exists on the fork's remote, not on origin.
+      if (prData.isCrossRepository) {
+        console.log(
+          `PR #${entityNumber} is from a fork, fetching via refs/pull/${entityNumber}/head...`,
+        );
+        execGit([
+          "fetch",
+          "origin",
+          `--depth=${fetchDepth}`,
+          `pull/${entityNumber}/head:${branchName}`,
+        ]);
+      } else {
+        // Execute git commands to checkout PR branch (dynamic depth based on PR size)
+        // Using execFileSync instead of shell template literals for security
+        execGit(["fetch", "origin", `--depth=${fetchDepth}`, branchName]);
+      }
       execGit(["checkout", branchName, "--"]);
 
       console.log(`Successfully checked out PR branch for PR #${entityNumber}`);

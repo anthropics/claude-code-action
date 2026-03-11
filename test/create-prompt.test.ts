@@ -23,6 +23,8 @@ describe("generatePrompt", () => {
       baseRefName: "main",
       headRefName: "feature-branch",
       headRefOid: "abc123",
+      isCrossRepository: false,
+      headRepository: { owner: { login: "testowner" }, name: "testrepo" },
       commits: {
         totalCount: 2,
         nodes: [
