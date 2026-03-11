@@ -330,7 +330,7 @@ describe("prepareMcpConfig", () => {
     expect(parsed.mcpServers.github_inline_comment).not.toBeDefined();
   });
 
-  test("should include inline comment server alongside sticky comment support for PRs", async () => {
+  test("should include both comment and inline comment servers for PR contexts", async () => {
     const mockPRContextWithSticky: ParsedGitHubContext = {
       ...mockPRContext,
       inputs: {
