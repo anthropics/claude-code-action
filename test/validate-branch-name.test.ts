@@ -36,6 +36,20 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("refs/heads/main")).not.toThrow();
       expect(() => validateBranchName("bugfix/JIRA-1234")).not.toThrow();
     });
+
+    it.each([
+      "TICKET-123@add-feature",
+      "user@branch",
+      "feat@test",
+      "feature/AB#1992-sentry-enhancements",
+      "AB#123-fix",
+      "issue#456",
+      "feat/add-機能追加",
+      "フィーチャー/新機能",
+      "особенность/новая",
+    ])("should accept special characters and Unicode: %s", (branchName) => {
+      expect(() => validateBranchName(branchName)).not.toThrow();
+    });
   });
 
   describe("command injection attempts", () => {

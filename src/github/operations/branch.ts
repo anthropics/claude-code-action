@@ -23,18 +23,19 @@ function extractFirstLabel(githubData: FetchDataResult): string | undefined {
 }
 
 /**
- * Validates a git branch name against a strict whitelist pattern.
+ * Validates a git branch name against a whitelist pattern.
  * This prevents command injection by ensuring only safe characters are used.
  *
  * Valid branch names:
- * - Start with alphanumeric character (not dash, to prevent option injection)
- * - Contain only alphanumeric, forward slash, hyphen, underscore, or period
+ * - Start with letter or number (not dash, to prevent option injection)
+ * - Contain only letters, numbers, forward slash, hyphen, underscore, period, @, or #
+ * - Support Unicode characters (e.g., Japanese branch names)
  * - Do not start or end with a period
  * - Do not end with a slash
  * - Do not contain '..' (path traversal)
  * - Do not contain '//' (consecutive slashes)
  * - Do not end with '.lock'
- * - Do not contain '@{'
+ * - Do not contain '@{' (git reflog syntax)
  * - Do not contain control characters or special git characters (~^:?*[\])
  */
 export function validateBranchName(branchName: string): void {
@@ -58,12 +59,15 @@ export function validateBranchName(branchName: string): void {
     );
   }
 
-  // Strict whitelist pattern: alphanumeric start, then alphanumeric/slash/hyphen/underscore/period
-  const validPattern = /^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$/;
+  // Whitelist pattern: Unicode letter/number start, then Unicode letter/number/slash/hyphen/underscore/period/@/#
+  // Allows @ and # for Azure DevOps integration (AB#123) and common naming patterns
+  // Allows Unicode for internationalization (e.g., Japanese branch names)
+  // Note: quotes are still blocked for safe shell interpolation
+  const validPattern = /^[\p{L}\p{N}][\p{L}\p{N}/_@#.-]*$/u;
 
   if (!validPattern.test(branchName)) {
     throw new Error(
-      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric character and contain only alphanumeric characters, forward slashes, hyphens, underscores, or periods.`,
+      `Invalid branch name: "${branchName}". Branch names must start with a letter or number and contain only letters, numbers, forward slashes, hyphens, underscores, periods, @, or #.`,
     );
   }
 
