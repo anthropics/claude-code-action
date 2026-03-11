@@ -435,18 +435,21 @@ describe("truncateStepSummary", () => {
 
   test("cuts at last section separator when possible", () => {
     // Build content with section separators
-    let content = "## Section 1\n\nContent A\n\n---\n\n";
-    content += "## Section 2\n\nContent B\n\n---\n\n";
-    content += "## Section 3\n\n" + "C".repeat(500);
+    const section1 = "## Section 1\n\nContent A\n\n---\n\n";
+    const section2 = "## Section 2\n\nContent B\n\n---\n\n";
+    const section3 = "## Section 3\n\n" + "C".repeat(500);
+    const content = section1 + section2 + section3;
 
-    // Set limit so it fits section 1+2 but not section 3
-    const section12 = "## Section 1\n\nContent A\n\n---\n\n## Section 2\n\nContent B\n";
-    const limit = new TextEncoder().encode(section12).byteLength + 300;
+    // Set limit so the truncation notice + sections 1+2 fit, but section 3 doesn't.
+    // The notice is ~180 bytes, so we need section1+section2+notice to fit but not section3.
+    const s12Bytes = new TextEncoder().encode(section1 + section2).byteLength;
+    const limit = s12Bytes + 200; // enough for s1+s2+notice, but not s3
 
     const result = truncateStepSummary(content, limit);
-    // Should have cut at the separator after section 2
     expect(result).toContain("Section 1");
     expect(result).toContain("Section 2");
+    expect(result).not.toContain("Section 3");
+    expect(result).not.toContain("C".repeat(50));
     expect(result).toContain("truncated");
   });
 
@@ -462,10 +465,18 @@ describe("truncateStepSummary", () => {
     expect(roundTrip).toBe(result);
   });
 
-  test("uses default limit matching GitHub's 1024k constraint", () => {
-    // Just verify the default doesn't throw for small content
+  test("uses default limit with headroom below GitHub's 1024k constraint", () => {
+    // Default budget is 1000k (leaving 24k headroom for earlier steps)
     const small = "## Report\n";
     expect(truncateStepSummary(small)).toBe(small);
+  });
+
+  test("handles edge case where maxBytes is smaller than truncation notice", () => {
+    const content = "x".repeat(100);
+    // Very small limit that can't even fit the notice
+    const result = truncateStepSummary(content, 50);
+    const resultBytes = new TextEncoder().encode(result).byteLength;
+    expect(resultBytes).toBeLessThanOrEqual(50);
   });
 });
 

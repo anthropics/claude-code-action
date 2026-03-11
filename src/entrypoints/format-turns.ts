@@ -439,8 +439,19 @@ export function truncateStepSummary(
   const noticeBytes = new TextEncoder().encode(truncationNotice).byteLength;
   const budget = maxBytes - noticeBytes;
 
-  // Decode back to string at the byte budget boundary
-  const truncated = new TextDecoder().decode(encoded.slice(0, budget));
+  // If maxBytes is smaller than the notice itself, return just the notice
+  // trimmed to fit (extremely unlikely in practice, but handles the edge case)
+  if (budget <= 0) {
+    return truncationNotice.substring(0, maxBytes);
+  }
+
+  // Decode back to string at the byte budget boundary.
+  // TextDecoder replaces incomplete multi-byte sequences at the boundary with
+  // U+FFFD, so re-verify the encoded size and trim if needed.
+  let truncated = new TextDecoder().decode(encoded.slice(0, budget));
+  while (new TextEncoder().encode(truncated).byteLength > budget && truncated.length > 0) {
+    truncated = truncated.substring(0, truncated.length - 1);
+  }
 
   // Find the last section separator to cut at a clean boundary
   const lastSeparator = truncated.lastIndexOf("\n---\n");
