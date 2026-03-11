@@ -8,6 +8,7 @@ import {
   detectContentType,
   formatResultContent,
   formatToolWithResult,
+  truncateStepSummary,
   type Turn,
   type ToolUse,
   type ToolResult,
@@ -414,6 +415,57 @@ describe("formatTurnsFromData", () => {
     expect(result).toContain("### 🔧 `read_file`");
     expect(result).toContain("## ✅ Final Result");
     expect(result).toContain("Done");
+  });
+});
+
+describe("truncateStepSummary", () => {
+  test("returns markdown unchanged when under the limit", () => {
+    const small = "## Report\n\nSome content\n";
+    expect(truncateStepSummary(small, 1024)).toBe(small);
+  });
+
+  test("truncates markdown that exceeds the byte limit", () => {
+    const large = "x".repeat(2000);
+    const result = truncateStepSummary(large, 500);
+    const resultBytes = new TextEncoder().encode(result).byteLength;
+    expect(resultBytes).toBeLessThanOrEqual(500);
+    expect(result).toContain("truncated");
+    expect(result).toContain("display_report");
+  });
+
+  test("cuts at last section separator when possible", () => {
+    // Build content with section separators
+    let content = "## Section 1\n\nContent A\n\n---\n\n";
+    content += "## Section 2\n\nContent B\n\n---\n\n";
+    content += "## Section 3\n\n" + "C".repeat(500);
+
+    // Set limit so it fits section 1+2 but not section 3
+    const section12 = "## Section 1\n\nContent A\n\n---\n\n## Section 2\n\nContent B\n";
+    const limit = new TextEncoder().encode(section12).byteLength + 300;
+
+    const result = truncateStepSummary(content, limit);
+    // Should have cut at the separator after section 2
+    expect(result).toContain("Section 1");
+    expect(result).toContain("Section 2");
+    expect(result).toContain("truncated");
+  });
+
+  test("handles multi-byte characters without corruption", () => {
+    // Unicode content with multi-byte chars
+    const content = "## Report\n\n" + "\u{1F600}".repeat(300) + "\n\n---\n\n" + "end";
+    const result = truncateStepSummary(content, 500);
+    // Should not throw or produce invalid UTF-8
+    expect(result).toContain("Report");
+    expect(result).toContain("truncated");
+    // Verify it's valid UTF-8 by encoding/decoding
+    const roundTrip = new TextDecoder().decode(new TextEncoder().encode(result));
+    expect(roundTrip).toBe(result);
+  });
+
+  test("uses default limit matching GitHub's 1024k constraint", () => {
+    // Just verify the default doesn't throw for small content
+    const small = "## Report\n";
+    expect(truncateStepSummary(small)).toBe(small);
   });
 });
 

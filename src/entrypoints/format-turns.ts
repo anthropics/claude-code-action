@@ -412,6 +412,46 @@ export function formatGroupedContent(groupedContent: GroupedContent[]): string {
   return markdown;
 }
 
+// GitHub's hard limit for $GITHUB_STEP_SUMMARY content.
+// Using 1000k instead of 1024k to leave headroom for any existing content
+// that may have been appended by earlier steps in the same job.
+const STEP_SUMMARY_MAX_BYTES = 1000 * 1024;
+
+/**
+ * Truncate markdown to fit within GitHub's step summary size limit (1024k).
+ * Cuts at the last complete section boundary (---) before the limit,
+ * then appends a truncation notice.
+ */
+export function truncateStepSummary(
+  markdown: string,
+  maxBytes: number = STEP_SUMMARY_MAX_BYTES,
+): string {
+  const encoded = new TextEncoder().encode(markdown);
+  if (encoded.byteLength <= maxBytes) {
+    return markdown;
+  }
+
+  const truncationNotice =
+    "\n\n---\n\n" +
+    "> **Note:** This report was truncated to fit within GitHub's step summary size limit (1024k).\n" +
+    "> To disable the report entirely, set `display_report: false` in your workflow.\n";
+
+  const noticeBytes = new TextEncoder().encode(truncationNotice).byteLength;
+  const budget = maxBytes - noticeBytes;
+
+  // Decode back to string at the byte budget boundary
+  const truncated = new TextDecoder().decode(encoded.slice(0, budget));
+
+  // Find the last section separator to cut at a clean boundary
+  const lastSeparator = truncated.lastIndexOf("\n---\n");
+  const cutPoint =
+    lastSeparator > truncated.length * 0.5
+      ? lastSeparator
+      : truncated.length;
+
+  return truncated.substring(0, cutPoint) + truncationNotice;
+}
+
 export function formatTurnsFromData(data: Turn[]): string {
   // Group turns naturally
   const groupedContent = groupTurnsNaturally(data);
