@@ -131,6 +131,12 @@ export async function prepareTagMode({
     ...userAllowedMCPTools,
   ];
 
+  // Enable inline PR comments for PR contexts so Claude can post
+  // review feedback directly on diff lines alongside the tracking comment
+  if (context.isPR) {
+    tagModeTools.push("mcp__github_inline_comment__create_inline_comment");
+  }
+
   // Add git commands when using git CLI (no API commit signing, or SSH signing)
   // SSH signing still uses git CLI, just with signing enabled
   if (!useApiCommitSigning) {
