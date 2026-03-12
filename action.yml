@@ -282,18 +282,17 @@ runs:
       run: |
         bun run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
 
-    - name: Report buffered inline comments
+    - name: Post buffered inline comments
       if: always()
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ steps.run.outputs.github_token || inputs.github_token || github.token }}
+        REPO_OWNER: ${{ github.event.repository.owner.login }}
+        REPO_NAME: ${{ github.event.repository.name }}
+        PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
       run: |
-        BUF=/tmp/inline-comments-buffer.jsonl
-        if [ -f "$BUF" ]; then
-          N=$(wc -l < "$BUF")
-          echo "::warning::$N inline comment call(s) were buffered and NOT posted (missing confirmed=true)."
-          echo "::group::Buffered calls (not posted)"
-          cat "$BUF"
-          echo "::endgroup::"
-        fi
+        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts
 
     - name: Revoke app token
       if: always() && inputs.github_token == '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'

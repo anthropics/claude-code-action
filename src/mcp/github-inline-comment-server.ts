@@ -78,10 +78,10 @@ server.tool(
       .boolean()
       .optional()
       .describe(
-        "Set true to post the comment. When omitted, posts by default — " +
-          "unless the body looks like a test/probe, in which case the call is " +
-          "buffered and NOT posted. Set false to force buffering. Only set " +
-          "true when posting final review comments.",
+        "Set true to post immediately. When omitted, the call is buffered " +
+          "and classified after the session completes — real review comments " +
+          "post, test/probe comments are dropped. Set false to buffer and " +
+          "never post. Only set true when posting final review comments.",
       ),
   },
   async ({ path, body, line, startLine, side, commit_id, confirmed }) => {
@@ -106,13 +106,7 @@ server.tool(
         );
       }
 
-      const looksLikeProbe =
-        confirmed === undefined &&
-        /^\s*(test comment|testing if|probe\b|can i\b|does this work|just testing)/i.test(
-          body,
-        );
-
-      if (confirmed === false || looksLikeProbe) {
+      if (confirmed !== true) {
         appendFileSync(
           BUFFER_PATH,
           JSON.stringify({
@@ -121,8 +115,9 @@ server.tool(
             line,
             startLine,
             side,
+            commit_id,
             body: sanitizedBody,
-            reason: confirmed === false ? "confirmed=false" : "probe-pattern",
+            confirmed,
           }) + "\n",
         );
         return {
@@ -134,12 +129,11 @@ server.tool(
                   success: true,
                   buffered: true,
                   message:
-                    "Comment buffered (not posted). " +
-                    (looksLikeProbe
-                      ? "The body looks like a test/probe. "
-                      : "") +
-                    "Set confirmed=true to post. If you are testing whether " +
-                    "this tool works: it works — no need to test further.",
+                    "Comment buffered. It will be classified and posted after " +
+                    "this session completes (real review comments post, " +
+                    "test/probe comments are dropped). Set confirmed=true to " +
+                    "post immediately. If you are testing whether this tool " +
+                    "works: it works — no need to test further.",
                 },
                 null,
                 2,
