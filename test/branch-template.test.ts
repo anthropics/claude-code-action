@@ -243,5 +243,49 @@ describe("branch template utilities", () => {
       expect(result).toMatch(/^fix\/pr-456-\d{8}-\d{4}$/);
       expect(result.length).toBeLessThanOrEqual(50);
     });
+
+    it.each([
+      {
+        template: "{{prefix}}TICKET@{{entityNumber}}",
+        prefix: "feat/",
+        entityNumber: 123,
+        expected: "feat/TICKET@123",
+        description: "@ character",
+      },
+      {
+        template: "{{prefix}}AB#{{entityNumber}}-fix",
+        prefix: "feature/",
+        entityNumber: 1992,
+        expected: "feature/AB#1992-fix",
+        description: "# character",
+      },
+      {
+        template: "{{prefix}}機能-{{entityNumber}}",
+        prefix: "feat/",
+        entityNumber: 456,
+        expected: "feat/機能-456",
+        description: "Japanese characters",
+      },
+      {
+        template: "{{prefix}}особенность-{{entityNumber}}",
+        prefix: "fix/",
+        entityNumber: 789,
+        expected: "fix/особенность-789",
+        description: "Russian characters",
+      },
+      {
+        template: "{{prefix}}AB#{{entityNumber}}@新機能",
+        prefix: "特徴/",
+        entityNumber: 999,
+        expected: "特徴/AB#999@新機能",
+        description: "@, #, and Unicode combined",
+      },
+    ])("should generate and validate branch name with $description", ({ template, prefix, entityNumber, expected }) => {
+      const result = generateBranchName(template, prefix, "issue", entityNumber);
+      expect(result).toBe(expected);
+
+      const { validateBranchName } = require("../src/github/operations/branch");
+      expect(() => validateBranchName(result)).not.toThrow();
+    });
   });
 });
