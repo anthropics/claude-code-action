@@ -16,6 +16,7 @@ const PR_NUMBER = process.env.PR_NUMBER;
 // tool and probe it after hitting unrelated errors. The action's post-step
 // reports the buffer count for diagnostics.
 const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
+const CLASSIFY_ENABLED = process.env.CLASSIFY_INLINE_COMMENTS !== "false";
 
 if (!REPO_OWNER || !REPO_NAME || !PR_NUMBER) {
   console.error(
@@ -106,7 +107,7 @@ server.tool(
         );
       }
 
-      if (confirmed !== true) {
+      if (CLASSIFY_ENABLED && confirmed !== true) {
         appendFileSync(
           BUFFER_PATH,
           JSON.stringify({
