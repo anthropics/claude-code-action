@@ -55,7 +55,7 @@ jobs:
             Note: The PR branch is already checked out in the current working directory.
 
             Use `gh pr comment` for top-level feedback.
-            Use `mcp__github_inline_comment__create_inline_comment` to highlight specific code issues.
+            Use `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`) to highlight specific code issues.
             Only post GitHub comments - don't submit review text as messages.
 
           claude_args: |
@@ -585,7 +585,7 @@ prompt: |
 ### Common Tool Permissions
 
 - **PR Comments**: `Bash(gh pr comment:*)`
-- **Inline Comments**: `mcp__github_inline_comment__create_inline_comment`
+- **Inline Comments**: `mcp__github_inline_comment__create_inline_comment` — pass `confirmed: true` to post immediately. When omitted, the comment is buffered and classified after the session ends (real review comments post, test/probe comments are filtered). This prevents subagent test comments from reaching PRs. To disable classification entirely, set `classify_inline_comments: 'false'` on the action.
 - **File Operations**: `Read,Write,Edit`
 - **Git Operations**: `Bash(git:*)`
 
