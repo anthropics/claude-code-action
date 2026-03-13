@@ -23,19 +23,15 @@ import { GITHUB_SERVER_URL } from "../github/api/config";
 import { extractUserRequest } from "../utils/extract-user-request";
 export type { CommonFields, PreparedContext } from "./types";
 
+const GIT_PUSH_WRAPPER = `${process.env.GITHUB_ACTION_PATH}/scripts/git-push.sh`;
+
 /** Filename for the user request file, read by the SDK runner */
 const USER_REQUEST_FILENAME = "claude-user-request.txt";
 
-// Tag mode defaults - these tools are needed for tag mode to function
-const BASE_ALLOWED_TOOLS = [
-  "Edit",
-  "MultiEdit",
-  "Glob",
-  "Grep",
-  "LS",
-  "Read",
-  "Write",
-];
+// Tag mode defaults - these tools are needed for tag mode to function.
+// Edit/MultiEdit/Write are intentionally omitted: acceptEdits permission mode
+// auto-allows file edits inside $GITHUB_WORKSPACE and denies writes outside it.
+const BASE_ALLOWED_TOOLS = ["Glob", "Grep", "LS", "Read"];
 
 export function buildAllowedToolsString(
   customAllowedTools?: string[],
@@ -59,7 +55,7 @@ export function buildAllowedToolsString(
     baseTools.push(
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)",
+      `Bash(${GIT_PUSH_WRAPPER}:*)`,
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -434,7 +430,7 @@ function getCommitInstructions(
           Bash(git commit -m "<message>\\n\\n${coAuthorLine}")`
             : ""
         }
-        - Push to the remote: Bash(git push origin HEAD)`;
+        - Push to the remote: Bash(${GIT_PUSH_WRAPPER} origin HEAD)`;
     } else {
       const branchName = eventData.claudeBranch || eventData.baseBranch;
       return `
@@ -448,7 +444,7 @@ function getCommitInstructions(
           Bash(git commit -m "<message>\\n\\n${coAuthorLine}")`
             : ""
         }
-        - Push to the remote: Bash(git push origin ${branchName})`;
+        - Push to the remote: Bash(${GIT_PUSH_WRAPPER} origin ${branchName})`;
     }
   }
 }
@@ -823,7 +819,7 @@ ${
     : `- Use git commands via the Bash tool for version control (remember that you have access to these git commands):
   - Stage files: Bash(git add <files>)
   - Commit changes: Bash(git commit -m "<message>")
-  - Push to remote: Bash(git push origin <branch>) (NEVER force push)
+  - Push to remote: Bash(${GIT_PUSH_WRAPPER} origin <branch>)
   - Delete files: Bash(git rm <files>) followed by commit and push
   - Check status: Bash(git status)
   - View diff: Bash(git diff)${eventData.isPR && eventData.baseBranch ? `\n  - IMPORTANT: For PR diffs, use: Bash(git diff origin/${eventData.baseBranch}...HEAD)` : ""}`
@@ -977,7 +973,9 @@ export async function createPrompt(
       console.log("========================");
     }
 
-    // Set allowed tools
+    // NOTE: these env var exports are dead — nothing reads ALLOWED_TOOLS / DISALLOWED_TOOLS.
+    // The live path is modes/tag/index.ts which builds --allowedTools into claudeArgs directly.
+    // Kept only so the H1 report's pointed-to file stays in sync with the live fix.
     const hasActionsReadPermission = false;
 
     const allAllowedTools = buildAllowedToolsString(
