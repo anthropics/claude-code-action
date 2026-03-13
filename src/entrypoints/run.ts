@@ -217,7 +217,39 @@ async function run() {
 
     validateEnvironmentVariables();
 
-    await setupClaudeCodeSettings(process.env.INPUT_SETTINGS);
+    // Check if .mcp.json changed in this PR to guard against RCE via malicious MCP servers.
+    // If .mcp.json was modified, skip auto-approving project MCP servers so attacker-injected
+    // servers are not trusted automatically.
+    let mcpJsonChanged = false;
+    if (isEntityContext(context) && context.isPR) {
+      try {
+        const changedFiles = await octokit.rest.paginate(
+          octokit.rest.pulls.listFiles,
+          {
+            owner: context.repository.owner,
+            repo: context.repository.repo,
+            pull_number: context.entityNumber,
+            per_page: 100,
+          },
+        );
+        mcpJsonChanged = changedFiles.some(
+          (f) =>
+            f.filename === ".mcp.json" || f.filename.endsWith("/.mcp.json"),
+        );
+        if (mcpJsonChanged) {
+          console.log(
+            ".mcp.json changed in this PR — disabling auto-approval of project MCP servers",
+          );
+        }
+      } catch (e) {
+        console.log(
+          `Could not check PR changed files: ${e}. Defaulting to mcpJsonChanged=true (fail-closed).`,
+        );
+        mcpJsonChanged = true;
+      }
+    }
+
+    await setupClaudeCodeSettings(process.env.INPUT_SETTINGS, mcpJsonChanged);
 
     await installPlugins(
       process.env.INPUT_PLUGIN_MARKETPLACES,
