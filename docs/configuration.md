@@ -375,4 +375,6 @@ Use `path_to_bun_executable` to provide your own Bun runtime instead of the defa
     # ... other inputs
 ```
 
+> **Note for GHES users**: The automatic Bun installation requires authenticated access to github.com to avoid rate limits. On GitHub Enterprise Server, you'll need to either provide a github.com PAT to `setup-bun` or use `path_to_bun_executable`. See the [FAQ](faq.md#how-do-i-fix-bun-installation-issues-on-github-enterprise-server-ghes) for setup instructions.
+
 **Important**: Using incompatible versions may cause the action to fail. Ensure your custom executables are compatible with the action's requirements.
