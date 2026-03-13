@@ -29,6 +29,14 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("release.1.2.3")).not.toThrow();
     });
 
+    it("should accept names with hash characters (Azure DevOps work items)", () => {
+      expect(() =>
+        validateBranchName("feature/AB#1992-sentry-enhancements"),
+      ).not.toThrow();
+      expect(() => validateBranchName("fix/PROJ#123-bug")).not.toThrow();
+      expect(() => validateBranchName("user/task#42")).not.toThrow();
+    });
+
     it("should accept typical branch name formats", () => {
       expect(() =>
         validateBranchName("claude/issue-123-20250101-1234"),
