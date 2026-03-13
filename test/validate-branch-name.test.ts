@@ -29,6 +29,14 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("release.1.2.3")).not.toThrow();
     });
 
+    it("should accept names with at signs", () => {
+      expect(() =>
+        validateBranchName("TICKET-123@add-feature"),
+      ).not.toThrow();
+      expect(() => validateBranchName("user@feature-branch")).not.toThrow();
+      expect(() => validateBranchName("feature@v2")).not.toThrow();
+    });
+
     it("should accept typical branch name formats", () => {
       expect(() =>
         validateBranchName("claude/issue-123-20250101-1234"),
