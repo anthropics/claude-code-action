@@ -85,14 +85,24 @@ function mergeMcpConfigs(configValues: string[]): string {
  * For allowedTools and disallowedTools, multiple occurrences are accumulated (null-char joined).
  * Accumulating flags also consume all consecutive non-flag values
  * (e.g., --allowed-tools "Tool1" "Tool2" "Tool3" captures all three).
+ *
+ * Note: Lines starting with # are treated as comments and stripped before parsing.
+ * This allows users to add documentation comments to claude_args without breaking subsequent flags.
  */
 function parseClaudeArgsToExtraArgs(
   claudeArgs?: string,
 ): Record<string, string | null> {
   if (!claudeArgs?.trim()) return {};
 
+  // Strip comment lines (lines starting with # after trimming)
+  const lines = claudeArgs.split("\n");
+  const nonCommentLines = lines
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+  const filteredArgs = nonCommentLines.join(" ");
+
   const result: Record<string, string | null> = {};
-  const args = parseShellArgs(claudeArgs).filter(
+  const args = parseShellArgs(filteredArgs).filter(
     (arg): arg is string => typeof arg === "string",
   );
 
