@@ -209,6 +209,14 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
 
   // Build custom environment
   const env: Record<string, string | undefined> = { ...process.env };
+
+  // Strip sensitive GitHub Actions OIDC and runtime token variables.
+  // These allow minting new OIDC tokens and should never be accessible
+  // to the Claude session. See: https://github.com/anthropics/claude-code-action/issues/1010
+  delete env.ACTIONS_ID_TOKEN_REQUEST_URL;
+  delete env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+  delete env.ACTIONS_RUNTIME_TOKEN;
+
   if (process.env.INPUT_ACTION_INPUTS_PRESENT) {
     env.GITHUB_ACTION_INPUTS = process.env.INPUT_ACTION_INPUTS_PRESENT;
   }
