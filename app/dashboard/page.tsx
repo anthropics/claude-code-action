@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import UsageBar from "@/components/UsageBar";
 
@@ -16,6 +16,22 @@ export default function DashboardPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [usage, setUsage] = useState({ used: 0, limit: 10 });
+
+  useEffect(() => {
+    async function fetchUsage() {
+      try {
+        const response = await fetch("/api/account");
+        if (response.ok) {
+          const data = await response.json();
+          setUsage({ used: data.scans_used, limit: data.scans_limit });
+        }
+      } catch {
+        // Fall back to defaults
+      }
+    }
+    fetchUsage();
+  }, []);
 
   async function handleAnalyze(e: React.FormEvent) {
     e.preventDefault();
@@ -38,6 +54,7 @@ export default function DashboardPage() {
 
       const result: Analysis = await response.json();
       setAnalyses((prev) => [result, ...prev]);
+      setUsage((prev) => ({ ...prev, used: prev.used + 1 }));
       setUrl("");
     } catch {
       setError("Network error. Please check your connection and try again.");
@@ -67,8 +84,8 @@ export default function DashboardPage() {
 
         <div className="mt-6">
           <UsageBar
-            used={analyses.length}
-            limit={10}
+            used={usage.used}
+            limit={usage.limit}
             label="Analyses used this month"
           />
         </div>

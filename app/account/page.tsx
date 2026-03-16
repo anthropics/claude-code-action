@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import UsageBar from "@/components/UsageBar";
 import DeleteAccountDialog from "@/components/DeleteAccountDialog";
 
@@ -11,15 +11,50 @@ interface ApiKey {
   created_at: string;
 }
 
+interface AccountData {
+  plan: "free" | "pro";
+  scans_used: number;
+  scans_limit: number;
+  email_notifications: boolean;
+  stripe_customer_id: string | null;
+}
+
 export default function AccountPage() {
-  const [plan] = useState<"free" | "pro">("free");
-  const [usage] = useState({ used: 3, limit: 10 });
+  const [account, setAccount] = useState<AccountData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchAccount() {
+      try {
+        const response = await fetch("/api/account");
+        if (!response.ok) {
+          setFetchError("Failed to load account data.");
+          return;
+        }
+        const data: AccountData = await response.json();
+        setAccount(data);
+        setEmailNotifications(data.email_notifications);
+      } catch {
+        setFetchError("Failed to load account data.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchAccount();
+  }, []);
+
+  const plan = account?.plan ?? "free";
+  const usage = {
+    used: account?.scans_used ?? 0,
+    limit: account?.scans_limit ?? 10,
+  };
 
   async function handleUpgrade() {
     const response = await fetch("/api/billing/portal", {
@@ -100,6 +135,34 @@ export default function AccountPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email_notifications: newValue }),
     });
+  }
+
+  if (loading) {
+    return (
+      <div className="px-6 py-24">
+        <div className="mx-auto max-w-3xl">
+          <div className="h-8 w-48 animate-pulse rounded bg-gray-800" />
+          <div className="mt-10 space-y-8">
+            <div className="h-48 animate-pulse rounded-xl bg-gray-900" />
+            <div className="h-32 animate-pulse rounded-xl bg-gray-900" />
+            <div className="h-48 animate-pulse rounded-xl bg-gray-900" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="px-6 py-24">
+        <div className="mx-auto max-w-3xl">
+          <h1 className="text-3xl font-bold text-white">Account Settings</h1>
+          <div className="mt-10 rounded-xl border border-red-900/50 bg-gray-900 p-6">
+            <p className="text-sm text-red-400">{fetchError}</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
