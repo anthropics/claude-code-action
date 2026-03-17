@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase-server";
+import { getPlanLimit } from "@/lib/quotas";
 
 export async function GET() {
   try {
@@ -40,7 +42,7 @@ export async function GET() {
       .gte("created_at", monthStart);
 
     const plan = profile?.plan ?? "free";
-    const limit = plan === "pro" ? 1000 : 10;
+    const limit = getPlanLimit(plan);
 
     return NextResponse.json({
       plan,
@@ -60,18 +62,24 @@ export async function GET() {
   }
 }
 
+const patchSchema = z.object({
+  email_notifications: z.boolean(),
+});
+
 export async function PATCH(request: NextRequest) {
   try {
     const user = await requireUser();
     const body = await request.json();
-    const { email_notifications } = body;
+    const parsed = patchSchema.safeParse(body);
 
-    if (typeof email_notifications !== "boolean") {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "email_notifications must be a boolean" },
+        { error: parsed.error.issues[0].message },
         { status: 400 },
       );
     }
+
+    const { email_notifications } = parsed.data;
 
     const supabase = createServiceClient();
 

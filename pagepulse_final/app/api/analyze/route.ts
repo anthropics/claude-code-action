@@ -1,27 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase-server";
 import { getPlanLimit } from "@/lib/quotas";
+
+const analyzeSchema = z.object({
+  url: z.string().url("Invalid URL format"),
+});
 
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser();
     const body = await request.json();
-    const { url } = body;
+    const parsed = analyzeSchema.safeParse(body);
 
-    if (!url || typeof url !== "string") {
-      return NextResponse.json({ error: "URL is required" }, { status: 400 });
-    }
-
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(url);
-    } catch {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Invalid URL format" },
+        { error: parsed.error.issues[0].message },
         { status: 400 },
       );
     }
+
+    const parsedUrl = new URL(parsed.data.url);
 
     if (!["http:", "https:"].includes(parsedUrl.protocol)) {
       return NextResponse.json(

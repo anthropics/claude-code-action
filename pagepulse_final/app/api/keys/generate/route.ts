@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes, createHash } from "crypto";
+import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase-server";
+
+const keySchema = z.object({
+  name: z
+    .string()
+    .min(1, "Key name is required")
+    .max(64, "Key name must be 64 characters or less"),
+});
 
 function generateApiKey(): string {
   const bytes = randomBytes(32);
@@ -16,21 +24,16 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireUser();
     const body = await request.json();
-    const { name } = body;
+    const parsed = keySchema.safeParse(body);
 
-    if (!name || typeof name !== "string" || name.trim().length === 0) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Key name is required" },
+        { error: parsed.error.issues[0].message },
         { status: 400 },
       );
     }
 
-    if (name.length > 64) {
-      return NextResponse.json(
-        { error: "Key name must be 64 characters or less" },
-        { status: 400 },
-      );
-    }
+    const name = parsed.data.name;
 
     const supabase = createServiceClient();
 
@@ -93,7 +96,7 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const keyId = searchParams.get("id");
 
-    if (!keyId) {
+    if (!keyId || typeof keyId !== "string") {
       return NextResponse.json(
         { error: "Key ID is required" },
         { status: 400 },
