@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "PagePulse — AI-Powered Web Analysis",
+  title: "PagePulse — Web Analysis & SEO Audits",
   description:
-    "Analyze any webpage with AI. Get instant SEO audits, performance scores, accessibility reports, and actionable recommendations.",
+    "Analyze any webpage instantly. Get SEO audits, performance scores, accessibility reports, and actionable recommendations.",
   openGraph: {
-    title: "PagePulse — AI-Powered Web Analysis",
+    title: "PagePulse — Web Analysis & SEO Audits",
     description:
-      "Analyze any webpage with AI. Get instant SEO audits, performance scores, and actionable recommendations.",
+      "Analyze any webpage instantly. Get SEO audits, performance scores, and actionable recommendations.",
     url: "https://pagepulse.app",
   },
 };
@@ -19,15 +19,14 @@ export default function HomePage() {
       <section className="relative overflow-hidden px-6 py-24 sm:py-32">
         <div className="mx-auto max-w-4xl text-center">
           <h1 className="text-balance text-5xl font-bold tracking-tight text-white sm:text-7xl">
-            Analyze any webpage with{" "}
+            Analyze any webpage{" "}
             <span className="bg-gradient-to-r from-brand-400 to-brand-600 bg-clip-text text-transparent">
-              AI
+              instantly
             </span>
           </h1>
           <p className="mt-6 text-lg leading-8 text-gray-400">
             Get instant SEO audits, performance scores, accessibility reports,
-            and actionable recommendations. Powered by advanced AI to help you
-            build better websites.
+            and actionable recommendations to help you build better websites.
           </p>
           <div className="mt-10 flex items-center justify-center gap-4">
             <Link
@@ -109,7 +108,7 @@ export default function HomePage() {
             Ready to optimize your website?
           </h2>
           <p className="mt-4 text-gray-400">
-            Start with 10 free analyses per month. No credit card required.
+            Start with 2 free scans. No credit card required.
           </p>
           <Link
             href="/signup"

@@ -37,7 +37,7 @@ export default function TermsPage() {
               2. Description of Service
             </h2>
             <p className="mt-3 text-sm leading-relaxed">
-              PagePulse provides AI-powered web analysis including SEO auditing,
+              PagePulse provides automated web analysis including SEO auditing,
               performance scoring, and accessibility testing via a web dashboard
               and REST API.
             </p>
@@ -79,7 +79,7 @@ export default function TermsPage() {
               5. Pricing and Payment
             </h2>
             <p className="mt-3 text-sm leading-relaxed">
-              Free accounts include 10 analyses per month. Pro plans are billed
+              Free accounts include 2 analyses per month. Pro plans are billed
               monthly or annually via Stripe. Prices may change with 30 days
               notice. Refunds are provided on a case-by-case basis within 14
               days of payment.

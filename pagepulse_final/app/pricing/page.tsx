@@ -2,37 +2,42 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import {
+  FREE_LIMIT,
+  PRO_LIMIT,
+  PRO_MONTHLY_PRICE,
+  PRO_ANNUAL_PRICE,
+  ENTERPRISE_MONTHLY_PRICE,
+  ENTERPRISE_ANNUAL_PRICE,
+} from "@/lib/quotas";
 
 const plans = [
   {
     name: "Free",
     monthlyPrice: 0,
     annualPrice: 0,
-    description: "Perfect for getting started",
-    features: [
-      { name: "Page analyses per month", free: "10", pro: "1,000" },
-      { name: "Basic SEO audit", free: true, pro: true },
-      { name: "Performance score", free: true, pro: true },
-      { name: "Mobile responsiveness check", free: true, pro: true },
-      { name: "Advanced SEO recommendations", free: false, pro: true },
-      { name: "Competitor comparison", free: false, pro: true },
-      { name: "API access", free: false, pro: true },
-      { name: "Custom reports & exports", free: false, pro: true },
-      { name: "Webhook integrations", free: false, pro: true },
-      { name: "Priority email support", free: false, pro: true },
-    ],
+    description: "Try PagePulse with 2 free scans",
     cta: "Get Started Free",
     href: "/signup",
     highlighted: false,
   },
   {
     name: "Pro",
-    monthlyPrice: 29,
-    annualPrice: 290,
+    monthlyPrice: PRO_MONTHLY_PRICE,
+    annualPrice: PRO_ANNUAL_PRICE,
     description: "For teams and professionals",
     cta: "Upgrade to Pro",
     href: "/signup?plan=pro",
     highlighted: true,
+  },
+  {
+    name: "Enterprise",
+    monthlyPrice: ENTERPRISE_MONTHLY_PRICE,
+    annualPrice: ENTERPRISE_ANNUAL_PRICE,
+    description: "Unlimited scans for large organizations",
+    cta: "Contact Sales",
+    href: "/signup?plan=enterprise",
+    highlighted: false,
   },
 ];
 
@@ -40,17 +45,98 @@ export default function PricingPage() {
   const [annual, setAnnual] = useState(false);
 
   const features = [
-    { name: "Page analyses per month", free: "10", pro: "1,000" },
-    { name: "Basic SEO audit", free: true, pro: true },
-    { name: "Performance score", free: true, pro: true },
-    { name: "Mobile responsiveness check", free: true, pro: true },
-    { name: "Advanced SEO recommendations", free: false, pro: true },
-    { name: "Competitor comparison", free: false, pro: true },
-    { name: "API access", free: false, pro: true },
-    { name: "Custom reports & exports", free: false, pro: true },
-    { name: "Webhook integrations", free: false, pro: true },
-    { name: "Priority email support", free: false, pro: true },
+    {
+      name: "Page analyses per month",
+      free: String(FREE_LIMIT),
+      pro: PRO_LIMIT.toLocaleString(),
+      enterprise: "Unlimited",
+    },
+    { name: "Basic SEO audit", free: true, pro: true, enterprise: true },
+    { name: "Performance score", free: true, pro: true, enterprise: true },
+    {
+      name: "Mobile responsiveness check",
+      free: true,
+      pro: true,
+      enterprise: true,
+    },
+    {
+      name: "Advanced SEO recommendations",
+      free: false,
+      pro: true,
+      enterprise: true,
+    },
+    {
+      name: "Competitor comparison",
+      free: false,
+      pro: true,
+      enterprise: true,
+    },
+    { name: "API access", free: false, pro: true, enterprise: true },
+    {
+      name: "Custom reports & exports",
+      free: false,
+      pro: true,
+      enterprise: true,
+    },
+    {
+      name: "Webhook integrations",
+      free: false,
+      pro: false,
+      enterprise: true,
+    },
+    {
+      name: "Priority email support",
+      free: false,
+      pro: true,
+      enterprise: true,
+    },
+    {
+      name: "Dedicated account manager",
+      free: false,
+      pro: false,
+      enterprise: true,
+    },
   ];
+
+  type FeatureValue = string | boolean;
+
+  function renderCell(value: FeatureValue) {
+    if (typeof value === "string") {
+      return <span className="text-gray-300">{value}</span>;
+    }
+    if (value) {
+      return (
+        <svg
+          className="mx-auto h-5 w-5 text-green-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
+      );
+    }
+    return (
+      <svg
+        className="mx-auto h-5 w-5 text-gray-600"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M6 18L18 6M6 6l12 12"
+        />
+      </svg>
+    );
+  }
 
   return (
     <div className="px-6 py-24">
@@ -87,12 +173,13 @@ export default function PricingPage() {
             <span
               className={`text-sm ${annual ? "text-white" : "text-gray-400"}`}
             >
-              Annual <span className="text-xs text-brand-400">(Save ~17%)</span>
+              Annual{" "}
+              <span className="text-xs text-brand-400">(Save 2 months)</span>
             </span>
           </div>
         </div>
 
-        <div className="mx-auto mt-16 grid max-w-4xl grid-cols-1 gap-8 md:grid-cols-2">
+        <div className="mx-auto mt-16 grid max-w-5xl grid-cols-1 gap-8 md:grid-cols-3">
           {plans.map((plan) => {
             const price = annual ? plan.annualPrice : plan.monthlyPrice;
             const period = annual ? "/year" : "/month";
@@ -133,7 +220,7 @@ export default function PricingPage() {
           })}
         </div>
 
-        <div className="mx-auto mt-24 max-w-4xl">
+        <div className="mx-auto mt-24 max-w-5xl">
           <h2 className="mb-8 text-center text-2xl font-bold text-white">
             Feature Comparison
           </h2>
@@ -150,6 +237,9 @@ export default function PricingPage() {
                   <th className="px-6 py-4 text-center text-sm font-medium text-brand-400">
                     Pro
                   </th>
+                  <th className="px-6 py-4 text-center text-sm font-medium text-gray-400">
+                    Enterprise
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -164,70 +254,13 @@ export default function PricingPage() {
                       {feature.name}
                     </td>
                     <td className="px-6 py-4 text-center text-sm">
-                      {typeof feature.free === "string" ? (
-                        <span className="text-gray-300">{feature.free}</span>
-                      ) : feature.free ? (
-                        <svg
-                          className="mx-auto h-5 w-5 text-green-400"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      ) : (
-                        <svg
-                          className="mx-auto h-5 w-5 text-gray-600"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      )}
+                      {renderCell(feature.free)}
                     </td>
                     <td className="px-6 py-4 text-center text-sm">
-                      {typeof feature.pro === "string" ? (
-                        <span className="text-gray-300">{feature.pro}</span>
-                      ) : feature.pro ? (
-                        <svg
-                          className="mx-auto h-5 w-5 text-green-400"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      ) : (
-                        <svg
-                          className="mx-auto h-5 w-5 text-gray-600"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      )}
+                      {renderCell(feature.pro)}
+                    </td>
+                    <td className="px-6 py-4 text-center text-sm">
+                      {renderCell(feature.enterprise)}
                     </td>
                   </tr>
                 ))}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import UsageBar from "@/components/UsageBar";
 import DeleteAccountDialog from "@/components/DeleteAccountDialog";
+import { FREE_LIMIT } from "@/lib/quotas";
 
 interface ApiKey {
   id: string;
@@ -12,7 +13,7 @@ interface ApiKey {
 }
 
 interface AccountData {
-  plan: "free" | "pro";
+  plan: "free" | "pro" | "enterprise";
   scans_used: number;
   scans_limit: number;
   email_notifications: boolean;
@@ -53,7 +54,7 @@ export default function AccountPage() {
   const plan = account?.plan ?? "free";
   const usage = {
     used: account?.scans_used ?? 0,
-    limit: account?.scans_limit ?? 10,
+    limit: account?.scans_limit ?? FREE_LIMIT,
   };
 
   async function handleUpgrade() {
@@ -174,7 +175,12 @@ export default function AccountPage() {
           <h2 className="text-lg font-semibold text-white">Plan &amp; Usage</h2>
           <div className="mt-4 flex items-center gap-3">
             <span className="rounded-full bg-brand-600/10 px-3 py-1 text-sm font-medium text-brand-400">
-              {plan === "pro" ? "Pro" : "Free"} Plan
+              {plan === "enterprise"
+                ? "Enterprise"
+                : plan === "pro"
+                  ? "Pro"
+                  : "Free"}{" "}
+              Plan
             </span>
             {plan === "free" && (
               <button
@@ -193,7 +199,7 @@ export default function AccountPage() {
             />
           </div>
           <div className="mt-4 flex gap-3">
-            {plan === "pro" && (
+            {(plan === "pro" || plan === "enterprise") && (
               <>
                 <button
                   onClick={handleBillingPortal}

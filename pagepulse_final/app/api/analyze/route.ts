@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase-server";
+import { getPlanLimit } from "@/lib/quotas";
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    const limit = profile?.plan === "pro" ? 1000 : 10;
+    const limit = getPlanLimit(profile?.plan ?? "free");
 
     if (count !== null && count >= limit) {
       return NextResponse.json(

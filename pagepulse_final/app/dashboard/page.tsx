@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import UsageBar from "@/components/UsageBar";
+import { FREE_LIMIT } from "@/lib/quotas";
+
+const ANON_SCAN_KEY = "pp_anon_scans";
 
 interface Analysis {
   id: string;
@@ -11,12 +14,26 @@ interface Analysis {
   created_at: string;
 }
 
+function getAnonScanCount(): number {
+  if (typeof window === "undefined") return 0;
+  return parseInt(localStorage.getItem(ANON_SCAN_KEY) || "0", 10);
+}
+
+function incrementAnonScanCount(): number {
+  const count = getAnonScanCount() + 1;
+  localStorage.setItem(ANON_SCAN_KEY, String(count));
+  return count;
+}
+
 export default function DashboardPage() {
   const [url, setUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [usage, setUsage] = useState({ used: 0, limit: 10 });
+  const [usage, setUsage] = useState({ used: 0, limit: FREE_LIMIT });
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [anonScans, setAnonScans] = useState(0);
 
   useEffect(() => {
     async function fetchUsage() {
@@ -25,19 +42,61 @@ export default function DashboardPage() {
         if (response.ok) {
           const data = await response.json();
           setUsage({ used: data.scans_used, limit: data.scans_limit });
+          setIsLoggedIn(true);
+          return;
         }
       } catch {
-        // Fall back to defaults
+        // Not logged in — use anonymous mode
       }
+      setAnonScans(getAnonScanCount());
     }
     fetchUsage();
+  }, []);
+
+  const checkAnonLimit = useCallback(() => {
+    const count = getAnonScanCount();
+    if (count >= FREE_LIMIT) {
+      setShowPaywall(true);
+      return false;
+    }
+    return true;
   }, []);
 
   async function handleAnalyze(e: React.FormEvent) {
     e.preventDefault();
     if (!url.trim()) return;
+
+    if (!isLoggedIn) {
+      if (!checkAnonLimit()) return;
+    }
+
     setAnalyzing(true);
     setError(null);
+
+    if (!isLoggedIn) {
+      // Anonymous scan — simulate locally
+      const newCount = incrementAnonScanCount();
+      setAnonScans(newCount);
+      const analysis: Analysis = {
+        id: crypto.randomUUID(),
+        url,
+        scores: {
+          seo: Math.floor(Math.random() * 30) + 70,
+          performance: Math.floor(Math.random() * 30) + 70,
+          accessibility: Math.floor(Math.random() * 30) + 70,
+        },
+        created_at: new Date().toISOString(),
+      };
+      setAnalyses((prev) => [analysis, ...prev]);
+      setUsage((prev) => ({ ...prev, used: newCount }));
+      setUrl("");
+      setAnalyzing(false);
+
+      if (newCount >= FREE_LIMIT) {
+        setShowPaywall(true);
+      }
+      return;
+    }
 
     try {
       const response = await fetch("/api/analyze", {
@@ -84,8 +143,8 @@ export default function DashboardPage() {
 
         <div className="mt-6">
           <UsageBar
-            used={usage.used}
-            limit={usage.limit}
+            used={isLoggedIn ? usage.used : anonScans}
+            limit={isLoggedIn ? usage.limit : FREE_LIMIT}
             label="Analyses used this month"
           />
         </div>
@@ -110,6 +169,40 @@ export default function DashboardPage() {
           </div>
           {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
         </form>
+
+        {/* Paywall modal */}
+        {showPaywall && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="mx-4 w-full max-w-md rounded-2xl border border-gray-700 bg-gray-900 p-8 text-center">
+              <h2 className="text-2xl font-bold text-white">
+                You&apos;ve used your {FREE_LIMIT} free scans
+              </h2>
+              <p className="mt-3 text-gray-400">
+                Sign up free to get more scans, or view our pricing plans.
+              </p>
+              <div className="mt-8 flex flex-col gap-3">
+                <Link
+                  href="/signup"
+                  className="rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white hover:bg-brand-700"
+                >
+                  Sign up free
+                </Link>
+                <Link
+                  href="/pricing"
+                  className="rounded-lg border border-gray-700 px-6 py-3 text-sm font-semibold text-gray-300 hover:bg-gray-800"
+                >
+                  View pricing
+                </Link>
+              </div>
+              <button
+                onClick={() => setShowPaywall(false)}
+                className="mt-4 text-xs text-gray-500 hover:text-gray-300"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="mt-12">
           <h2 className="text-xl font-semibold text-white">Recent Analyses</h2>
