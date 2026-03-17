@@ -1,7 +1,21 @@
 import { execFileSync } from "child_process";
 import { rmSync } from "fs";
 
-const SENSITIVE_PATHS = [".claude", ".mcp.json"];
+// Paths that are both PR-controllable and read from cwd at CLI startup.
+//
+// Deliberately excluded from the CLI's broader auto-edit blocklist:
+//   .git/        — not tracked by git; PR commits cannot place files there.
+//                  Restoring it would also undo the PR checkout entirely.
+//   .gitconfig   — git reads ~/.gitconfig and .git/config, never cwd/.gitconfig.
+//   .bashrc etc. — shells source these from $HOME; checkout cannot reach $HOME.
+//   .vscode/.idea— IDE config; nothing in the CLI's startup path reads them.
+const SENSITIVE_PATHS = [
+  ".claude",
+  ".mcp.json",
+  ".claude.json",
+  ".gitmodules",
+  ".ripgreprc",
+];
 
 /**
  * Restores security-sensitive config paths from the PR base branch.
