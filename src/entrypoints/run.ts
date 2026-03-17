@@ -21,6 +21,7 @@ import { detectMode } from "../modes/detector";
 import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
 import { checkContainsTrigger } from "../github/validation/trigger";
+import { restoreConfigFromBase } from "../github/operations/restore-config";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
 import { formatTurnsFromData } from "./format-turns";
@@ -216,6 +217,12 @@ async function run() {
     process.env.DETAILED_PERMISSION_MESSAGES = "1";
 
     validateEnvironmentVariables();
+
+    // On PRs, .claude/ and .mcp.json in the checkout are attacker-controlled.
+    // Restore them from the base branch before the CLI reads them.
+    if (isEntityContext(context) && context.isPR && baseBranch) {
+      restoreConfigFromBase(baseBranch);
+    }
 
     await setupClaudeCodeSettings(process.env.INPUT_SETTINGS);
 
