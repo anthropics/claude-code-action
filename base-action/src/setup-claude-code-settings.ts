@@ -66,8 +66,11 @@ export async function setupClaudeCodeSettings(
     settings.enableAllProjectMcpServers = true;
     console.log(`Updated settings with enableAllProjectMcpServers: true`);
   } else {
+    // .mcp.json is untrusted in this PR — strip any enableAllProjectMcpServers
+    // that came from user input so the protection cannot be bypassed.
+    delete settings.enableAllProjectMcpServers;
     console.log(
-      `Skipping enableAllProjectMcpServers=true because .mcp.json changed in this PR`,
+      `Removing enableAllProjectMcpServers because .mcp.json changed in this PR`,
     );
   }
 

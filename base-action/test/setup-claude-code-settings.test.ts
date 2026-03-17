@@ -108,7 +108,7 @@ describe("setupClaudeCodeSettings", () => {
     expect(settings.model).toBe("test-model");
   });
 
-  test("should not override enableAllProjectMcpServers when mcpJsonChanged is true and input sets it false", async () => {
+  test("should remove enableAllProjectMcpServers when mcpJsonChanged is true and input sets it false", async () => {
     const inputSettings = JSON.stringify({
       enableAllProjectMcpServers: false,
       model: "test-model",
@@ -119,7 +119,22 @@ describe("setupClaudeCodeSettings", () => {
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
 
-    expect(settings.enableAllProjectMcpServers).toBe(false);
+    expect(settings.enableAllProjectMcpServers).toBeUndefined();
+    expect(settings.model).toBe("test-model");
+  });
+
+  test("should remove enableAllProjectMcpServers when mcpJsonChanged is true even if input sets it true", async () => {
+    const inputSettings = JSON.stringify({
+      enableAllProjectMcpServers: true,
+      model: "test-model",
+    });
+
+    await setupClaudeCodeSettings(inputSettings, true, testHomeDir);
+
+    const settingsContent = await readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsContent);
+
+    expect(settings.enableAllProjectMcpServers).toBeUndefined();
     expect(settings.model).toBe("test-model");
   });
 
