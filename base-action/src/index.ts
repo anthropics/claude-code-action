@@ -13,7 +13,7 @@ async function run() {
 
     await setupClaudeCodeSettings(
       process.env.INPUT_SETTINGS,
-      undefined, // homeDir
+      false, // mcpJsonChanged — standalone base-action has no PR context to check
     );
 
     // Install Claude Code plugins if specified

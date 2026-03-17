@@ -4,6 +4,7 @@ import { readFile } from "fs/promises";
 
 export async function setupClaudeCodeSettings(
   settingsInput?: string,
+  mcpJsonChanged = false,
   homeDir?: string,
 ) {
   const home = homeDir ?? homedir();
@@ -59,9 +60,19 @@ export async function setupClaudeCodeSettings(
     console.log(`Merged settings with input settings`);
   }
 
-  // Always set enableAllProjectMcpServers to true
-  settings.enableAllProjectMcpServers = true;
-  console.log(`Updated settings with enableAllProjectMcpServers: true`);
+  if (!mcpJsonChanged) {
+    // Only auto-approve project MCP servers if .mcp.json hasn't changed in this PR.
+    // If .mcp.json changed, the checked-out version may differ from the base branch.
+    settings.enableAllProjectMcpServers = true;
+    console.log(`Updated settings with enableAllProjectMcpServers: true`);
+  } else {
+    // .mcp.json is untrusted in this PR — strip any enableAllProjectMcpServers
+    // that came from user input so the protection cannot be bypassed.
+    delete settings.enableAllProjectMcpServers;
+    console.log(
+      `Removing enableAllProjectMcpServers because .mcp.json changed in this PR`,
+    );
+  }
 
   await $`echo ${JSON.stringify(settings, null, 2)} > ${settingsPath}`.quiet();
   console.log(`Settings saved successfully`);
