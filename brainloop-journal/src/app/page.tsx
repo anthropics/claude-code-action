@@ -130,7 +130,7 @@ export default function JournalPage() {
 
   const calculateStreak = (): number => {
     if (entries.length === 0) return 0;
-    const dates = [...new Set(entries.map((e) => e.date))].sort().reverse();
+    const dates = Array.from(new Set(entries.map((e) => e.date))).sort().reverse();
     let streak = 0;
     const now = new Date();
     const checkDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
