@@ -56,9 +56,6 @@ export function buildAllowedToolsString(
       "Bash(git add:*)",
       "Bash(git commit:*)",
       `Bash(${GIT_PUSH_WRAPPER}:*)`,
-      "Bash(git status:*)",
-      "Bash(git diff:*)",
-      "Bash(git log:*)",
       "Bash(git rm:*)",
     );
   }

@@ -1017,9 +1017,6 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("Bash(git add:*)");
     expect(result).toContain("Bash(git commit:*)");
     expect(result).toContain("scripts/git-push.sh:*)");
-    expect(result).toContain("Bash(git status:*)");
-    expect(result).toContain("Bash(git diff:*)");
-    expect(result).toContain("Bash(git log:*)");
     expect(result).toContain("Bash(git rm:*)");
 
     // Comment tool from minimal server should be included

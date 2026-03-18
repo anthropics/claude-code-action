@@ -139,9 +139,6 @@ export async function prepareTagMode({
       "Bash(git add:*)",
       "Bash(git commit:*)",
       `Bash(${gitPushWrapper}:*)`,
-      "Bash(git status:*)",
-      "Bash(git diff:*)",
-      "Bash(git log:*)",
       "Bash(git rm:*)",
     );
   } else {
