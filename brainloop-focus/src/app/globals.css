@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0a0a1a;
+  --bg-secondary: #0f0f2a;
+  --bg-card: rgba(15, 15, 42, 0.7);
+  --accent: #3b82f6;
+  --accent-light: #60a5fa;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+body {
+  background-image: radial-gradient(
+      ellipse at 20% 50%,
+      rgba(59, 130, 246, 0.08) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 80% 20%,
+      rgba(99, 102, 241, 0.06) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 50% 80%,
+      rgba(59, 130, 246, 0.04) 0%,
+      transparent 50%
+    );
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-2xl border border-white/5 bg-dark-800/70 p-6 shadow-xl backdrop-blur-xl;
+  }
+
+  .glass-card-sm {
+    @apply rounded-xl border border-white/5 bg-dark-800/50 p-4 shadow-lg backdrop-blur-lg;
+  }
+
+  .btn-primary {
+    @apply rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-accent-dark hover:shadow-lg hover:shadow-accent/20 active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white/80 transition-all duration-200 hover:bg-white/10 hover:text-white active:scale-95;
+  }
+
+  .btn-ghost {
+    @apply rounded-lg px-3 py-1.5 text-sm text-white/50 transition-all duration-200 hover:bg-white/5 hover:text-white/80;
+  }
+}
+
+.timer-ring {
+  transition: stroke-dashoffset 1s linear;
+}
+
+.timer-flash {
+  animation: flash 0.5s ease-in-out 3;
+}
+
+@keyframes flash {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+input[type="text"],
+select {
+  outline: none;
+}
+
+input[type="text"]:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}

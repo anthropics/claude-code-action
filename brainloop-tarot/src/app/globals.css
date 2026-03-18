@@ -1,0 +1,207 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0a0a1a;
+  --bg-surface: #12122a;
+  --bg-card: #1a1a3e;
+  --color-violet: #8b5cf6;
+  --color-purple: #a855f7;
+  --color-gold: #d4a843;
+  --color-gold-light: #f0d68a;
+  --color-accent: #c084fc;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background-color: var(--bg-primary);
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+
+/* Perspective container for 3D card flips */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+/* 3D Card Flip */
+.card-flip-container {
+  perspective: 1200px;
+}
+
+.card-flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+}
+
+.card-flip-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+.card-flip-front,
+.card-flip-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.card-flip-back {
+  transform: rotateY(180deg);
+}
+
+/* Reversed card */
+.card-reversed {
+  transform: rotateY(180deg) rotate(180deg);
+}
+
+/* Mystical glow effect */
+.mystical-glow {
+  box-shadow:
+    0 0 15px rgba(139, 92, 246, 0.3),
+    0 0 30px rgba(139, 92, 246, 0.15),
+    inset 0 0 15px rgba(139, 92, 246, 0.1);
+}
+
+.mystical-glow:hover {
+  box-shadow:
+    0 0 25px rgba(139, 92, 246, 0.5),
+    0 0 50px rgba(139, 92, 246, 0.25),
+    inset 0 0 20px rgba(139, 92, 246, 0.15);
+}
+
+/* Gold glow for revealed cards */
+.gold-glow {
+  box-shadow:
+    0 0 15px rgba(212, 168, 67, 0.3),
+    0 0 30px rgba(212, 168, 67, 0.15),
+    inset 0 0 15px rgba(212, 168, 67, 0.1);
+}
+
+/* Gradient border effect */
+.gradient-border {
+  position: relative;
+  background: var(--bg-card);
+  border-radius: 0.75rem;
+}
+
+.gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 0.85rem;
+  background: linear-gradient(
+    135deg,
+    var(--color-violet),
+    var(--color-gold),
+    var(--color-purple),
+    var(--color-gold)
+  );
+  z-index: -1;
+  background-size: 300% 300%;
+  animation: gradient-shift 4s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Star field background */
+.star-field {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: white;
+  border-radius: 50%;
+  animation: twinkle var(--duration, 3s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+  opacity: 0.3;
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.5);
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-violet);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-purple);
+}
+
+/* Card back pattern */
+.card-back-pattern {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 10px,
+      rgba(139, 92, 246, 0.08) 10px,
+      rgba(139, 92, 246, 0.08) 20px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 10px,
+      rgba(212, 168, 67, 0.06) 10px,
+      rgba(212, 168, 67, 0.06) 20px
+    ),
+    linear-gradient(135deg, #1a1a3e 0%, #0f0f2e 100%);
+}
+
+/* Selection styling */
+::selection {
+  background: rgba(139, 92, 246, 0.4);
+  color: #fff;
+}
