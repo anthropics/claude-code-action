@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 150 40% 6%;
+    --primary: 160 84% 22%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 150 10% 96%;
+    --muted-foreground: 150 10% 40%;
+    --card: 0 0% 100%;
+    --card-foreground: 150 40% 6%;
+    --border: 150 10% 90%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  body {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    @apply bg-background text-foreground antialiased;
+  }
+}
