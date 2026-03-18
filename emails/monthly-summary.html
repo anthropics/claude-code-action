@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monthly Summary - PagePulse</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: #0a0a0f;
+      font-family:
+        -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto,
+        sans-serif;
+    "
+  >
+    <table
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      role="presentation"
+      style="background-color: #0a0a0f"
+    >
+      <tr>
+        <td align="center" style="padding: 40px 20px">
+          <table
+            width="600"
+            cellpadding="0"
+            cellspacing="0"
+            role="presentation"
+            style="
+              background-color: #111118;
+              border-radius: 12px;
+              border: 1px solid #1f1f2e;
+            "
+          >
+            <tr>
+              <td style="padding: 40px">
+                <h1
+                  style="
+                    margin: 0 0 8px;
+                    font-size: 24px;
+                    font-weight: 700;
+                    color: #ffffff;
+                  "
+                >
+                  Your {{month}} Summary
+                </h1>
+                <p
+                  style="
+                    margin: 0 0 24px;
+                    font-size: 16px;
+                    color: #9ca3af;
+                    line-height: 1.6;
+                  "
+                >
+                  Hi {{name}},
+                </p>
+                <p
+                  style="
+                    margin: 0 0 24px;
+                    font-size: 16px;
+                    color: #9ca3af;
+                    line-height: 1.6;
+                  "
+                >
+                  Here's a recap of your PagePulse activity this month:
+                </p>
+                <table
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  role="presentation"
+                  style="margin-bottom: 24px"
+                >
+                  <tr>
+                    <td
+                      width="33%"
+                      style="
+                        padding: 16px;
+                        background-color: #1a1a2e;
+                        border-radius: 8px;
+                        text-align: center;
+                      "
+                    >
+                      <p
+                        style="
+                          margin: 0;
+                          font-size: 28px;
+                          font-weight: 700;
+                          color: #6366f1;
+                        "
+                      >
+                        {{total_analyses}}
+                      </p>
+                      <p
+                        style="margin: 4px 0 0; font-size: 12px; color: #9ca3af"
+                      >
+                        Analyses
+                      </p>
+                    </td>
+                    <td width="8"></td>
+                    <td
+                      width="33%"
+                      style="
+                        padding: 16px;
+                        background-color: #1a1a2e;
+                        border-radius: 8px;
+                        text-align: center;
+                      "
+                    >
+                      <p
+                        style="
+                          margin: 0;
+                          font-size: 28px;
+                          font-weight: 700;
+                          color: #22c55e;
+                        "
+                      >
+                        {{avg_seo}}
+                      </p>
+                      <p
+                        style="margin: 4px 0 0; font-size: 12px; color: #9ca3af"
+                      >
+                        Avg SEO Score
+                      </p>
+                    </td>
+                    <td width="8"></td>
+                    <td
+                      width="33%"
+                      style="
+                        padding: 16px;
+                        background-color: #1a1a2e;
+                        border-radius: 8px;
+                        text-align: center;
+                      "
+                    >
+                      <p
+                        style="
+                          margin: 0;
+                          font-size: 28px;
+                          font-weight: 700;
+                          color: #f59e0b;
+                        "
+                      >
+                        {{avg_performance}}
+                      </p>
+                      <p
+                        style="margin: 4px 0 0; font-size: 12px; color: #9ca3af"
+                      >
+                        Avg Perf Score
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+                <h2
+                  style="
+                    margin: 0 0 12px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #ffffff;
+                  "
+                >
+                  Top Analyzed Pages
+                </h2>
+                <table
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  role="presentation"
+                  style="margin-bottom: 24px"
+                >
+                  {{top_pages}}
+                </table>
+                <p
+                  style="
+                    margin: 0 0 24px;
+                    font-size: 14px;
+                    color: #9ca3af;
+                    line-height: 1.6;
+                  "
+                >
+                  You used
+                  <strong style="color: #ffffff">{{used}} of {{limit}}</strong>
+                  analyses this month. Your quota resets on {{reset_date}}.
+                </p>
+                <a
+                  href="{{dashboard_url}}"
+                  style="
+                    display: inline-block;
+                    padding: 12px 24px;
+                    background-color: #6366f1;
+                    color: #ffffff;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-weight: 600;
+                  "
+                  >View Full Dashboard</a
+                >
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 24px 40px; border-top: 1px solid #1f1f2e">
+                <p
+                  style="
+                    margin: 0;
+                    font-size: 12px;
+                    color: #6b7280;
+                    line-height: 1.6;
+                    text-align: center;
+                  "
+                >
+                  NorwegianSpark SA | Org. 834 984 172 |
+                  norwegianspark@gmail.com | +47 99 73 74 67
+                </p>
+                <p
+                  style="
+                    margin: 8px 0 0;
+                    font-size: 12px;
+                    color: #6b7280;
+                    text-align: center;
+                  "
+                >
+                  <a
+                    href="{{unsubscribe_url}}"
+                    style="color: #6b7280; text-decoration: underline"
+                    >Unsubscribe</a
+                  >
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
