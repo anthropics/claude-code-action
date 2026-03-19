@@ -29,6 +29,14 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("release.1.2.3")).not.toThrow();
     });
 
+    it("should accept names with hash characters", () => {
+      expect(() => validateBranchName("bugfix/#123-fix-bug")).not.toThrow();
+      expect(() => validateBranchName("feature/#456-new-feature")).not.toThrow();
+      expect(() =>
+        validateBranchName("design/#789-update-layout"),
+      ).not.toThrow();
+    });
+
     it("should accept typical branch name formats", () => {
       expect(() =>
         validateBranchName("claude/issue-123-20250101-1234"),
