@@ -215,6 +215,12 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   // Set the entrypoint for Claude Code to identify this as the GitHub Action
   env.CLAUDE_CODE_ENTRYPOINT = "claude-code-github-action";
 
+  // Remove OIDC token request variables so Claude cannot mint new tokens.
+  // These are only needed by the action itself (via @actions/core.getIDToken()),
+  // not by the Claude session.
+  delete env.ACTIONS_ID_TOKEN_REQUEST_URL;
+  delete env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+
   // Build system prompt option - default to claude_code preset
   let systemPrompt: SdkOptions["systemPrompt"];
   if (options.systemPrompt) {
