@@ -24,6 +24,8 @@ describe("formatContext", () => {
       baseRefName: "main",
       headRefName: "feature/test",
       headRefOid: "abc123",
+      isCrossRepository: false,
+      headRepository: { owner: { login: "testowner" }, name: "testrepo" },
       createdAt: "2023-01-01T00:00:00Z",
       additions: 50,
       deletions: 30,
