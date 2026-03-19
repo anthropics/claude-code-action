@@ -201,6 +201,157 @@ You can pass custom environment variables to Claude Code execution using the `se
 
 These environment variables will be available to Claude Code during execution, allowing it to run tests, build processes, or other commands that depend on specific environment configurations.
 
+## LLM Gateway & Custom API Endpoints
+
+You can route Claude API requests through your own LLM Gateway, proxy, or custom endpoint using the `base_url` input. This is useful for:
+
+- Enterprise LLM Gateways (see [Anthropic LLM Gateway docs](https://docs.anthropic.com/en/docs/claude-code/llm-gateway))
+- API proxies like Portkey, LiteLLM, or custom solutions
+- Internal routing and load balancing
+- Observability and monitoring
+- **API Management with Bedrock format** (Azure APIM, AWS API Gateway routing to Bedrock)
+
+### Bedrock API Format with Custom Headers
+
+For API Management gateways that route to AWS Bedrock, the action includes a built-in HTTP proxy that enables using Bedrock API format with custom headers:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    use_bedrock: "true"  # Enable Bedrock API format
+    base_url: "https://your-apim.azure-api.net"
+    anthropic_api_key: "placeholder"  # APIM handles auth
+    custom_headers: |
+      {
+        "Ocp-Apim-Subscription-Key": "${{ secrets.APIM_SUBSCRIPTION_KEY }}",
+        "serviceName": "my-service",
+        "team": "my-team"
+      }
+```
+
+**What happens**: The action automatically starts a local translation proxy that converts between Anthropic and Bedrock API formats, allowing your APIM to receive Bedrock-formatted requests (`/bedrock/model/{model-id}/invoke`) with custom headers, without requiring AWS credentials.
+
+See [API Management section](#api-management-azure-apim-example) for detailed examples.
+
+### Basic LLM Gateway Usage
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    base_url: "https://your-gateway.example.com/v1"
+```
+
+### Using with Portkey
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.PORTKEY_API_KEY }}
+    base_url: "https://api.portkey.ai"
+    custom_headers: '{"x-portkey-api-key": "${{ secrets.PORTKEY_API_KEY }}", "x-portkey-provider": "anthropic"}'
+```
+
+### Using with LiteLLM
+
+```yaml
+- name: Start LiteLLM proxy
+  run: docker run -d -e ANTHROPIC_API_KEY -p 4000:4000 ghcr.io/berriai/litellm:main-latest --model claude-sonnet-4-20250514
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: "sk-litellm"  # LiteLLM uses a placeholder key
+    base_url: "http://localhost:4000"
+```
+
+## Custom HTTP Headers
+
+You can pass custom HTTP headers to the Anthropic API using the `custom_headers` input. This is useful for:
+
+- API management policies (Azure APIM, AWS API Gateway, Kong, etc.)
+- Subscription keys and authentication tokens
+- Request routing and load balancing
+- Correlation IDs and request tracking
+
+### Basic Usage
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    custom_headers: '{"X-Custom-Policy": "premium", "X-Request-Source": "github-action"}'
+```
+
+### API Management (Azure APIM Example)
+
+For APIM routing to Anthropic API directly:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    base_url: "https://your-apim.azure-api.net/anthropic"
+    custom_headers: '{"Ocp-Apim-Subscription-Key": "${{ secrets.APIM_SUBSCRIPTION_KEY }}"}'
+```
+
+For APIM routing to AWS Bedrock (using Bedrock API format):
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    use_bedrock: "true"
+    base_url: "https://your-apim.azure-api.net"
+    anthropic_api_key: "apim-handles-auth"  # Placeholder, APIM handles auth
+    custom_headers: |
+      {
+        "Ocp-Apim-Subscription-Key": "${{ secrets.APIM_SUBSCRIPTION_KEY }}",
+        "serviceName": "your-service",
+        "team": "your-team",
+        "env": "${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}",
+        "computer": "${{ runner.name }}"
+      }
+```
+
+**How It Works**: When using `use_bedrock: "true"` with `base_url` and `custom_headers`, the action automatically:
+
+1. **Starts a local HTTP proxy** on port 8765 that translates between Anthropic and Bedrock API formats
+2. **Routes Claude SDK** to the proxy: `localhost:8765`
+3. **Proxy translates** requests from Anthropic format to Bedrock format
+4. **Forwards to APIM** with your custom headers: `POST /bedrock/model/{model-id}/invoke`
+5. **APIM routes** to AWS Bedrock backend
+6. **Proxy translates** responses back to Anthropic format
+7. **Stops proxy** when execution completes
+
+This allows using Bedrock API format with custom HTTP headers **without AWS credentials or APIM configuration changes**.
+
+**Benefits**:
+- ✅ No AWS SDK authentication required
+- ✅ Custom headers sent with every request (authentication, routing policies, tracking)
+- ✅ APIM remains unchanged (continues using Bedrock format)
+- ✅ Full control over headers (subscription keys, service metadata, environment routing)
+
+### Dynamic Headers
+
+For complex configurations, construct headers dynamically:
+
+```yaml
+- name: Set custom headers
+  run: |
+    echo 'HEADERS={"X-Correlation-Id": "${{ github.run_id }}", "X-Repository": "${{ github.repository }}"}' >> $GITHUB_ENV
+
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    custom_headers: ${{ env.HEADERS }}
+```
+
+**Notes:**
+
+- The `base_url` and `custom_headers` inputs take precedence over `ANTHROPIC_BASE_URL` and `ANTHROPIC_CUSTOM_HEADERS` environment variables
+- Headers must be valid JSON format: `'{"Header-Name": "value"}'`
+- For sensitive header values, always use GitHub Secrets
+
 ## Limiting Conversation Turns
 
 You can limit the number of back-and-forth exchanges Claude can have during task execution using the `claude_args` input. This is useful for:
