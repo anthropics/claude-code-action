@@ -366,5 +366,28 @@ describe("parseSdkOptions", () => {
         "claude-code-github-action",
       );
     });
+
+    test("should strip OIDC token request env vars from sdkOptions.env", () => {
+      const originalEnv = { ...process.env };
+      process.env.ACTIONS_ID_TOKEN_REQUEST_URL =
+        "https://vstoken.actions.githubusercontent.com/.well-known/openid-configuration";
+      process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN = "secret-oidc-token";
+      process.env.ACTIONS_RUNTIME_TOKEN = "secret-runtime-token";
+
+      try {
+        const options: ClaudeOptions = {};
+        const result = parseSdkOptions(options);
+
+        expect(
+          result.sdkOptions.env?.ACTIONS_ID_TOKEN_REQUEST_URL,
+        ).toBeUndefined();
+        expect(
+          result.sdkOptions.env?.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
+        ).toBeUndefined();
+        expect(result.sdkOptions.env?.ACTIONS_RUNTIME_TOKEN).toBeUndefined();
+      } finally {
+        process.env = originalEnv;
+      }
+    });
   });
 });
