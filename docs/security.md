@@ -13,7 +13,7 @@
   - Accepts either a comma-separated list of specific usernames or `*` to allow all users
   - **Should be used with extreme caution** as it bypasses the primary security mechanism of this action
   - Is designed for automation workflows where user permissions are already restricted by the workflow's permission scope
-  - When set, Claude does a best-effort scrub of Anthropic, cloud, and GitHub Actions secrets from subprocess environments. This reduces but does not eliminate prompt injection risk — keep workflow permissions minimal and validate all outputs.
+  - When set, Claude does a best-effort scrub of Anthropic, cloud, and GitHub Actions secrets from subprocess environments. This reduces but does not eliminate prompt injection risk — keep workflow permissions minimal and validate all outputs. Set `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: 0` in your workflow or job `env:` block to opt out.
 - **Token Permissions**: The GitHub app receives only a short-lived token scoped specifically to the repository it's operating in
 - **No Cross-Repository Access**: Each action invocation is limited to the repository where it was triggered
 - **Limited Scope**: The token cannot access other repositories or perform actions beyond the configured permissions
