@@ -38,6 +38,20 @@ describe("stripInvisibleCharacters", () => {
     expect(stripInvisibleCharacters("Text\u202A\u202BMore")).toBe("TextMore");
     expect(stripInvisibleCharacters("\u2066Isolated\u2069")).toBe("Isolated");
   });
+
+  it("should remove Unicode tag characters (U+E0001-E007F)", () => {
+    expect(stripInvisibleCharacters("Hello\uE0001\uE007FWorld")).toBe(
+      "HelloWorld",
+    );
+  });
+
+  it("should remove variation selectors (U+FE00-FE0F)", () => {
+    expect(stripInvisibleCharacters("Text\uFE00\uFE0FMore")).toBe("TextMore");
+  });
+
+  it("should remove interlinear annotation anchors (U+FFF9-FFFB)", () => {
+    expect(stripInvisibleCharacters("A\uFFF9B\uFFFBC")).toBe("ABC");
+  });
 });
 
 describe("stripMarkdownImageAltText", () => {
