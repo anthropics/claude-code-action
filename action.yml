@@ -32,7 +32,16 @@ inputs:
     required: false
     default: ""
   allowed_non_write_users:
-    description: "Comma-separated list of usernames to allow without write permissions, or '*' to allow all users. Only works when github_token input is provided. WARNING: Use with extreme caution - this bypasses security checks and should only be used for workflows with very limited permissions (e.g., issue labeling)."
+    description: |
+      Comma-separated list of usernames to allow without write permissions, or '*' to allow all users.
+      Only works when github_token input is provided. WARNING: Use with extreme caution - this
+      bypasses security checks and should only be used for workflows with very limited permissions
+      (e.g., issue labeling).
+
+      SECURITY: Processing untrusted content exposes the workflow to prompt injection. When this
+      input is set, Claude does a best-effort scrub of Anthropic, cloud, and GitHub Actions secrets
+      from subprocess environments. This reduces but does not eliminate prompt injection risk -
+      only use for workflows with very limited permissions and validate all outputs.
     required: false
     default: ""
   include_comments_by_actor:
@@ -204,6 +213,7 @@ runs:
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
+        CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ inputs.allowed_non_write_users != '' && '1' || '' }}
         INCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.include_comments_by_actor }}
         EXCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.exclude_comments_by_actor }}
         GITHUB_RUN_ID: ${{ github.run_id }}
