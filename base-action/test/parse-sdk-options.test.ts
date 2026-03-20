@@ -313,6 +313,42 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("shell comment stripping", () => {
+    test("should parse flags before and after a comment line", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--model 'claude-haiku'\n# comment\n--allowed-tools 'Edit'",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
+      expect(result.sdkOptions.allowedTools).toEqual(["Edit"]);
+    });
+
+    test("should parse flags correctly when no comments are present", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--model 'claude-haiku'",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
+    });
+
+    test("should not strip inline # that appears inside a quoted value", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--model 'claude-haiku' --prompt 'use color #ff0000'",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
+      expect(result.sdkOptions.extraArgs?.["prompt"]).toBe(
+        "use color #ff0000",
+      );
+    });
+  });
+
   describe("environment variables passthrough", () => {
     test("should include OTEL environment variables in sdkOptions.env", () => {
       // Set up test environment variables
