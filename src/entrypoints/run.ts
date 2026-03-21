@@ -343,5 +343,16 @@ async function run() {
 }
 
 if (import.meta.main) {
-  run();
+  // Workaround: The Claude Agent SDK does not fully clean up child process
+  // streams after the session ends, leaving references in the event loop that
+  // prevent the process from exiting naturally. Force exit once run() settles.
+  // See: https://github.com/anthropics/claude-code-action/issues/865
+  run()
+    .then(() => {
+      process.exit(process.exitCode ?? 0);
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }
