@@ -33,7 +33,46 @@ export function stripHiddenAttributes(content: string): string {
   return content;
 }
 
+// Named HTML entities that map to ASCII characters. These must be decoded
+// before sanitization so that entity-encoded markup (e.g. &lt;!-- ... --&gt;)
+// is converted to literal characters that subsequent stripping steps can match.
+const NAMED_ENTITIES: Record<string, string> = {
+  "&lt;": "<",
+  "&gt;": ">",
+  "&amp;": "&",
+  "&quot;": '"',
+  "&apos;": "'",
+  "&sol;": "/",
+  "&bsol;": "\\",
+  "&lpar;": "(",
+  "&rpar;": ")",
+  "&lsqb;": "[",
+  "&rsqb;": "]",
+  "&lcub;": "{",
+  "&rcub;": "}",
+  "&excl;": "!",
+  "&num;": "#",
+  "&dash;": "-",
+  "&hyphen;": "-",
+};
+
+const NAMED_ENTITY_PATTERN = new RegExp(
+  Object.keys(NAMED_ENTITIES)
+    .map((e) => e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|"),
+  "gi",
+);
+
 export function normalizeHtmlEntities(content: string): string {
+  // Decode named HTML entities (e.g. &lt; → <, &gt; → >, &amp; → &)
+  // This must happen so that entity-encoded HTML comments like
+  // &lt;!-- hidden --&gt; are converted to <!-- hidden --> and can be
+  // stripped by stripHtmlComments.
+  content = content.replace(NAMED_ENTITY_PATTERN, (match) => {
+    return NAMED_ENTITIES[match.toLowerCase()] || match;
+  });
+
+  // Decode decimal numeric entities (e.g. &#60; → <)
   content = content.replace(/&#(\d+);/g, (_, dec) => {
     const num = parseInt(dec, 10);
     if (num >= 32 && num <= 126) {
@@ -41,6 +80,8 @@ export function normalizeHtmlEntities(content: string): string {
     }
     return "";
   });
+
+  // Decode hex numeric entities (e.g. &#x3C; → <)
   content = content.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
     const num = parseInt(hex, 16);
     if (num >= 32 && num <= 126) {
@@ -52,12 +93,17 @@ export function normalizeHtmlEntities(content: string): string {
 }
 
 export function sanitizeContent(content: string): string {
+  // Decode HTML entities FIRST so that entity-encoded markup is converted to
+  // literal characters before subsequent steps attempt to match and strip it.
+  // Without this, &lt;!-- ... --&gt; bypasses stripHtmlComments entirely.
+  // Run twice to catch double-encoded entities (e.g. &amp;lt; → &lt; → <).
+  content = normalizeHtmlEntities(content);
+  content = normalizeHtmlEntities(content);
   content = stripHtmlComments(content);
   content = stripInvisibleCharacters(content);
   content = stripMarkdownImageAltText(content);
   content = stripMarkdownLinkTitles(content);
   content = stripHiddenAttributes(content);
-  content = normalizeHtmlEntities(content);
   content = redactGitHubTokens(content);
   return content;
 }
