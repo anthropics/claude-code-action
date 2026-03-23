@@ -7,22 +7,17 @@ import {
   spyOn,
   mock,
 } from "bun:test";
-import { agentMode } from "../../src/modes/agent";
-import type { GitHubContext } from "../../src/github/context";
-import { createMockContext, createMockAutomationContext } from "../mockContext";
+import { prepareAgentMode } from "../../src/modes/agent";
+import { createMockAutomationContext } from "../mockContext";
 import * as core from "@actions/core";
 import * as gitConfig from "../../src/github/operations/git-config";
 
 describe("Agent Mode", () => {
-  let mockContext: GitHubContext;
   let exportVariableSpy: any;
   let setOutputSpy: any;
   let configureGitAuthSpy: any;
 
   beforeEach(() => {
-    mockContext = createMockAutomationContext({
-      eventName: "workflow_dispatch",
-    });
     exportVariableSpy = spyOn(core, "exportVariable").mockImplementation(
       () => {},
     );
@@ -45,84 +40,11 @@ describe("Agent Mode", () => {
     configureGitAuthSpy?.mockRestore();
   });
 
-  test("agent mode has correct properties", () => {
-    expect(agentMode.name).toBe("agent");
-    expect(agentMode.description).toBe(
-      "Direct automation mode for explicit prompts",
-    );
-    expect(agentMode.shouldCreateTrackingComment()).toBe(false);
-    expect(agentMode.getAllowedTools()).toEqual([]);
-    expect(agentMode.getDisallowedTools()).toEqual([]);
+  test("prepareAgentMode is exported as a function", () => {
+    expect(typeof prepareAgentMode).toBe("function");
   });
 
-  test("prepareContext returns minimal data", () => {
-    const context = agentMode.prepareContext(mockContext);
-
-    expect(context.mode).toBe("agent");
-    expect(context.githubContext).toBe(mockContext);
-    // Agent mode doesn't use comment tracking or branch management
-    expect(Object.keys(context)).toEqual(["mode", "githubContext"]);
-  });
-
-  test("agent mode only triggers when prompt is provided", () => {
-    // Should NOT trigger for automation events without prompt
-    const workflowDispatchContext = createMockAutomationContext({
-      eventName: "workflow_dispatch",
-    });
-    expect(agentMode.shouldTrigger(workflowDispatchContext)).toBe(false);
-
-    const scheduleContext = createMockAutomationContext({
-      eventName: "schedule",
-    });
-    expect(agentMode.shouldTrigger(scheduleContext)).toBe(false);
-
-    const repositoryDispatchContext = createMockAutomationContext({
-      eventName: "repository_dispatch",
-    });
-    expect(agentMode.shouldTrigger(repositoryDispatchContext)).toBe(false);
-
-    // Should NOT trigger for entity events without prompt
-    const entityEvents = [
-      "issue_comment",
-      "pull_request",
-      "pull_request_review",
-      "issues",
-    ] as const;
-
-    entityEvents.forEach((eventName) => {
-      const contextNoPrompt = createMockContext({ eventName });
-      expect(agentMode.shouldTrigger(contextNoPrompt)).toBe(false);
-    });
-
-    // Should trigger for ANY event when prompt is provided
-    const allEvents = [
-      "workflow_dispatch",
-      "repository_dispatch",
-      "schedule",
-      "issue_comment",
-      "pull_request",
-      "pull_request_review",
-      "issues",
-    ] as const;
-
-    allEvents.forEach((eventName) => {
-      const contextWithPrompt =
-        eventName === "workflow_dispatch" ||
-        eventName === "repository_dispatch" ||
-        eventName === "schedule"
-          ? createMockAutomationContext({
-              eventName,
-              inputs: { prompt: "Do something" },
-            })
-          : createMockContext({
-              eventName,
-              inputs: { prompt: "Do something" },
-            });
-      expect(agentMode.shouldTrigger(contextWithPrompt)).toBe(true);
-    });
-  });
-
-  test("prepare method passes through claude_args", async () => {
+  test("prepare passes through claude_args", async () => {
     // Clear any previous calls before this test
     exportVariableSpy.mockClear();
     setOutputSpy.mockClear();
@@ -156,17 +78,15 @@ describe("Agent Mode", () => {
         },
       },
     } as any;
-    const result = await agentMode.prepare({
+    const result = await prepareAgentMode({
       context: contextWithCustomArgs,
       octokit: mockOctokit,
       githubToken: "test-token",
     });
 
     // Verify claude_args includes user args (no MCP config in agent mode without allowed tools)
-    const callArgs = setOutputSpy.mock.calls[0];
-    expect(callArgs[0]).toBe("claude_args");
-    expect(callArgs[1]).toBe("--model claude-sonnet-4 --max-turns 10");
-    expect(callArgs[1]).not.toContain("--mcp-config");
+    expect(result.claudeArgs).toBe("--model claude-sonnet-4 --max-turns 10");
+    expect(result.claudeArgs).not.toContain("--mcp-config");
 
     // Verify return structure - should use "main" as fallback when no env vars set
     expect(result).toEqual({
@@ -177,6 +97,7 @@ describe("Agent Mode", () => {
         claudeBranch: undefined,
       },
       mcpConfig: expect.any(String),
+      claudeArgs: "--model claude-sonnet-4 --max-turns 10",
     });
 
     // Clean up
@@ -187,7 +108,7 @@ describe("Agent Mode", () => {
       process.env.GITHUB_REF_NAME = originalRefName;
   });
 
-  test("prepare method rejects bot actors without allowed_bots", async () => {
+  test("prepare rejects bot actors without allowed_bots", async () => {
     const contextWithPrompts = createMockAutomationContext({
       eventName: "workflow_dispatch",
     });
@@ -207,7 +128,7 @@ describe("Agent Mode", () => {
     } as any;
 
     await expect(
-      agentMode.prepare({
+      prepareAgentMode({
         context: contextWithPrompts,
         octokit: mockOctokit,
         githubToken: "test-token",
@@ -217,7 +138,7 @@ describe("Agent Mode", () => {
     );
   });
 
-  test("prepare method allows bot actors when in allowed_bots list", async () => {
+  test("prepare allows bot actors when in allowed_bots list", async () => {
     const contextWithPrompts = createMockAutomationContext({
       eventName: "workflow_dispatch",
     });
@@ -238,7 +159,7 @@ describe("Agent Mode", () => {
 
     // Should not throw - bot is in allowed list
     await expect(
-      agentMode.prepare({
+      prepareAgentMode({
         context: contextWithPrompts,
         octokit: mockOctokit,
         githubToken: "test-token",
@@ -246,7 +167,7 @@ describe("Agent Mode", () => {
     ).resolves.toBeDefined();
   });
 
-  test("prepare method creates prompt file with correct content", async () => {
+  test("prepare creates prompt file with correct content", async () => {
     const contextWithPrompts = createMockAutomationContext({
       eventName: "workflow_dispatch",
     });
@@ -269,7 +190,7 @@ describe("Agent Mode", () => {
         },
       },
     } as any;
-    await agentMode.prepare({
+    const result = await prepareAgentMode({
       context: contextWithPrompts,
       octokit: mockOctokit,
       githubToken: "test-token",
@@ -279,9 +200,7 @@ describe("Agent Mode", () => {
     // but we can verify the method completes without errors
     // With our conditional MCP logic, agent mode with no allowed tools
     // should not include any MCP config
-    const callArgs = setOutputSpy.mock.calls[0];
-    expect(callArgs[0]).toBe("claude_args");
     // Should be empty or just whitespace when no MCP servers are included
-    expect(callArgs[1]).not.toContain("--mcp-config");
+    expect(result.claudeArgs).not.toContain("--mcp-config");
   });
 });

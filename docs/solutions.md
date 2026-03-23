@@ -55,7 +55,7 @@ jobs:
             Note: The PR branch is already checked out in the current working directory.
 
             Use `gh pr comment` for top-level feedback.
-            Use `mcp__github_inline_comment__create_inline_comment` to highlight specific code issues.
+            Use `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`) to highlight specific code issues.
             Only post GitHub comments - don't submit review text as messages.
 
           claude_args: |
@@ -398,6 +398,7 @@ jobs:
       issues: write
       id-token: write
     steps:
+      - uses: actions/checkout@v4
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -414,13 +415,18 @@ jobs:
             3. Suggest appropriate labels
             4. Check if it duplicates existing issues
 
+            Use ./scripts/gh.sh to interact with GitHub:
+            - `./scripts/gh.sh issue view [number]` to view the issue
+            - `./scripts/gh.sh search issues "query"` to find similar issues
+            - `./scripts/gh.sh label list` to see available labels
+
             Based on your analysis, add the appropriate labels using:
-            `gh issue edit [number] --add-label "label1,label2"`
+            `./scripts/edit-issue-labels.sh --issue [number] --add-label "label1" --add-label "label2"`
 
             If it appears to be a duplicate, post a comment mentioning the original issue.
 
           claude_args: |
-            --allowedTools "Bash(gh issue:*),Bash(gh search:*)"
+            --allowedTools "Bash(./scripts/gh.sh:*),Bash(./scripts/edit-issue-labels.sh:*)"
 ```
 
 **Key Configuration:**
@@ -428,6 +434,7 @@ jobs:
 - Triggered on new issues
 - Issue context in prompt
 - Label management capabilities
+- Requires `scripts/gh.sh` and `scripts/edit-issue-labels.sh` in your repo (see this repo's `scripts/` directory for examples)
 
 **Expected Output:** Automatically labeled and categorized issues.
 
@@ -578,7 +585,7 @@ prompt: |
 ### Common Tool Permissions
 
 - **PR Comments**: `Bash(gh pr comment:*)`
-- **Inline Comments**: `mcp__github_inline_comment__create_inline_comment`
+- **Inline Comments**: `mcp__github_inline_comment__create_inline_comment` — pass `confirmed: true` to post immediately. When omitted, the comment is buffered and classified after the session ends (real review comments post, test/probe comments are filtered). This prevents subagent test comments from reaching PRs. To disable classification entirely, set `classify_inline_comments: 'false'` on the action.
 - **File Operations**: `Read,Write,Edit`
 - **Git Operations**: `Bash(git:*)`
 

@@ -8,7 +8,6 @@
 
 import { $ } from "bun";
 import { execFileSync } from "child_process";
-import * as core from "@actions/core";
 import type { ParsedGitHubContext } from "../context";
 import type { GitHubPullRequest } from "../types";
 import type { Octokits } from "../api/client";
@@ -265,9 +264,6 @@ export async function setupBranch(
       execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
       execGit(["checkout", sourceBranch, "--"]);
 
-      // Set outputs for GitHub Actions
-      core.setOutput("CLAUDE_BRANCH", newBranch);
-      core.setOutput("BASE_BRANCH", sourceBranch);
       return {
         baseBranch: sourceBranch,
         claudeBranch: newBranch,
@@ -294,9 +290,6 @@ export async function setupBranch(
       `Successfully created and checked out local branch: ${newBranch}`,
     );
 
-    // Set outputs for GitHub Actions
-    core.setOutput("CLAUDE_BRANCH", newBranch);
-    core.setOutput("BASE_BRANCH", sourceBranch);
     return {
       baseBranch: sourceBranch,
       claudeBranch: newBranch,

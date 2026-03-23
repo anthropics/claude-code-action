@@ -116,7 +116,7 @@ runs:
       shell: bash
       run: |
         cd ${GITHUB_ACTION_PATH}
-        bun install
+        bun install --production
 
     - name: Install Claude Code
       shell: bash
@@ -124,7 +124,7 @@ runs:
         PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
       run: |
         if [ -z "$PATH_TO_CLAUDE_CODE_EXECUTABLE" ]; then
-          CLAUDE_CODE_VERSION="2.1.29"
+          CLAUDE_CODE_VERSION="2.1.81"
           echo "Installing Claude Code v${CLAUDE_CODE_VERSION}..."
           for attempt in 1 2 3; do
             echo "Installation attempt $attempt..."
@@ -202,3 +202,14 @@ runs:
         ANTHROPIC_DEFAULT_SONNET_MODEL: ${{ env.ANTHROPIC_DEFAULT_SONNET_MODEL }}
         ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ env.ANTHROPIC_DEFAULT_HAIKU_MODEL }}
         ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ env.ANTHROPIC_DEFAULT_OPUS_MODEL }}
+
+        # Telemetry configuration
+        CLAUDE_CODE_ENABLE_TELEMETRY: ${{ env.CLAUDE_CODE_ENABLE_TELEMETRY }}
+        OTEL_METRICS_EXPORTER: ${{ env.OTEL_METRICS_EXPORTER }}
+        OTEL_LOGS_EXPORTER: ${{ env.OTEL_LOGS_EXPORTER }}
+        OTEL_EXPORTER_OTLP_PROTOCOL: ${{ env.OTEL_EXPORTER_OTLP_PROTOCOL }}
+        OTEL_EXPORTER_OTLP_ENDPOINT: ${{ env.OTEL_EXPORTER_OTLP_ENDPOINT }}
+        OTEL_EXPORTER_OTLP_HEADERS: ${{ env.OTEL_EXPORTER_OTLP_HEADERS }}
+        OTEL_METRIC_EXPORT_INTERVAL: ${{ env.OTEL_METRIC_EXPORT_INTERVAL }}
+        OTEL_LOGS_EXPORT_INTERVAL: ${{ env.OTEL_LOGS_EXPORT_INTERVAL }}
+        OTEL_RESOURCE_ATTRIBUTES: ${{ env.OTEL_RESOURCE_ATTRIBUTES }}

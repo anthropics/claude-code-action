@@ -19,6 +19,7 @@ const defaultInputs = {
   labelTrigger: "",
   branchPrefix: "claude/",
   useStickyComment: false,
+  classifyInlineComments: true,
   useCommitSigning: false,
   sshSigningKey: "",
   botId: String(CLAUDE_APP_BOT_ID),

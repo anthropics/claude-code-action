@@ -3,6 +3,13 @@
 import * as core from "@actions/core";
 import { retryWithBackoff } from "../utils/retry";
 
+export class WorkflowValidationSkipError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WorkflowValidationSkipError";
+  }
+}
+
 async function getOidcToken(): Promise<string> {
   try {
     const oidcToken = await core.getIDToken("claude-code-github-action");
@@ -96,8 +103,7 @@ async function exchangeForAppToken(
       console.log(
         "Action skipped due to workflow validation error. This is expected when adding Claude Code workflows to new repositories or on PRs with workflow changes. If you're seeing this, your workflow will begin working once you merge your PR.",
       );
-      core.setOutput("skipped_due_to_workflow_validation_mismatch", "true");
-      process.exit(0);
+      throw new WorkflowValidationSkipError(message);
     }
 
     console.error(
@@ -120,36 +126,26 @@ async function exchangeForAppToken(
 }
 
 export async function setupGitHubToken(): Promise<string> {
-  try {
-    // Check if GitHub token was provided as override
-    const providedToken = process.env.OVERRIDE_GITHUB_TOKEN;
+  // Check if GitHub token was provided as override
+  const providedToken = process.env.OVERRIDE_GITHUB_TOKEN;
 
-    if (providedToken) {
-      console.log("Using provided GITHUB_TOKEN for authentication");
-      core.setOutput("GITHUB_TOKEN", providedToken);
-      return providedToken;
-    }
-
-    console.log("Requesting OIDC token...");
-    const oidcToken = await retryWithBackoff(() => getOidcToken());
-    console.log("OIDC token successfully obtained");
-
-    const permissions = parseAdditionalPermissions();
-
-    console.log("Exchanging OIDC token for app token...");
-    const appToken = await retryWithBackoff(() =>
-      exchangeForAppToken(oidcToken, permissions),
-    );
-    console.log("App token successfully obtained");
-
-    console.log("Using GITHUB_TOKEN from OIDC");
-    core.setOutput("GITHUB_TOKEN", appToken);
-    return appToken;
-  } catch (error) {
-    // Only set failed if we get here - workflow validation errors will exit(0) before this
-    core.setFailed(
-      `Failed to setup GitHub token: ${error}\n\nIf you instead wish to use this action with a custom GitHub token or custom GitHub app, provide a \`github_token\` in the \`uses\` section of the app in your workflow yml file.`,
-    );
-    process.exit(1);
+  if (providedToken) {
+    console.log("Using provided GITHUB_TOKEN for authentication");
+    return providedToken;
   }
+
+  console.log("Requesting OIDC token...");
+  const oidcToken = await retryWithBackoff(() => getOidcToken());
+  console.log("OIDC token successfully obtained");
+
+  const permissions = parseAdditionalPermissions();
+
+  console.log("Exchanging OIDC token for app token...");
+  const appToken = await retryWithBackoff(() =>
+    exchangeForAppToken(oidcToken, permissions),
+  );
+  console.log("App token successfully obtained");
+
+  console.log("Using GITHUB_TOKEN from OIDC");
+  return appToken;
 }

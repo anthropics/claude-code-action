@@ -72,6 +72,33 @@ export function extractOriginalTitle(
 }
 
 /**
+ * Extracts the original body from the GitHub webhook payload.
+ * This is the body as it existed when the trigger event occurred,
+ * preventing TOCTOU attacks where an attacker edits the body after
+ * the trigger but before the action reads it.
+ *
+ * @param context - Parsed GitHub context from webhook
+ * @returns The original body string, null (no body), or undefined (not available)
+ */
+export function extractOriginalBody(
+  context: ParsedGitHubContext,
+): string | null | undefined {
+  if (isIssueCommentEvent(context)) {
+    return context.payload.issue?.body;
+  } else if (isPullRequestEvent(context)) {
+    return context.payload.pull_request?.body;
+  } else if (isPullRequestReviewEvent(context)) {
+    return context.payload.pull_request?.body;
+  } else if (isPullRequestReviewCommentEvent(context)) {
+    return context.payload.pull_request?.body;
+  } else if (isIssuesEvent(context)) {
+    return context.payload.issue?.body;
+  }
+
+  return undefined;
+}
+
+/**
  * Filters comments to only include those that existed in their final state before the trigger time.
  * This prevents malicious actors from editing comments after the trigger to inject harmful content.
  *
@@ -207,6 +234,7 @@ type FetchDataParams = {
   triggerUsername?: string;
   triggerTime?: string;
   originalTitle?: string;
+  originalBody?: string | null;
   includeCommentsByActor?: string;
   excludeCommentsByActor?: string;
 };
@@ -233,6 +261,7 @@ export async function fetchGitHubData({
   triggerUsername,
   triggerTime,
   originalTitle,
+  originalBody,
   includeCommentsByActor,
   excludeCommentsByActor,
 }: FetchDataParams): Promise<FetchDataResult> {
@@ -399,12 +428,21 @@ export async function fetchGitHubData({
       body: c.body,
     }));
 
-  // Add the main issue/PR body if it has content and wasn't edited after trigger
-  // This prevents a TOCTOU race condition where an attacker could edit the body
-  // between when an authorized user triggered Claude and when Claude processes the request
+  // Use the original body from the webhook payload if provided (TOCTOU protection).
+  // The webhook payload captures the body at event time, before any attacker edits.
+  if (originalBody !== undefined) {
+    contextData.body = originalBody ?? "";
+  }
+
+  // Add the main issue/PR body if it has content and wasn't edited after trigger.
+  // When originalBody is provided, the body is already safe (from webhook payload).
+  // Otherwise, fall back to timestamp-based validation.
   let mainBody: CommentWithImages[] = [];
   if (contextData.body) {
-    if (isBodySafeToUse(contextData, triggerTime)) {
+    if (
+      originalBody !== undefined ||
+      isBodySafeToUse(contextData, triggerTime)
+    ) {
       mainBody = [
         {
           ...(isPR

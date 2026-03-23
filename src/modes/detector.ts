@@ -80,17 +80,6 @@ export function detectMode(context: GitHubContext): AutoDetectedMode {
   return "agent";
 }
 
-export function getModeDescription(mode: AutoDetectedMode): string {
-  switch (mode) {
-    case "tag":
-      return "Interactive mode triggered by @claude mentions";
-    case "agent":
-      return "Direct automation mode for explicit prompts";
-    default:
-      return "Unknown mode";
-  }
-}
-
 function validateTrackProgressEvent(context: GitHubContext): void {
   // track_progress is only valid for pull_request and issue events
   const validEvents = [
@@ -121,23 +110,5 @@ function validateTrackProgressEvent(context: GitHubContext): void {
           `${validActions.join(", ")}. Current action: ${context.eventAction}`,
       );
     }
-  }
-}
-
-export function shouldUseTrackingComment(mode: AutoDetectedMode): boolean {
-  return mode === "tag";
-}
-
-export function getDefaultPromptForMode(
-  mode: AutoDetectedMode,
-  context: GitHubContext,
-): string | undefined {
-  switch (mode) {
-    case "tag":
-      return undefined;
-    case "agent":
-      return context.inputs?.prompt;
-    default:
-      return undefined;
   }
 }

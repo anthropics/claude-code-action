@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(gh label list:*),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh search:*)
+allowed-tools: Bash(./scripts/gh.sh:*),Bash(./scripts/edit-issue-labels.sh:*)
 description: Apply labels to GitHub issues
 ---
 
@@ -14,17 +14,18 @@ Issue Information:
 
 TASK OVERVIEW:
 
-1. First, fetch the list of labels available in this repository by running: `gh label list`. Run exactly this command with nothing else.
+1. First, fetch the list of labels available in this repository by running: `./scripts/gh.sh label list`. Run exactly this command with nothing else.
 
-2. Next, use gh commands to get context about the issue:
+2. Next, use gh wrapper commands to get context about the issue:
 
-   - Use `gh issue view ${{ github.event.issue.number }}` to retrieve the current issue's details
-   - Use `gh search issues` to find similar issues that might provide context for proper categorization
-   - You have access to these Bash commands:
-     - Bash(gh label list:\*) - to get available labels
-     - Bash(gh issue view:\*) - to view issue details
-     - Bash(gh issue edit:\*) - to apply labels to the issue
-     - Bash(gh search:\*) - to search for similar issues
+   - Use `./scripts/gh.sh issue view ${{ github.event.issue.number }}` to retrieve the current issue's details
+   - Use `./scripts/gh.sh search issues` to find similar issues that might provide context for proper categorization
+   - `./scripts/gh.sh` is a wrapper for `gh` CLI. Example commands:
+     - `./scripts/gh.sh label list` — fetch all available labels
+     - `./scripts/gh.sh issue view 123` — view issue details
+     - `./scripts/gh.sh issue view 123 --comments` — view with comments
+     - `./scripts/gh.sh search issues "query" --limit 10` — search for issues
+   - `./scripts/edit-issue-labels.sh` — apply labels to the issue
 
 3. Analyze the issue content, considering:
 
@@ -39,12 +40,12 @@ TASK OVERVIEW:
 
    - Choose labels that accurately reflect the issue's nature
    - Be specific but comprehensive
-   - IMPORTANT: Add a priority label (P1, P2, or P3) based on the label descriptions from gh label list
+   - IMPORTANT: Add a priority label (P1, P2, or P3) based on the label descriptions from ./scripts/gh.sh label list
    - Consider platform labels (android, ios) if applicable
-   - If you find similar issues using gh search, consider using a "duplicate" label if appropriate. Only do so if the issue is a duplicate of another OPEN issue.
+   - If you find similar issues using ./scripts/gh.sh search, consider using a "duplicate" label if appropriate. Only do so if the issue is a duplicate of another OPEN issue.
 
 5. Apply the selected labels:
-   - Use `gh issue edit` to apply your selected labels
+   - Use `./scripts/edit-issue-labels.sh --issue NUMBER --add-label LABEL1 --add-label LABEL2` to apply your selected labels
    - DO NOT post any comments explaining your decision
    - DO NOT communicate directly with users
    - If no labels are clearly applicable, do not apply any labels
@@ -54,7 +55,7 @@ IMPORTANT GUIDELINES:
 - Be thorough in your analysis
 - Only select labels from the provided list above
 - DO NOT post any comments to the issue
-- Your ONLY action should be to apply labels using gh issue edit
+- Your ONLY action should be to apply labels using ./scripts/edit-issue-labels.sh
 - It's okay to not add any labels if none are clearly applicable
 
 ---

@@ -90,6 +90,7 @@ type BaseContext = {
     branchPrefix: string;
     branchNameTemplate?: string;
     useStickyComment: boolean;
+    classifyInlineComments: boolean;
     useCommitSigning: boolean;
     sshSigningKey: string;
     botId: string;
@@ -150,6 +151,7 @@ export function parseGitHubContext(): GitHubContext {
       branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
       branchNameTemplate: process.env.BRANCH_NAME_TEMPLATE,
       useStickyComment: process.env.USE_STICKY_COMMENT === "true",
+      classifyInlineComments: process.env.CLASSIFY_INLINE_COMMENTS !== "false",
       useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
       sshSigningKey: process.env.SSH_SIGNING_KEY || "",
       botId: process.env.BOT_ID ?? String(CLAUDE_APP_BOT_ID),

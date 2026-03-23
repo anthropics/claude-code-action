@@ -21,8 +21,8 @@ jobs:
       - name: Run Claude Code for Issue Triage
         uses: anthropics/claude-code-action@v1
         with:
-          # NOTE: /label-issue here requires a .claude/commands/label-issue.md file in your repo (see this repo's .claude directory for an example)
-          prompt: "/label-issue REPO: ${{ github.repository }} ISSUE_NUMBER${{ github.event.issue.number }}"
+          # NOTE: /label-issue requires .claude/commands/label-issue.md and scripts/edit-issue-labels.sh in your repo (see this repo for examples)
+          prompt: "/label-issue REPO: ${{ github.repository }} ISSUE_NUMBER: ${{ github.event.issue.number }}"
 
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           allowed_non_write_users: "*" # Required for issue triage workflow, if users without repo write access create issues

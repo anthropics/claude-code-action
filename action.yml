@@ -28,11 +28,20 @@ inputs:
     required: false
     default: ""
   allowed_bots:
-    description: "Comma-separated list of allowed bot usernames, or '*' to allow all bots. Empty string (default) allows no bots."
+    description: "Comma-separated list of allowed bot usernames, or '*' to allow all bots. Empty string (default) allows no bots. WARNING: On public repos with '*', external Apps may be able to invoke this action with prompts they control. See docs/security.md."
     required: false
     default: ""
   allowed_non_write_users:
-    description: "Comma-separated list of usernames to allow without write permissions, or '*' to allow all users. Only works when github_token input is provided. WARNING: Use with extreme caution - this bypasses security checks and should only be used for workflows with very limited permissions (e.g., issue labeling)."
+    description: |
+      Comma-separated list of usernames to allow without write permissions, or '*' to allow all users.
+      Only works when github_token input is provided. WARNING: Use with extreme caution - this
+      bypasses security checks and should only be used for workflows with very limited permissions
+      (e.g., issue labeling).
+
+      SECURITY: Processing untrusted content exposes the workflow to prompt injection. When this
+      input is set, Claude does a best-effort scrub of Anthropic, cloud, and GitHub Actions secrets
+      from subprocess environments. This reduces but does not eliminate prompt injection risk -
+      only use for workflows with very limited permissions and validate all outputs.
     required: false
     default: ""
   include_comments_by_actor:
@@ -89,6 +98,10 @@ inputs:
     description: "Use just one comment to deliver issue/PR comments"
     required: false
     default: "false"
+  classify_inline_comments:
+    description: "Buffer inline comments without confirmed=true and classify them (real review vs test/probe) before posting after the session ends. Set to 'false' to post all inline comments immediately (pre-buffering behavior)."
+    required: false
+    default: "true"
   use_commit_signing:
     description: "Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands"
     required: false
@@ -121,6 +134,10 @@ inputs:
     description: "Optional path to a custom Bun executable. If provided, skips automatic Bun installation and uses this executable instead. WARNING: Using an incompatible version may cause problems if the action requires specific Bun features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
     required: false
     default: ""
+  display_report:
+    description: "Whether to display the Claude Code Report in GitHub Step Summary. Set to 'false' to disable when using custom formatting solutions. WARNING: This outputs Claude-authored content in the GitHub Step Summary. This should only be used in cases where the action is used solely with trusted input."
+    required: false
+    default: "false"
   show_full_output:
     description: "Show full JSON output from Claude Code. WARNING: This outputs ALL Claude messages including tool execution results which may contain secrets, API keys, or other sensitive information. These logs are publicly visible in GitHub Actions. Only enable for debugging in non-sensitive environments."
     required: false
@@ -137,19 +154,19 @@ inputs:
 outputs:
   execution_file:
     description: "Path to the Claude Code execution output file"
-    value: ${{ steps.claude-code.outputs.execution_file }}
+    value: ${{ steps.run.outputs.execution_file }}
   branch_name:
     description: "The branch created by Claude Code for this execution"
-    value: ${{ steps.prepare.outputs.CLAUDE_BRANCH }}
+    value: ${{ steps.run.outputs.branch_name }}
   github_token:
     description: "The GitHub token used by the action (Claude App token if available)"
-    value: ${{ steps.prepare.outputs.github_token }}
+    value: ${{ steps.run.outputs.github_token }}
   structured_output:
     description: "JSON string containing all structured output fields when --json-schema is provided in claude_args. Use fromJSON() to parse: fromJSON(steps.id.outputs.structured_output).field_name"
-    value: ${{ steps.claude-code.outputs.structured_output }}
+    value: ${{ steps.run.outputs.structured_output }}
   session_id:
     description: "The Claude Code session ID that can be used with --resume to continue this conversation"
-    value: ${{ steps.claude-code.outputs.session_id }}
+    value: ${{ steps.run.outputs.session_id }}
 
 runs:
   using: "composite"
@@ -159,6 +176,7 @@ runs:
       uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # https://github.com/oven-sh/setup-bun/releases/tag/v2.1.2
       with:
         bun-version: 1.3.6
+        token: ${{ inputs.github_token || github.token }}
 
     - name: Setup Custom Bun Path
       if: inputs.path_to_bun_executable != ''
@@ -175,14 +193,15 @@ runs:
       shell: bash
       run: |
         cd ${GITHUB_ACTION_PATH}
-        bun install
+        bun install --production
 
-    - name: Prepare action
-      id: prepare
+    - name: Run Claude Code Action
+      id: run
       shell: bash
       run: |
-        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/prepare.ts
+        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
       env:
+        # Prepare inputs
         MODE: ${{ inputs.mode }}
         PROMPT: ${{ inputs.prompt }}
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
@@ -194,10 +213,12 @@ runs:
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
+        CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB || (inputs.allowed_non_write_users != '' && '1') || '' }}
         INCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.include_comments_by_actor }}
         EXCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.exclude_comments_by_actor }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
+        CLASSIFY_INLINE_COMMENTS: ${{ inputs.classify_inline_comments }}
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
         SSH_SIGNING_KEY: ${{ inputs.ssh_signing_key }}
@@ -209,73 +230,20 @@ runs:
         CLAUDE_ARGS: ${{ inputs.claude_args }}
         ALL_INPUTS: ${{ toJson(inputs) }}
 
-    - name: Install Base Action Dependencies
-      if: steps.prepare.outputs.contains_trigger == 'true'
-      shell: bash
-      env:
-        PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
-      run: |
-        echo "Installing base-action dependencies..."
-        cd ${GITHUB_ACTION_PATH}/base-action
-        bun install
-        echo "Base-action dependencies installed"
-        cd -
-
-        # Install Claude Code if no custom executable is provided
-        if [ -z "$PATH_TO_CLAUDE_CODE_EXECUTABLE" ]; then
-          CLAUDE_CODE_VERSION="2.1.29"
-          echo "Installing Claude Code v${CLAUDE_CODE_VERSION}..."
-          for attempt in 1 2 3; do
-            echo "Installation attempt $attempt..."
-            if command -v timeout &> /dev/null; then
-              # Use --foreground to kill entire process group on timeout, --kill-after to send SIGKILL if SIGTERM fails
-              timeout --foreground --kill-after=10 120 bash -c "curl -fsSL https://claude.ai/install.sh | bash -s -- $CLAUDE_CODE_VERSION" && break
-            else
-              curl -fsSL https://claude.ai/install.sh | bash -s -- "$CLAUDE_CODE_VERSION" && break
-            fi
-            if [ $attempt -eq 3 ]; then
-              echo "Failed to install Claude Code after 3 attempts"
-              exit 1
-            fi
-            echo "Installation failed, retrying..."
-            sleep 5
-          done
-          echo "Claude Code installed successfully"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-        else
-          echo "Using custom Claude Code executable: $PATH_TO_CLAUDE_CODE_EXECUTABLE"
-          # Add the directory containing the custom executable to PATH
-          CLAUDE_DIR=$(dirname "$PATH_TO_CLAUDE_CODE_EXECUTABLE")
-          echo "$CLAUDE_DIR" >> "$GITHUB_PATH"
-        fi
-
-    - name: Run Claude Code
-      id: claude-code
-      if: steps.prepare.outputs.contains_trigger == 'true'
-      shell: bash
-      run: |
-
-        # Run the base-action
-        bun run ${GITHUB_ACTION_PATH}/base-action/src/index.ts
-      env:
         # Base-action inputs
-        CLAUDE_CODE_ACTION: "1"
         INPUT_PROMPT_FILE: ${{ runner.temp }}/claude-prompts/claude-prompt.txt
         INPUT_SETTINGS: ${{ inputs.settings }}
-        INPUT_CLAUDE_ARGS: ${{ steps.prepare.outputs.claude_args }}
         INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ github.action_path }}/slash-commands
-        INPUT_ACTION_INPUTS_PRESENT: ${{ steps.prepare.outputs.action_inputs_present }}
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
         INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}
+        DISPLAY_REPORT: ${{ inputs.display_report }}
         INPUT_PLUGINS: ${{ inputs.plugins }}
         INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
+        PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
 
         # Model configuration
-        GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
-        GH_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
         NODE_VERSION: ${{ env.NODE_VERSION }}
-        DETAILED_PERMISSION_MESSAGES: "1"
 
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
@@ -312,48 +280,16 @@ runs:
         ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ env.ANTHROPIC_DEFAULT_HAIKU_MODEL }}
         ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ env.ANTHROPIC_DEFAULT_OPUS_MODEL }}
 
-    - name: Update comment with job link
-      if: steps.prepare.outputs.contains_trigger == 'true' && steps.prepare.outputs.claude_comment_id && always()
-      shell: bash
-      run: |
-        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/update-comment-link.ts
-      env:
-        REPOSITORY: ${{ github.repository }}
-        PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
-        CLAUDE_COMMENT_ID: ${{ steps.prepare.outputs.claude_comment_id }}
-        GITHUB_RUN_ID: ${{ github.run_id }}
-        GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
-        GH_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
-        GITHUB_EVENT_NAME: ${{ github.event_name }}
-        TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
-        CLAUDE_BRANCH: ${{ steps.prepare.outputs.CLAUDE_BRANCH }}
-        IS_PR: ${{ github.event.issue.pull_request != null || github.event_name == 'pull_request_target' || github.event_name == 'pull_request_review_comment' }}
-        BASE_BRANCH: ${{ steps.prepare.outputs.BASE_BRANCH }}
-        CLAUDE_SUCCESS: ${{ steps.claude-code.outputs.conclusion == 'success' }}
-        OUTPUT_FILE: ${{ steps.claude-code.outputs.execution_file || '' }}
-        TRIGGER_USERNAME: ${{ github.event.comment.user.login || github.event.issue.user.login || github.event.pull_request.user.login || github.event.sender.login || github.triggering_actor || github.actor || '' }}
-        PREPARE_SUCCESS: ${{ steps.prepare.outcome == 'success' }}
-        PREPARE_ERROR: ${{ steps.prepare.outputs.prepare_error || '' }}
-        USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
-        USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
-        TRACK_PROGRESS: ${{ inputs.track_progress }}
-
-    - name: Display Claude Code Report
-      if: steps.prepare.outputs.contains_trigger == 'true' && steps.claude-code.outputs.execution_file != ''
-      shell: bash
-      run: |
-        # Try to format the turns, but if it fails, dump the raw JSON
-        if bun run ${{ github.action_path }}/src/entrypoints/format-turns.ts "${{ steps.claude-code.outputs.execution_file }}" >> $GITHUB_STEP_SUMMARY 2>/dev/null; then
-          echo "Successfully formatted Claude Code report"
-        else
-          echo "## Claude Code Report (Raw Output)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Failed to format output (please report). Here's the raw JSON:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```json' >> $GITHUB_STEP_SUMMARY
-          cat "${{ steps.claude-code.outputs.execution_file }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-        fi
+        # Telemetry configuration
+        CLAUDE_CODE_ENABLE_TELEMETRY: ${{ env.CLAUDE_CODE_ENABLE_TELEMETRY }}
+        OTEL_METRICS_EXPORTER: ${{ env.OTEL_METRICS_EXPORTER }}
+        OTEL_LOGS_EXPORTER: ${{ env.OTEL_LOGS_EXPORTER }}
+        OTEL_EXPORTER_OTLP_PROTOCOL: ${{ env.OTEL_EXPORTER_OTLP_PROTOCOL }}
+        OTEL_EXPORTER_OTLP_ENDPOINT: ${{ env.OTEL_EXPORTER_OTLP_ENDPOINT }}
+        OTEL_EXPORTER_OTLP_HEADERS: ${{ env.OTEL_EXPORTER_OTLP_HEADERS }}
+        OTEL_METRIC_EXPORT_INTERVAL: ${{ env.OTEL_METRIC_EXPORT_INTERVAL }}
+        OTEL_LOGS_EXPORT_INTERVAL: ${{ env.OTEL_LOGS_EXPORT_INTERVAL }}
+        OTEL_RESOURCE_ATTRIBUTES: ${{ env.OTEL_RESOURCE_ATTRIBUTES }}
 
     - name: Cleanup SSH signing key
       if: always() && inputs.ssh_signing_key != ''
@@ -361,13 +297,25 @@ runs:
       run: |
         bun run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
 
+    - name: Post buffered inline comments
+      if: always() && inputs.classify_inline_comments != 'false'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ steps.run.outputs.github_token || inputs.github_token || github.token }}
+        REPO_OWNER: ${{ github.event.repository.owner.login }}
+        REPO_NAME: ${{ github.event.repository.name }}
+        PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+      run: |
+        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts
+
     - name: Revoke app token
-      if: always() && inputs.github_token == '' && steps.prepare.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
+      if: always() && inputs.github_token == '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
       shell: bash
       run: |
         curl -L \
           -X DELETE \
           -H "Accept: application/vnd.github+json" \
-          -H "Authorization: Bearer ${{ steps.prepare.outputs.GITHUB_TOKEN }}" \
+          -H "Authorization: Bearer ${{ steps.run.outputs.github_token }}" \
           -H "X-GitHub-Api-Version: 2022-11-28" \
           ${GITHUB_API_URL:-https://api.github.com}/installation/token
