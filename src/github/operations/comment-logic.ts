@@ -54,9 +54,10 @@ export function ensureProperlyEncodedUrl(url: string): string | null {
       let fixedUrl = url.replace(/ /g, "%20");
 
       // Ensure colons in parameter values are encoded (but not in http:// or after domain)
-      const urlParts = fixedUrl.split("?");
-      if (urlParts.length > 1 && urlParts[1]) {
-        const [baseUrl, queryString] = urlParts;
+      const qIdx = fixedUrl.indexOf("?");
+      if (qIdx >= 0 && fixedUrl.length > qIdx + 1) {
+        const baseUrl = fixedUrl.slice(0, qIdx);
+        const queryString = fixedUrl.slice(qIdx + 1);
         // Encode colons in the query string that aren't already encoded
         const fixedQuery = queryString.replace(/([^%]|^):(?!%2F%2F)/g, "$1%3A");
         fixedUrl = `${baseUrl}?${fixedQuery}`;
