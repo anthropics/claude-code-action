@@ -1,21 +1,21 @@
 import { describe, it, expect, mock, beforeEach } from "bun:test";
-import { execFileSync } from "child_process";
-import { rmSync } from "fs";
 
-// Mock child_process and fs before importing the module under test
+// Create mock functions first, then register them with mock.module
+const mockedExecFileSync = mock(() => undefined);
+const mockedRmSync = mock(() => undefined);
+
 mock.module("child_process", () => ({
-  execFileSync: mock(() => undefined),
+  execFileSync: mockedExecFileSync,
 }));
 
 mock.module("fs", () => ({
-  rmSync: mock(() => undefined),
+  rmSync: mockedRmSync,
 }));
 
-// Import after mocking
-import { restoreConfigFromBase } from "../src/github/operations/restore-config";
-
-const mockedExecFileSync = execFileSync as unknown as ReturnType<typeof mock>;
-const mockedRmSync = rmSync as unknown as ReturnType<typeof mock>;
+// Dynamic import after mocking to guarantee bindings point to mocks
+const { restoreConfigFromBase } = await import(
+  "../src/github/operations/restore-config"
+);
 
 describe("restoreConfigFromBase", () => {
   beforeEach(() => {

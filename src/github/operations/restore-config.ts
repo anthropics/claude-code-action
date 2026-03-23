@@ -23,7 +23,7 @@ const GIT_TIMEOUT_MS = 60_000;
 
 // Environment overrides that prevent git from hanging on credential prompts or
 // recursing into submodules. Applied to every git subprocess in this module.
-const SAFE_GIT_ENV: Record<string, string> = {
+const SAFE_GIT_ENV: NodeJS.ProcessEnv = {
   ...process.env,
   // Prevent git from opening an interactive credential prompt (would block the
   // runner forever in a non-interactive CI environment).
@@ -33,7 +33,7 @@ const SAFE_GIT_ENV: Record<string, string> = {
   // can cause git to fetch/update submodules, which may hang indefinitely
   // if the submodule URLs require authentication not available to the runner.
   GIT_SUBMODULE_UPDATE_COMMAND: "true",
-} as Record<string, string>;
+};
 
 /**
  * Restores security-sensitive config paths from the PR base branch.
