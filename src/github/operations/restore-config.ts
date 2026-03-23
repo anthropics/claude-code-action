@@ -17,6 +17,24 @@ const SENSITIVE_PATHS = [
   ".ripgreprc",
 ];
 
+// Timeout for individual git operations (60 seconds). Prevents indefinite hangs
+// when git triggers submodule operations or credential prompts.
+const GIT_TIMEOUT_MS = 60_000;
+
+// Environment overrides that prevent git from hanging on credential prompts or
+// recursing into submodules. Applied to every git subprocess in this module.
+const SAFE_GIT_ENV: Record<string, string> = {
+  ...process.env,
+  // Prevent git from opening an interactive credential prompt (would block the
+  // runner forever in a non-interactive CI environment).
+  GIT_TERMINAL_PROMPT: "0",
+  // Prevent automatic submodule operations that can be triggered when
+  // .gitmodules is checked out. Without this, `git checkout -- .gitmodules`
+  // can cause git to fetch/update submodules, which may hang indefinitely
+  // if the submodule URLs require authentication not available to the runner.
+  GIT_SUBMODULE_UPDATE_COMMAND: "true",
+} as Record<string, string>;
+
 /**
  * Restores security-sensitive config paths from the PR base branch.
  *
@@ -45,10 +63,17 @@ export function restoreConfigFromBase(baseBranch: string): void {
   );
 
   // Fetch base first — if this fails we haven't touched the workspace and the
-  // caller sees a clean error.
-  execFileSync("git", ["fetch", "origin", baseBranch, "--depth=1"], {
-    stdio: "inherit",
-  });
+  // caller sees a clean error. --no-recurse-submodules prevents git from
+  // fetching submodule objects referenced by .gitmodules on the base branch.
+  execFileSync(
+    "git",
+    ["fetch", "origin", baseBranch, "--depth=1", "--no-recurse-submodules"],
+    {
+      stdio: "inherit",
+      timeout: GIT_TIMEOUT_MS,
+      env: SAFE_GIT_ENV,
+    },
+  );
 
   // Delete PR-controlled versions. If the restore below fails for a given path,
   // that path stays deleted — the safe fallback (no attacker-controlled config).
@@ -59,9 +84,15 @@ export function restoreConfigFromBase(baseBranch: string): void {
 
   for (const p of SENSITIVE_PATHS) {
     try {
-      execFileSync("git", ["checkout", `origin/${baseBranch}`, "--", p], {
-        stdio: "pipe",
-      });
+      execFileSync(
+        "git",
+        ["checkout", `origin/${baseBranch}`, "--", p],
+        {
+          stdio: "pipe",
+          timeout: GIT_TIMEOUT_MS,
+          env: SAFE_GIT_ENV,
+        },
+      );
     } catch {
       // Path doesn't exist on base — it stays deleted.
     }
@@ -72,6 +103,8 @@ export function restoreConfigFromBase(baseBranch: string): void {
   try {
     execFileSync("git", ["reset", "--", ...SENSITIVE_PATHS], {
       stdio: "pipe",
+      timeout: GIT_TIMEOUT_MS,
+      env: SAFE_GIT_ENV,
     });
   } catch {
     // Nothing was staged, or paths don't exist on HEAD — either is fine.

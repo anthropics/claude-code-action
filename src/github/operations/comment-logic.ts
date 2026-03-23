@@ -23,13 +23,19 @@ export function ensureProperlyEncodedUrl(url: string): string | null {
     // First, try to parse the URL to see if it's already properly encoded
     new URL(url);
     if (url.includes(" ")) {
-      const [baseUrl, queryString] = url.split("?");
+      const qIndex = url.indexOf("?");
+      const baseUrl = qIndex >= 0 ? url.slice(0, qIndex) : url;
+      const queryString = qIndex >= 0 ? url.slice(qIndex + 1) : "";
       if (queryString) {
         // Parse query parameters and re-encode them properly
         const params = new URLSearchParams();
         const pairs = queryString.split("&");
         for (const pair of pairs) {
-          const [key, value = ""] = pair.split("=");
+          // Split only at the first '=' to preserve '=' in values
+          // e.g. "body=a=b" → key="body", value="a=b"
+          const eqIndex = pair.indexOf("=");
+          const key = eqIndex >= 0 ? pair.slice(0, eqIndex) : pair;
+          const value = eqIndex >= 0 ? pair.slice(eqIndex + 1) : "";
           if (key) {
             // Decode first in case it's partially encoded, then encode properly
             params.set(key, decodeURIComponent(value));

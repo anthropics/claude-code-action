@@ -73,4 +73,36 @@ describe("ensureProperlyEncodedUrl", () => {
     const url = "https://[invalid:url:format]/path";
     expect(ensureProperlyEncodedUrl(url)).toBe(null);
   });
+
+  it("should preserve equals signs in query parameter values", () => {
+    const url =
+      "https://github.com/owner/repo/compare/main...branch?title=fix this&body=data=value";
+    const result = ensureProperlyEncodedUrl(url);
+    expect(result).toContain("body=data%3Dvalue");
+  });
+
+  it("should preserve multiple equals signs in query parameter values", () => {
+    const url =
+      "https://github.com/owner/repo/compare/main...branch?title=fix this&body=base64data==";
+    const result = ensureProperlyEncodedUrl(url);
+    expect(result).toContain("body=base64data%3D%3D");
+  });
+
+  it("should handle query parameter with equals but no spaces (passthrough)", () => {
+    const url =
+      "https://github.com/owner/repo/compare/main...branch?title=test&body=a=b=c";
+    // No spaces in URL, so it should pass through unchanged
+    expect(ensureProperlyEncodedUrl(url)).toBe(url);
+  });
+
+  it("should not split base URL at question marks in query string", () => {
+    const url =
+      "https://github.com/owner/repo/compare/main...branch?title=fix this?&body=test";
+    const result = ensureProperlyEncodedUrl(url);
+    // The base URL should end at the first '?', not split at subsequent ones
+    expect(result).toStartWith(
+      "https://github.com/owner/repo/compare/main...branch?",
+    );
+    expect(result).toContain("title=fix+this%3F");
+  });
 });
