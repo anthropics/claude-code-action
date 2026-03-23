@@ -93,6 +93,24 @@ export function redactGitHubTokens(content: string): string {
     "[REDACTED_GITHUB_TOKEN]",
   );
 
+  // GitHub user-to-server tokens: ghu_XXXX (variable length, 36+ chars)
+  content = content.replace(
+    /\bghu_[A-Za-z0-9]{36,255}\b/g,
+    "[REDACTED_GITHUB_TOKEN]",
+  );
+
+  // GitHub Actions tokens: base64url format starting with "v1." (typically 40-80 chars)
+  content = content.replace(
+    /\bv1\.[A-Fa-f0-9]{38,}\b/g,
+    "[REDACTED_GITHUB_TOKEN]",
+  );
+
+  // Anthropic API keys: sk-ant-apiXX-XXXX (variable length)
+  content = content.replace(
+    /\bsk-ant-api[A-Za-z0-9-]{20,}\b/g,
+    "[REDACTED_API_KEY]",
+  );
+
   return content;
 }
 
