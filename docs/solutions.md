@@ -585,7 +585,9 @@ prompt: |
 ### Common Tool Permissions
 
 - **PR Comments**: `Bash(gh pr comment:*)`
-- **Inline Comments**: `mcp__github_inline_comment__create_inline_comment` — pass `confirmed: true` to post immediately. When omitted, the comment is buffered and classified after the session ends (real review comments post, test/probe comments are filtered). This prevents subagent test comments from reaching PRs. To disable classification entirely, set `classify_inline_comments: 'false'` on the action.
+- **Inline Comments**:
+  - `mcp__github_inline_comment__create_inline_comment` — pass `confirmed: true` to post immediately. When omitted, the comment is buffered and classified after the session ends (real review comments post, test/probe comments are filtered). This prevents subagent test comments from reaching PRs. To disable classification entirely, set `classify_inline_comments: 'false'` on the action.
+  - `mcp__github_inline_comment__list_inline_comments` — list inline (review) comments on the current PR. Optionally filter by `user_login` (e.g. `claude[bot]`) and use `limit` to cap results (e.g. `limit: 1` to check if any matching comments exist).
 - **File Operations**: `Read,Write,Edit`
 - **Git Operations**: `Bash(git:*)`
 
