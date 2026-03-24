@@ -422,4 +422,59 @@ describe("parseSdkOptions", () => {
       }
     });
   });
+
+  describe("settingSources", () => {
+    test("should default to ['user'] when not specified", () => {
+      const options: ClaudeOptions = {};
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual(["user"]);
+    });
+
+    test("should use direct settingSources input when provided", () => {
+      const options: ClaudeOptions = {
+        settingSources: "user,project,local",
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual([
+        "user",
+        "project",
+        "local",
+      ]);
+    });
+
+    test("should use --setting-sources from claudeArgs when no direct input", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--setting-sources user,project",
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual(["user", "project"]);
+      expect(result.sdkOptions.extraArgs?.["setting-sources"]).toBeUndefined();
+    });
+
+    test("direct input should take precedence over claudeArgs", () => {
+      const options: ClaudeOptions = {
+        settingSources: "user",
+        claudeArgs: "--setting-sources user,project,local",
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual(["user"]);
+    });
+
+    test("should trim whitespace in comma-separated values", () => {
+      const options: ClaudeOptions = {
+        settingSources: "user, project , local",
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual([
+        "user",
+        "project",
+        "local",
+      ]);
+    });
+  });
 });
