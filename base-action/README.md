@@ -94,6 +94,7 @@ Add the following to your workflow file:
 | `max_turns`               | Maximum number of conversation turns (default: no limit)                                                                | No       | ''                           |
 | `mcp_config`              | Path to the MCP configuration JSON file, or MCP configuration JSON string                                               | No       | ''                           |
 | `settings`                | Path to Claude Code settings JSON file, or settings JSON string                                                         | No       | ''                           |
+| `setting_sources`         | Comma-separated setting sources to load (`user`, `project`, `local`). Project/local merge permissions additively.       | No       | 'user'                       |
 | `system_prompt`           | Override system prompt                                                                                                  | No       | ''                           |
 | `append_system_prompt`    | Append to system prompt                                                                                                 | No       | ''                           |
 | `claude_env`              | Custom environment variables to pass to Claude Code execution (YAML multiline format)                                   | No       | ''                           |
