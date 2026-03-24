@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quota Exhausted - PagePulse</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: #0a0a0f;
+      font-family:
+        -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto,
+        sans-serif;
+    "
+  >
+    <table
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      role="presentation"
+      style="background-color: #0a0a0f"
+    >
+      <tr>
+        <td align="center" style="padding: 40px 20px">
+          <table
+            width="600"
+            cellpadding="0"
+            cellspacing="0"
+            role="presentation"
+            style="
+              background-color: #111118;
+              border-radius: 12px;
+              border: 1px solid #1f1f2e;
+            "
+          >
+            <tr>
+              <td style="padding: 40px">
+                <h1
+                  style="
+                    margin: 0 0 8px;
+                    font-size: 24px;
+                    font-weight: 700;
+                    color: #ffffff;
+                  "
+                >
+                  Monthly Quota Reached
+                </h1>
+                <p
+                  style="
+                    margin: 0 0 24px;
+                    font-size: 16px;
+                    color: #9ca3af;
+                    line-height: 1.6;
+                  "
+                >
+                  Hi {{name}},
+                </p>
+                <p
+                  style="
+                    margin: 0 0 24px;
+                    font-size: 16px;
+                    color: #9ca3af;
+                    line-height: 1.6;
+                  "
+                >
+                  You've used all
+                  <strong style="color: #ef4444">{{limit}} of {{limit}}</strong>
+                  analyses included in your {{plan}} plan this month.
+                </p>
+                <table
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  role="presentation"
+                  style="margin-bottom: 24px"
+                >
+                  <tr>
+                    <td
+                      style="
+                        background-color: #1a1a2e;
+                        border-radius: 8px;
+                        padding: 4px;
+                      "
+                    >
+                      <table
+                        width="100%"
+                        cellpadding="0"
+                        cellspacing="0"
+                        role="presentation"
+                      >
+                        <tr>
+                          <td
+                            style="
+                              background-color: #ef4444;
+                              border-radius: 6px;
+                              height: 12px;
+                            "
+                          ></td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+                <p
+                  style="
+                    margin: 0 0 8px;
+                    font-size: 14px;
+                    color: #9ca3af;
+                    line-height: 1.6;
+                  "
+                >
+                  Your quota resets on
+                  <strong style="color: #ffffff">{{reset_date}}</strong>. Until
+                  then, you won't be able to run new analyses.
+                </p>
+                <p
+                  style="
+                    margin: 0 0 24px;
+                    font-size: 14px;
+                    color: #9ca3af;
+                    line-height: 1.6;
+                  "
+                >
+                  Upgrade to Pro to get 1,000 analyses per month and unlock API
+                  access, custom reports, and priority support.
+                </p>
+                <a
+                  href="{{upgrade_url}}"
+                  style="
+                    display: inline-block;
+                    padding: 12px 24px;
+                    background-color: #6366f1;
+                    color: #ffffff;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-weight: 600;
+                  "
+                  >Upgrade to Pro — $29/mo</a
+                >
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 24px 40px; border-top: 1px solid #1f1f2e">
+                <p
+                  style="
+                    margin: 0;
+                    font-size: 12px;
+                    color: #6b7280;
+                    line-height: 1.6;
+                    text-align: center;
+                  "
+                >
+                  NorwegianSpark SA | Org. 834 984 172 |
+                  norwegianspark@gmail.com | +47 99 73 74 67
+                </p>
+                <p
+                  style="
+                    margin: 8px 0 0;
+                    font-size: 12px;
+                    color: #6b7280;
+                    text-align: center;
+                  "
+                >
+                  <a
+                    href="{{unsubscribe_url}}"
+                    style="color: #6b7280; text-decoration: underline"
+                    >Unsubscribe</a
+                  >
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
