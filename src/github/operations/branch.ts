@@ -28,7 +28,7 @@ function extractFirstLabel(githubData: FetchDataResult): string | undefined {
  *
  * Valid branch names:
  * - Start with alphanumeric character (not dash, to prevent option injection)
- * - Contain only alphanumeric, forward slash, hyphen, underscore, or period
+ * - Contain only alphanumeric, forward slash, hyphen, underscore, period, @, or plus
  * - Do not start or end with a period
  * - Do not end with a slash
  * - Do not contain '..' (path traversal)
@@ -59,14 +59,14 @@ export function validateBranchName(branchName: string): void {
   }
 
   // Strict whitelist pattern: alphanumeric or Unicode letter start, then those plus
-  // slash/hyphen/underscore/period/@. The `@` is valid in git branch names; only `@{`
-  // is reserved (checked separately below). Unicode letters (\p{L}) support non-ASCII
-  // branch names (e.g. Japanese, Chinese characters).
-  const validPattern = /^[\p{L}\p{N}][\p{L}\p{N}/_.\-@]*$/u;
+  // slash/hyphen/underscore/period/@/+. `@` and `+` are valid in git branch names;
+  // only `@{` is reserved (checked separately below). Unicode letters (\p{L}) support
+  // non-ASCII branch names (e.g. Japanese, Chinese characters).
+  const validPattern = /^[\p{L}\p{N}][\p{L}\p{N}/_.\-@+]*$/u;
 
   if (!validPattern.test(branchName)) {
     throw new Error(
-      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric or Unicode letter character and contain only alphanumeric characters, Unicode letters, forward slashes, hyphens, underscores, periods, or @.`,
+      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric or Unicode letter character and contain only alphanumeric characters, Unicode letters, forward slashes, hyphens, underscores, periods, @, or +.`,
     );
   }
 
