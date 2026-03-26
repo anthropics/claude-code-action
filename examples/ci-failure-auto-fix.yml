@@ -35,10 +35,14 @@ jobs:
 
       - name: Create fix branch
         id: branch
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_ID: ${{ github.run_id }}
         run: |
-          BRANCH_NAME="claude-auto-fix-ci-${{ github.event.workflow_run.head_branch }}-${{ github.run_id }}"
+          SAFE_BRANCH=$(printf '%s' "$HEAD_BRANCH" | tr -cd 'a-zA-Z0-9/_.-')
+          BRANCH_NAME="claude-auto-fix-ci-${SAFE_BRANCH}-${RUN_ID}"
           git checkout -b "$BRANCH_NAME"
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Get CI failure details
         id: failure_details
