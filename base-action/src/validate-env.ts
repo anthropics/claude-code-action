@@ -36,13 +36,40 @@ export function validateEnvironmentVariables() {
       errors.push("AWS_REGION is required when using AWS Bedrock.");
     }
 
-    // Either bearer token OR access key credentials must be provided
+    // IRSA (IAM Roles for Service Accounts) — requires both vars together
+    const awsWebIdentityTokenFile = process.env.AWS_WEB_IDENTITY_TOKEN_FILE;
+    const awsRoleArn = process.env.AWS_ROLE_ARN;
+
+    // EKS Pod Identity — requires both vars together
+    const awsContainerCredentialsFullUri = process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI;
+    const awsContainerAuthorizationTokenFile = process.env.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE;
+
     const hasAccessKeyCredentials = awsAccessKeyId && awsSecretAccessKey;
     const hasBearerToken = awsBearerToken;
+    const hasIRSA = !!(awsWebIdentityTokenFile && awsRoleArn);
+    const hasPodIdentity = !!(awsContainerCredentialsFullUri && awsContainerAuthorizationTokenFile);
 
-    if (!hasAccessKeyCredentials && !hasBearerToken) {
+    // Warn on incomplete IRSA configuration
+    if (!!(awsWebIdentityTokenFile || awsRoleArn) && !hasIRSA) {
       errors.push(
-        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+        "Incomplete IRSA configuration: both AWS_WEB_IDENTITY_TOKEN_FILE and AWS_ROLE_ARN must be set together.",
+      );
+    }
+
+    // Warn on incomplete EKS Pod Identity configuration
+    if (!!(awsContainerCredentialsFullUri || awsContainerAuthorizationTokenFile) && !hasPodIdentity) {
+      errors.push(
+        "Incomplete EKS Pod Identity configuration: both AWS_CONTAINER_CREDENTIALS_FULL_URI and AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE must be set together.",
+      );
+    }
+
+    if (!hasAccessKeyCredentials && !hasBearerToken && !hasIRSA && !hasPodIdentity) {
+      errors.push(
+        "No valid AWS credentials found for Bedrock. Please provide one of the following:\n" +
+        "  1. Static credentials:   AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY\n" +
+        "  2. Bedrock bearer token: AWS_BEARER_TOKEN_BEDROCK\n" +
+        "  3. IRSA:                 AWS_WEB_IDENTITY_TOKEN_FILE + AWS_ROLE_ARN\n" +
+        "  4. EKS Pod Identity:     AWS_CONTAINER_CREDENTIALS_FULL_URI + AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE",
       );
     }
   } else if (useVertex) {
