@@ -1,4 +1,6 @@
 .DS_Store
 node_modules
+.next
+package-lock.json
 
 **/.claude/settings.local.json

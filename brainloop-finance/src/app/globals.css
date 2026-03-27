@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0a0a1a;
+  --bg-card: #12122a;
+  --bg-card-hover: #1a1a3a;
+  --border-color: #1e1e3a;
+  --accent-orange: #f97316;
+  --accent-amber: #f59e0b;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+body {
+  background-image: radial-gradient(
+      ellipse at 20% 50%,
+      rgba(249, 115, 22, 0.04) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 80% 20%,
+      rgba(245, 158, 11, 0.03) 0%,
+      transparent 50%
+    );
+}
+
+.glass-card {
+  background: rgba(18, 18, 42, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(30, 30, 58, 0.8);
+  border-radius: 1rem;
+}
+
+.glass-card-hover:hover {
+  background: rgba(26, 26, 58, 0.8);
+  border-color: rgba(249, 115, 22, 0.3);
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-orange);
+}
