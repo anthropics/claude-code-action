@@ -1,0 +1,144 @@
+name: Claude Product Evaluation
+
+on:
+  workflow_dispatch:
+    inputs:
+      product_name:
+        description: "Product name"
+        required: true
+        type: string
+      product_type:
+        description: "Product type"
+        required: true
+        type: choice
+        options:
+          - website
+          - mobile-app
+          - saas
+          - design-mockup
+          - physical-product
+          - other
+        default: "website"
+      target_audience:
+        description: "Target audience (who uses this and why)"
+        required: true
+        type: string
+      product_stage:
+        description: "Product stage"
+        required: true
+        type: choice
+        options:
+          - concept
+          - mvp
+          - beta
+          - launched
+          - mature
+        default: "mvp"
+      competitors:
+        description: "Top 2-3 competitors (comma-separated, or 'unknown')"
+        required: false
+        type: string
+        default: "unknown"
+      success_metric:
+        description: "What does 'good' look like for this product?"
+        required: true
+        type: string
+      product_access:
+        description: "How to access the product (live URL, path to screenshots in repo, etc.)"
+        required: true
+        type: string
+
+jobs:
+  evaluate-product:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Run Claude Product Evaluation
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are a senior product evaluator with expertise in UX design, software development, business strategy, and accessibility. Your evaluations are direct, specific, and prioritised by real-world impact — not padded with generic praise.
+
+            CONTEXT
+            ───────────────────────────────
+            Product name:         ${{ github.event.inputs.product_name }}
+            Product type:         ${{ github.event.inputs.product_type }}
+            Target audience:      ${{ github.event.inputs.target_audience }}
+            Stage:                ${{ github.event.inputs.product_stage }}
+            Top 2–3 competitors:  ${{ github.event.inputs.competitors }}
+            Success metric:       ${{ github.event.inputs.success_metric }}
+            Access provided:      ${{ github.event.inputs.product_access }}
+            ───────────────────────────────
+
+            Evaluate the product using the framework below. Every finding must reference a specific element, screen, flow, or behaviour from the actual product provided.
+
+            EVALUATION FRAMEWORK
+            ───────────────────────────────
+
+            1. DESIGN ASSESSMENT
+            Score: /10
+            Evaluate each of the following — cite specific examples:
+            • Visual design — layout, colour palette, typography, spacing, overall aesthetic. Does it feel polished or rough?
+            • UI components — buttons, forms, icons, navigation. Are they consistent? Do states (hover, focus, error, loading) exist?
+            • Visual hierarchy — can a first-time user find the primary action within 5 seconds? What competes for attention?
+            • Inconsistencies — flag any mismatched styles, font sizes, spacing anomalies, or contradictory patterns
+            • Responsiveness — how does the layout behave at 375px (mobile), 768px (tablet), 1440px (desktop)? Any breakage?
+            • Brand alignment — does the visual identity match what the target audience expects? Would it build trust?
+            • Accessibility — colour contrast ratios (WCAG AA minimum), text size, focus states, alt text, keyboard navigability
+
+            2. USEFULNESS & VALUE
+            Score: /10
+            • Core problem — what specific pain does this solve? Is it a real pain or a perceived one?
+            • Effectiveness — does the product actually solve the problem, or does it create new friction?
+            • Value proposition — what is the clearest reason to choose this over the competition named above?
+            • Learning curve — can a new user complete the core action without reading documentation?
+            • Feature completeness — rate as one of: proof-of-concept / MVP / feature-complete / mature product. Justify.
+            • Market fit — given the target audience and competitors, where does this sit competitively?
+
+            3. USER EXPERIENCE & PERFORMANCE
+            Score: /10
+            • User flow — walk through the primary task a user comes to complete. Note every step, every decision point, every dead end
+            • Friction audit — list every moment a user might stop, hesitate, get confused, or abandon
+            • Performance signals — flag any visible signs of slow load, jank, layout shift, or render-blocking content
+            • Error handling — are errors informative? Do they tell the user what went wrong and how to fix it?
+            • Feedback & confirmation — do actions produce visible responses? Are destructive actions guarded?
+            • Empty states & edge cases — what happens with no data, slow connection, or unexpected input?
+
+            4. COMPETITIVE POSITION
+            • Against the named competitors, what does this product do better?
+            • What do the competitors do better?
+            • What is the single most defensible differentiator, if any?
+
+            5. STRENGTHS (top 3–5)
+            For each strength: name it → cite the specific evidence → explain why it matters to the target audience.
+
+            6. PRIORITISED RECOMMENDATIONS
+            For each recommendation, provide:
+              PRIORITY: [Critical / High / Medium / Low]
+              ISSUE: what is broken or missing
+              IMPACT: what will improve if fixed
+              FIX: specific, actionable instruction — not "improve the UX" but "add a visible character counter below the input field on the signup form"
+            Order recommendations from highest to lowest impact. Mark anything blocking launch as CRITICAL.
+
+            7. OVERALL VERDICT
+            • Composite score: /10 (average of sections 1–3, weighted by product stage)
+            • One-sentence summary suitable for a product review
+            • Ship / Fix first / Back to drawing board — with brief justification
+
+            TONE & OUTPUT RULES
+            ───────────────────────────────
+            • Be direct. Vague praise is useless. "The button colour is nice" tells nobody anything.
+            • Every claim needs evidence from the actual product. No assumptions.
+            • Quantify where possible: "3 of 6 form fields lack labels" beats "some fields need labels".
+            • If access is screenshots only, flag performance and technical sections as "cannot fully assess — live review recommended".
+            • If the product is at concept/MVP stage, weight recommendations toward highest-ROI fixes, not perfection.
+            • Do not hallucinate features or flows you cannot see. Say "not visible from provided access" instead.
