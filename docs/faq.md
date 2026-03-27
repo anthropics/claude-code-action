@@ -205,6 +205,32 @@ However, tools from these servers still need to be explicitly allowed via `claud
 
 ## Troubleshooting
 
+### How do I fix Bun installation issues on GitHub Enterprise Server (GHES)?
+
+The `setup-bun` action requires authenticated access to github.com to avoid rate limits when fetching Bun releases. 
+On GHES, we recommend installing Bun externally and providing the path to the executable:
+
+```yaml
+steps:
+  # Install Bun using the official installer
+  - name: Install Bun
+    run: |
+      curl -fsSL https://bun.sh/install | bash
+      echo "$HOME/.bun/bin" >> $GITHUB_PATH
+  # ... or with setup-bun and a github.com token
+  - name: Install Bun
+    uses: oven-sh/setup-bun@v2
+    with:
+      bun-version: 1.3.6
+      token: # PAT with public_repo scope for github.com
+
+  # Use the action with custom Bun path
+  - uses: anthropics/claude-code-action@v1
+    with:
+      path_to_bun_executable: "$HOME/.bun/bin/bun"
+      # ... other inputs
+```
+
 ### How can I debug what Claude is doing?
 
 Check the GitHub Action log for Claude's run for the full execution trace.
