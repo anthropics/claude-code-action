@@ -367,4 +367,51 @@ describe("parseSdkOptions", () => {
       );
     });
   });
+
+  describe("comment handling (issue #802)", () => {
+    test("should ignore shell-style comment lines in claudeArgs", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: [
+          "--allowed-tools 'mcp__github__create_comment'",
+          "# This is a comment",
+          "--max-turns 5",
+        ].join("\n"),
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toContain(
+        "mcp__github__create_comment",
+      );
+      expect(result.sdkOptions.extraArgs?.["max-turns"]).toBe("5");
+    });
+
+    test("should handle multiple comment lines interspersed with flags", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: [
+          "# Enable specific tools",
+          "--allowed-tools 'Bash,Read'",
+          "# Set max turns",
+          "--max-turns 5",
+        ].join("\n"),
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual(["Bash", "Read"]);
+      expect(result.sdkOptions.extraArgs?.["max-turns"]).toBe("5");
+    });
+
+    test("should not lose flags when comment is between them", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: [
+          "--disallowed-tools 'WebSearch'",
+          "# middle comment",
+          "--max-turns 3",
+        ].join("\n"),
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.disallowedTools).toEqual(["WebSearch"]);
+      expect(result.sdkOptions.extraArgs?.["max-turns"]).toBe("3");
+    });
+  });
 });

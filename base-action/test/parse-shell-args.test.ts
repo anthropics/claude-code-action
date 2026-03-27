@@ -58,6 +58,18 @@ describe("shell-quote parseShellArgs", () => {
     ]);
   });
 
+  test("documents that shell-quote treats # as comment (issue #802)", () => {
+    // shell-quote treats '#' as a shell comment, dropping all subsequent content.
+    // This documents the raw behavior — the actual fix is in parseClaudeArgsToExtraArgs
+    // which strips comment lines before passing to shell-quote.
+    const input = "--model claude-haiku-4-5\n# comment\n--allowed-tools tool1";
+    const result = parseShellArgs(input).filter(
+      (arg): arg is string => typeof arg === "string",
+    );
+    // shell-quote drops everything from '#' onward, so --allowed-tools is lost
+    expect(result).toEqual(["--model", "claude-haiku-4-5"]);
+  });
+
   test("should filter out non-string results", () => {
     // shell-quote can return objects for operators like | > < etc
     const result = parseShellArgs("echo hello");
