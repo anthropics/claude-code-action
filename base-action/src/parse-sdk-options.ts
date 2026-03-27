@@ -92,9 +92,17 @@ function parseClaudeArgsToExtraArgs(
   if (!claudeArgs?.trim()) return {};
 
   const result: Record<string, string | null> = {};
-  const args = parseShellArgs(claudeArgs).filter(
-    (arg): arg is string => typeof arg === "string",
-  );
+  const args = parseShellArgs(claudeArgs)
+    .map((arg) => {
+      if (typeof arg === "string") return arg;
+      // shell-quote treats # as a comment and returns {comment: "..."} objects.
+      // Convert these back to strings since # is valid in flag values.
+      if (typeof arg === "object" && arg !== null && "comment" in arg) {
+        return `#${(arg as { comment: string }).comment}`;
+      }
+      return undefined;
+    })
+    .filter((arg): arg is string => arg !== undefined);
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
