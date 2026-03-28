@@ -1,0 +1,43 @@
+name: Claude Agent
+
+# Agent mode: Run Claude with a custom prompt via workflow_dispatch
+# Trigger manually from the GitHub Actions UI or via API
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: "The task for Claude to perform"
+        required: true
+        type: string
+      branch:
+        description: "Branch to run on (default: main)"
+        required: false
+        default: "main"
+        type: string
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 1
+
+      - name: Run Claude Agent
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: ${{ inputs.prompt }}
+
+          # Optional: Configure allowed tools for the agent
+          # claude_args: |
+          #   --allowedTools "Bash(npm install),Bash(npm run build),Bash(npm run test:*)"
