@@ -42,13 +42,41 @@ export async function configureGitAuth(
   await $`git config user.email "${botId}+${botName}@${noreplyDomain}"`;
   console.log(`✓ Set git user as ${botName}`);
 
-  // Remove the authorization header that actions/checkout sets
+  // Remove the authorization header that actions/checkout sets.
+  // checkout@v4 sets the extraheader directly in local git config.
+  // checkout@v6 writes it to a separate file included via includeIf.gitdir.
+  // We need to handle both styles.
   console.log("Removing existing git authentication headers...");
   try {
     await $`git config --unset-all http.${GITHUB_SERVER_URL}/.extraheader`;
-    console.log("✓ Removed existing authentication headers");
+    console.log("✓ Removed existing authentication headers from local config");
   } catch (e) {
-    console.log("No existing authentication headers to remove");
+    console.log("No existing authentication headers in local config");
+  }
+
+  // Remove includeIf.gitdir entries that point to credential config files
+  // (actions/checkout@v6+ stores credentials this way)
+  try {
+    const includeIfResult =
+      await $`git config --local --get-regexp ^includeIf\\.gitdir:`.nothrow().quiet();
+    if (includeIfResult.exitCode === 0) {
+      const lines = includeIfResult.text().trim().split("\n");
+      for (const line of lines) {
+        const [key, configPath] = line.split(" ", 2);
+        if (key && configPath) {
+          await $`git config --local --unset ${key}`.nothrow().quiet();
+          try {
+            await rm(configPath);
+            console.log(`✓ Removed credential config file: ${configPath}`);
+          } catch {
+            // File may not exist or may already be cleaned up
+          }
+        }
+      }
+      console.log("✓ Removed includeIf credential entries");
+    }
+  } catch {
+    // No includeIf entries to remove
   }
 
   // Update the remote URL to include the token for authentication
