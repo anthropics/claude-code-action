@@ -6,6 +6,8 @@ import {
   stripHiddenAttributes,
   normalizeHtmlEntities,
   sanitizeContent,
+  sanitizeOutputContent,
+  unescapeHtmlCommentMarkers,
   stripHtmlComments,
   redactGitHubTokens,
 } from "../src/github/utils/sanitizer";
@@ -343,6 +345,105 @@ describe("sanitizeContent with token redaction", () => {
     expect(sanitized).not.toContain("\u200B");
     expect(sanitized).toContain("[REDACTED_GITHUB_TOKEN]");
     expect(sanitized).toContain("Here's some text with a token:");
+  });
+});
+
+describe("unescapeHtmlCommentMarkers", () => {
+  it("should unescape <\\!-- to <!-- when properly closed", () => {
+    expect(unescapeHtmlCommentMarkers("<\\!-- marker -->")).toBe(
+      "<!-- marker -->",
+    );
+  });
+
+  it("should handle multiple escaped HTML comments", () => {
+    expect(unescapeHtmlCommentMarkers("<\\!-- a -->\n<\\!-- b -->")).toBe(
+      "<!-- a -->\n<!-- b -->",
+    );
+  });
+
+  it("should handle adjacent comments with no whitespace", () => {
+    expect(unescapeHtmlCommentMarkers("<\\!-- a --><\\!-- b -->")).toBe(
+      "<!-- a --><!-- b -->",
+    );
+  });
+
+  it("should handle multiline HTML comments", () => {
+    expect(unescapeHtmlCommentMarkers("<\\!--\nmultiline\n-->")).toBe(
+      "<!--\nmultiline\n-->",
+    );
+  });
+
+  it("should NOT unescape unclosed <\\!-- (no matching -->)", () => {
+    expect(unescapeHtmlCommentMarkers("<\\!-- never closed")).toBe(
+      "<\\!-- never closed",
+    );
+  });
+
+  it("should NOT unescape \\! outside HTML comment context", () => {
+    expect(unescapeHtmlCommentMarkers("Hello\\! World\\!")).toBe(
+      "Hello\\! World\\!",
+    );
+    expect(unescapeHtmlCommentMarkers("echo \\!important")).toBe(
+      "echo \\!important",
+    );
+  });
+
+  it("should preserve text without escaped markers", () => {
+    expect(unescapeHtmlCommentMarkers("<!-- already fine -->")).toBe(
+      "<!-- already fine -->",
+    );
+    expect(unescapeHtmlCommentMarkers("No comments here")).toBe(
+      "No comments here",
+    );
+  });
+});
+
+describe("sanitizeOutputContent", () => {
+  it("should preserve HTML comments in output", () => {
+    const body = "<!-- claude-code-review -->\n## Review\nLooks good!";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toContain("<!-- claude-code-review -->");
+  });
+
+  it("should unescape \\! in HTML comments", () => {
+    const body = "<\\!-- claude-code-review -->\n## Review\nLooks good!";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toContain("<!-- claude-code-review -->");
+    expect(sanitized).not.toContain("<\\!--");
+  });
+
+  it("should still redact GitHub tokens in output", () => {
+    const body =
+      "Token: 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 should be redacted";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toContain("[REDACTED_GITHUB_TOKEN]");
+    expect(sanitized).not.toContain("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");
+  });
+
+  it("should still strip invisible characters in output", () => {
+    const body = "Text with\u200Bhidden chars";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toBe("Text withhidden chars");
+  });
+
+  it("should not strip markdown image alt text in output", () => {
+    const body = "![example alt text](image.png)";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toContain("example alt text");
+  });
+
+  it("should not unescape unclosed <\\!-- to prevent eating page content", () => {
+    const body = "<\\!-- never closed\nVisible text should stay visible.";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toContain("<\\!--");
+    expect(sanitized).toContain("Visible text should stay visible.");
+  });
+
+  it("should not unescape \\! inside code blocks", () => {
+    const body = "```bash\necho \\!important\nhistory \\!42\n```";
+    const sanitized = sanitizeOutputContent(body);
+    expect(sanitized).toContain("\\!important");
+    expect(sanitized).toContain("\\!42");
   });
 });
 
