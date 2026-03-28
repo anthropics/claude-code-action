@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "fs/promises";
+import * as github from "@actions/github";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { parseAllowedTools } from "./parse-tools";
 import {
@@ -85,15 +86,18 @@ export async function prepareAgentMode({
 
   // Check for branch info from environment variables (useful for auto-fix workflows)
   const claudeBranch = process.env.CLAUDE_BRANCH || undefined;
+  const repoDefaultBranch =
+    (github.context.payload.repository as { default_branch?: string })
+      ?.default_branch || "main";
   const baseBranch =
-    process.env.BASE_BRANCH || context.inputs.baseBranch || "main";
+    process.env.BASE_BRANCH || context.inputs.baseBranch || repoDefaultBranch;
 
   // Detect current branch from GitHub environment
   const currentBranch =
     claudeBranch ||
     process.env.GITHUB_HEAD_REF ||
     process.env.GITHUB_REF_NAME ||
-    "main";
+    repoDefaultBranch;
 
   // Get our GitHub MCP servers config
   const ourMcpConfig = await prepareMcpConfig({
