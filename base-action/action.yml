@@ -18,6 +18,10 @@ inputs:
     description: "Claude Code settings as JSON string or path to settings JSON file"
     required: false
     default: ""
+  setting_sources:
+    description: "Comma-separated list of setting sources to load (user, project, local). Defaults to 'user' only. Project/local settings additively merge permissions with allowed_tools — set to 'user,project,local' to opt in."
+    required: false
+    default: ""
 
   # Action settings
   claude_args:
@@ -165,6 +169,7 @@ runs:
         INPUT_PROMPT: ${{ inputs.prompt }}
         INPUT_PROMPT_FILE: ${{ inputs.prompt_file }}
         INPUT_SETTINGS: ${{ inputs.settings }}
+        INPUT_SETTING_SOURCES: ${{ inputs.setting_sources }}
         INPUT_CLAUDE_ARGS: ${{ inputs.claude_args }}
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
