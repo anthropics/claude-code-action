@@ -171,6 +171,20 @@ export async function runClaudeWithSdk(
       }
     }
   } catch (error) {
+    const errorStr = String(error);
+    if (
+      errorStr.toLowerCase().includes("credit balance is too low") ||
+      errorStr.toLowerCase().includes("credit balance")
+    ) {
+      throw new Error(
+        `Authentication error: Your API key does not have access to Claude Code.\n\n` +
+          `This usually happens when using an API key from platform.anthropic.com without a Claude Code subscription.\n\n` +
+          `To fix this, use a Claude Code OAuth token instead:\n` +
+          `  - Set the 'claude_code_oauth_token' input in your workflow instead of 'anthropic_api_key'\n` +
+          `  - See the authentication docs: https://github.com/anthropics/claude-code-action#authentication\n\n` +
+          `Note: Billing on platform.anthropic.com (API credits) is separate from claude.ai subscriptions (which include Claude Code access).`,
+      );
+    }
     console.error("SDK execution error:", error);
     throw new Error(`SDK execution error: ${error}`);
   }
@@ -228,16 +242,26 @@ export async function runClaudeWithSdk(
   }
 
   if (!isSuccess) {
-    if ("errors" in resultMessage && resultMessage.errors) {
-      core.error(`Execution failed: ${resultMessage.errors.join(", ")}`);
+    const errorDetails =
+      "errors" in resultMessage && resultMessage.errors
+        ? resultMessage.errors.join(", ")
+        : "unknown error";
+
+    if (errorDetails.toLowerCase().includes("credit balance is too low")) {
+      throw new Error(
+        `Authentication error: Your API key does not have access to Claude Code.\n\n` +
+          `This usually happens when using an API key from platform.anthropic.com without a Claude Code subscription.\n\n` +
+          `To fix this, use a Claude Code OAuth token instead:\n` +
+          `  - Set the 'claude_code_oauth_token' input in your workflow instead of 'anthropic_api_key'\n` +
+          `  - See the authentication docs: https://github.com/anthropics/claude-code-action#authentication\n\n` +
+          `Note: Billing on platform.anthropic.com (API credits) is separate from claude.ai subscriptions (which include Claude Code access).`,
+      );
     }
-    throw new Error(
-      `Claude execution failed: ${
-        "errors" in resultMessage && resultMessage.errors
-          ? resultMessage.errors.join(", ")
-          : "unknown error"
-      }`,
-    );
+
+    if ("errors" in resultMessage && resultMessage.errors) {
+      core.error(`Execution failed: ${errorDetails}`);
+    }
+    throw new Error(`Claude execution failed: ${errorDetails}`);
   }
 
   return result;
