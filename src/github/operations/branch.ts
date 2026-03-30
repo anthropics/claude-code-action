@@ -239,8 +239,22 @@ export async function setupBranch(
     try {
       await $`git ls-remote --exit-code origin refs/heads/${newBranch}`.quiet();
       branchAlreadyExists = true;
-    } catch {
-      // Branch doesn't exist (non-zero exit code), continue with generated name
+    } catch (error) {
+      // Distinguish between "no matching refs" (expected) and real errors
+      const exitCode =
+        error && typeof error === "object" && "exitCode" in error
+          ? (error as { exitCode?: number }).exitCode
+          : undefined;
+
+      // For git ls-remote with --exit-code, exit code 2 means "no matching refs"
+      if (exitCode !== 2) {
+        console.error(
+          "git ls-remote failed while checking remote branch existence:",
+          error,
+        );
+        throw error;
+      }
+      // exitCode === 2: branch doesn't exist, continue with generated name
     }
 
     if (branchAlreadyExists) {
