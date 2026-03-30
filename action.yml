@@ -195,6 +195,26 @@ runs:
         cd ${GITHUB_ACTION_PATH}
         bun install --production
 
+    - name: Install subprocess isolation dependencies
+      # Install subprocess isolation dependencies when processing content from non-write users.
+      # Best-effort: skips on non-Linux or when sudo/apt unavailable (self-hosted runners).
+      if: ${{ inputs.allowed_non_write_users != '' && env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB != '0' && runner.os == 'Linux' }}
+      continue-on-error: true
+      shell: bash
+      run: |
+        if command -v apt-get >/dev/null && command -v sudo >/dev/null; then
+          for i in 1 2 3; do
+            sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat && break
+            echo "apt-get attempt $i failed, retrying..."
+            sleep 5
+          done
+        fi
+        # Ubuntu 24.04+ restricts unprivileged user namespaces via AppArmor.
+        # The sysctl doesn't exist on older kernels — that's fine.
+        if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ] && command -v sudo >/dev/null; then
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        fi
+
     - name: Run Claude Code Action
       id: run
       shell: bash
@@ -214,6 +234,7 @@ runs:
         ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
         CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB || (inputs.allowed_non_write_users != '' && '1') || '' }}
+        CLAUDE_CODE_SCRIPT_CAPS: ${{ env.CLAUDE_CODE_SCRIPT_CAPS || '' }}
         INCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.include_comments_by_actor }}
         EXCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.exclude_comments_by_actor }}
         GITHUB_RUN_ID: ${{ github.run_id }}
