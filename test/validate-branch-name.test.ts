@@ -199,3 +199,21 @@ describe("validateBranchName", () => {
     });
   });
 });
+
+// BUG-001 regression: setupBranch() used to call process.exit(1) on errors,
+// bypassing the finally block in run.ts. validateBranchName() is the gate that
+// throws (instead of exiting) when a branch name is invalid.
+describe("BUG-001: validateBranchName throws instead of exiting process", () => {
+  it("throws an Error for invalid names so callers can catch and propagate", () => {
+    // Verify the function throws a catchable Error, not a process exit
+    expect(() => validateBranchName("")).toThrow(Error);
+    expect(() => validateBranchName("bad branch!")).toThrow(Error);
+    expect(() => validateBranchName("-leading-dash")).toThrow(Error);
+  });
+
+  it("error message is descriptive", () => {
+    expect(() => validateBranchName("")).toThrow(/cannot be empty/);
+    expect(() => validateBranchName("-x")).toThrow(/cannot start with a dash/);
+    expect(() => validateBranchName("a..b")).toThrow(/\.\./);
+  });
+});

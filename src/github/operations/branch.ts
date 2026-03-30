@@ -231,10 +231,19 @@ export async function setupBranch(
       title,
     );
 
+    // Validate the generated branch name before any shell use
+    validateBranchName(newBranch);
+
     // Check if generated branch already exists on remote
+    let branchAlreadyExists = false;
     try {
       await $`git ls-remote --exit-code origin refs/heads/${newBranch}`.quiet();
+      branchAlreadyExists = true;
+    } catch {
+      // Branch doesn't exist (non-zero exit code), continue with generated name
+    }
 
+    if (branchAlreadyExists) {
       // If we get here, branch exists (exit code 0)
       console.log(
         `Branch '${newBranch}' already exists, falling back to default format`,
@@ -248,8 +257,7 @@ export async function setupBranch(
         firstLabel,
         title,
       );
-    } catch {
-      // Branch doesn't exist (non-zero exit code), continue with generated name
+      validateBranchName(newBranch);
     }
 
     // For commit signing, defer branch creation to the file ops server
@@ -279,7 +287,6 @@ export async function setupBranch(
     // Fetch and checkout the source branch first to ensure we branch from the correct base
     console.log(`Fetching and checking out source branch: ${sourceBranch}`);
     validateBranchName(sourceBranch);
-    validateBranchName(newBranch);
     execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
     execGit(["checkout", sourceBranch, "--"]);
 
@@ -297,6 +304,6 @@ export async function setupBranch(
     };
   } catch (error) {
     console.error("Error in branch setup:", error);
-    process.exit(1);
+    throw error;
   }
 }
