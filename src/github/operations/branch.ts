@@ -240,7 +240,9 @@ export async function setupBranch(
       await $`git ls-remote --exit-code origin refs/heads/${newBranch}`.quiet();
       branchAlreadyExists = true;
     } catch (error) {
-      // Distinguish between "no matching refs" (expected) and real errors
+      // git ls-remote --exit-code returns exit code 2 when no refs match (branch
+      // doesn't exist). Any other exit code indicates a real failure (network,
+      // auth, etc.) that should not be silently swallowed.
       const exitCode =
         error && typeof error === "object" && "exitCode" in error
           ? (error as { exitCode?: number }).exitCode
