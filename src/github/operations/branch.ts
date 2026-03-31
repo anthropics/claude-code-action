@@ -273,6 +273,12 @@ export async function setupBranch(
         firstLabel,
         title,
       );
+      // Append a short random suffix so the fallback name is guaranteed unique.
+      // Without this, when no custom template is configured both generateBranchName
+      // calls produce the same output (minute-level timestamp, same inputs), and
+      // the subsequent `git checkout -b` would fail on a name that still exists.
+      const disambiguator = Math.random().toString(36).substring(2, 6);
+      newBranch = `${newBranch}-${disambiguator}`;
       validateBranchName(newBranch);
     }
 
