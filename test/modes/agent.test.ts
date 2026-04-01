@@ -120,11 +120,9 @@ describe("Agent Mode", () => {
     });
 
     // Save and clear env vars that would otherwise override the fallback
-    const originalBaseBranch = process.env.BASE_BRANCH;
     const originalClaudeBranch = process.env.CLAUDE_BRANCH;
     const originalHeadRef = process.env.GITHUB_HEAD_REF;
     const originalRefName = process.env.GITHUB_REF_NAME;
-    delete process.env.BASE_BRANCH;
     delete process.env.CLAUDE_BRANCH;
     delete process.env.GITHUB_HEAD_REF;
     delete process.env.GITHUB_REF_NAME;
@@ -156,8 +154,6 @@ describe("Agent Mode", () => {
     expect(result.branchInfo.currentBranch).toBe("develop");
 
     // Restore env vars
-    if (originalBaseBranch !== undefined)
-      process.env.BASE_BRANCH = originalBaseBranch;
     if (originalClaudeBranch !== undefined)
       process.env.CLAUDE_BRANCH = originalClaudeBranch;
     if (originalHeadRef !== undefined)
