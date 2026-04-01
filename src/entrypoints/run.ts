@@ -229,8 +229,8 @@ async function run() {
     // Restore them from the base branch before the CLI reads them.
     //
     // We read pull_request.base.ref from the payload directly because agent
-    // mode's branchInfo.baseBranch defaults to "main" rather than the PR's
-    // actual target (agent/index.ts). For issue_comment on a PR the payload
+    // mode's branchInfo.baseBranch defaults to the repo's default branch rather
+    // than the PR's actual target (agent/index.ts). For issue_comment on a PR the payload
     // lacks base.ref, so we fall back to the mode-provided value — tag mode
     // fetches it from GraphQL; agent mode on issue_comment is an edge case
     // that at worst restores from the wrong trusted branch (still secure).
@@ -312,7 +312,7 @@ async function run() {
           commentId,
           githubToken,
           claudeBranch,
-          baseBranch: baseBranch || "main",
+          baseBranch: baseBranch || context.repository.default_branch || "main",
           triggerUsername: context.actor,
           context,
           octokit,

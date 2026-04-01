@@ -85,15 +85,15 @@ export async function prepareAgentMode({
 
   // Check for branch info from environment variables (useful for auto-fix workflows)
   const claudeBranch = process.env.CLAUDE_BRANCH || undefined;
-  const baseBranch =
-    process.env.BASE_BRANCH || context.inputs.baseBranch || "main";
+  const defaultBranch = context.repository.default_branch || "main";
+  const baseBranch = context.inputs.baseBranch || defaultBranch;
 
   // Detect current branch from GitHub environment
   const currentBranch =
     claudeBranch ||
     process.env.GITHUB_HEAD_REF ||
     process.env.GITHUB_REF_NAME ||
-    "main";
+    defaultBranch;
 
   // Get our GitHub MCP servers config
   const ourMcpConfig = await prepareMcpConfig({
