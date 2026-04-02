@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: classpass/setup-bun@main
         with:
           bun-version: 1.2.12
 
@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: oven-sh/setup-bun@v1
+      - uses: classpass/setup-bun@main
         with:
           bun-version: latest
 
@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: classpass/setup-bun@main
         with:
           bun-version: 1.2.12
 
