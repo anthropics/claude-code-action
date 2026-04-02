@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 #v2
+        uses: classpass/setup-bun@main
 
       - name: Install dependencies
         run: |
@@ -82,7 +82,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 #v2
+        uses: classpass/setup-bun@main
 
       - name: Install dependencies
         run: |
