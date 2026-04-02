@@ -118,7 +118,7 @@ export function validateBranchName(branchName: string): void {
  * @param args - Git command arguments (e.g., ["checkout", "branch-name"])
  */
 function execGit(args: string[]): void {
-  execFileSync("git", args, { stdio: "inherit" });
+  execFileSync("git", args, { stdio: "inherit", env: process.env });
 }
 
 export type BranchInfo = {

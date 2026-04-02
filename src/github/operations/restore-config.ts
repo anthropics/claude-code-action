@@ -48,6 +48,7 @@ export function restoreConfigFromBase(baseBranch: string): void {
   // caller sees a clean error.
   execFileSync("git", ["fetch", "origin", baseBranch, "--depth=1"], {
     stdio: "inherit",
+    env: process.env,
   });
 
   // Delete PR-controlled versions. If the restore below fails for a given path,
