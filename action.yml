@@ -198,10 +198,14 @@ runs:
     - name: Install subprocess isolation dependencies
       # Install subprocess isolation dependencies when processing content from non-write users.
       # Best-effort: skips on non-Linux or when sudo/apt unavailable (self-hosted runners).
-      if: ${{ inputs.allowed_non_write_users != '' && env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB != '0' && runner.os == 'Linux' }}
+      if: ${{ inputs.allowed_non_write_users != '' && runner.os == 'Linux' }}
       continue-on-error: true
       shell: bash
       run: |
+        if [ "${CLAUDE_CODE_SUBPROCESS_ENV_SCRUB:-}" = "0" ]; then
+          echo "Subprocess isolation opted out via CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=0"
+          exit 0
+        fi
         if command -v apt-get >/dev/null && command -v sudo >/dev/null; then
           for i in 1 2 3; do
             sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat && break
