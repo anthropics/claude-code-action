@@ -43,9 +43,10 @@ export async function checkWritePermissions(
       }
     }
 
-    // Check if the actor is a GitHub App (bot user)
-    if (actor.endsWith("[bot]")) {
-      core.info(`Actor is a GitHub App: ${actor}`);
+    // Check if the actor is a GitHub App (bot user) or known service account
+    // Copilot is not a regular user but has write access via GitHub App
+    if (actor.endsWith("[bot]") || actor === "Copilot") {
+      core.info(`Actor is a GitHub App or known service: ${actor}`);
       return true;
     }
 

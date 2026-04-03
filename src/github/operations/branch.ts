@@ -44,6 +44,7 @@ export function validateBranchName(branchName: string): void {
   }
 
   // Check for leading dash (prevents option injection like --help, -x)
+  // Allow Unicode letters (\p{L}) and numbers (\p{N}) at start
   if (branchName.startsWith("-")) {
     throw new Error(
       `Invalid branch name: "${branchName}". Branch names cannot start with a dash.`,
@@ -58,8 +59,10 @@ export function validateBranchName(branchName: string): void {
     );
   }
 
-  // Strict whitelist pattern: alphanumeric start, then alphanumeric/slash/hyphen/underscore/period
-  const validPattern = /^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$/;
+  // Strict whitelist pattern: alphanumeric start (including Unicode), then alphanumeric/slash/hyphen/underscore/period/pound
+  // Using \p{L} for Unicode letters, \p{N} for Unicode numbers
+  // Allow # for Azure DevOps ticket linking (e.g., feature/AB#1992-sentry)
+  const validPattern = /^\p{L}\p{L}*[\p{L}\p{N}/._#-]*$/u;
 
   if (!validPattern.test(branchName)) {
     throw new Error(
