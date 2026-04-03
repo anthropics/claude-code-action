@@ -28,14 +28,14 @@ function extractFirstLabel(githubData: FetchDataResult): string | undefined {
  *
  * Valid branch names:
  * - Start with alphanumeric character (not dash, to prevent option injection)
- * - Contain only alphanumeric, forward slash, hyphen, underscore, or period
+ * - Contain only alphanumeric, forward slash, hyphen, underscore, hash, or period
  * - Do not start or end with a period
  * - Do not end with a slash
  * - Do not contain '..' (path traversal)
  * - Do not contain '//' (consecutive slashes)
  * - Do not end with '.lock'
  * - Do not contain '@{'
- * - Do not contain control characters or special git characters (~^:?*[\])
+ * - Do not contain control characters or special git characters (~^:?*[\\])
  */
 export function validateBranchName(branchName: string): void {
   // Check for empty or whitespace-only names
@@ -58,12 +58,12 @@ export function validateBranchName(branchName: string): void {
     );
   }
 
-  // Strict whitelist pattern: alphanumeric start, then alphanumeric/slash/hyphen/underscore/period
-  const validPattern = /^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$/;
+  // Strict whitelist pattern: alphanumeric start, then alphanumeric/slash/hyphen/underscore/hash/period
+  const validPattern = /^[a-zA-Z0-9][a-zA-Z0-9/_#.-]*$/;
 
   if (!validPattern.test(branchName)) {
     throw new Error(
-      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric character and contain only alphanumeric characters, forward slashes, hyphens, underscores, or periods.`,
+      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric character and contain only alphanumeric characters, forward slashes, hyphens, underscores, hashes, or periods.`,
     );
   }
 
