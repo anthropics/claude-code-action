@@ -60,7 +60,16 @@ async function installClaudeCode(): Promise<void> {
   }
 
   const claudeCodeVersion = "2.1.92";
+  const VERSION_RE = /^\d+\.\d+\.\d+$/;
+  if (!VERSION_RE.test(claudeCodeVersion)) {
+    throw new Error(
+      `Invalid claudeCodeVersion format: ${claudeCodeVersion}`,
+    );
+  }
   console.log(`Installing Claude Code v${claudeCodeVersion}...`);
+
+  const homeBin = `${process.env.HOME}/.local/bin`;
+  const claudeBinary = `${homeBin}/claude`;
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     console.log(`Installation attempt ${attempt}...`);
@@ -70,7 +79,7 @@ async function installClaudeCode(): Promise<void> {
           "bash",
           [
             "-c",
-            `curl -fsSL https://claude.ai/install.sh | bash -s -- ${claudeCodeVersion}`,
+            `set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash -s -- ${claudeCodeVersion}`,
           ],
           { stdio: "inherit" },
         );
@@ -81,8 +90,13 @@ async function installClaudeCode(): Promise<void> {
         child.on("error", reject);
       });
       console.log("Claude Code installed successfully");
+      // Verify the binary actually landed where expected
+      if (!existsSync(claudeBinary)) {
+        throw new Error(
+          `Install exited successfully but Claude binary not found at ${claudeBinary}. The install script may have changed its output location.`,
+        );
+      }
       // Add to PATH
-      const homeBin = `${process.env.HOME}/.local/bin`;
       const githubPath = process.env.GITHUB_PATH;
       if (githubPath) {
         await appendFile(githubPath, `${homeBin}\n`);
@@ -95,7 +109,10 @@ async function installClaudeCode(): Promise<void> {
           `Failed to install Claude Code after 3 attempts: ${error}`,
         );
       }
-      console.log("Installation failed, retrying...");
+      console.log(
+        `Installation attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      console.log("Retrying...");
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   }
