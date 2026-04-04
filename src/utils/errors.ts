@@ -15,6 +15,25 @@ export interface NonRetryable {
 }
 
 /**
+ * An HTTP error carrying the response status code.
+ *
+ * Implements {@link NonRetryable} — errors with deterministic HTTP status codes
+ * (e.g. 400, 404, 422) should not be retried. Callers that want to retry specific
+ * status codes (e.g. 403, 429) should throw a plain `Error` for those cases instead.
+ */
+export class HttpError extends Error implements NonRetryable {
+  readonly retryable = false as const;
+
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "HttpError";
+  }
+}
+
+/**
  * Type guard that returns true if the error declares itself non-retryable
  * via the {@link NonRetryable} marker interface.
  */

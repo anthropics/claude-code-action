@@ -8,6 +8,7 @@ import { resolve } from "path";
 import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
+import { HttpError } from "../utils/errors";
 import { retryWithBackoff } from "../utils/retry";
 import { validatePathWithinRepo } from "./path-validation";
 
@@ -399,15 +400,12 @@ server.tool(
               throw permissionError;
             }
 
-            // For other errors, use the original message
-            const error = new Error(
+            // All other non-2xx errors are deterministic failures — do not retry.
+            console.error("Update ref error:", updateRefResponse.status);
+            throw new HttpError(
+              updateRefResponse.status,
               `Failed to update reference: ${updateRefResponse.status} - ${errorText}`,
             );
-
-            // Note: this error is still retried by retryWithBackoff. To make
-            // specific HTTP status codes non-retryable, see issue #1156.
-            console.error("Update ref error:", updateRefResponse.status);
-            throw error;
           }
         },
         {
@@ -616,15 +614,12 @@ server.tool(
               throw permissionError;
             }
 
-            // For other errors, use the original message
-            const error = new Error(
+            // All other non-2xx errors are deterministic failures — do not retry.
+            console.error("Update ref error:", updateRefResponse.status);
+            throw new HttpError(
+              updateRefResponse.status,
               `Failed to update reference: ${updateRefResponse.status} - ${errorText}`,
             );
-
-            // Note: this error is still retried by retryWithBackoff. To make
-            // specific HTTP status codes non-retryable, see issue #1156.
-            console.error("Update ref error:", updateRefResponse.status);
-            throw error;
           }
         },
         {

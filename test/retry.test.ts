@@ -1,6 +1,6 @@
 import { describe, expect, test, spyOn, beforeEach, afterEach } from "bun:test";
 import { retryWithBackoff } from "../src/utils/retry";
-import { isNonRetryable } from "../src/utils/errors";
+import { HttpError, isNonRetryable } from "../src/utils/errors";
 import type { NonRetryable } from "../src/utils/errors";
 import { WorkflowValidationSkipError } from "../src/github/token";
 
@@ -183,7 +183,50 @@ describe("retryWithBackoff", () => {
     });
   });
 
-  describe("WorkflowValidationSkipError integration", () => {
+  describe("HttpError", () => {
+  test("has retryable=false", () => {
+    const err = new HttpError(404, "not found");
+    expect(err.retryable).toBe(false);
+    expect(isNonRetryable(err)).toBe(true);
+  });
+
+  test("exposes status code", () => {
+    const err = new HttpError(422, "unprocessable");
+    expect(err.status).toBe(422);
+    expect(err.message).toBe("unprocessable");
+    expect(err.name).toBe("HttpError");
+  });
+
+  test("is not retried by retryWithBackoff", async () => {
+    let calls = 0;
+    await expect(
+      retryWithBackoff(
+        async () => {
+          calls++;
+          throw new HttpError(404, "branch not found");
+        },
+        { maxAttempts: 3, initialDelayMs: 0, maxDelayMs: 0 },
+      ),
+    ).rejects.toBeInstanceOf(HttpError);
+    expect(calls).toBe(1);
+  });
+
+  test("plain Error from same operation IS retried (403 stays retryable)", async () => {
+    let calls = 0;
+    await expect(
+      retryWithBackoff(
+        async () => {
+          calls++;
+          throw new Error("403 permission denied");
+        },
+        { maxAttempts: 3, initialDelayMs: 0, maxDelayMs: 0 },
+      ),
+    ).rejects.toThrow("403 permission denied");
+    expect(calls).toBe(3);
+  });
+});
+
+describe("WorkflowValidationSkipError integration", () => {
     test("WorkflowValidationSkipError is not retried (implements NonRetryable)", async () => {
       let calls = 0;
       await expect(
