@@ -404,8 +404,9 @@ server.tool(
               `Failed to update reference: ${updateRefResponse.status} - ${errorText}`,
             );
 
-            // For non-403 errors, fail immediately without retry
-            console.error("Non-retryable error:", updateRefResponse.status);
+            // Note: this error is still retried by retryWithBackoff. To make
+            // specific HTTP status codes non-retryable, see issue #1156.
+            console.error("Update ref error:", updateRefResponse.status);
             throw error;
           }
         },
@@ -620,8 +621,9 @@ server.tool(
               `Failed to update reference: ${updateRefResponse.status} - ${errorText}`,
             );
 
-            // For non-403 errors, fail immediately without retry
-            console.error("Non-retryable error:", updateRefResponse.status);
+            // Note: this error is still retried by retryWithBackoff. To make
+            // specific HTTP status codes non-retryable, see issue #1156.
+            console.error("Update ref error:", updateRefResponse.status);
             throw error;
           }
         },
