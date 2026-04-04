@@ -49,6 +49,13 @@ async function installClaudeCode(): Promise<void> {
   if (customExecutable) {
     console.log(`Using custom Claude Code executable: ${customExecutable}`);
     const claudeDir = dirname(customExecutable);
+    // Reject paths containing control characters — an embedded newline in claudeDir
+    // would inject an additional directory into GITHUB_PATH for all subsequent steps.
+    if (/[\x00-\x1f\x7f]/.test(claudeDir)) {
+      throw new Error(
+        `PATH_TO_CLAUDE_CODE_EXECUTABLE contains invalid control characters: ${JSON.stringify(claudeDir)}`,
+      );
+    }
     // Add to PATH by appending to GITHUB_PATH
     const githubPath = process.env.GITHUB_PATH;
     if (githubPath) {
