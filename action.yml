@@ -305,6 +305,15 @@ runs:
         ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ env.ANTHROPIC_DEFAULT_HAIKU_MODEL }}
         ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ env.ANTHROPIC_DEFAULT_OPUS_MODEL }}
 
+        # MCP configuration — these env vars are read directly from process.env by the
+        # Claude CLI subprocess. They must be listed explicitly here because this step's
+        # env: block shadows the calling workflow's job-level env vars (GitHub Actions
+        # composite action behavior). Set these in your workflow's job-level env: or via
+        # a prior step that writes to $GITHUB_ENV.
+        MCP_TIMEOUT: ${{ env.MCP_TIMEOUT }}
+        MCP_TOOL_TIMEOUT: ${{ env.MCP_TOOL_TIMEOUT }}
+        MAX_MCP_OUTPUT_TOKENS: ${{ env.MAX_MCP_OUTPUT_TOKENS }}
+
         # Telemetry configuration
         CLAUDE_CODE_ENABLE_TELEMETRY: ${{ env.CLAUDE_CODE_ENABLE_TELEMETRY }}
         OTEL_METRICS_EXPORTER: ${{ env.OTEL_METRICS_EXPORTER }}
