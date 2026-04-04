@@ -177,6 +177,7 @@ async function run() {
         context,
         context.inputs.allowedNonWriteUsers,
         !!process.env.OVERRIDE_GITHUB_TOKEN,
+        context.inputs.allowedBots,
       );
       if (!hasWritePermissions) {
         throw new Error(

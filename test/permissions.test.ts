@@ -1,6 +1,9 @@
 import { describe, expect, test, spyOn, beforeEach, afterEach } from "bun:test";
 import * as core from "@actions/core";
-import { checkWritePermissions } from "../src/github/validation/permissions";
+import {
+  checkWritePermissions,
+  isActorInAllowedBots,
+} from "../src/github/validation/permissions";
 import type { ParsedGitHubContext } from "../src/github/context";
 import { CLAUDE_APP_BOT_ID, CLAUDE_BOT_LOGIN } from "../src/github/constants";
 
@@ -302,5 +305,181 @@ describe("checkWritePermissions", () => {
         "Actor is a GitHub App: test-bot[bot]",
       );
     });
+  });
+
+  describe("allowed_bots bypass", () => {
+    test("should bypass permission check for bot actor in allowed_bots list", async () => {
+      const mockOctokit = createMockOctokit("none");
+      const context = createContext();
+      context.actor = "Copilot";
+
+      const result = await checkWritePermissions(
+        mockOctokit,
+        context,
+        undefined,
+        undefined,
+        "Copilot",
+      );
+
+      expect(result).toBe(true);
+      expect(coreInfoSpy).toHaveBeenCalledWith(
+        "Actor Copilot is in allowed_bots list, bypassing permission check",
+      );
+    });
+
+    test("should match case-insensitively (Copilot vs copilot)", async () => {
+      const mockOctokit = createMockOctokit("none");
+      const context = createContext();
+      context.actor = "Copilot";
+
+      const result = await checkWritePermissions(
+        mockOctokit,
+        context,
+        undefined,
+        undefined,
+        "copilot,renovate",
+      );
+
+      expect(result).toBe(true);
+    });
+
+    test("should match actor with [bot] suffix against normalized allowed_bots entry", async () => {
+      const mockOctokit = createMockOctokit("none");
+      const context = createContext();
+      context.actor = "renovate[bot]";
+
+      const result = await checkWritePermissions(
+        mockOctokit,
+        context,
+        undefined,
+        undefined,
+        "renovate",
+      );
+
+      expect(result).toBe(true);
+    });
+
+    test("should bypass permission check for all bots with wildcard", async () => {
+      const mockOctokit = createMockOctokit("none");
+      const context = createContext();
+      context.actor = "Copilot";
+
+      const result = await checkWritePermissions(
+        mockOctokit,
+        context,
+        undefined,
+        undefined,
+        "*",
+      );
+
+      expect(result).toBe(true);
+      expect(coreWarningSpy).toHaveBeenCalledWith(
+        expect.stringContaining("⚠️ SECURITY WARNING"),
+      );
+      expect(coreWarningSpy).toHaveBeenCalledWith(
+        expect.stringContaining("allowed_bots='*'"),
+      );
+    });
+
+    test("should NOT bypass when actor is not in allowed_bots list", async () => {
+      const mockOctokit = createMockOctokit("write");
+      const context = createContext();
+      context.actor = "some-human";
+
+      const result = await checkWritePermissions(
+        mockOctokit,
+        context,
+        undefined,
+        undefined,
+        "Copilot,renovate",
+      );
+
+      // Falls through to collaborators API — returns write
+      expect(result).toBe(true);
+      expect(coreInfoSpy).toHaveBeenCalledWith(
+        "Permission level retrieved: write",
+      );
+    });
+
+    test("should NOT bypass when allowed_bots is empty", async () => {
+      const mockOctokit = createMockOctokit("write");
+      const context = createContext();
+      context.actor = "Copilot";
+
+      const result = await checkWritePermissions(
+        mockOctokit,
+        context,
+        undefined,
+        undefined,
+        "",
+      );
+
+      // Falls through to collaborators API
+      expect(result).toBe(true);
+      expect(coreInfoSpy).toHaveBeenCalledWith(
+        "Permission level retrieved: write",
+      );
+    });
+
+    test("should NOT bypass when allowed_bots is undefined", async () => {
+      const mockOctokit = createMockOctokit("write");
+      const context = createContext();
+      context.actor = "Copilot";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      // Falls through to collaborators API
+      expect(result).toBe(true);
+      expect(coreInfoSpy).toHaveBeenCalledWith(
+        "Permission level retrieved: write",
+      );
+    });
+  });
+});
+
+describe("isActorInAllowedBots", () => {
+  test("returns false for empty allowedBots", () => {
+    expect(isActorInAllowedBots("Copilot", "")).toBe(false);
+  });
+
+  test("returns false for whitespace-only allowedBots", () => {
+    expect(isActorInAllowedBots("Copilot", "   ")).toBe(false);
+  });
+
+  test("returns true for wildcard", () => {
+    expect(isActorInAllowedBots("anyone", "*")).toBe(true);
+    expect(isActorInAllowedBots("Copilot", "*")).toBe(true);
+  });
+
+  test("returns true for exact match", () => {
+    expect(isActorInAllowedBots("Copilot", "Copilot")).toBe(true);
+  });
+
+  test("returns true for case-insensitive match", () => {
+    expect(isActorInAllowedBots("Copilot", "copilot")).toBe(true);
+    expect(isActorInAllowedBots("copilot", "Copilot")).toBe(true);
+    expect(isActorInAllowedBots("COPILOT", "copilot")).toBe(true);
+  });
+
+  test("returns true when actor has [bot] suffix, entry does not", () => {
+    expect(isActorInAllowedBots("renovate[bot]", "renovate")).toBe(true);
+  });
+
+  test("returns true when actor has no [bot] suffix, entry does", () => {
+    expect(isActorInAllowedBots("renovate", "renovate[bot]")).toBe(true);
+  });
+
+  test("returns true when actor is in comma-separated list", () => {
+    expect(isActorInAllowedBots("Copilot", "dependabot,Copilot,renovate")).toBe(
+      true,
+    );
+  });
+
+  test("returns false when actor is not in list", () => {
+    expect(isActorInAllowedBots("attacker", "Copilot,renovate")).toBe(false);
+  });
+
+  test("handles whitespace around entries", () => {
+    expect(isActorInAllowedBots("Copilot", " Copilot , renovate ")).toBe(true);
   });
 });
