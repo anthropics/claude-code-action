@@ -1,9 +1,12 @@
 #!/usr/bin/env bun
 
 import * as core from "@actions/core";
+import type { NonRetryable } from "../utils/errors";
 import { retryWithBackoff } from "../utils/retry";
 
-export class WorkflowValidationSkipError extends Error {
+export class WorkflowValidationSkipError extends Error implements NonRetryable {
+  readonly retryable = false as const;
+
   constructor(message: string) {
     super(message);
     this.name = "WorkflowValidationSkipError";
