@@ -6,7 +6,7 @@
  */
 
 import * as core from "@actions/core";
-import { setupGitHubToken } from "../github/token";
+import { setupGitHubToken, WorkflowValidationSkipError } from "../github/token";
 import { checkWritePermissions } from "../github/validation/permissions";
 import { createOctokit } from "../github/api/client";
 import { parseGitHubContext, isEntityContext } from "../github/context";
@@ -30,10 +30,20 @@ async function run() {
     );
 
     // Setup GitHub token
-    const githubToken = await setupGitHubToken();
+    let githubToken: string;
+    try {
+      githubToken = await setupGitHubToken();
+    } catch (error) {
+      if (error instanceof WorkflowValidationSkipError) {
+        core.setOutput("skipped_due_to_workflow_validation_mismatch", "true");
+        console.log("Exiting due to workflow validation skip");
+        return;
+      }
+      throw error;
+    }
     const octokit = createOctokit(githubToken);
 
-    // Step 3: Check write permissions (only for entity contexts)
+    // Check write permissions (only for entity contexts)
     if (isEntityContext(context)) {
       // Check if github_token was provided as input (not from app)
       const githubTokenProvided = !!process.env.OVERRIDE_GITHUB_TOKEN;
