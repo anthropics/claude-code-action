@@ -44,19 +44,29 @@ export function restoreConfigFromBase(baseBranch: string): void {
     `Restoring ${SENSITIVE_PATHS.join(", ")} from origin/${baseBranch} (PR head is untrusted)`,
   );
 
-  // Fetch base first — if this fails we haven't touched the workspace and the
-  // caller sees a clean error.
-  execFileSync("git", ["fetch", "origin", baseBranch, "--depth=1"], {
-    stdio: "inherit",
-    env: process.env,
-  });
-
-  // Delete PR-controlled versions. If the restore below fails for a given path,
-  // that path stays deleted — the safe fallback (no attacker-controlled config).
-  // A bare `git checkout` alone wouldn't remove files the PR added, so nuke first.
+  // Delete PR-controlled versions BEFORE fetching so the attacker-controlled
+  // .gitmodules is absent during the network operation. If git reads .gitmodules
+  // during fetch (fetch.recurseSubmodules=on-demand, the git default), it will
+  // attempt to fetch submodule objects and block on credential prompts in CI —
+  // causing an indefinite hang. Deleting first closes that window.
+  //
+  // If the restore below fails for a given path, that path stays deleted —
+  // the safe fallback (no attacker-controlled config). A bare `git checkout`
+  // alone wouldn't remove files the PR added, so nuke first.
   for (const p of SENSITIVE_PATHS) {
     rmSync(p, { recursive: true, force: true });
   }
+
+  // --no-recurse-submodules: explicitly suppress submodule fetching regardless of
+  // fetch.recurseSubmodules config. Defense-in-depth alongside the delete above.
+  execFileSync(
+    "git",
+    ["fetch", "origin", baseBranch, "--depth=1", "--no-recurse-submodules"],
+    {
+      stdio: "inherit",
+      env: process.env,
+    },
+  );
 
   for (const p of SENSITIVE_PATHS) {
     try {
