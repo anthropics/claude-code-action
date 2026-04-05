@@ -272,6 +272,7 @@ async function run() {
       pathToClaudeCodeExecutable:
         process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE,
       showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
+      maxTurns: process.env.INPUT_MAX_TURNS,
     });
 
     claudeSuccess = claudeResult.conclusion === "success";
