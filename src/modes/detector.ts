@@ -67,7 +67,6 @@ export function detectMode(context: GitHubContext): AutoDetectedMode {
       "synchronize",
       "ready_for_review",
       "reopened",
-      "labeled",
     ];
     if (context.eventAction && supportedActions.includes(context.eventAction)) {
       // If prompt is provided, use agent mode (default for automation)
@@ -97,20 +96,4 @@ function validateTrackProgressEvent(context: GitHubContext): void {
     );
   }
 
-  // Additionally validate PR actions
-  if (context.eventName === "pull_request" && context.eventAction) {
-    const validActions = [
-      "opened",
-      "synchronize",
-      "ready_for_review",
-      "reopened",
-      "labeled",
-    ];
-    if (!validActions.includes(context.eventAction)) {
-      throw new Error(
-        `track_progress for pull_request events is only supported for actions: ` +
-          `${validActions.join(", ")}. Current action: ${context.eventAction}`,
-      );
-    }
-  }
 }
