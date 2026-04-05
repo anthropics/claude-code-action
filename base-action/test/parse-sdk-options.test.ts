@@ -343,9 +343,7 @@ describe("parseSdkOptions", () => {
       const result = parseSdkOptions(options);
 
       expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
-      expect(result.sdkOptions.extraArgs?.["prompt"]).toBe(
-        "use color #ff0000",
-      );
+      expect(result.sdkOptions.extraArgs?.["prompt"]).toBe("use color #ff0000");
     });
   });
 
