@@ -1,5 +1,5 @@
 import { execFileSync } from "child_process";
-import { rmSync } from "fs";
+import { cpSync, existsSync, rmSync } from "fs";
 
 // Paths that are both PR-controllable and read from cwd at CLI startup.
 //
@@ -43,6 +43,19 @@ export function restoreConfigFromBase(baseBranch: string): void {
   console.log(
     `Restoring ${SENSITIVE_PATHS.join(", ")} from origin/${baseBranch} (PR head is untrusted)`,
   );
+
+  // Snapshot the PR's .claude/ tree to .claude-pr/ before deleting it.
+  // This lets review agents inspect what the PR actually changes (CLAUDE.md,
+  // settings, hooks, MCP configs) without those files ever being executed.
+  // The snapshot is taken before the security delete so it captures the
+  // PR-authored version.
+  rmSync(".claude-pr", { recursive: true, force: true });
+  if (existsSync(".claude")) {
+    cpSync(".claude", ".claude-pr", { recursive: true });
+    console.log(
+      "Preserved PR's .claude/ → .claude-pr/ for review agents (not executed)",
+    );
+  }
 
   // Delete PR-controlled versions BEFORE fetching so the attacker-controlled
   // .gitmodules is absent during the network operation. If git reads .gitmodules
