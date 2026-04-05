@@ -40,7 +40,9 @@ describe("validateBranchName", () => {
     it("should accept branch names containing # (git-valid, common in issue-linked branches)", () => {
       // Reported in #1137: branches like "put-back-arm64-#2" were rejected
       expect(() => validateBranchName("put-back-arm64-#2")).not.toThrow();
-      expect(() => validateBranchName("feature/#123-description")).not.toThrow();
+      expect(() =>
+        validateBranchName("feature/#123-description"),
+      ).not.toThrow();
       expect(() => validateBranchName("fix/issue-#42")).not.toThrow();
     });
   });
