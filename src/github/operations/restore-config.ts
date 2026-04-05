@@ -47,16 +47,19 @@ export function restoreConfigFromBase(baseBranch: string): void {
     `Restoring ${SENSITIVE_PATHS.join(", ")} from origin/${baseBranch} (PR head is untrusted)`,
   );
 
-  // Snapshot the PR's .claude/ tree to .claude-pr/ before deleting it.
-  // This lets review agents inspect what the PR actually changes (CLAUDE.md,
-  // settings, hooks, MCP configs) without those files ever being executed.
-  // The snapshot is taken before the security delete so it captures the
+  // Snapshot every PR-authored sensitive path into .claude-pr/ before deletion
+  // so review agents can inspect what the PR changes without those files ever
+  // being executed. Captured before the security delete so it reflects the
   // PR-authored version.
   rmSync(".claude-pr", { recursive: true, force: true });
-  if (existsSync(".claude")) {
-    cpSync(".claude", ".claude-pr", { recursive: true });
+  for (const p of SENSITIVE_PATHS) {
+    if (existsSync(p)) {
+      cpSync(p, `.claude-pr/${p}`, { recursive: true });
+    }
+  }
+  if (existsSync(".claude-pr")) {
     console.log(
-      "Preserved PR's .claude/ → .claude-pr/ for review agents (not executed)",
+      "Preserved PR's sensitive paths → .claude-pr/ for review agents (not executed)",
     );
   }
 
