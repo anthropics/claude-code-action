@@ -151,7 +151,7 @@ export async function runClaudeWithSdk(
 
   console.log(`Running Claude with prompt from file: ${promptPath}`);
   // Log SDK options without env (which could contain sensitive data)
-  const { env, ...optionsToLog } = sdkOptions;
+  const { env, extraArgs, ...optionsToLog } = sdkOptions;
   console.log("SDK options:", JSON.stringify(optionsToLog, null, 2));
 
   const messages: SDKMessage[] = [];

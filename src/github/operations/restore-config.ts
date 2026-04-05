@@ -15,6 +15,9 @@ const SENSITIVE_PATHS = [
   ".claude.json",
   ".gitmodules",
   ".ripgreprc",
+  "CLAUDE.md",
+  "CLAUDE.local.md",
+  ".husky",
 ];
 
 /**

@@ -148,6 +148,7 @@ export async function setupGitHubToken(): Promise<string> {
     },
   );
   console.log("App token successfully obtained");
+  core.setSecret(appToken);
 
   console.log("Using GITHUB_TOKEN from OIDC");
   return appToken;
