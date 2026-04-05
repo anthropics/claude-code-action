@@ -246,34 +246,38 @@ async function run() {
       }
       if (restoreBase) {
         restoreConfigFromBase(restoreBase);
+      }
+    }
 
-        // After restore, .claude/settings.json is the trusted base-branch version.
-        // For tag mode, merge its permissions.allow entries into claudeArgs so that
-        // project-approved tools (e.g. Bash(pnpm test:*)) are not silently denied.
-        // PR #1002 hardened tag mode with an explicit --allowedTools allowlist, which
-        // inadvertently stopped respecting project settings entirely.
-        if (modeName === "tag") {
-          try {
-            const settingsPath = ".claude/settings.json";
-            if (existsSync(settingsPath)) {
-              const settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
-              const projectAllow: unknown = settings?.permissions?.allow;
-              if (Array.isArray(projectAllow) && projectAllow.length > 0) {
-                const projectTools = projectAllow.filter(
-                  (t): t is string => typeof t === "string" && t.length > 0,
-                );
-                if (projectTools.length > 0) {
-                  prepareResult.claudeArgs += ` --allowedTools "${projectTools.join(",")}"`;
-                  console.log(
-                    `Merged ${projectTools.length} project permission(s) from .claude/settings.json into tag mode tools`,
-                  );
-                }
-              }
+    // For tag mode, merge project permissions.allow into the allowed tool list.
+    // .claude/settings.json is trusted at this point in both cases:
+    //   - PR events: restoreConfigFromBase replaced it with the base-branch version above.
+    //   - Issue events: the checkout is from the default branch (no untrusted PR code).
+    // PR #1002 added an explicit --allowedTools list for security, which inadvertently
+    // stopped the CLI from respecting project settings. This restores that behavior.
+    if (modeName === "tag") {
+      try {
+        const settingsPath = ".claude/settings.json";
+        if (existsSync(settingsPath)) {
+          const settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+          const projectAllow: unknown = settings?.permissions?.allow;
+          if (Array.isArray(projectAllow)) {
+            const projectTools = projectAllow.filter(
+              // Exclude entries that contain `"` — they would escape out of the
+              // double-quoted --allowedTools shell argument and corrupt the args string.
+              (t): t is string =>
+                typeof t === "string" && t.length > 0 && !t.includes('"'),
+            );
+            if (projectTools.length > 0) {
+              prepareResult.claudeArgs += ` --allowedTools "${projectTools.join(",")}"`;
+              console.log(
+                `Merged ${projectTools.length} project permission(s) from .claude/settings.json into tag mode tools`,
+              );
             }
-          } catch {
-            // Malformed settings.json — proceed with hardcoded tool list only.
           }
         }
+      } catch {
+        // Malformed settings.json — proceed with hardcoded tool list only.
       }
     }
 
