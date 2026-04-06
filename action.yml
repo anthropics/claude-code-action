@@ -167,6 +167,21 @@ outputs:
   session_id:
     description: "The Claude Code session ID that can be used with --resume to continue this conversation"
     value: ${{ steps.run.outputs.session_id }}
+  input_tokens:
+    description: "Number of input tokens used in this run"
+    value: ${{ steps.run.outputs.input_tokens }}
+  output_tokens:
+    description: "Number of output tokens generated in this run"
+    value: ${{ steps.run.outputs.output_tokens }}
+  cache_read_tokens:
+    description: "Number of tokens read from the prompt cache"
+    value: ${{ steps.run.outputs.cache_read_tokens }}
+  cache_write_tokens:
+    description: "Number of tokens written to the prompt cache"
+    value: ${{ steps.run.outputs.cache_write_tokens }}
+  turns:
+    description: "Number of agent turns in this run"
+    value: ${{ steps.run.outputs.turns }}
 
 runs:
   using: "composite"
