@@ -3,6 +3,7 @@ import { readFile, writeFile, access } from "fs/promises";
 import { dirname, join } from "path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type {
+  SDKAssistantMessage,
   SDKMessage,
   SDKResultMessage,
   SDKUserMessage,
@@ -180,7 +181,7 @@ export async function runClaudeWithSdk(
       }
 
       if (message.type === "assistant") {
-        const usage = (message as any).message?.usage || {};
+        const usage = (message as SDKAssistantMessage).message.usage;
         totalInputTokens += usage.input_tokens || 0;
         totalOutputTokens += usage.output_tokens || 0;
         totalCacheReadTokens += usage.cache_read_input_tokens || 0;
