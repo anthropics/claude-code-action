@@ -223,6 +223,16 @@ runs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
         fi
 
+    - name: Pin bun binary for post-steps
+      if: ${{ inputs.allowed_non_write_users != '' }}
+      continue-on-error: true
+      shell: bash
+      run: |
+        # Keep a copy of the bun binary alongside the action's own files so
+        # post-steps use the same version that was on PATH at action start.
+        mkdir -p "$GITHUB_ACTION_PATH/bin"
+        cp "$(command -v bun)" "$GITHUB_ACTION_PATH/bin/bun"
+
     - name: Run Claude Code Action
       id: run
       shell: bash
@@ -336,7 +346,9 @@ runs:
       if: always() && inputs.ssh_signing_key != ''
       shell: bash
       run: |
-        bun --no-env-file \
+        BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
+        [ -x "$BUN_BIN" ] || BUN_BIN="bun"
+        "$BUN_BIN" --no-env-file \
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
           --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
           run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
@@ -351,7 +363,9 @@ runs:
         PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
       run: |
-        bun --no-env-file \
+        BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
+        [ -x "$BUN_BIN" ] || BUN_BIN="bun"
+        "$BUN_BIN" --no-env-file \
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
           --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
           run ${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts
