@@ -26,6 +26,7 @@ describe("validateEnvironmentVariables", () => {
     delete process.env.ANTHROPIC_VERTEX_BASE_URL;
     delete process.env.ANTHROPIC_FOUNDRY_RESOURCE;
     delete process.env.ANTHROPIC_FOUNDRY_BASE_URL;
+    delete process.env.ANTHROPIC_AUTH_TOKEN;
   });
 
   afterEach(() => {
@@ -40,9 +41,15 @@ describe("validateEnvironmentVariables", () => {
       expect(() => validateEnvironmentVariables()).not.toThrow();
     });
 
-    test("should fail when ANTHROPIC_API_KEY is missing", () => {
+    test("should pass when ANTHROPIC_AUTH_TOKEN is provided", () => {
+      process.env.ANTHROPIC_AUTH_TOKEN = "test-auth-token";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should fail when no auth token is provided", () => {
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is required when using direct Anthropic API.",
+        "Either ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, or ANTHROPIC_AUTH_TOKEN is required when using direct Anthropic API.",
       );
     });
   });
