@@ -48,9 +48,9 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   if (isIssuesEvent(context) && context.eventAction === "opened") {
     const issueBody = context.payload.issue.body || "";
     const issueTitle = context.payload.issue.title || "";
-    // Check for exact match with word boundaries or punctuation
+    // Check for exact match - trigger phrase must not be preceded by a word character
     const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+      `(?<![a-zA-Z0-9_])${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
     );
 
     // Check in body
@@ -74,9 +74,9 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   if (isPullRequestEvent(context)) {
     const prBody = context.payload.pull_request.body || "";
     const prTitle = context.payload.pull_request.title || "";
-    // Check for exact match with word boundaries or punctuation
+    // Check for exact match - trigger phrase must not be preceded by a word character
     const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+      `(?<![a-zA-Z0-9_])${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
     );
 
     // Check in body
@@ -102,9 +102,9 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     (context.eventAction === "submitted" || context.eventAction === "edited")
   ) {
     const reviewBody = context.payload.review.body || "";
-    // Check for exact match with word boundaries or punctuation
+    // Check for exact match - trigger phrase must not be preceded by a word character
     const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+      `(?<![a-zA-Z0-9_])${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
     );
     if (regex.test(reviewBody)) {
       console.log(
@@ -122,9 +122,9 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     const commentBody = isIssueCommentEvent(context)
       ? context.payload.comment.body
       : context.payload.comment.body;
-    // Check for exact match with word boundaries or punctuation
+    // Check for exact match - trigger phrase must not be preceded by a word character
     const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+      `(?<![a-zA-Z0-9_])${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
     );
     if (regex.test(commentBody)) {
       console.log(`Comment contains exact trigger phrase '${triggerPhrase}'`);
