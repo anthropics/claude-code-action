@@ -1,11 +1,12 @@
 # Cloud Providers
 
-You can authenticate with Claude using any of these four methods:
+You can authenticate with Claude using any of these five methods:
 
 1. Direct Anthropic API (default)
-2. Amazon Bedrock with OIDC authentication
-3. Google Vertex AI with OIDC authentication
-4. Microsoft Foundry with OIDC authentication
+2. Custom API Gateway (Bearer token)
+3. Amazon Bedrock with OIDC authentication
+4. Google Vertex AI with OIDC authentication
+5. Microsoft Foundry with OIDC authentication
 
 For detailed setup instructions for AWS Bedrock and Google Vertex AI, see the [official documentation](https://code.claude.com/docs/en/github-actions#for-aws-bedrock:).
 
@@ -25,6 +26,15 @@ Use provider-specific model names based on your chosen provider:
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     # ... other inputs
+
+# For custom API gateway with Bearer token
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.GATEWAY_API_KEY }}  # satisfies input validation
+    # ... other inputs
+  env:
+    ANTHROPIC_BASE_URL: https://your-gateway.example.com/anthropic/
+    ANTHROPIC_AUTH_TOKEN: ${{ secrets.GATEWAY_API_KEY }}
 
 # For Amazon Bedrock with OIDC
 - uses: anthropics/claude-code-action@v1
@@ -50,6 +60,36 @@ Use provider-specific model names based on your chosen provider:
       --model claude-sonnet-4-5
     # ... other inputs
 ```
+
+## Custom API Gateway (Bearer Token)
+
+Some organizations route Anthropic API requests through a custom API gateway (e.g. Azure API Management, corporate proxy) that uses `Authorization: Bearer <token>` instead of the standard `x-api-key` header.
+
+Use `ANTHROPIC_AUTH_TOKEN` to send the key as a Bearer token:
+
+```yaml
+- name: Generate GitHub App token
+  id: app-token
+  uses: actions/create-github-app-token@v2
+  with:
+    app-id: ${{ secrets.APP_ID }}
+    private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+- uses: anthropics/claude-code-action@v1
+  with:
+    github_token: ${{ steps.app-token.outputs.token }}
+    anthropic_api_key: ${{ secrets.GATEWAY_API_KEY }}  # satisfies input validation
+    claude_args: |
+      --model claude-sonnet-4-6
+  env:
+    ANTHROPIC_BASE_URL: https://your-gateway.example.com/anthropic/
+    ANTHROPIC_AUTH_TOKEN: ${{ secrets.GATEWAY_API_KEY }}
+```
+
+**How it works:**
+- `ANTHROPIC_BASE_URL` points to your gateway endpoint
+- `ANTHROPIC_AUTH_TOKEN` sends the key as `Authorization: Bearer <token>` (used by the Anthropic SDK when set)
+- `ANTHROPIC_API_KEY` input is still required to pass action validation (can use the same key)
 
 ## OIDC Authentication for Cloud Providers
 
