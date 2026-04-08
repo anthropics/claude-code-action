@@ -1,5 +1,9 @@
-import { describe, expect, it } from "bun:test";
-import { validateBranchName } from "../src/github/operations/branch";
+import { describe, expect, it, spyOn, beforeEach, afterEach } from "bun:test";
+import {
+  validateBranchName,
+  setupBranch,
+} from "../src/github/operations/branch";
+import type { Octokits } from "../src/github/api/client";
 
 describe("validateBranchName", () => {
   describe("valid branch names", () => {
@@ -206,5 +210,62 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("/")).toThrow();
       expect(() => validateBranchName("-")).toThrow();
     });
+  });
+});
+
+// BUG-001 regression: setupBranch() used to call process.exit(1) on errors,
+// bypassing run.ts's finally block (tracking comments, step summaries, outputs
+// never written). The fix changes the catch block to `throw error` so the
+// error propagates back to the caller.
+describe("BUG-001: setupBranch() propagates errors instead of calling process.exit", () => {
+  let consoleLogSpy: ReturnType<typeof spyOn>;
+  let consoleErrorSpy: ReturnType<typeof spyOn>;
+
+  beforeEach(() => {
+    consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+    consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("rejects with a catchable error when the octokit repos.get() call fails", async () => {
+    const networkError = new Error("Network failure");
+
+    const mockOctokit = {
+      rest: {
+        repos: {
+          get: async () => {
+            throw networkError;
+          },
+        },
+      },
+    } as unknown as Octokits;
+
+    const mockContext = {
+      repository: { owner: "test-owner", repo: "test-repo" },
+      entityNumber: 42,
+      inputs: {
+        baseBranch: "",
+        branchPrefix: "claude/",
+        branchNameTemplate: undefined,
+        useCommitSigning: false,
+      },
+      isPR: false,
+    } as any;
+
+    const mockGithubData = {
+      contextData: {
+        labels: { nodes: [] },
+        title: "Test issue",
+      },
+    } as any;
+
+    // Must reject (throw), not exit the process — BUG-001 regression check
+    await expect(
+      setupBranch(mockOctokit, mockGithubData, mockContext),
+    ).rejects.toThrow("Network failure");
   });
 });
