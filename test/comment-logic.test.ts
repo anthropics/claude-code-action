@@ -312,6 +312,128 @@ describe("updateCommentBody", () => {
     });
   });
 
+  describe("bot header preservation", () => {
+    it("preserves bot header in sticky comments", () => {
+      const input = {
+        ...baseInput,
+        currentBody:
+          "<!-- bot: claude-review -->\nClaude Code is working…\n\n[View job run](https://github.com/owner/repo/actions/runs/123)",
+        executionDetails: { duration_ms: 5000 },
+        triggerUsername: "testuser",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result.startsWith("<!-- bot: claude-review -->")).toBe(true);
+      expect(result).toContain("**Claude finished @testuser's task in 5s**");
+    });
+
+    it("preserves bot header with different bot names", () => {
+      const input = {
+        ...baseInput,
+        currentBody:
+          "<!-- bot: claude-code-action -->\nClaude Code is working...",
+        executionDetails: { duration_ms: 30000 },
+        triggerUsername: "user",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result.startsWith("<!-- bot: claude-code-action -->")).toBe(true);
+    });
+
+    it("does not add bot header if not present in original", () => {
+      const input = {
+        ...baseInput,
+        currentBody: "Claude Code is working…",
+        executionDetails: { duration_ms: 5000 },
+        triggerUsername: "testuser",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result.startsWith("<!-- bot:")).toBe(false);
+      expect(result.startsWith("**Claude finished")).toBe(true);
+    });
+
+    it("preserves bot header with extra whitespace", () => {
+      const input = {
+        ...baseInput,
+        currentBody: "<!--  bot:  my-bot  -->\nClaude Code is working…",
+        executionDetails: { duration_ms: 5000 },
+        triggerUsername: "testuser",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result.startsWith("<!--  bot:  my-bot  -->")).toBe(true);
+    });
+
+    it("preserves bot header when action fails", () => {
+      const input = {
+        ...baseInput,
+        currentBody: "<!-- bot: claude-review -->\nClaude Code is working…",
+        actionFailed: true,
+        executionDetails: { duration_ms: 10000 },
+        errorDetails: "Something went wrong",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result.startsWith("<!-- bot: claude-review -->")).toBe(true);
+      expect(result).toContain("**Claude encountered an error after 10s**");
+      expect(result).toContain("Something went wrong");
+    });
+
+    it("preserves bot header with branch and PR links", () => {
+      const input = {
+        ...baseInput,
+        currentBody:
+          "<!-- bot: claude-code-action -->\nClaude Code is working…\n\n### Progress\n- [x] Task 1",
+        executionDetails: { duration_ms: 60000 },
+        triggerUsername: "developer",
+        branchName: "claude/fix-123",
+        prLink:
+          "\n[Create a PR](https://github.com/owner/repo/compare/main...claude/fix-123)",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result.startsWith("<!-- bot: claude-code-action -->")).toBe(true);
+      expect(result).toContain(
+        "**Claude finished @developer's task in 1m 0s**",
+      );
+      expect(result).toContain("[`claude/fix-123`]");
+      expect(result).toContain("[Create PR ➔]");
+      expect(result).toContain("### Progress");
+    });
+
+    it("does not preserve bot header if not at start of comment", () => {
+      const input = {
+        ...baseInput,
+        currentBody:
+          "Some text before\n<!-- bot: claude-review -->\nClaude Code is working…",
+        executionDetails: { duration_ms: 5000 },
+        triggerUsername: "testuser",
+      };
+
+      const result = updateCommentBody(input);
+      // Header should NOT be at start since it wasn't at start in original
+      expect(result.startsWith("<!-- bot:")).toBe(false);
+      expect(result.startsWith("**Claude finished")).toBe(true);
+      // The header text might still be in the body, but not preserved as a header
+    });
+
+    it("preserves bot header with complex bot name", () => {
+      const input = {
+        ...baseInput,
+        currentBody:
+          "<!-- bot: claude-code-action-v2_test123 -->\nClaude Code is working…",
+        executionDetails: { duration_ms: 5000 },
+        triggerUsername: "testuser",
+      };
+
+      const result = updateCommentBody(input);
+      expect(
+        result.startsWith("<!-- bot: claude-code-action-v2_test123 -->"),
+      ).toBe(true);
+    });
+  });
+
   describe("combined updates", () => {
     it("combines all updates in correct order", () => {
       const input = {
