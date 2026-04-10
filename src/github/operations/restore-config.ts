@@ -17,7 +17,6 @@ const SENSITIVE_PATHS = [
   ".ripgreprc",
   "CLAUDE.md",
   "CLAUDE.local.md",
-  ".husky",
 ];
 
 /**
