@@ -362,6 +362,7 @@ runs:
         REPO_NAME: ${{ github.event.repository.name }}
         PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
       run: |
         BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
         [ -x "$BUN_BIN" ] || BUN_BIN="bun"
