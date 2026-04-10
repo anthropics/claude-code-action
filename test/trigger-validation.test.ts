@@ -205,6 +205,37 @@ describe("checkContainsTrigger", () => {
       });
     });
 
+    it("should match trigger phrase case-insensitively", () => {
+      const baseContext = {
+        ...mockIssueOpenedContext,
+        inputs: {
+          ...mockIssueOpenedContext.inputs,
+          triggerPhrase: "@claude",
+        },
+      };
+
+      const testCases = [
+        { issueBody: "@Claude please help", expected: true },
+        { issueBody: "@CLAUDE please help", expected: true },
+        { issueBody: "@cLaUdE please help", expected: true },
+        { issueBody: "@claude please help", expected: true },
+      ];
+
+      testCases.forEach(({ issueBody, expected }) => {
+        const context = {
+          ...baseContext,
+          payload: {
+            ...baseContext.payload,
+            issue: {
+              ...(baseContext.payload as IssuesEvent).issue,
+              body: issueBody,
+            },
+          },
+        } as ParsedGitHubContext;
+        expect(checkContainsTrigger(context)).toBe(expected);
+      });
+    });
+
     it("should return false when trigger phrase is part of another word", () => {
       const context = {
         ...mockIssueOpenedContext,
@@ -414,6 +445,36 @@ describe("checkContainsTrigger", () => {
             ...baseContext.payload,
             review: {
               ...(baseContext.payload as PullRequestReviewEvent).review,
+              body: commentBody,
+            },
+          },
+        } as ParsedGitHubContext;
+        expect(checkContainsTrigger(context)).toBe(expected);
+      });
+    });
+
+    it("should match comment trigger case-insensitively", () => {
+      const baseContext = {
+        ...mockIssueCommentContext,
+        inputs: {
+          ...mockIssueCommentContext.inputs,
+          triggerPhrase: "@claude",
+        },
+      };
+
+      const testCases = [
+        { commentBody: "@Claude please review", expected: true },
+        { commentBody: "@CLAUDE fix this", expected: true },
+        { commentBody: "@cLaUdE help", expected: true },
+      ];
+
+      testCases.forEach(({ commentBody, expected }) => {
+        const context = {
+          ...baseContext,
+          payload: {
+            ...baseContext.payload,
+            comment: {
+              ...(baseContext.payload as IssueCommentEvent).comment,
               body: commentBody,
             },
           },
