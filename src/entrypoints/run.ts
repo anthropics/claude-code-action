@@ -136,6 +136,56 @@ async function writeStepSummary(executionFile: string): Promise<void> {
   }
 }
 
+/**
+ * Scan the Claude execution file for inline comment tool calls that failed
+ * with a GitHub permission error. Returns an actionable failure message when
+ * found, or null when the file is absent or contains no such errors.
+ *
+ * "Resource not accessible by integration" is GitHub's canonical response
+ * when a GitHub App token lacks the required permission scope — in this case
+ * `pull-requests: write`.
+ */
+function detectCommentPermissionFailure(executionFile: string): string | null {
+  const PERMISSION_ERROR = "Resource not accessible by integration";
+  try {
+    const messages: unknown[] = JSON.parse(readFileSync(executionFile, "utf-8"));
+    let failedCount = 0;
+    for (const msg of messages) {
+      if (
+        typeof msg !== "object" ||
+        msg === null ||
+        (msg as { type?: string }).type !== "user"
+      )
+        continue;
+      const content = (msg as { message?: { content?: unknown[] } }).message
+        ?.content;
+      if (!Array.isArray(content)) continue;
+      for (const item of content) {
+        if (
+          typeof item === "object" &&
+          item !== null &&
+          (item as { type?: string }).type === "tool_result" &&
+          (item as { is_error?: boolean }).is_error === true &&
+          typeof (item as { content?: string }).content === "string" &&
+          (item as { content: string }).content.includes(PERMISSION_ERROR)
+        ) {
+          failedCount++;
+        }
+      }
+    }
+    if (failedCount > 0) {
+      return (
+        `Claude attempted to post ${failedCount} review comment(s) but received a GitHub permission error. ` +
+        `Add \`pull-requests: write\` to your workflow's permissions block:\n\n` +
+        `  permissions:\n    pull-requests: write`
+      );
+    }
+  } catch {
+    // Parsing failure is non-fatal — don't mask the original conclusion
+  }
+  return null;
+}
+
 async function run() {
   let githubToken: string | undefined;
   let commentId: number | undefined;
@@ -281,6 +331,19 @@ async function run() {
 
     claudeSuccess = claudeResult.conclusion === "success";
     executionFile = claudeResult.executionFile;
+
+    // If Claude exited "success" but failed to post review comments due to
+    // insufficient permissions, surface that as an action failure. The MCP server
+    // returns isError:true on 403s, so the evidence is in the execution file.
+    // "Resource not accessible by integration" is GitHub's canonical error for
+    // this permission class — safe to match without ambiguity.
+    if (claudeSuccess && executionFile && existsSync(executionFile)) {
+      const permissionFailure = detectCommentPermissionFailure(executionFile);
+      if (permissionFailure) {
+        claudeSuccess = false;
+        core.setFailed(permissionFailure);
+      }
+    }
 
     // Set action-level outputs
     if (claudeResult.executionFile) {
