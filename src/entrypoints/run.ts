@@ -254,6 +254,38 @@ async function run() {
       }
     }
 
+    // For tag mode, merge project permissions.allow into the allowed tool list.
+    // .claude/settings.json is trusted at this point in both cases:
+    //   - PR events: restoreConfigFromBase replaced it with the base-branch version above.
+    //   - Issue events: the checkout is from the default branch (no untrusted PR code).
+    // PR #1002 added an explicit --allowedTools list for security, which inadvertently
+    // stopped the CLI from respecting project settings. This restores that behavior.
+    if (modeName === "tag") {
+      try {
+        const settingsPath = ".claude/settings.json";
+        if (existsSync(settingsPath)) {
+          const settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+          const projectAllow: unknown = settings?.permissions?.allow;
+          if (Array.isArray(projectAllow)) {
+            const projectTools = projectAllow.filter(
+              // Exclude entries that contain `"` — they would escape out of the
+              // double-quoted --allowedTools shell argument and corrupt the args string.
+              (t): t is string =>
+                typeof t === "string" && t.length > 0 && !t.includes('"'),
+            );
+            if (projectTools.length > 0) {
+              prepareResult.claudeArgs += ` --allowedTools "${projectTools.join(",")}"`;
+              console.log(
+                `Merged ${projectTools.length} project permission(s) from .claude/settings.json into tag mode tools`,
+              );
+            }
+          }
+        }
+      } catch {
+        // Malformed settings.json — proceed with hardcoded tool list only.
+      }
+    }
+
     await setupClaudeCodeSettings(process.env.INPUT_SETTINGS);
 
     await installPlugins(
