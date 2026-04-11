@@ -86,6 +86,10 @@ inputs:
     required: false
     default: "false"
 
+  max_turns:
+    description: "Maximum number of agentic turns for Claude to use"
+    required: false
+    default: ""
   claude_args:
     description: "Additional arguments to pass directly to Claude CLI"
     required: false
@@ -278,6 +282,7 @@ runs:
         INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ github.action_path }}/slash-commands
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
+        INPUT_MAX_TURNS: ${{ inputs.max_turns }}
         INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}
         DISPLAY_REPORT: ${{ inputs.display_report }}
         INPUT_PLUGINS: ${{ inputs.plugins }}
