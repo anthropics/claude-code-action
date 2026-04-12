@@ -233,6 +233,14 @@ runs:
         mkdir -p "$GITHUB_ACTION_PATH/bin"
         cp "$(command -v bun)" "$GITHUB_ACTION_PATH/bin/bun"
 
+    - name: Prepend system bin dirs to PATH
+      if: ${{ inputs.allowed_non_write_users != '' && runner.os != 'Windows' }}
+      continue-on-error: true
+      shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+      run: |
+        echo "/usr/bin" >> "$GITHUB_PATH"
+        echo "/bin" >> "$GITHUB_PATH"
+
     - name: Run Claude Code Action
       id: run
       shell: bash
@@ -341,6 +349,32 @@ runs:
         OTEL_METRIC_EXPORT_INTERVAL: ${{ env.OTEL_METRIC_EXPORT_INTERVAL }}
         OTEL_LOGS_EXPORT_INTERVAL: ${{ env.OTEL_LOGS_EXPORT_INTERVAL }}
         OTEL_RESOURCE_ATTRIBUTES: ${{ env.OTEL_RESOURCE_ATTRIBUTES }}
+
+    - name: Re-prepend system bin dirs to PATH
+      if: ${{ always() && inputs.allowed_non_write_users != '' && runner.os != 'Windows' }}
+      continue-on-error: true
+      shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+      env:
+        BASH_ENV: ""
+        LD_PRELOAD: ""
+        LD_LIBRARY_PATH: ""
+        NODE_OPTIONS: ""
+        DYLD_INSERT_LIBRARIES: ""
+        DYLD_PRELOAD: ""
+        DYLD_LIBRARY_PATH: ""
+        DYLD_FRAMEWORK_PATH: ""
+      run: |
+        echo "/usr/bin" >> "$GITHUB_PATH"
+        echo "/bin" >> "$GITHUB_PATH"
+        {
+          echo "BASH_ENV="
+          echo "LD_PRELOAD="
+          echo "LD_LIBRARY_PATH="
+          echo "DYLD_INSERT_LIBRARIES="
+          echo "DYLD_PRELOAD="
+          echo "DYLD_LIBRARY_PATH="
+          echo "DYLD_FRAMEWORK_PATH="
+        } >> "$GITHUB_ENV"
 
     - name: Cleanup SSH signing key
       if: always() && inputs.ssh_signing_key != ''
