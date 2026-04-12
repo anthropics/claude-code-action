@@ -205,7 +205,10 @@ server.tool(
 
       // Provide more helpful error messages for common issues
       let helpMessage = "";
-      if (errorMessage.includes("Validation Failed")) {
+      if (errorMessage.includes("Resource not accessible by integration")) {
+        helpMessage =
+          "\n\nThis error means the workflow token lacks permission to post review comments. Add `pull-requests: write` to your workflow's permissions block:\n\n```yaml\npermissions:\n  pull-requests: write\n```";
+      } else if (errorMessage.includes("Validation Failed")) {
         helpMessage =
           "\n\nThis usually means the line number doesn't exist in the diff or the file path is incorrect. Make sure you're commenting on lines that are part of the PR's changes.";
       } else if (errorMessage.includes("Not Found")) {
