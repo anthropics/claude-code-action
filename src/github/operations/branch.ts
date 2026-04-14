@@ -168,7 +168,20 @@ export async function setupBranch(
 
       // Execute git commands to checkout PR branch (dynamic depth based on PR size)
       // Using execFileSync instead of shell template literals for security
-      execGit(["fetch", "origin", `--depth=${fetchDepth}`, branchName]);
+      // For fork PRs, the branch doesn't exist on origin - use refs/pull/N/head instead
+      if (prData.isCrossRepository) {
+        console.log(
+          `Fork PR detected, fetching via refs/pull/${entityNumber}/head`,
+        );
+        execGit([
+          "fetch",
+          "origin",
+          `--depth=${fetchDepth}`,
+          `pull/${entityNumber}/head:${branchName}`,
+        ]);
+      } else {
+        execGit(["fetch", "origin", `--depth=${fetchDepth}`, branchName]);
+      }
       execGit(["checkout", branchName, "--"]);
 
       console.log(`Successfully checked out PR branch for PR #${entityNumber}`);
