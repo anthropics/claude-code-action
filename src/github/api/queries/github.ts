@@ -12,6 +12,7 @@ export const PR_QUERY = `
         baseRefName
         headRefName
         headRefOid
+        isCrossRepository
         createdAt
         updatedAt
         lastEditedAt
