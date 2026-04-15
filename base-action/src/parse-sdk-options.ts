@@ -19,6 +19,7 @@ const ACCUMULATING_FLAGS = new Set([
   "disallowedTools",
   "disallowed-tools",
   "mcp-config",
+  "add-dir",
 ]);
 
 // Delimiter used to join accumulated flag values
@@ -211,6 +212,15 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   delete extraArgs["disallowedTools"];
   delete extraArgs["disallowed-tools"];
 
+  // Extract --add-dir values into additionalDirectories array
+  const addDirValues = extraArgs["add-dir"]
+    ? extraArgs["add-dir"]
+        .split(ACCUMULATE_DELIMITER)
+        .map((d) => d.trim())
+        .filter(Boolean)
+    : [];
+  delete extraArgs["add-dir"];
+
   // Merge multiple --mcp-config values by combining their mcpServers objects
   // The action prepends its config (github_comment, github_ci, etc.) as inline JSON,
   // and users may provide their own config as inline JSON or file path
@@ -256,6 +266,8 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   // Build SDK options - use merged tools from both direct options and claudeArgs
   const sdkOptions: SdkOptions = {
     // Direct options from ClaudeOptions inputs
+    additionalDirectories:
+      addDirValues.length > 0 ? addDirValues : undefined,
     model: options.model,
     maxTurns: options.maxTurns ? parseInt(options.maxTurns, 10) : undefined,
     allowedTools:

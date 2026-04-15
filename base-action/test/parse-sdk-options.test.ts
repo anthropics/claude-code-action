@@ -298,6 +298,58 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("add-dir accumulation", () => {
+    test("should pass through single --add-dir", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--add-dir "/path/to/dir-a"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.additionalDirectories).toEqual(["/path/to/dir-a"]);
+      expect(result.sdkOptions.extraArgs?.["add-dir"]).toBeUndefined();
+    });
+
+    test("should accumulate multiple --add-dir flags", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--add-dir "/path/to/dir-a" --add-dir "/path/to/dir-b"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.additionalDirectories).toEqual([
+        "/path/to/dir-a",
+        "/path/to/dir-b",
+      ]);
+      expect(result.sdkOptions.extraArgs?.["add-dir"]).toBeUndefined();
+    });
+
+    test("should accumulate --add-dir mixed with other flags", () => {
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--add-dir "/path/to/dir-a" --model "claude-3" --add-dir "/path/to/dir-b"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.additionalDirectories).toEqual([
+        "/path/to/dir-a",
+        "/path/to/dir-b",
+      ]);
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-3");
+    });
+
+    test("should return undefined additionalDirectories when no --add-dir is present", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--model "claude-3-5-sonnet"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.additionalDirectories).toBeUndefined();
+    });
+  });
+
   describe("other extraArgs passthrough", () => {
     test("should pass through json-schema in extraArgs", () => {
       const options: ClaudeOptions = {
