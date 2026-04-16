@@ -26,6 +26,11 @@ export function collectActionInputsPresence(): string {
     classify_inline_comments: "true",
     use_commit_signing: "false",
     ssh_signing_key: "",
+    multi_agent_review: "false",
+    review_agents: "",
+    review_debate_rounds: "1",
+    review_max_agents: "5",
+    review_protocol_path: "",
   };
 
   const allInputsJson = process.env.ALL_INPUTS;

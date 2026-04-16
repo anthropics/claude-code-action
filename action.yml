@@ -150,6 +150,26 @@ inputs:
     description: "Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., 'https://github.com/user/marketplace1.git\nhttps://github.com/user/marketplace2.git')"
     required: false
     default: ""
+  multi_agent_review:
+    description: "Multi-agent peer review mode. 'false' (default): disabled. 'auto': triage agent analyzes diff complexity and routes to multi-agent or single-agent review. 'true': always use multi-agent review."
+    required: false
+    default: "false"
+  review_agents:
+    description: "JSON array defining custom review agents. Each agent needs id, name, perspective, and optional max_turns. Overrides .claude/review-agents.yml if present."
+    required: false
+    default: ""
+  review_debate_rounds:
+    description: "Number of debate rounds where agents review each other's findings (0 to disable debate)."
+    required: false
+    default: "1"
+  review_max_agents:
+    description: "Maximum number of review agents to run (safety limit)."
+    required: false
+    default: "5"
+  review_protocol_path:
+    description: "Path to a custom review agents YAML spec file. Defaults to .claude/review-agents.yml if it exists."
+    required: false
+    default: ""
 
 outputs:
   execution_file:
@@ -167,6 +187,9 @@ outputs:
   session_id:
     description: "The Claude Code session ID that can be used with --resume to continue this conversation"
     value: ${{ steps.run.outputs.session_id }}
+  conclusion:
+    description: "Execution status of Claude Code ('success' or 'failure')"
+    value: ${{ steps.run.outputs.conclusion }}
 
 runs:
   using: "composite"
@@ -278,6 +301,11 @@ runs:
         INCLUDE_FIX_LINKS: ${{ inputs.include_fix_links }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         CLAUDE_ARGS: ${{ inputs.claude_args }}
+        MULTI_AGENT_REVIEW: ${{ inputs.multi_agent_review }}
+        REVIEW_AGENTS: ${{ inputs.review_agents }}
+        REVIEW_DEBATE_ROUNDS: ${{ inputs.review_debate_rounds }}
+        REVIEW_MAX_AGENTS: ${{ inputs.review_max_agents }}
+        REVIEW_PROTOCOL_PATH: ${{ inputs.review_protocol_path }}
         ALL_INPUTS: ${{ toJson(inputs) }}
 
         # Base-action inputs

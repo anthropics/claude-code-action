@@ -9,6 +9,7 @@ export type ParsedSdkOptions = {
   sdkOptions: SdkOptions;
   showFullOutput: boolean;
   hasJsonSchema: boolean;
+  executionFilePath?: string;
 };
 
 // Flags that should accumulate multiple values instead of overwriting
@@ -287,5 +288,6 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     sdkOptions,
     showFullOutput,
     hasJsonSchema,
+    executionFilePath: options.executionFilePath,
   };
 }

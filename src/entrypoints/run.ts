@@ -26,6 +26,7 @@ import type { GitHubContext } from "../github/context";
 import { detectMode } from "../modes/detector";
 import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
+import { prepareAndRunReview } from "../modes/review";
 import { checkContainsTrigger } from "../github/validation/trigger";
 import { restoreConfigFromBase } from "../github/operations/restore-config";
 import { validateBranchName } from "../github/operations/branch";
@@ -194,7 +195,9 @@ async function run() {
     const containsTrigger =
       modeName === "tag"
         ? isEntityContext(context) && checkContainsTrigger(context)
-        : !!context.inputs?.prompt;
+        : modeName === "review"
+          ? true // review mode is triggered by multi_agent_review input
+          : !!context.inputs?.prompt;
     console.log(`Mode: ${modeName}`);
     console.log(`Context prompt: ${context.inputs?.prompt || "NO PROMPT"}`);
     console.log(`Trigger result: ${containsTrigger}`);
@@ -205,24 +208,9 @@ async function run() {
       return;
     }
 
-    // Run prepare
-    console.log(
-      `Preparing with mode: ${modeName} for event: ${context.eventName}`,
-    );
-    const prepareResult =
-      modeName === "tag"
-        ? await prepareTagMode({ context, octokit, githubToken })
-        : await prepareAgentMode({ context, octokit, githubToken });
-
-    commentId = prepareResult.commentId;
-    claudeBranch = prepareResult.branchInfo.claudeBranch;
-    baseBranch = prepareResult.branchInfo.baseBranch;
-    prepareCompleted = true;
-
-    // Phase 2: Install Claude Code CLI
+    // Phase 2: Install Claude Code CLI (needed before prepare for review mode)
     await installClaudeCode();
 
-    // Phase 3: Run Claude (import base-action directly)
     // Set env vars needed by the base-action code
     process.env.INPUT_ACTION_INPUTS_PRESENT = actionInputsPresent;
     process.env.CLAUDE_CODE_ACTION = "1";
@@ -232,15 +220,8 @@ async function run() {
 
     // On PRs, .claude/ and .mcp.json in the checkout are attacker-controlled.
     // Restore them from the base branch before the CLI reads them.
-    //
-    // We read pull_request.base.ref from the payload directly because agent
-    // mode's branchInfo.baseBranch defaults to the repo's default branch rather
-    // than the PR's actual target (agent/index.ts). For issue_comment on a PR the payload
-    // lacks base.ref, so we fall back to the mode-provided value — tag mode
-    // fetches it from GraphQL; agent mode on issue_comment is an edge case
-    // that at worst restores from the wrong trusted branch (still secure).
     if (isEntityContext(context) && context.isPR) {
-      let restoreBase = baseBranch;
+      let restoreBase: string | undefined;
       if (
         isPullRequestEvent(context) ||
         isPullRequestReviewEvent(context) ||
@@ -262,37 +243,73 @@ async function run() {
       process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE,
     );
 
-    const promptFile =
-      process.env.INPUT_PROMPT_FILE ||
-      `${process.env.RUNNER_TEMP}/claude-prompts/claude-prompt.txt`;
-    const promptConfig = await preparePrompt({
-      prompt: "",
-      promptFile,
-    });
+    if (modeName === "review") {
+      // Review mode: orchestrator handles prepare + multiple runClaude() calls
+      const reviewResult = await prepareAndRunReview({
+        context,
+        octokit,
+        githubToken,
+        multiAgentReview: context.inputs.multiAgentReview,
+      });
 
-    const claudeResult: ClaudeRunResult = await runClaude(promptConfig.path, {
-      claudeArgs: prepareResult.claudeArgs,
-      appendSystemPrompt: process.env.APPEND_SYSTEM_PROMPT,
-      model: process.env.ANTHROPIC_MODEL,
-      pathToClaudeCodeExecutable:
-        process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE,
-      showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
-    });
+      commentId = reviewResult.commentId;
+      claudeBranch = reviewResult.branchInfo.claudeBranch;
+      baseBranch = reviewResult.branchInfo.baseBranch;
+      executionFile = reviewResult.executionFile;
+      claudeSuccess = reviewResult.claudeSuccess;
+      prepareCompleted = true;
 
-    claudeSuccess = claudeResult.conclusion === "success";
-    executionFile = claudeResult.executionFile;
+      if (executionFile) {
+        core.setOutput("execution_file", executionFile);
+      }
+      core.setOutput("conclusion", claudeSuccess ? "success" : "failure");
+    } else {
+      // Tag/Agent mode: standard prepare + single runClaude()
+      console.log(
+        `Preparing with mode: ${modeName} for event: ${context.eventName}`,
+      );
+      const prepareResult =
+        modeName === "tag"
+          ? await prepareTagMode({ context, octokit, githubToken })
+          : await prepareAgentMode({ context, octokit, githubToken });
 
-    // Set action-level outputs
-    if (claudeResult.executionFile) {
-      core.setOutput("execution_file", claudeResult.executionFile);
+      commentId = prepareResult.commentId;
+      claudeBranch = prepareResult.branchInfo.claudeBranch;
+      baseBranch = prepareResult.branchInfo.baseBranch;
+      prepareCompleted = true;
+
+      const promptFile =
+        process.env.INPUT_PROMPT_FILE ||
+        `${process.env.RUNNER_TEMP}/claude-prompts/claude-prompt.txt`;
+      const promptConfig = await preparePrompt({
+        prompt: "",
+        promptFile,
+      });
+
+      const claudeResult: ClaudeRunResult = await runClaude(promptConfig.path, {
+        claudeArgs: prepareResult.claudeArgs,
+        appendSystemPrompt: process.env.APPEND_SYSTEM_PROMPT,
+        model: process.env.ANTHROPIC_MODEL,
+        pathToClaudeCodeExecutable:
+          process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE,
+        showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
+      });
+
+      claudeSuccess = claudeResult.conclusion === "success";
+      executionFile = claudeResult.executionFile;
+
+      // Set action-level outputs
+      if (claudeResult.executionFile) {
+        core.setOutput("execution_file", claudeResult.executionFile);
+      }
+      if (claudeResult.sessionId) {
+        core.setOutput("session_id", claudeResult.sessionId);
+      }
+      if (claudeResult.structuredOutput) {
+        core.setOutput("structured_output", claudeResult.structuredOutput);
+      }
+      core.setOutput("conclusion", claudeResult.conclusion);
     }
-    if (claudeResult.sessionId) {
-      core.setOutput("session_id", claudeResult.sessionId);
-    }
-    if (claudeResult.structuredOutput) {
-      core.setOutput("structured_output", claudeResult.structuredOutput);
-    }
-    core.setOutput("conclusion", claudeResult.conclusion);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     // Only mark as prepare failure if we haven't completed the prepare phase

@@ -30,6 +30,9 @@ describe("detectMode with enhanced routing", () => {
       includeFixLinks: true,
       includeCommentsByActor: "",
       excludeCommentsByActor: "",
+      multiAgentReview: "false",
+      reviewDebateRounds: 1,
+      reviewMaxAgents: 5,
     },
   };
 
@@ -259,6 +262,188 @@ describe("detectMode with enhanced routing", () => {
       };
 
       expect(detectMode(context)).toBe("tag");
+    });
+  });
+
+  describe("Review Mode", () => {
+    it("should detect review mode when multiAgentReview is 'true' on a PR", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "pull_request",
+        eventAction: "opened",
+        payload: { pull_request: { number: 1 } } as any,
+        entityNumber: 1,
+        isPR: true,
+        inputs: { ...baseContext.inputs, multiAgentReview: "true" },
+      };
+
+      expect(detectMode(context)).toBe("review");
+    });
+
+    it("should detect review mode when multiAgentReview is 'auto' on a PR", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "pull_request",
+        eventAction: "opened",
+        payload: { pull_request: { number: 1 } } as any,
+        entityNumber: 1,
+        isPR: true,
+        inputs: { ...baseContext.inputs, multiAgentReview: "auto" },
+      };
+
+      expect(detectMode(context)).toBe("review");
+    });
+
+    it("should not detect review mode on issues even with multiAgentReview 'true'", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "issues",
+        eventAction: "opened",
+        payload: { issue: { number: 1, body: "Test" } } as any,
+        entityNumber: 1,
+        isPR: false,
+        inputs: { ...baseContext.inputs, multiAgentReview: "true" },
+      };
+
+      // Not a PR, so should not be review mode
+      expect(detectMode(context)).not.toBe("review");
+    });
+
+    it("should not detect review mode when multiAgentReview is 'false'", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "pull_request",
+        eventAction: "opened",
+        payload: { pull_request: { number: 1 } } as any,
+        entityNumber: 1,
+        isPR: true,
+        inputs: { ...baseContext.inputs, multiAgentReview: "false" },
+      };
+
+      expect(detectMode(context)).not.toBe("review");
+    });
+
+    it("should prioritize review mode over tag mode when both apply", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "pull_request",
+        eventAction: "opened",
+        payload: { pull_request: { number: 1 } } as any,
+        entityNumber: 1,
+        isPR: true,
+        inputs: {
+          ...baseContext.inputs,
+          multiAgentReview: "true",
+          trackProgress: true,
+        },
+      };
+
+      expect(detectMode(context)).toBe("review");
+    });
+
+    it("should not detect review mode for issue_comment on PR even with 'true'", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "issue_comment",
+        eventAction: "created",
+        payload: {
+          issue: { number: 1, body: "Test" },
+          comment: { body: "@claude help" },
+        } as any,
+        entityNumber: 1,
+        isPR: true,
+        inputs: { ...baseContext.inputs, multiAgentReview: "true" },
+      };
+
+      expect(detectMode(context)).not.toBe("review");
+    });
+
+    it("should not detect review mode for pull_request_review_comment even with 'true'", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "pull_request_review_comment",
+        eventAction: "created",
+        payload: {
+          pull_request: { number: 1, body: "Test" },
+          comment: { body: "@claude check this" },
+        } as any,
+        entityNumber: 1,
+        isPR: true,
+        inputs: { ...baseContext.inputs, multiAgentReview: "true" },
+      };
+
+      expect(detectMode(context)).not.toBe("review");
+    });
+
+    it("should use agent mode when 'auto' with explicit prompt", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "pull_request",
+        eventAction: "opened",
+        payload: { pull_request: { number: 1 } } as any,
+        entityNumber: 1,
+        isPR: true,
+        inputs: {
+          ...baseContext.inputs,
+          multiAgentReview: "auto",
+          prompt: "Review for security issues",
+        },
+      };
+
+      expect(detectMode(context)).toBe("agent");
+    });
+
+    it("should use tag mode when 'auto' with trackProgress", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "pull_request",
+        eventAction: "opened",
+        payload: { pull_request: { number: 1 } } as any,
+        entityNumber: 1,
+        isPR: true,
+        inputs: {
+          ...baseContext.inputs,
+          multiAgentReview: "auto",
+          trackProgress: true,
+        },
+      };
+
+      expect(detectMode(context)).toBe("tag");
+    });
+
+    it("should not detect review mode for issue_comment on PR with 'auto'", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "issue_comment",
+        eventAction: "created",
+        payload: {
+          issue: { number: 1, body: "Test" },
+          comment: { body: "@claude help" },
+        } as any,
+        entityNumber: 1,
+        isPR: true,
+        inputs: { ...baseContext.inputs, multiAgentReview: "auto" },
+      };
+
+      expect(detectMode(context)).not.toBe("review");
+    });
+
+    it("should use review mode when 'true' even with prompt", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "pull_request",
+        eventAction: "opened",
+        payload: { pull_request: { number: 1 } } as any,
+        entityNumber: 1,
+        isPR: true,
+        inputs: {
+          ...baseContext.inputs,
+          multiAgentReview: "true",
+          prompt: "Review for security issues",
+        },
+      };
+
+      expect(detectMode(context)).toBe("review");
     });
   });
 });
