@@ -43,8 +43,9 @@ import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
 
 /**
  * Install Claude Code CLI, handling retry logic and custom executable paths.
+ * Returns the absolute path to the claude executable.
  */
-async function installClaudeCode(): Promise<void> {
+async function installClaudeCode(): Promise<string> {
   const customExecutable = process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
   if (customExecutable) {
     if (/[\x00-\x1f\x7f]/.test(customExecutable)) {
@@ -61,7 +62,7 @@ async function installClaudeCode(): Promise<void> {
     }
     // Also add to current process PATH
     process.env.PATH = `${claudeDir}:${process.env.PATH}`;
-    return;
+    return customExecutable;
   }
 
   const claudeCodeVersion = "2.1.113";
@@ -93,7 +94,7 @@ async function installClaudeCode(): Promise<void> {
         await appendFile(githubPath, `${homeBin}\n`);
       }
       process.env.PATH = `${homeBin}:${process.env.PATH}`;
-      return;
+      return `${homeBin}/claude`;
     } catch (error) {
       if (attempt === 3) {
         throw new Error(
@@ -104,6 +105,7 @@ async function installClaudeCode(): Promise<void> {
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   }
+  throw new Error("unreachable");
 }
 
 /**
@@ -220,7 +222,7 @@ async function run() {
     prepareCompleted = true;
 
     // Phase 2: Install Claude Code CLI
-    await installClaudeCode();
+    const claudeExecutable = await installClaudeCode();
 
     // Phase 3: Run Claude (import base-action directly)
     // Set env vars needed by the base-action code
@@ -259,7 +261,7 @@ async function run() {
     await installPlugins(
       process.env.INPUT_PLUGIN_MARKETPLACES,
       process.env.INPUT_PLUGINS,
-      process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE,
+      claudeExecutable,
     );
 
     const promptFile =
@@ -274,8 +276,7 @@ async function run() {
       claudeArgs: prepareResult.claudeArgs,
       appendSystemPrompt: process.env.APPEND_SYSTEM_PROMPT,
       model: process.env.ANTHROPIC_MODEL,
-      pathToClaudeCodeExecutable:
-        process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE,
+      pathToClaudeCodeExecutable: claudeExecutable,
       showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
     });
 
