@@ -36,6 +36,15 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("refs/heads/main")).not.toThrow();
       expect(() => validateBranchName("bugfix/JIRA-1234")).not.toThrow();
     });
+
+    it("should accept branch names containing # (git-valid, common in issue-linked branches)", () => {
+      // Reported in #1137: branches like "put-back-arm64-#2" were rejected
+      expect(() => validateBranchName("put-back-arm64-#2")).not.toThrow();
+      expect(() =>
+        validateBranchName("feature/#123-description"),
+      ).not.toThrow();
+      expect(() => validateBranchName("fix/issue-#42")).not.toThrow();
+    });
   });
 
   describe("command injection attempts", () => {

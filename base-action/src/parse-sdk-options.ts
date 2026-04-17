@@ -80,6 +80,20 @@ function mergeMcpConfigs(configValues: string[]): string {
 }
 
 /**
+ * Strip comment lines from a shell argument string.
+ * Lines whose first non-whitespace character is `#` are removed entirely.
+ * Inline `#` within a line (e.g. inside a quoted value) is left untouched
+ * because shell-quote handles quoting — we only need to remove full comment lines
+ * before shell-quote sees them.
+ */
+function stripShellComments(input: string): string {
+  return input
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("#"))
+    .join("\n");
+}
+
+/**
  * Parse claudeArgs string into extraArgs record for SDK pass-through
  * The SDK/CLI will handle --mcp-config, --json-schema, etc.
  * For allowedTools and disallowedTools, multiple occurrences are accumulated (null-char joined).
@@ -92,7 +106,7 @@ function parseClaudeArgsToExtraArgs(
   if (!claudeArgs?.trim()) return {};
 
   const result: Record<string, string | null> = {};
-  const args = parseShellArgs(claudeArgs).filter(
+  const args = parseShellArgs(stripShellComments(claudeArgs)).filter(
     (arg): arg is string => typeof arg === "string",
   );
 
@@ -214,6 +228,12 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   }
   // Set the entrypoint for Claude Code to identify this as the GitHub Action
   env.CLAUDE_CODE_ENTRYPOINT = "claude-code-github-action";
+
+  // Remove OIDC token request variables so Claude cannot mint new tokens.
+  // These are only needed by the action itself (via @actions/core.getIDToken()),
+  // not by the Claude session.
+  delete env.ACTIONS_ID_TOKEN_REQUEST_URL;
+  delete env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
 
   // Build system prompt option - default to claude_code preset
   let systemPrompt: SdkOptions["systemPrompt"];

@@ -28,7 +28,7 @@ function extractFirstLabel(githubData: FetchDataResult): string | undefined {
  *
  * Valid branch names:
  * - Start with alphanumeric character (not dash, to prevent option injection)
- * - Contain only alphanumeric, forward slash, hyphen, underscore, or period
+ * - Contain only alphanumeric, forward slash, hyphen, underscore, period, or hash (#)
  * - Do not start or end with a period
  * - Do not end with a slash
  * - Do not contain '..' (path traversal)
@@ -58,12 +58,14 @@ export function validateBranchName(branchName: string): void {
     );
   }
 
-  // Strict whitelist pattern: alphanumeric start, then alphanumeric/slash/hyphen/underscore/period
-  const validPattern = /^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$/;
+  // Strict whitelist pattern: alphanumeric start, then alphanumeric/slash/hyphen/underscore/period/hash.
+  // # is valid per git-check-ref-format and commonly used in branch names like "fix/#123-description".
+  // All git calls use execFileSync (not shell interpolation), so # carries no injection risk.
+  const validPattern = /^[a-zA-Z0-9][a-zA-Z0-9/_.#-]*$/;
 
   if (!validPattern.test(branchName)) {
     throw new Error(
-      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric character and contain only alphanumeric characters, forward slashes, hyphens, underscores, or periods.`,
+      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric character and contain only alphanumeric characters, forward slashes, hyphens, underscores, periods, or hashes (#).`,
     );
   }
 
@@ -164,9 +166,23 @@ export async function setupBranch(
       // Validate branch names before use to prevent command injection
       validateBranchName(branchName);
 
-      // Execute git commands to checkout PR branch (dynamic depth based on PR size)
-      // Using execFileSync instead of shell template literals for security
-      execGit(["fetch", "origin", `--depth=${fetchDepth}`, branchName]);
+      // For cross-repository (fork) PRs, fetch via the pull ref since the
+      // branch only exists on the fork's remote, not on origin.
+      if (prData.isCrossRepository) {
+        console.log(
+          `PR #${entityNumber} is from a fork, fetching via refs/pull/${entityNumber}/head...`,
+        );
+        execGit([
+          "fetch",
+          "origin",
+          `--depth=${fetchDepth}`,
+          `pull/${entityNumber}/head:${branchName}`,
+        ]);
+      } else {
+        // Execute git commands to checkout PR branch (dynamic depth based on PR size)
+        // Using execFileSync instead of shell template literals for security
+        execGit(["fetch", "origin", `--depth=${fetchDepth}`, branchName]);
+      }
       execGit(["checkout", branchName, "--"]);
 
       console.log(`Successfully checked out PR branch for PR #${entityNumber}`);
