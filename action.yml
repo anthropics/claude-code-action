@@ -194,10 +194,14 @@ runs:
       run: |
         cd ${GITHUB_ACTION_PATH}
         bun install --production
-        # bun install --production strips execute bits from vendored binaries (bun issue #1140).
-        # Restore +x on the ripgrep binaries so the Claude Agent SDK can exec them.
-        find "${GITHUB_ACTION_PATH}/node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep" \
-          -name "rg" -type f -exec chmod +x {} \;
+        # The Agent SDK ships a native binary with ripgrep bundled — no
+        # vendor/ to chmod. Older SDKs (≤0.2.112) shipped vendor/ripgrep and
+        # needed +x restored after bun install stripped it; tolerate either
+        # layout so a lockfile rollback doesn't break.
+        RG_DIR="${GITHUB_ACTION_PATH}/node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep"
+        if [ -d "$RG_DIR" ]; then
+          find "$RG_DIR" -name "rg" -type f -exec chmod +x {} \;
+        fi
 
     - name: Install subprocess isolation dependencies
       # Install subprocess isolation dependencies when processing content from non-write users.
