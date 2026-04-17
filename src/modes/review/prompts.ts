@@ -5,6 +5,22 @@ import { AGENT_FINDINGS_SCHEMA, AGENT_REBUTTAL_SCHEMA } from "./schemas";
 
 const PROMPT_DIR = `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`;
 
+// Wraps a workflow-provided prompt as a Team Guidance section. Returns an
+// empty string when no guidance is supplied so the surrounding template
+// collapses cleanly without spurious blank lines.
+function formatTeamGuidanceSection(teamGuidance?: string): string {
+  const trimmed = teamGuidance?.trim();
+  if (!trimmed) return "";
+  return `## Team Guidance
+
+The following guidance is supplied by the team operating this review action.
+Apply it in addition to your role-specific perspective.
+
+${trimmed}
+
+`;
+}
+
 function formatFindingsForContext(allFindings: AgentFindings[]): string {
   if (allFindings.length === 0) return "";
 
@@ -51,6 +67,7 @@ ${responseLines}`;
 export async function generateAgentPrompt(
   agent: ReviewAgent,
   githubContextMarkdown: string,
+  teamGuidance?: string,
 ): Promise<string> {
   await mkdir(PROMPT_DIR, { recursive: true });
 
@@ -60,7 +77,7 @@ You are reviewing a Pull Request. Analyze the changes carefully from your specif
 
 ${githubContextMarkdown}
 
-## Instructions
+${formatTeamGuidanceSection(teamGuidance)}## Instructions
 
 1. Read the PR diff and understand the changes
 2. Analyze from your specific review perspective described above
@@ -79,6 +96,7 @@ export async function generateDebatePrompt(
   agent: ReviewAgent,
   ownFindings: AgentFindings,
   otherFindings: AgentFindings[],
+  teamGuidance?: string,
 ): Promise<string> {
   await mkdir(PROMPT_DIR, { recursive: true });
 
@@ -86,7 +104,7 @@ export async function generateDebatePrompt(
 
   const prompt = `${agent.perspective}
 
-You previously reviewed this PR and produced the following findings:
+${formatTeamGuidanceSection(teamGuidance)}You previously reviewed this PR and produced the following findings:
 
 ### Your Previous Findings (${ownFindings.agent_id})
 Summary: ${ownFindings.summary}
@@ -114,6 +132,7 @@ export async function generateSynthesisPrompt(
   synthesisPerspective: string,
   allFindings: AgentFindings[],
   allRebuttals: AgentRebuttal[],
+  teamGuidance?: string,
 ): Promise<string> {
   await mkdir(PROMPT_DIR, { recursive: true });
 
@@ -122,7 +141,7 @@ export async function generateSynthesisPrompt(
 
   const prompt = `${synthesisPerspective}
 
-## All Agent Findings
+${formatTeamGuidanceSection(teamGuidance)}## All Agent Findings
 
 ${findingsContext}
 
@@ -171,6 +190,7 @@ comments for specific line-level feedback.`;
 
 export async function generateSingleAgentPrompt(
   githubContextMarkdown: string,
+  teamGuidance?: string,
 ): Promise<string> {
   await mkdir(PROMPT_DIR, { recursive: true });
 
@@ -178,7 +198,7 @@ export async function generateSingleAgentPrompt(
 
 ${githubContextMarkdown}
 
-## Instructions
+${formatTeamGuidanceSection(teamGuidance)}## Instructions
 
 1. Read the PR diff and changed files carefully
 2. Analyze the changes from multiple perspectives:

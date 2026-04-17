@@ -115,6 +115,12 @@ export async function prepareAndRunReview({
   // Build GitHub context markdown (shared across all agents)
   const githubContextMarkdown = buildGitHubContextMarkdown(githubData, context);
 
+  // Optional team guidance sourced from the workflow `prompt:` input.
+  // Threaded into every agent prompt so role-specific perspectives still
+  // apply the team's conventions (style, testing rules, etc.). Empty string
+  // is normalized to undefined so downstream templates can skip the section.
+  const teamGuidance = context.inputs.prompt?.trim() || undefined;
+
   // Create tracking comment
   const tracker = new ReviewTracker(
     octokit.rest,
@@ -169,6 +175,7 @@ export async function prepareAndRunReview({
       trackingCommentId,
       synthesisCommentId,
       tracker,
+      teamGuidance,
     });
   }
 
@@ -189,6 +196,7 @@ export async function prepareAndRunReview({
         githubContextMarkdown,
         baseClaudeArgs,
         `review-r1-${agent.id}`,
+        teamGuidance,
       );
       await tracker.updateAgentStatus(agent.name, "complete", findings);
       return {
@@ -230,6 +238,7 @@ export async function prepareAndRunReview({
             otherFindings,
             baseClaudeArgs,
             `review-r2-${agent.id}`,
+            teamGuidance,
           );
           return { agentId: agent.id, rebuttal };
         }),
@@ -264,6 +273,7 @@ export async function prepareAndRunReview({
         githubToken,
         context,
         synthesisCommentId,
+        teamGuidance,
       );
 
       const execFile = `${process.env.RUNNER_TEMP}/claude-execution-review-synthesis.json`;
@@ -319,6 +329,7 @@ async function runSingleAgentReview({
   trackingCommentId,
   synthesisCommentId,
   tracker,
+  teamGuidance,
 }: {
   githubContextMarkdown: string;
   githubToken: string;
@@ -327,6 +338,7 @@ async function runSingleAgentReview({
   trackingCommentId: number;
   synthesisCommentId: number;
   tracker: ReviewTracker;
+  teamGuidance?: string;
 }): Promise<ReviewResult> {
   const executionFilePath = `${process.env.RUNNER_TEMP}/claude-execution-review-single.json`;
 
@@ -349,7 +361,10 @@ async function runSingleAgentReview({
   const escapedConfig = singleAgentMcpConfig.replace(/'/g, "'\\''");
   const claudeArgs = `--mcp-config '${escapedConfig}' --permission-mode acceptEdits --allowedTools "Glob,Grep,Read,LS,mcp__github_comment__update_claude_comment,mcp__github_inline_comment__create_inline_comment"`;
 
-  const promptPath = await generateSingleAgentPrompt(githubContextMarkdown);
+  const promptPath = await generateSingleAgentPrompt(
+    githubContextMarkdown,
+    teamGuidance,
+  );
 
   await tracker.updateSynthesisStatus("running");
 
@@ -400,8 +415,13 @@ async function runReviewAgent(
   githubContextMarkdown: string,
   baseClaudeArgs: string,
   executionId: string,
+  teamGuidance?: string,
 ): Promise<AgentFindings> {
-  const promptPath = await generateAgentPrompt(agent, githubContextMarkdown);
+  const promptPath = await generateAgentPrompt(
+    agent,
+    githubContextMarkdown,
+    teamGuidance,
+  );
   const claudeArgs = buildAgentClaudeArgs(
     baseClaudeArgs,
     AGENT_FINDINGS_SCHEMA,
@@ -436,11 +456,13 @@ async function runDebateAgent(
   otherFindings: AgentFindings[],
   baseClaudeArgs: string,
   executionId: string,
+  teamGuidance?: string,
 ): Promise<AgentRebuttal> {
   const promptPath = await generateDebatePrompt(
     agent,
     ownFindings,
     otherFindings,
+    teamGuidance,
   );
   const claudeArgs = buildAgentClaudeArgs(
     baseClaudeArgs,
@@ -479,11 +501,13 @@ async function runSynthesisAgent(
   githubToken: string,
   context: ParsedGitHubContext,
   synthesisCommentId: number,
+  teamGuidance?: string,
 ): Promise<ClaudeRunResult> {
   const promptPath = await generateSynthesisPrompt(
     synthesisPerspective,
     allFindings,
     allRebuttals,
+    teamGuidance,
   );
   const executionFilePath = `${process.env.RUNNER_TEMP}/claude-execution-review-synthesis.json`;
 

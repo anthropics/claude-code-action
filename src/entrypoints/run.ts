@@ -21,6 +21,7 @@ import {
   isPullRequestEvent,
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
+  isIssueCommentEvent,
 } from "../github/context";
 import type { GitHubContext } from "../github/context";
 import { detectMode } from "../modes/detector";
@@ -228,9 +229,20 @@ async function run() {
         isPullRequestReviewCommentEvent(context)
       ) {
         restoreBase = context.payload.pull_request.base.ref;
-        validateBranchName(restoreBase);
+      } else if (
+        isIssueCommentEvent(context) &&
+        context.payload.issue.pull_request
+      ) {
+        // issue_comment on a PR — payload lacks base.ref, so look it up.
+        const { data: pr } = await octokit.rest.pulls.get({
+          owner: context.repository.owner,
+          repo: context.repository.repo,
+          pull_number: context.entityNumber,
+        });
+        restoreBase = pr.base.ref;
       }
       if (restoreBase) {
+        validateBranchName(restoreBase);
         restoreConfigFromBase(restoreBase);
       }
     }

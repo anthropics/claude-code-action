@@ -11,36 +11,47 @@ import { checkContainsTrigger } from "../github/validation/trigger";
 
 export type AutoDetectedMode = "tag" | "agent" | "review";
 
+// PR actions that can auto-enter review mode.
+const REVIEW_PR_ACTIONS = [
+  "opened",
+  "synchronize",
+  "ready_for_review",
+  "reopened",
+];
+
 export function detectMode(context: GitHubContext): AutoDetectedMode {
-  // Review mode: only for pull_request events (not comments on PRs)
+  // Review mode gate.
+  // - "true": force review whenever we can safely enter it (PR open-like or
+  //   comment with an explicit trigger phrase).
+  // - "auto": same entry conditions; the review orchestrator's triage step
+  //   decides single-agent vs multi-agent internally.
+  // `prompt` and `trackProgress` no longer opt out of review:
+  //   - `prompt` is threaded to each review agent as team guidance.
+  //   - `trackProgress` is functionally covered by the review tracker.
   if (
     context.inputs.multiAgentReview !== "false" &&
     isEntityContext(context) &&
-    context.isPR &&
-    isPullRequestEvent(context)
+    context.isPR
   ) {
-    // "true": always use review mode for PR events
-    if (context.inputs.multiAgentReview === "true") {
-      return "review";
-    }
-    // "auto": yield to explicit prompt or trackProgress
+    const isPrOpenLike =
+      isPullRequestEvent(context) &&
+      context.eventAction !== undefined &&
+      REVIEW_PR_ACTIONS.includes(context.eventAction);
+
+    // Comment events are only eligible when an explicit trigger phrase is
+    // present — prevents the review's own comments from re-triggering itself
+    // and avoids reviewing on unrelated chatter.
+    const isCommentTrigger =
+      (isIssueCommentEvent(context) ||
+        isPullRequestReviewCommentEvent(context)) &&
+      checkContainsTrigger(context);
+
     if (
-      context.inputs.multiAgentReview === "auto" &&
-      !context.inputs.prompt &&
-      !context.inputs.trackProgress
+      (context.inputs.multiAgentReview === "true" ||
+        context.inputs.multiAgentReview === "auto") &&
+      (isPrOpenLike || isCommentTrigger)
     ) {
-      const supportedActions = [
-        "opened",
-        "synchronize",
-        "ready_for_review",
-        "reopened",
-      ];
-      if (
-        context.eventAction &&
-        supportedActions.includes(context.eventAction)
-      ) {
-        return "review";
-      }
+      return "review";
     }
   }
 
