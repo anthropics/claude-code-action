@@ -182,10 +182,10 @@ export async function runClaudeWithSdk(
 
       if (message.type === "assistant") {
         const usage = (message as SDKAssistantMessage).message.usage;
-        totalInputTokens += usage.input_tokens || 0;
-        totalOutputTokens += usage.output_tokens || 0;
-        totalCacheReadTokens += usage.cache_read_input_tokens || 0;
-        totalCacheWriteTokens += usage.cache_creation_input_tokens || 0;
+        totalInputTokens += usage.input_tokens ?? 0;
+        totalOutputTokens += usage.output_tokens ?? 0;
+        totalCacheReadTokens += usage.cache_read_input_tokens ?? 0;
+        totalCacheWriteTokens += usage.cache_creation_input_tokens ?? 0;
       }
     }
   } catch (error) {
