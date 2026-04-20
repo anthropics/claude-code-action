@@ -8,7 +8,7 @@ import { resolve } from "path";
 import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
-import { retryWithBackoff } from "../utils/retry";
+import { retryWithBackoff, NonRetryableError } from "../utils/retry";
 import { validatePathWithinRepo } from "./path-validation";
 
 type GitHubRef = {
@@ -399,14 +399,11 @@ server.tool(
               throw permissionError;
             }
 
-            // For other errors, use the original message
+            // For non-403 errors, fail immediately without retry
             const error = new Error(
               `Failed to update reference: ${updateRefResponse.status} - ${errorText}`,
             );
-
-            // For non-403 errors, fail immediately without retry
-            console.error("Non-retryable error:", updateRefResponse.status);
-            throw error;
+            throw new NonRetryableError(error.message, error);
           }
         },
         {
@@ -615,14 +612,11 @@ server.tool(
               throw permissionError;
             }
 
-            // For other errors, use the original message
+            // For non-403 errors, fail immediately without retry
             const error = new Error(
               `Failed to update reference: ${updateRefResponse.status} - ${errorText}`,
             );
-
-            // For non-403 errors, fail immediately without retry
-            console.error("Non-retryable error:", updateRefResponse.status);
-            throw error;
+            throw new NonRetryableError(error.message, error);
           }
         },
         {
