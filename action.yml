@@ -243,7 +243,7 @@ runs:
       run: |
         bun --no-env-file \
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
+          --tsconfig-override="$(realpath "${GITHUB_ACTION_PATH}/tsconfig.json")" \
           run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
       env:
         # Prepare inputs
@@ -380,7 +380,7 @@ runs:
         [ -x "$BUN_BIN" ] || BUN_BIN="bun"
         "$BUN_BIN" --no-env-file \
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
+          --tsconfig-override="$(realpath "${GITHUB_ACTION_PATH}/tsconfig.json")" \
           run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
 
     - name: Post buffered inline comments
@@ -397,7 +397,7 @@ runs:
         [ -x "$BUN_BIN" ] || BUN_BIN="bun"
         "$BUN_BIN" --no-env-file \
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
+          --tsconfig-override="$(realpath "${GITHUB_ACTION_PATH}/tsconfig.json")" \
           run ${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts
 
     - name: Revoke app token
