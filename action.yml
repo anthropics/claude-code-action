@@ -241,10 +241,11 @@ runs:
       id: run
       shell: bash
       run: |
+        ACTION_DIR=$(realpath "${GITHUB_ACTION_PATH}")
         bun --no-env-file \
-          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          --tsconfig-override="$(realpath "${GITHUB_ACTION_PATH}/tsconfig.json")" \
-          run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
+          --config="${ACTION_DIR}/bunfig.toml" \
+          --tsconfig-override="${ACTION_DIR}/tsconfig.json" \
+          run "${ACTION_DIR}/src/entrypoints/run.ts"
       env:
         # Prepare inputs
         MODE: ${{ inputs.mode }}
@@ -376,12 +377,13 @@ runs:
       if: always() && inputs.ssh_signing_key != ''
       shell: bash
       run: |
-        BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
+        ACTION_DIR=$(realpath "${GITHUB_ACTION_PATH}")
+        BUN_BIN="${ACTION_DIR}/bin/bun"
         [ -x "$BUN_BIN" ] || BUN_BIN="bun"
         "$BUN_BIN" --no-env-file \
-          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          --tsconfig-override="$(realpath "${GITHUB_ACTION_PATH}/tsconfig.json")" \
-          run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
+          --config="${ACTION_DIR}/bunfig.toml" \
+          --tsconfig-override="${ACTION_DIR}/tsconfig.json" \
+          run "${ACTION_DIR}/src/entrypoints/cleanup-ssh-signing.ts"
 
     - name: Post buffered inline comments
       if: always() && inputs.classify_inline_comments != 'false'
@@ -393,12 +395,13 @@ runs:
         PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
       run: |
-        BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
+        ACTION_DIR=$(realpath "${GITHUB_ACTION_PATH}")
+        BUN_BIN="${ACTION_DIR}/bin/bun"
         [ -x "$BUN_BIN" ] || BUN_BIN="bun"
         "$BUN_BIN" --no-env-file \
-          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          --tsconfig-override="$(realpath "${GITHUB_ACTION_PATH}/tsconfig.json")" \
-          run ${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts
+          --config="${ACTION_DIR}/bunfig.toml" \
+          --tsconfig-override="${ACTION_DIR}/tsconfig.json" \
+          run "${ACTION_DIR}/src/entrypoints/post-buffered-inline-comments.ts"
 
     - name: Revoke app token
       if: always() && inputs.github_token == '' && steps.run.outputs.github_token != '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
