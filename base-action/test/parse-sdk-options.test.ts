@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, afterEach } from "bun:test";
 import { parseSdkOptions } from "../src/parse-sdk-options";
 import type { ClaudeOptions } from "../src/run-claude";
 
@@ -424,9 +424,36 @@ describe("parseSdkOptions", () => {
   });
 
   describe("settingSources", () => {
-    test("should default to ['user'] when not specified", () => {
-      const options: ClaudeOptions = {};
-      const result = parseSdkOptions(options);
+    const originalEventName = process.env.GITHUB_EVENT_NAME;
+    afterEach(() => {
+      if (originalEventName === undefined) {
+        delete process.env.GITHUB_EVENT_NAME;
+      } else {
+        process.env.GITHUB_EVENT_NAME = originalEventName;
+      }
+    });
+
+    test("should default to ['user','project','local'] for non-gated events", () => {
+      process.env.GITHUB_EVENT_NAME = "push";
+      const result = parseSdkOptions({});
+
+      expect(result.sdkOptions.settingSources).toEqual([
+        "user",
+        "project",
+        "local",
+      ]);
+    });
+
+    test("should default to ['user'] under pull_request_target", () => {
+      process.env.GITHUB_EVENT_NAME = "pull_request_target";
+      const result = parseSdkOptions({});
+
+      expect(result.sdkOptions.settingSources).toEqual(["user"]);
+    });
+
+    test("should default to ['user'] under workflow_run", () => {
+      process.env.GITHUB_EVENT_NAME = "workflow_run";
+      const result = parseSdkOptions({});
 
       expect(result.sdkOptions.settingSources).toEqual(["user"]);
     });
@@ -477,7 +504,8 @@ describe("parseSdkOptions", () => {
       ]);
     });
 
-    test("should use defaultSettingSources when nothing else is set", () => {
+    test("explicit defaultSettingSources overrides the event-gated default", () => {
+      process.env.GITHUB_EVENT_NAME = "pull_request_target";
       const options: ClaudeOptions = {
         defaultSettingSources: ["user", "project", "local"],
       };

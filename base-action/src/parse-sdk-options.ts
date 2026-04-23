@@ -272,16 +272,20 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     env,
 
     // Setting sources precedence: direct input > --setting-sources in claude_args > default.
-    // The default is supplied by the caller (base-action uses ["user"]; the wrapper action
-    // uses ["user","project","local"]). Both action.yml files leave the YAML default empty
-    // so that --setting-sources in claude_args is reachable when the input is not set.
+    // The default is supplied by the caller (the wrapper action passes
+    // ["user","project","local"]); base-action applies an event-gated default of ["user"]
+    // under pull_request_target/workflow_run and ["user","project","local"] otherwise.
+    // Both action.yml files leave the YAML default empty so that --setting-sources in
+    // claude_args is reachable when the input is not set.
     settingSources: (options.settingSources
       ? options.settingSources.split(",").map((s) => s.trim())
       : extraArgs["setting-sources"]
         ? extraArgs["setting-sources"].split(",").map((s) => s.trim())
-        : (options.defaultSettingSources ?? [
-            "user",
-          ])) as SdkOptions["settingSources"],
+        : (options.defaultSettingSources ??
+          (process.env.GITHUB_EVENT_NAME === "pull_request_target" ||
+          process.env.GITHUB_EVENT_NAME === "workflow_run"
+            ? ["user"]
+            : ["user", "project", "local"]))) as SdkOptions["settingSources"],
   };
 
   // Remove setting-sources from extraArgs to avoid passing it twice

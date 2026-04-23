@@ -19,7 +19,7 @@ inputs:
     required: false
     default: ""
   setting_sources:
-    description: "Comma-separated list of setting sources to load (user, project, local). Defaults to 'user' only. Project/local settings additively merge permissions with allowed_tools — set to 'user,project,local' to opt in."
+    description: "Comma-separated list of setting sources to load (user, project, local). Defaults to 'user,project,local'; under pull_request_target/workflow_run, defaults to 'user' only. Project/local settings additively merge permissions with allowed_tools — set explicitly to control which sources load."
     required: false
     default: ""
 
