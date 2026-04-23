@@ -472,3 +472,166 @@ describe("escapeRegExp", () => {
     expect(escapeRegExp("test[123]")).toBe("test\\[123\\]");
   });
 });
+
+describe("trigger phrase preceded by non-whitespace characters (#941)", () => {
+  describe("issue body - non-whitespace leading boundaries", () => {
+    const baseContext = {
+      ...mockIssueOpenedContext,
+      inputs: {
+        ...mockIssueOpenedContext.inputs,
+        triggerPhrase: "@claude",
+      },
+    };
+
+    function makeIssueContext(body: string): ParsedGitHubContext {
+      return {
+        ...baseContext,
+        payload: {
+          ...baseContext.payload,
+          issue: {
+            ...(baseContext.payload as IssuesEvent).issue,
+            body,
+          },
+        },
+      } as ParsedGitHubContext;
+    }
+
+    it("should trigger when preceded by parenthesis", () => {
+      expect(checkContainsTrigger(makeIssueContext("(@claude) can you check?"))).toBe(true);
+    });
+
+    it("should trigger when preceded by double quote", () => {
+      expect(checkContainsTrigger(makeIssueContext('"@claude can you check?"'))).toBe(true);
+    });
+
+    it("should trigger when preceded by single quote", () => {
+      expect(checkContainsTrigger(makeIssueContext("'@claude can you check?'"))).toBe(true);
+    });
+
+    it("should trigger when preceded by angle bracket (blockquote)", () => {
+      expect(checkContainsTrigger(makeIssueContext(">@claude can you check?"))).toBe(true);
+    });
+
+    it("should trigger when preceded by colon", () => {
+      expect(checkContainsTrigger(makeIssueContext("cc:@claude please review"))).toBe(true);
+    });
+
+    it("should trigger when preceded by backtick", () => {
+      expect(checkContainsTrigger(makeIssueContext("`@claude`"))).toBe(true);
+    });
+
+    it("should trigger when preceded by slash", () => {
+      expect(checkContainsTrigger(makeIssueContext("/@claude help"))).toBe(true);
+    });
+
+    it("should trigger when preceded by hyphen/dash", () => {
+      expect(checkContainsTrigger(makeIssueContext("-@claude fix it"))).toBe(true);
+    });
+
+    it("should still trigger at start of string", () => {
+      expect(checkContainsTrigger(makeIssueContext("@claude help me"))).toBe(true);
+    });
+
+    it("should still trigger after whitespace", () => {
+      expect(checkContainsTrigger(makeIssueContext("hey @claude help"))).toBe(true);
+    });
+
+    it("should still reject when preceded by word characters", () => {
+      expect(checkContainsTrigger(makeIssueContext("email@claude.com"))).toBe(false);
+    });
+
+    it("should still reject when trigger is part of a longer word", () => {
+      expect(checkContainsTrigger(makeIssueContext("claudette helped"))).toBe(false);
+    });
+
+    it("should reject when preceded by digits", () => {
+      expect(checkContainsTrigger(makeIssueContext("123@claude"))).toBe(false);
+    });
+
+    it("should reject when preceded by underscore", () => {
+      expect(checkContainsTrigger(makeIssueContext("_@claude"))).toBe(false);
+    });
+  });
+
+  describe("comment body - non-whitespace leading boundaries", () => {
+    const baseContext = {
+      ...mockIssueCommentContext,
+      inputs: {
+        ...mockIssueCommentContext.inputs,
+        triggerPhrase: "@claude",
+      },
+    };
+
+    function makeCommentContext(body: string): ParsedGitHubContext {
+      return {
+        ...baseContext,
+        payload: {
+          ...baseContext.payload,
+          comment: {
+            ...(baseContext.payload as IssueCommentEvent).comment,
+            body,
+          },
+        },
+      } as ParsedGitHubContext;
+    }
+
+    it("should trigger when preceded by parenthesis", () => {
+      expect(checkContainsTrigger(makeCommentContext("(@claude) can you check?"))).toBe(true);
+    });
+
+    it("should trigger when preceded by double quote", () => {
+      expect(checkContainsTrigger(makeCommentContext('"@claude help"'))).toBe(true);
+    });
+
+    it("should trigger when preceded by angle bracket", () => {
+      expect(checkContainsTrigger(makeCommentContext(">@claude review this"))).toBe(true);
+    });
+
+    it("should trigger when preceded by colon", () => {
+      expect(checkContainsTrigger(makeCommentContext("cc:@claude"))).toBe(true);
+    });
+
+    it("should still reject email-like patterns", () => {
+      expect(checkContainsTrigger(makeCommentContext("user@claude.com"))).toBe(false);
+    });
+  });
+
+  describe("PR review - non-whitespace leading boundaries", () => {
+    const baseContext = {
+      ...mockPullRequestReviewContext,
+      inputs: {
+        ...mockPullRequestReviewContext.inputs,
+        triggerPhrase: "@claude",
+      },
+    };
+
+    function makeReviewContext(body: string): ParsedGitHubContext {
+      return {
+        ...baseContext,
+        payload: {
+          ...baseContext.payload,
+          review: {
+            ...(baseContext.payload as PullRequestReviewEvent).review,
+            body,
+          },
+        },
+      } as ParsedGitHubContext;
+    }
+
+    it("should trigger when preceded by parenthesis", () => {
+      expect(checkContainsTrigger(makeReviewContext("(@claude) please review"))).toBe(true);
+    });
+
+    it("should trigger when preceded by double quote", () => {
+      expect(checkContainsTrigger(makeReviewContext('"@claude review"'))).toBe(true);
+    });
+
+    it("should trigger when preceded by single quote", () => {
+      expect(checkContainsTrigger(makeReviewContext("'@claude review'"))).toBe(true);
+    });
+
+    it("should still reject email-like patterns", () => {
+      expect(checkContainsTrigger(makeReviewContext("admin@claude.io"))).toBe(false);
+    });
+  });
+});
