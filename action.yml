@@ -63,9 +63,9 @@ inputs:
     required: false
     default: ""
   enable_all_project_mcp_servers:
-    description: "Auto-enable every MCP server defined in the checkout's .mcp.json. Defaults to 'true' — safe here because .mcp.json is restored from the PR base branch before execution. Set to 'false' to ignore in-repo MCP servers entirely."
+    description: "Auto-enable every MCP server defined in the checkout's .mcp.json. Defaults to 'false', but is automatically enabled when this action restores project config from the PR base ref. Set explicitly to 'true' or 'false' to override the automatic behavior."
     required: false
-    default: "true"
+    default: ""
 
   # Auth configuration
   anthropic_api_key:

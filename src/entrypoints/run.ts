@@ -27,7 +27,10 @@ import { detectMode } from "../modes/detector";
 import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
 import { checkContainsTrigger } from "../github/validation/trigger";
-import { restoreConfigFromBase } from "../github/operations/restore-config";
+import {
+  restoreConfigFromBase,
+  resolveEnableAllProjectMcpServers,
+} from "../github/operations/restore-config";
 import { validateBranchName } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
@@ -241,6 +244,7 @@ async function run() {
     // lacks base.ref, so we fall back to the mode-provided value — tag mode
     // fetches it from GraphQL; agent mode on issue_comment is an edge case
     // that at worst restores from the wrong trusted branch (still secure).
+    let configRestoredFromBase = false;
     if (isEntityContext(context) && context.isPR) {
       let restoreBase = baseBranch;
       if (
@@ -253,13 +257,17 @@ async function run() {
       }
       if (restoreBase) {
         restoreConfigFromBase(restoreBase);
+        configRestoredFromBase = true;
       }
     }
 
     await setupClaudeCodeSettings(
       process.env.INPUT_SETTINGS,
       undefined, // homeDir
-      process.env.INPUT_ENABLE_ALL_PROJECT_MCP_SERVERS === "true",
+      resolveEnableAllProjectMcpServers(
+        process.env.INPUT_ENABLE_ALL_PROJECT_MCP_SERVERS,
+        configRestoredFromBase,
+      ),
     );
 
     await installPlugins(
