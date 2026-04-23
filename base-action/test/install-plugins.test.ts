@@ -64,7 +64,7 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "install", "test-plugin"],
+      ["plugin", "install", "test-plugin", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -78,19 +78,19 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "install", "plugin1"],
+      ["plugin", "install", "plugin1", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "claude",
-      ["plugin", "install", "plugin2"],
+      ["plugin", "install", "plugin2", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
       3,
       "claude",
-      ["plugin", "install", "plugin3"],
+      ["plugin", "install", "plugin3", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -104,7 +104,7 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "/custom/path/to/claude",
-      ["plugin", "install", "test-plugin"],
+      ["plugin", "install", "test-plugin", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -118,13 +118,13 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "install", "plugin1"],
+      ["plugin", "install", "plugin1", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "claude",
-      ["plugin", "install", "plugin2"],
+      ["plugin", "install", "plugin2", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -138,13 +138,13 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "install", "plugin1"],
+      ["plugin", "install", "plugin1", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "claude",
-      ["plugin", "install", "plugin2"],
+      ["plugin", "install", "plugin2", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -187,13 +187,13 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "install", "org/plugin-name"],
+      ["plugin", "install", "org/plugin-name", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "claude",
-      ["plugin", "install", "@scope/plugin"],
+      ["plugin", "install", "@scope/plugin", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -219,13 +219,13 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "/usr/local/bin/claude-custom",
-      ["plugin", "install", "plugin-a"],
+      ["plugin", "install", "plugin-a", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "/usr/local/bin/claude-custom",
-      ["plugin", "install", "plugin-b"],
+      ["plugin", "install", "plugin-b", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -291,7 +291,7 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "install", "plugin-v1.0.2"],
+      ["plugin", "install", "plugin-v1.0.2", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -305,7 +305,13 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "install", "@scope/plugin-v1.0.0-beta.1"],
+      [
+        "plugin",
+        "install",
+        "@scope/plugin-v1.0.0-beta.1",
+        "--setting-sources",
+        "user",
+      ],
       { stdio: "inherit" },
     );
   });
@@ -369,6 +375,8 @@ describe("installPlugins", () => {
         "marketplace",
         "add",
         "https://github.com/user/marketplace.git",
+        "--setting-sources",
+        "user",
       ],
       { stdio: "inherit" },
     );
@@ -376,7 +384,7 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "claude",
-      ["plugin", "install", "test-plugin"],
+      ["plugin", "install", "test-plugin", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -393,20 +401,34 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "marketplace", "add", "https://github.com/user/m1.git"],
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "https://github.com/user/m1.git",
+        "--setting-sources",
+        "user",
+      ],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "claude",
-      ["plugin", "marketplace", "add", "https://github.com/user/m2.git"],
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "https://github.com/user/m2.git",
+        "--setting-sources",
+        "user",
+      ],
       { stdio: "inherit" },
     );
     // Third call: install plugin
     expect(spy).toHaveBeenNthCalledWith(
       3,
       "claude",
-      ["plugin", "install", "test-plugin"],
+      ["plugin", "install", "test-plugin", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -428,6 +450,8 @@ describe("installPlugins", () => {
         "marketplace",
         "add",
         "https://github.com/user/marketplace.git",
+        "--setting-sources",
+        "user",
       ],
       { stdio: "inherit" },
     );
@@ -435,13 +459,13 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "claude",
-      ["plugin", "install", "plugin1"],
+      ["plugin", "install", "plugin1", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
       3,
       "claude",
-      ["plugin", "install", "plugin2"],
+      ["plugin", "install", "plugin2", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -459,6 +483,8 @@ describe("installPlugins", () => {
         "marketplace",
         "add",
         "https://github.com/user/marketplace.git",
+        "--setting-sources",
+        "user",
       ],
       { stdio: "inherit" },
     );
@@ -490,13 +516,22 @@ describe("installPlugins", () => {
         "marketplace",
         "add",
         "https://github.com/user/marketplace.git",
+        "--setting-sources",
+        "user",
       ],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "claude",
-      ["plugin", "marketplace", "add", "https://github.com/user/m2.git"],
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "https://github.com/user/m2.git",
+        "--setting-sources",
+        "user",
+      ],
       { stdio: "inherit" },
     );
   });
@@ -540,7 +575,7 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "install", "test-plugin"],
+      ["plugin", "install", "test-plugin", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -586,13 +621,15 @@ describe("installPlugins", () => {
         "marketplace",
         "add",
         "https://github.com/user/marketplace.git",
+        "--setting-sources",
+        "user",
       ],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "/custom/path/to/claude",
-      ["plugin", "install", "test-plugin"],
+      ["plugin", "install", "test-plugin", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -606,13 +643,20 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "marketplace", "add", "./my-local-marketplace"],
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "./my-local-marketplace",
+        "--setting-sources",
+        "user",
+      ],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "claude",
-      ["plugin", "install", "test-plugin"],
+      ["plugin", "install", "test-plugin", "--setting-sources", "user"],
       { stdio: "inherit" },
     );
   });
@@ -625,7 +669,14 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "marketplace", "add", "/home/user/my-marketplace"],
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "/home/user/my-marketplace",
+        "--setting-sources",
+        "user",
+      ],
       { stdio: "inherit" },
     );
   });
@@ -638,7 +689,14 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "marketplace", "add", "C:\\Users\\user\\marketplace"],
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "C:\\Users\\user\\marketplace",
+        "--setting-sources",
+        "user",
+      ],
       { stdio: "inherit" },
     );
   });
@@ -654,13 +712,27 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "marketplace", "add", "./local-marketplace"],
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "./local-marketplace",
+        "--setting-sources",
+        "user",
+      ],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "claude",
-      ["plugin", "marketplace", "add", "https://github.com/user/remote.git"],
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "https://github.com/user/remote.git",
+        "--setting-sources",
+        "user",
+      ],
       { stdio: "inherit" },
     );
   });
@@ -673,7 +745,14 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "marketplace", "add", "../shared-plugins/marketplace"],
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "../shared-plugins/marketplace",
+        "--setting-sources",
+        "user",
+      ],
       { stdio: "inherit" },
     );
   });
@@ -686,7 +765,14 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "marketplace", "add", "./plugins/my-org/my-marketplace"],
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "./plugins/my-org/my-marketplace",
+        "--setting-sources",
+        "user",
+      ],
       { stdio: "inherit" },
     );
   });
@@ -699,7 +785,14 @@ describe("installPlugins", () => {
     expect(spy).toHaveBeenNthCalledWith(
       1,
       "claude",
-      ["plugin", "marketplace", "add", "./my.plugin.marketplace"],
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "./my.plugin.marketplace",
+        "--setting-sources",
+        "user",
+      ],
       { stdio: "inherit" },
     );
   });

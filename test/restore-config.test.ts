@@ -17,13 +17,13 @@ describe("resolveEnableAllProjectMcpServers (wrapper)", () => {
     expect(resolveEnableAllProjectMcpServers(undefined, true)).toBe(true);
   });
 
-  test("unset → disabled when config was not restored (workflow_run, push, schedule)", () => {
-    expect(resolveEnableAllProjectMcpServers("", false)).toBe(false);
-    expect(resolveEnableAllProjectMcpServers(undefined, false)).toBe(false);
+  test("unset → undefined when config was not restored (defer to base-action event-aware default)", () => {
+    expect(resolveEnableAllProjectMcpServers("", false)).toBeUndefined();
+    expect(resolveEnableAllProjectMcpServers(undefined, false)).toBeUndefined();
   });
 
   test("non-boolean strings fall through to restore state", () => {
-    expect(resolveEnableAllProjectMcpServers("yes", false)).toBe(false);
+    expect(resolveEnableAllProjectMcpServers("yes", false)).toBeUndefined();
     expect(resolveEnableAllProjectMcpServers("1", true)).toBe(true);
   });
 });

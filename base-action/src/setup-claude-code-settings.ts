@@ -24,8 +24,9 @@ export function resolveEnableAllProjectMcpServers(
 export async function setupClaudeCodeSettings(
   settingsInput?: string,
   homeDir?: string,
-  enableAllProjectMcpServers: boolean = !isPrivilegedExternalEvent(),
+  enableAllProjectMcpServers?: boolean,
 ) {
+  enableAllProjectMcpServers ??= !isPrivilegedExternalEvent();
   const home = homeDir ?? homedir();
   const settingsPath = `${home}/.claude/settings.json`;
   console.log(`Setting up Claude settings at: ${settingsPath}`);

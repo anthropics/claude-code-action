@@ -141,9 +141,12 @@ async function executeClaudeCommand(
   errorContext: string,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const childProcess: ChildProcess = spawn(claudeExecutable, args, {
-      stdio: "inherit",
-    });
+    // Match the main run's setting sources.
+    const childProcess: ChildProcess = spawn(
+      claudeExecutable,
+      [...args, "--setting-sources", "user"],
+      { stdio: "inherit" },
+    );
 
     childProcess.on("close", (code: number | null) => {
       if (code === 0) {
