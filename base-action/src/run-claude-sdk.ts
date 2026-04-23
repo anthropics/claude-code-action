@@ -84,6 +84,47 @@ async function createPromptConfig(
 }
 
 /**
+ * Extracts human-readable error text from a result message.
+ * Checks both the `errors` array and the `result` string field.
+ */
+function getResultErrorText(resultMessage: SDKResultMessage): string | undefined {
+  if ("errors" in resultMessage && Array.isArray(resultMessage.errors) && resultMessage.errors.length > 0) {
+    return (resultMessage.errors as string[]).join(", ");
+  }
+  if ("result" in resultMessage && typeof (resultMessage as Record<string, unknown>).result === "string") {
+    const resultText = (resultMessage as Record<string, unknown>).result as string;
+    if (resultText) {
+      return resultText;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Maps a raw error string to a user-friendly message with actionable guidance.
+ */
+function formatErrorMessage(errorText: string): string {
+  const lower = errorText.toLowerCase();
+  if (
+    lower.includes("credit balance is too low") ||
+    lower.includes("insufficient credits") ||
+    lower.includes("no credits") ||
+    lower.includes("out of credit")
+  ) {
+    return `API key has no credits or credit balance is too low. Add credits at https://console.anthropic.com/settings/billing`;
+  }
+  if (
+    lower.includes("authentication") ||
+    lower.includes("invalid api key") ||
+    lower.includes("invalid x-api-key") ||
+    lower.includes("unauthorized")
+  ) {
+    return `Authentication failed. Verify your API key is valid at https://console.anthropic.com/settings/api-keys`;
+  }
+  return errorText;
+}
+
+/**
  * Sanitizes SDK output to match CLI sanitization behavior
  */
 function sanitizeSdkOutput(
@@ -111,19 +152,23 @@ function sanitizeSdkOutput(
   // Result messages - show sanitized summary
   if (message.type === "result") {
     const resultMsg = message as SDKResultMessage;
-    return JSON.stringify(
-      {
-        type: "result",
-        subtype: resultMsg.subtype,
-        is_error: resultMsg.is_error,
-        duration_ms: resultMsg.duration_ms,
-        num_turns: resultMsg.num_turns,
-        total_cost_usd: resultMsg.total_cost_usd,
-        permission_denials_count: resultMsg.permission_denials?.length ?? 0,
-      },
-      null,
-      2,
-    );
+    const summary: Record<string, unknown> = {
+      type: "result",
+      subtype: resultMsg.subtype,
+      is_error: resultMsg.is_error,
+      duration_ms: resultMsg.duration_ms,
+      num_turns: resultMsg.num_turns,
+      total_cost_usd: resultMsg.total_cost_usd,
+      permission_denials_count: resultMsg.permission_denials?.length ?? 0,
+    };
+    // When is_error is true, include error details so failures are visible in logs
+    if (resultMsg.is_error) {
+      const errorText = getResultErrorText(resultMsg);
+      if (errorText) {
+        summary.error = errorText;
+      }
+    }
+    return JSON.stringify(summary, null, 2);
   }
 
   // Suppress other message types in non-full-output mode
@@ -202,7 +247,9 @@ export async function runClaudeWithSdk(
     throw new Error("No result message received from Claude");
   }
 
-  const isSuccess = resultMessage.subtype === "success";
+  // A result is only successful when subtype is "success" AND is_error is not true
+  const isSuccess =
+    resultMessage.subtype === "success" && !resultMessage.is_error;
   result.conclusion = isSuccess ? "success" : "failure";
 
   // Handle structured output
@@ -228,16 +275,12 @@ export async function runClaudeWithSdk(
   }
 
   if (!isSuccess) {
-    if ("errors" in resultMessage && resultMessage.errors) {
-      core.error(`Execution failed: ${resultMessage.errors.join(", ")}`);
-    }
-    throw new Error(
-      `Claude execution failed: ${
-        "errors" in resultMessage && resultMessage.errors
-          ? resultMessage.errors.join(", ")
-          : "unknown error"
-      }`,
-    );
+    const rawError = getResultErrorText(resultMessage);
+    const friendlyError = rawError
+      ? formatErrorMessage(rawError)
+      : `Claude execution failed with subtype: ${resultMessage.subtype}`;
+    core.error(friendlyError);
+    throw new Error(friendlyError);
   }
 
   return result;
