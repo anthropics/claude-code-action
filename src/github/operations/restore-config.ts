@@ -111,17 +111,19 @@ export function restoreConfigFromBase(baseBranch: string): void {
 
 /**
  * Resolves the effective enableAllProjectMcpServers value for the wrapper
- * action. An explicit "true"/"false" from the workflow always wins. When
- * restore ran, project config files came from the base ref, so enable.
- * Otherwise return undefined to defer to base-action's event-aware default
- * (setupClaudeCodeSettings applies !isPrivilegedExternalEvent() when the
- * value is undefined).
+ * action. An explicit "true"/"false" from the workflow always wins. When the
+ * wrapper has established that project config in the workspace is from merged
+ * code — either because restoreConfigFromBase ran (PR contexts) or because the
+ * event checks out the default-branch tip (issues / issue_comment on a non-PR
+ * issue) — enable. Otherwise return undefined to defer to base-action's
+ * event-aware default (setupClaudeCodeSettings applies
+ * !isPrivilegedExternalEvent() when the value is undefined).
  */
 export function resolveEnableAllProjectMcpServers(
   inputValue: string | undefined,
-  configRestoredFromBase: boolean,
+  projectConfigTrusted: boolean,
 ): boolean | undefined {
   if (inputValue === "true") return true;
   if (inputValue === "false") return false;
-  return configRestoredFromBase ? true : undefined;
+  return projectConfigTrusted ? true : undefined;
 }

@@ -12,17 +12,17 @@ describe("resolveEnableAllProjectMcpServers (wrapper)", () => {
     expect(resolveEnableAllProjectMcpServers("false", false)).toBe(false);
   });
 
-  test("unset → enabled when config was restored from base (entity PR context)", () => {
+  test("unset → enabled when project config is trusted (PR restored, or non-PR entity event)", () => {
     expect(resolveEnableAllProjectMcpServers("", true)).toBe(true);
     expect(resolveEnableAllProjectMcpServers(undefined, true)).toBe(true);
   });
 
-  test("unset → undefined when config was not restored (defer to base-action event-aware default)", () => {
+  test("unset → undefined when project config not trusted (defer to base-action event-aware default)", () => {
     expect(resolveEnableAllProjectMcpServers("", false)).toBeUndefined();
     expect(resolveEnableAllProjectMcpServers(undefined, false)).toBeUndefined();
   });
 
-  test("non-boolean strings fall through to restore state", () => {
+  test("non-boolean strings fall through to trust state", () => {
     expect(resolveEnableAllProjectMcpServers("yes", false)).toBeUndefined();
     expect(resolveEnableAllProjectMcpServers("1", true)).toBe(true);
   });
