@@ -230,7 +230,7 @@ By default, Claude only has access to:
 
 Claude does **not** have access to execute arbitrary Bash commands by default. If you want Claude to run specific commands (e.g., npm install, npm test), you must explicitly allow them using the `claude_args` configuration:
 
-**Note**: If your repository has a `.mcp.json` file in the root directory, Claude will automatically detect and use the MCP server tools defined there. However, these tools still need to be explicitly allowed.
+**Note**: If your repository has a `.mcp.json` file in the root directory, Claude will detect and use the MCP server tools defined there when `enable_all_project_mcp_servers` resolves to `true` (auto-enabled on PR contexts where config is restored from the base ref; on other triggers set the input explicitly). These tools still need to be explicitly allowed.
 
 ```yaml
 - uses: anthropics/claude-code-action@v1
