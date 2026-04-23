@@ -19,9 +19,9 @@ inputs:
     required: false
     default: ""
   enable_all_project_mcp_servers:
-    description: "Auto-enable every MCP server defined in the checkout's .mcp.json. Defaults to 'false' because .mcp.json is PR-controlled in pull_request workflows; set to 'true' only when the checkout is trusted."
+    description: "Auto-enable every MCP server defined in the checkout's .mcp.json. Defaults to true, except under pull_request_target/workflow_run where it defaults to false. Set explicitly to 'true' or 'false' to override."
     required: false
-    default: "false"
+    default: ""
 
   # Action settings
   claude_args:

@@ -112,16 +112,14 @@ export function restoreConfigFromBase(baseBranch: string): void {
 /**
  * Resolves the effective enableAllProjectMcpServers value for the wrapper
  * action. An explicit "true"/"false" from the workflow always wins; otherwise
- * project MCP servers are only enabled when config was restored from the base
- * ref (so the .mcp.json being read came from a merged commit, not the
- * checkout). Contexts where restore does not run — e.g. workflow_run, push,
- * schedule — therefore default to false and require an explicit opt-in.
+ * project MCP servers are enabled. The wrapper restores project config files
+ * from the base ref in PR contexts, so project-level MCP servers are loaded
+ * from the base configuration.
  */
 export function resolveEnableAllProjectMcpServers(
   inputValue: string | undefined,
-  configRestoredFromBase: boolean,
 ): boolean {
   if (inputValue === "true") return true;
   if (inputValue === "false") return false;
-  return configRestoredFromBase;
+  return true;
 }
