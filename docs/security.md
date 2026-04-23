@@ -29,7 +29,7 @@
 ```yaml
 # Preferred — check out the base ref (default). Claude can still see the PR's
 # changes via `gh pr diff` / `gh pr view`, which the action provides.
-- uses: actions/checkout@v4      # no `ref:` → base branch
+- uses: actions/checkout@v4 # no `ref:` → base branch
 - uses: anthropics/claude-code-action@v1
 ```
 

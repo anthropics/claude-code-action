@@ -9,9 +9,7 @@ import { readFile } from "fs/promises";
 function isPrivilegedExternalEvent(): boolean {
   const e = process.env.GITHUB_EVENT_NAME ?? "";
   return (
-    e === "pull_request_target" ||
-    e === "workflow_run" ||
-    e === "issue_comment"
+    e === "pull_request_target" || e === "workflow_run" || e === "issue_comment"
   );
 }
 
