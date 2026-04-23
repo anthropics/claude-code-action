@@ -42,23 +42,6 @@ const SENSITIVE_PATHS = [
  * @param baseBranch - PR base branch name. Must be pre-validated (branch.ts
  *   calls validateBranchName on it before returning).
  */
-/**
- * Resolves the effective enableAllProjectMcpServers value for the wrapper
- * action. An explicit "true"/"false" from the workflow always wins; otherwise
- * project MCP servers are only enabled when config was restored from the base
- * ref (so the .mcp.json being read came from a merged commit, not the
- * checkout). Contexts where restore does not run — e.g. workflow_run, push,
- * schedule — therefore default to false.
- */
-export function resolveEnableAllProjectMcpServers(
-  inputValue: string | undefined,
-  configRestoredFromBase: boolean,
-): boolean {
-  if (inputValue === "true") return true;
-  if (inputValue === "false") return false;
-  return configRestoredFromBase;
-}
-
 export function restoreConfigFromBase(baseBranch: string): void {
   console.log(
     `Restoring ${SENSITIVE_PATHS.join(", ")} from origin/${baseBranch} (PR head is untrusted)`,
@@ -123,4 +106,21 @@ export function restoreConfigFromBase(baseBranch: string): void {
   } catch {
     // Nothing was staged, or paths don't exist on HEAD — either is fine.
   }
+}
+
+/**
+ * Resolves the effective enableAllProjectMcpServers value for the wrapper
+ * action. An explicit "true"/"false" from the workflow always wins; otherwise
+ * project MCP servers are only enabled when config was restored from the base
+ * ref (so the .mcp.json being read came from a merged commit, not the
+ * checkout). Contexts where restore does not run — e.g. workflow_run, push,
+ * schedule — therefore default to false and require an explicit opt-in.
+ */
+export function resolveEnableAllProjectMcpServers(
+  inputValue: string | undefined,
+  configRestoredFromBase: boolean,
+): boolean {
+  if (inputValue === "true") return true;
+  if (inputValue === "false") return false;
+  return configRestoredFromBase;
 }
