@@ -244,6 +244,7 @@ async function run() {
     // lacks base.ref, so we fall back to the mode-provided value — tag mode
     // fetches it from GraphQL; agent mode on issue_comment is an edge case
     // that at worst restores from the wrong trusted branch (still secure).
+    let configRestoredFromBase = false;
     if (isEntityContext(context) && context.isPR) {
       let restoreBase = baseBranch;
       if (
@@ -256,6 +257,7 @@ async function run() {
       }
       if (restoreBase) {
         restoreConfigFromBase(restoreBase);
+        configRestoredFromBase = true;
       }
     }
 
@@ -264,6 +266,7 @@ async function run() {
       undefined, // homeDir
       resolveEnableAllProjectMcpServers(
         process.env.INPUT_ENABLE_ALL_PROJECT_MCP_SERVERS,
+        configRestoredFromBase,
       ),
     );
 
