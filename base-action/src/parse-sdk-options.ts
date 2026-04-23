@@ -272,14 +272,16 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     env,
 
     // Setting sources precedence: direct input > --setting-sources in claude_args > default.
-    // Default is ["user"] only: project/local settings additively merge permissions with
-    // allowedTools, which silently expands a workflow's intended allow-set. Workflows that
-    // want project settings must opt in explicitly.
+    // The default is supplied by the caller (base-action uses ["user"]; the wrapper action
+    // uses ["user","project","local"]). Both action.yml files leave the YAML default empty
+    // so that --setting-sources in claude_args is reachable when the input is not set.
     settingSources: (options.settingSources
       ? options.settingSources.split(",").map((s) => s.trim())
       : extraArgs["setting-sources"]
         ? extraArgs["setting-sources"].split(",").map((s) => s.trim())
-        : ["user"]) as SdkOptions["settingSources"],
+        : (options.defaultSettingSources ?? [
+            "user",
+          ])) as SdkOptions["settingSources"],
   };
 
   // Remove setting-sources from extraArgs to avoid passing it twice

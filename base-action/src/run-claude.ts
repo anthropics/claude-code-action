@@ -1,6 +1,7 @@
 import { runClaudeWithSdk } from "./run-claude-sdk";
 import type { ClaudeRunResult } from "./run-claude-sdk";
 import { parseSdkOptions } from "./parse-sdk-options";
+import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
 
 export type ClaudeOptions = {
   claudeArgs?: string;
@@ -15,6 +16,7 @@ export type ClaudeOptions = {
   fallbackModel?: string;
   showFullOutput?: string;
   settingSources?: string;
+  defaultSettingSources?: SdkOptions["settingSources"];
 };
 
 export async function runClaude(

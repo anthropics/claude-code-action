@@ -279,6 +279,7 @@ async function run() {
       pathToClaudeCodeExecutable: claudeExecutable,
       showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
       settingSources: process.env.INPUT_SETTING_SOURCES,
+      defaultSettingSources: ["user", "project", "local"],
     });
 
     claudeSuccess = claudeResult.conclusion === "success";

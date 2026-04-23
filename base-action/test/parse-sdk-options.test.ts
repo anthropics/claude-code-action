@@ -476,5 +476,40 @@ describe("parseSdkOptions", () => {
         "local",
       ]);
     });
+
+    test("should use defaultSettingSources when nothing else is set", () => {
+      const options: ClaudeOptions = {
+        defaultSettingSources: ["user", "project", "local"],
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual([
+        "user",
+        "project",
+        "local",
+      ]);
+    });
+
+    test("--setting-sources in claudeArgs should win over defaultSettingSources", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--setting-sources user",
+        defaultSettingSources: ["user", "project", "local"],
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual(["user"]);
+    });
+
+    test("empty-string settingSources falls through to claudeArgs then default", () => {
+      // YAML default: "" — INPUT_SETTING_SOURCES is "" when the user doesn't set the input
+      const options: ClaudeOptions = {
+        settingSources: "",
+        claudeArgs: "--setting-sources user,project",
+        defaultSettingSources: ["user", "project", "local"],
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual(["user", "project"]);
+    });
   });
 });
