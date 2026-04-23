@@ -1,8 +1,14 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeAll, afterAll } from "bun:test";
+import { writeFileSync, mkdirSync, unlinkSync, rmdirSync } from "fs";
 import { parseSdkOptions } from "../src/parse-sdk-options";
 import type { ClaudeOptions } from "../src/run-claude";
+
+// Temp dir for MCP config file tests
+const MCP_TEST_DIR = "/tmp/mcp-config-test";
+const MCP_NOTION_FILE = `${MCP_TEST_DIR}/notion.json`;
+const MCP_SLACK_FILE = `${MCP_TEST_DIR}/slack.json`;
 
 describe("parseSdkOptions", () => {
   describe("allowedTools merging", () => {
@@ -177,6 +183,36 @@ describe("parseSdkOptions", () => {
   });
 
   describe("mcp-config merging", () => {
+    beforeAll(() => {
+      mkdirSync(MCP_TEST_DIR, { recursive: true });
+      writeFileSync(
+        MCP_NOTION_FILE,
+        JSON.stringify({
+          mcpServers: {
+            notion: { command: "npx", args: ["notion-mcp-server"] },
+          },
+        }),
+      );
+      writeFileSync(
+        MCP_SLACK_FILE,
+        JSON.stringify({
+          mcpServers: {
+            slack: { command: "npx", args: ["slack-mcp-server"] },
+          },
+        }),
+      );
+    });
+
+    afterAll(() => {
+      try {
+        unlinkSync(MCP_NOTION_FILE);
+        unlinkSync(MCP_SLACK_FILE);
+        rmdirSync(MCP_TEST_DIR);
+      } catch {
+        // ignore cleanup errors
+      }
+    });
+
     test("should pass through single mcp-config in extraArgs", () => {
       const options: ClaudeOptions = {
         claudeArgs: `--mcp-config '{"mcpServers":{"server1":{"command":"cmd1"}}}'`,
@@ -221,33 +257,62 @@ describe("parseSdkOptions", () => {
       expect(mcpConfig.mcpServers).toHaveProperty("server3");
     });
 
-    test("should handle mcp-config file path when no inline JSON exists", () => {
+    test("should pass through single file path to CLI as-is", () => {
+      // Single mcp-config values are not merged — passed through for CLI to handle
       const options: ClaudeOptions = {
-        claudeArgs: `--mcp-config /tmp/user-mcp-config.json`,
+        claudeArgs: `--mcp-config ${MCP_NOTION_FILE}`,
       };
 
       const result = parseSdkOptions(options);
 
-      expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBe(
-        "/tmp/user-mcp-config.json",
-      );
+      expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBe(MCP_NOTION_FILE);
     });
 
-    test("should merge inline JSON configs when file path is also present", () => {
-      // When action provides inline JSON and user provides a file path,
-      // the inline JSON configs should be merged (file paths cannot be merged at parse time)
+    test("should merge inline JSON configs and file path configs together", () => {
+      // This is the exact scenario from issue #1191: action provides inline JSON
+      // for github_comment, user provides a file path for their MCP server
       const options: ClaudeOptions = {
-        claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config '{"mcpServers":{"github_ci":{"command":"node"}}}' --mcp-config /tmp/user-config.json`,
+        claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config '{"mcpServers":{"github_ci":{"command":"node"}}}' --mcp-config ${MCP_NOTION_FILE}`,
       };
 
       const result = parseSdkOptions(options);
 
-      // The inline JSON configs should be merged
+      const mcpConfig = JSON.parse(
+        result.sdkOptions.extraArgs?.["mcp-config"] as string,
+      );
+      // All servers should be present — including the file-path one
+      expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
+      expect(mcpConfig.mcpServers).toHaveProperty("github_ci");
+      expect(mcpConfig.mcpServers).toHaveProperty("notion");
+      expect(mcpConfig.mcpServers.notion.command).toBe("npx");
+    });
+
+    test("should merge multiple file paths", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: `--mcp-config ${MCP_NOTION_FILE} --mcp-config ${MCP_SLACK_FILE}`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      const mcpConfig = JSON.parse(
+        result.sdkOptions.extraArgs?.["mcp-config"] as string,
+      );
+      expect(mcpConfig.mcpServers).toHaveProperty("notion");
+      expect(mcpConfig.mcpServers).toHaveProperty("slack");
+    });
+
+    test("should warn and continue when file path does not exist", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config /tmp/nonexistent-mcp-config.json`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      // Should still have the inline config, file path failure is non-fatal
       const mcpConfig = JSON.parse(
         result.sdkOptions.extraArgs?.["mcp-config"] as string,
       );
       expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
-      expect(mcpConfig.mcpServers).toHaveProperty("github_ci");
     });
 
     test("should handle mcp-config with other flags", () => {
