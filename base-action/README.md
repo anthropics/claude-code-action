@@ -112,6 +112,8 @@ Add the following to your workflow file:
 
 \*\*`show_full_output` is automatically enabled when GitHub Actions debug mode is active. See [security documentation](../docs/security.md#️-full-output-security-warning) for important security considerations.
 
+`setting_sources` defaults to `user,project,local` for most events. Under `pull_request_target`, `workflow_run`, and `issue_comment` it defaults to `user` only; set it explicitly if you want project/local settings to load for those events.
+
 ## Outputs
 
 | Output           | Description                                                |

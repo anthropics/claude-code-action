@@ -458,6 +458,13 @@ describe("parseSdkOptions", () => {
       expect(result.sdkOptions.settingSources).toEqual(["user"]);
     });
 
+    test("should default to ['user'] under issue_comment", () => {
+      process.env.GITHUB_EVENT_NAME = "issue_comment";
+      const result = parseSdkOptions({});
+
+      expect(result.sdkOptions.settingSources).toEqual(["user"]);
+    });
+
     test("should use direct settingSources input when provided", () => {
       const options: ClaudeOptions = {
         settingSources: "user,project,local",
