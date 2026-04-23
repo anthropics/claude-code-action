@@ -94,6 +94,7 @@ Add the following to your workflow file:
 | `max_turns`               | Maximum number of conversation turns (default: no limit)                                                                | No       | ''                           |
 | `mcp_config`              | Path to the MCP configuration JSON file, or MCP configuration JSON string                                               | No       | ''                           |
 | `settings`                | Path to Claude Code settings JSON file, or settings JSON string                                                         | No       | ''                           |
+| `setting_sources`         | Comma-separated setting sources to load (`user`, `project`, `local`). Project/local merge permissions additively.       | No       | event-dependent (see below)  |
 | `system_prompt`           | Override system prompt                                                                                                  | No       | ''                           |
 | `append_system_prompt`    | Append to system prompt                                                                                                 | No       | ''                           |
 | `claude_env`              | Custom environment variables to pass to Claude Code execution (YAML multiline format)                                   | No       | ''                           |
@@ -110,6 +111,8 @@ Add the following to your workflow file:
 \*Either `prompt` or `prompt_file` must be provided, but not both.
 
 \*\*`show_full_output` is automatically enabled when GitHub Actions debug mode is active. See [security documentation](../docs/security.md#️-full-output-security-warning) for important security considerations.
+
+`setting_sources` defaults to `user,project,local` for most events. Under `pull_request_target`, `workflow_run`, and `issue_comment` it defaults to `user` only; set it explicitly if you want project/local settings to load for those events.
 
 ## Outputs
 
