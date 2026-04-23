@@ -63,7 +63,7 @@ inputs:
     required: false
     default: ""
   setting_sources:
-    description: "Comma-separated list of setting sources to load (user, project, local). When unset, the action applies 'user,project,local' at runtime — project settings are safe here because .claude/ is restored from the PR base branch before execution. Set to 'user' to ignore in-repo settings entirely."
+    description: "Comma-separated list of setting sources to load (user, project, local). When unset, the action applies 'user,project,local' at runtime for PR contexts where .claude/ is restored from the base branch; for other contexts it applies the same event-gated default as base-action. Set to 'user' to ignore in-repo settings entirely."
     required: false
     default: ""
 
