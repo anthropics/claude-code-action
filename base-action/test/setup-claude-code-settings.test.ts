@@ -27,8 +27,17 @@ describe("setupClaudeCodeSettings", () => {
     await rm(testHomeDir, { recursive: true, force: true });
   });
 
-  test("should always set enableAllProjectMcpServers to true when no input", async () => {
+  test("should default enableAllProjectMcpServers to false when no input", async () => {
     await setupClaudeCodeSettings(undefined, testHomeDir);
+
+    const settingsContent = await readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsContent);
+
+    expect(settings.enableAllProjectMcpServers).toBe(false);
+  });
+
+  test("should set enableAllProjectMcpServers to true when explicitly opted in", async () => {
+    await setupClaudeCodeSettings(undefined, testHomeDir, true);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
@@ -47,7 +56,7 @@ describe("setupClaudeCodeSettings", () => {
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
 
-    expect(settings.enableAllProjectMcpServers).toBe(true);
+    expect(settings.enableAllProjectMcpServers).toBe(false);
     expect(settings.model).toBe("claude-sonnet-4-20250514");
     expect(settings.env).toEqual({ API_KEY: "test-key" });
   });
@@ -74,23 +83,23 @@ describe("setupClaudeCodeSettings", () => {
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
 
-    expect(settings.enableAllProjectMcpServers).toBe(true);
+    expect(settings.enableAllProjectMcpServers).toBe(false);
     expect(settings.hooks).toEqual(testSettings.hooks);
     expect(settings.permissions).toEqual(testSettings.permissions);
   });
 
-  test("should override enableAllProjectMcpServers even if false in input", async () => {
+  test("should override enableAllProjectMcpServers from settings input with action input", async () => {
     const inputSettings = JSON.stringify({
-      enableAllProjectMcpServers: false,
+      enableAllProjectMcpServers: true,
       model: "test-model",
     });
 
-    await setupClaudeCodeSettings(inputSettings, testHomeDir);
+    await setupClaudeCodeSettings(inputSettings, testHomeDir, false);
 
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
 
-    expect(settings.enableAllProjectMcpServers).toBe(true);
+    expect(settings.enableAllProjectMcpServers).toBe(false);
     expect(settings.model).toBe("test-model");
   });
 
@@ -112,7 +121,7 @@ describe("setupClaudeCodeSettings", () => {
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
 
-    expect(settings.enableAllProjectMcpServers).toBe(true);
+    expect(settings.enableAllProjectMcpServers).toBe(false);
   });
 
   test("should handle whitespace-only input", async () => {
@@ -121,7 +130,7 @@ describe("setupClaudeCodeSettings", () => {
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
 
-    expect(settings.enableAllProjectMcpServers).toBe(true);
+    expect(settings.enableAllProjectMcpServers).toBe(false);
   });
 
   test("should merge with existing settings", async () => {
@@ -142,7 +151,7 @@ describe("setupClaudeCodeSettings", () => {
     const settingsContent = await readFile(settingsPath, "utf-8");
     const settings = JSON.parse(settingsContent);
 
-    expect(settings.enableAllProjectMcpServers).toBe(true);
+    expect(settings.enableAllProjectMcpServers).toBe(false);
     expect(settings.existingKey).toBe("existingValue");
     expect(settings.newKey).toBe("newValue");
     expect(settings.model).toBe("claude-opus-4-1-20250805");

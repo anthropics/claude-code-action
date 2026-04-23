@@ -256,7 +256,11 @@ async function run() {
       }
     }
 
-    await setupClaudeCodeSettings(process.env.INPUT_SETTINGS);
+    await setupClaudeCodeSettings(
+      process.env.INPUT_SETTINGS,
+      undefined, // homeDir
+      process.env.INPUT_ENABLE_ALL_PROJECT_MCP_SERVERS === "true",
+    );
 
     await installPlugins(
       process.env.INPUT_PLUGIN_MARKETPLACES,

@@ -22,6 +22,7 @@ async function run() {
     await setupClaudeCodeSettings(
       process.env.INPUT_SETTINGS,
       undefined, // homeDir
+      process.env.INPUT_ENABLE_ALL_PROJECT_MCP_SERVERS === "true",
     );
 
     // Install Claude Code plugins if specified

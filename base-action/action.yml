@@ -18,6 +18,10 @@ inputs:
     description: "Claude Code settings as JSON string or path to settings JSON file"
     required: false
     default: ""
+  enable_all_project_mcp_servers:
+    description: "Auto-enable every MCP server defined in the checkout's .mcp.json. Defaults to 'false' because .mcp.json is PR-controlled in pull_request workflows; set to 'true' only when the checkout is trusted."
+    required: false
+    default: "false"
 
   # Action settings
   claude_args:
@@ -165,6 +169,7 @@ runs:
         INPUT_PROMPT: ${{ inputs.prompt }}
         INPUT_PROMPT_FILE: ${{ inputs.prompt_file }}
         INPUT_SETTINGS: ${{ inputs.settings }}
+        INPUT_ENABLE_ALL_PROJECT_MCP_SERVERS: ${{ inputs.enable_all_project_mcp_servers }}
         INPUT_CLAUDE_ARGS: ${{ inputs.claude_args }}
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}

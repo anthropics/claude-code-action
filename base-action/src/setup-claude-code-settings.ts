@@ -5,6 +5,7 @@ import { readFile } from "fs/promises";
 export async function setupClaudeCodeSettings(
   settingsInput?: string,
   homeDir?: string,
+  enableAllProjectMcpServers: boolean = false,
 ) {
   const home = homeDir ?? homedir();
   const settingsPath = `${home}/.claude/settings.json`;
@@ -59,9 +60,13 @@ export async function setupClaudeCodeSettings(
     console.log(`Merged settings with input settings`);
   }
 
-  // Always set enableAllProjectMcpServers to true
-  settings.enableAllProjectMcpServers = true;
-  console.log(`Updated settings with enableAllProjectMcpServers: true`);
+  // enableAllProjectMcpServers controls whether Claude Code auto-loads every
+  // server in the checkout's .mcp.json. Default false so workflow authors opt
+  // in explicitly via the enable_all_project_mcp_servers action input.
+  settings.enableAllProjectMcpServers = enableAllProjectMcpServers;
+  console.log(
+    `Updated settings with enableAllProjectMcpServers: ${enableAllProjectMcpServers}`,
+  );
 
   await $`echo ${JSON.stringify(settings, null, 2)} > ${settingsPath}`.quiet();
   console.log(`Settings saved successfully`);
