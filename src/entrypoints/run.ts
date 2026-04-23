@@ -221,6 +221,13 @@ async function run() {
     baseBranch = prepareResult.branchInfo.baseBranch;
     prepareCompleted = true;
 
+    // Write .npmrc if configured (for air-gapped / enterprise environments)
+    if (process.env.INPUT_NPMRC_CONFIG) {
+      const npmrcPath = `${process.env.HOME}/.npmrc`;
+      await appendFile(npmrcPath, `\n${process.env.INPUT_NPMRC_CONFIG}\n`);
+      console.log("Wrote custom .npmrc configuration");
+    }
+
     // Phase 2: Install Claude Code CLI
     const claudeExecutable = await installClaudeCode();
 
