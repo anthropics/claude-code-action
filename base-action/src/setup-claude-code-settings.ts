@@ -2,11 +2,17 @@ import { $ } from "bun";
 import { homedir } from "os";
 import { readFile } from "fs/promises";
 
-// Under pull_request_target/workflow_run, project config in the workspace may
-// not match the base ref; default to user-level only and let callers opt in.
+// Under pull_request_target/workflow_run/issue_comment, project config in the
+// workspace may not match the base ref; default to user-level only and let
+// callers opt in. issue_comment runs from the default branch with base-repo
+// context, same class as pull_request_target.
 function isPrivilegedExternalEvent(): boolean {
   const e = process.env.GITHUB_EVENT_NAME ?? "";
-  return e === "pull_request_target" || e === "workflow_run";
+  return (
+    e === "pull_request_target" ||
+    e === "workflow_run" ||
+    e === "issue_comment"
+  );
 }
 
 export function resolveEnableAllProjectMcpServers(
@@ -77,8 +83,8 @@ export async function setupClaudeCodeSettings(
 
   // enableAllProjectMcpServers controls whether Claude Code auto-loads every
   // server in the checkout's .mcp.json. Defaults to true except under
-  // pull_request_target/workflow_run; the enable_all_project_mcp_servers
-  // action input always overrides.
+  // pull_request_target/workflow_run/issue_comment; the
+  // enable_all_project_mcp_servers action input always overrides.
   settings.enableAllProjectMcpServers = enableAllProjectMcpServers;
   console.log(
     `Updated settings with enableAllProjectMcpServers: ${enableAllProjectMcpServers}`,

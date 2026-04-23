@@ -208,4 +208,10 @@ describe("resolveEnableAllProjectMcpServers (base-action)", () => {
     expect(resolveEnableAllProjectMcpServers("")).toBe(false);
     expect(resolveEnableAllProjectMcpServers(undefined)).toBe(false);
   });
+
+  test("unset → false under issue_comment", () => {
+    process.env.GITHUB_EVENT_NAME = "issue_comment";
+    expect(resolveEnableAllProjectMcpServers("")).toBe(false);
+    expect(resolveEnableAllProjectMcpServers(undefined)).toBe(false);
+  });
 });

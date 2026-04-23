@@ -94,7 +94,7 @@ Add the following to your workflow file:
 | `max_turns`                      | Maximum number of conversation turns (default: no limit)                                                                | No       | ''                           |
 | `mcp_config`                     | Path to the MCP configuration JSON file, or MCP configuration JSON string                                               | No       | ''                           |
 | `settings`                       | Path to Claude Code settings JSON file, or settings JSON string                                                         | No       | ''                           |
-| `enable_all_project_mcp_servers` | Auto-enable every MCP server in the checkout's `.mcp.json`. Defaults to `true`, except under `pull_request_target`/`workflow_run` where it defaults to `false`. | No       | event-dependent              |
+| `enable_all_project_mcp_servers` | Auto-enable every MCP server in the checkout's `.mcp.json`. Defaults to `true`, except under `pull_request_target`/`workflow_run`/`issue_comment` where it defaults to `false`. | No       | event-dependent              |
 | `system_prompt`                  | Override system prompt                                                                                                  | No       | ''                           |
 | `append_system_prompt`           | Append to system prompt                                                                                                 | No       | ''                           |
 | `claude_env`                     | Custom environment variables to pass to Claude Code execution (YAML multiline format)                                   | No       | ''                           |
@@ -252,7 +252,7 @@ The settings file supports all Claude Code settings options including:
 - `includeCoAuthoredBy`: Include co-authored-by in git commits
 - And more...
 
-**Note**: The `enableAllProjectMcpServers` setting is controlled by the `enable_all_project_mcp_servers` input and overrides any value provided via `settings`. When the input is unset, it defaults to `true`, except under `pull_request_target`/`workflow_run` where it defaults to `false`.
+**Note**: The `enableAllProjectMcpServers` setting is controlled by the `enable_all_project_mcp_servers` input and overrides any value provided via `settings`. When the input is unset, it defaults to `true`, except under `pull_request_target`/`workflow_run`/`issue_comment` where it defaults to `false`.
 
 ## Using MCP Config
 

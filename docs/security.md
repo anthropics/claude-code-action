@@ -20,6 +20,33 @@
 - **No Cross-Repository Access**: Each action invocation is limited to the repository where it was triggered
 - **Limited Scope**: The token cannot access other repositories or perform actions beyond the configured permissions
 
+## Using this action with `pull_request_target` or `workflow_run`
+
+`pull_request_target` and `workflow_run` execute with the **base repository's secrets**. If your workflow checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`) into `$GITHUB_WORKSPACE` before this action, the action and Claude run with that checkout as the working directory.
+
+**Do not check out an untrusted ref into the workspace root before this action.** Use one of these patterns instead:
+
+```yaml
+# Preferred — check out the base ref (default). Claude can still see the PR's
+# changes via `gh pr diff` / `gh pr view`, which the action provides.
+- uses: actions/checkout@v4      # no `ref:` → base branch
+- uses: anthropics/claude-code-action@v1
+```
+
+```yaml
+# If you need the PR's files locally — check out into a subdirectory and
+# pass it via --add-dir, so the workspace root stays clean.
+- uses: actions/checkout@v4
+  with:
+    ref: ${{ github.event.pull_request.head.sha }}
+    path: pr-head
+- uses: anthropics/claude-code-action@v1
+  with:
+    claude_args: "--add-dir pr-head"
+```
+
+This is general `pull_request_target` guidance — see [GitHub's documentation](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/).
+
 ## Pull Request Creation
 
 In its default configuration, **Claude does not create pull requests automatically** when responding to `@claude` mentions. Instead:
