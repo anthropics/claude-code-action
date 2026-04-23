@@ -18,6 +18,7 @@ const SENSITIVE_PATHS = [
   "CLAUDE.md",
   "CLAUDE.local.md",
   ".husky",
+  "bunfig.toml",
 ];
 
 /**
