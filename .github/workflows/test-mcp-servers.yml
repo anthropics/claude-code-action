@@ -110,6 +110,10 @@ jobs:
           prompt: "List all available tools"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           mcp_config: '{"mcpServers":{"test-server":{"type":"stdio","command":"bun","args":["simple-mcp-server.ts"],"env":{}}}}'
+          # TODO: mcp_config is not currently plumbed through base-action/action.yml,
+          # so this step only passes via .mcp.json in CLAUDE_WORKING_DIR. Remove this
+          # opt-in once mcp_config is wired up and the test exercises what it claims.
+          enable_all_project_mcp_servers: "true"
         env:
           # Change to test directory so bun can find the MCP server script
           CLAUDE_WORKING_DIR: ${{ github.workspace }}/base-action/test/mcp-test
