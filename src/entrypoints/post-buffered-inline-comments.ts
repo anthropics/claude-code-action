@@ -10,6 +10,7 @@
  * calls posted immediately.
  */
 import { readFileSync } from "fs";
+import Anthropic from "@anthropic-ai/sdk";
 import { createOctokit } from "../github/api/client";
 
 const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
@@ -56,31 +57,14 @@ async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
     bodies.map((b, i) => `${i + 1}. ${JSON.stringify(b)}`).join("\n");
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5",
-        max_tokens: 1024,
-        messages: [{ role: "user", content: prompt }],
-      }),
+    const client = new Anthropic();
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: prompt }],
     });
 
-    if (!res.ok) {
-      console.log(
-        `Classification API returned ${res.status} — posting all unconfirmed comments`,
-      );
-      return null;
-    }
-
-    const data = (await res.json()) as {
-      content: { type: string; text: string }[];
-    };
-    const text = data.content.find((c) => c.type === "text")?.text ?? "";
+    const text = response.content.find((c) => c.type === "text")?.text ?? "";
     const match = text.match(/\[[\s\S]*\]/);
     if (!match) {
       console.log(
