@@ -1,0 +1,38 @@
+name: Claude Code Review (Plugin)
+
+# Uses the code-review plugin from the claude-code-plugins marketplace.
+# The plugin launches multiple parallel agents with confidence-based scoring
+# to filter false positives. See the plugin README for details:
+# https://github.com/anthropics/claude-code/tree/main/plugins/code-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # Required to post review comments
+      issues: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
+          plugins: 'code-review@claude-code-plugins'
+
+          # IMPORTANT: The --comment flag is required for the plugin to post
+          # review comments to the PR. Without it, the review output only goes
+          # to the terminal and no comments will appear on the pull request.
+          prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
