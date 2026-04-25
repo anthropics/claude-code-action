@@ -63,7 +63,7 @@ inputs:
     required: false
     default: ""
   enable_all_project_mcp_servers:
-    description: "Auto-enable every MCP server defined in the checkout's .mcp.json. Defaults to true; in PR contexts the action restores project config from the base ref before launching. Set explicitly to 'true' or 'false' to override."
+    description: "Auto-enable every MCP server defined in the checkout's .mcp.json. Defaults to 'true' (except under workflow_run, where it defaults to 'false'); in PR contexts the action restores project config from the base ref before launching. Set explicitly to 'true' or 'false' to override."
     required: false
     default: ""
 

@@ -329,7 +329,7 @@ For a complete list of available settings and their descriptions, see the [Claud
 
 **Notes**:
 
-- The `enableAllProjectMcpServers` setting is controlled by the `enable_all_project_mcp_servers` input and overrides any value provided via `settings`. When the input is unset, it defaults to `true`; in PR contexts the action restores project config from the base ref before launching.
+- The `enableAllProjectMcpServers` setting is controlled by the `enable_all_project_mcp_servers` input and overrides any value provided via `settings`. When the input is unset, it defaults to `true` (except under `workflow_run`, where it defaults to `false`); in PR contexts the action restores project config from the base ref before launching.
 - The `claude_args` input provides direct access to Claude Code CLI arguments and takes precedence over settings.
 - We recommend using `claude_args` for simple configurations and `settings` for complex configurations with hooks and environment variables.
 
