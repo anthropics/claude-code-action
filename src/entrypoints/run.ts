@@ -294,6 +294,24 @@ async function run() {
       core.setOutput("structured_output", claudeResult.structuredOutput);
     }
     core.setOutput("conclusion", claudeResult.conclusion);
+    if (claudeResult.inputTokens !== undefined) {
+      core.setOutput("input_tokens", String(claudeResult.inputTokens));
+    }
+    if (claudeResult.outputTokens !== undefined) {
+      core.setOutput("output_tokens", String(claudeResult.outputTokens));
+    }
+    if (claudeResult.cacheReadTokens !== undefined) {
+      core.setOutput("cache_read_tokens", String(claudeResult.cacheReadTokens));
+    }
+    if (claudeResult.cacheWriteTokens !== undefined) {
+      core.setOutput(
+        "cache_write_tokens",
+        String(claudeResult.cacheWriteTokens),
+      );
+    }
+    if (claudeResult.numTurns !== undefined) {
+      core.setOutput("turns", String(claudeResult.numTurns));
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     // Only mark as prepare failure if we haven't completed the prepare phase
