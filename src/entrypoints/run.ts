@@ -40,6 +40,7 @@ import { installPlugins } from "../../base-action/src/install-plugins";
 import { preparePrompt } from "../../base-action/src/prepare-prompt";
 import { runClaude } from "../../base-action/src/run-claude";
 import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
+import { setExecutionFileOutputIfPresent } from "../../base-action/src/execution-file";
 
 /**
  * Install Claude Code CLI, handling retry logic and custom executable paths.
@@ -296,6 +297,7 @@ async function run() {
     core.setOutput("conclusion", claudeResult.conclusion);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    executionFile ??= setExecutionFileOutputIfPresent();
     // Only mark as prepare failure if we haven't completed the prepare phase
     if (!prepareCompleted) {
       prepareSuccess = false;
