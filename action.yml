@@ -62,6 +62,10 @@ inputs:
     description: "Claude Code settings as JSON string or path to settings JSON file"
     required: false
     default: ""
+  enable_all_project_mcp_servers:
+    description: "Auto-enable every MCP server defined in the checkout's .mcp.json. Defaults to 'true' (except under workflow_run, where it defaults to 'false'); in PR contexts the action restores project config from the base ref before launching. Set explicitly to 'true' or 'false' to override."
+    required: false
+    default: ""
 
   # Auth configuration
   anthropic_api_key:
@@ -279,6 +283,7 @@ runs:
         # Base-action inputs
         INPUT_PROMPT_FILE: ${{ runner.temp }}/claude-prompts/claude-prompt.txt
         INPUT_SETTINGS: ${{ inputs.settings }}
+        INPUT_ENABLE_ALL_PROJECT_MCP_SERVERS: ${{ inputs.enable_all_project_mcp_servers }}
         INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ github.action_path }}/slash-commands
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}

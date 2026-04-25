@@ -27,7 +27,10 @@ import { detectMode } from "../modes/detector";
 import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
 import { checkContainsTrigger } from "../github/validation/trigger";
-import { restoreConfigFromBase } from "../github/operations/restore-config";
+import {
+  restoreConfigFromBase,
+  resolveEnableAllProjectMcpServers,
+} from "../github/operations/restore-config";
 import { validateBranchName } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
@@ -241,22 +244,37 @@ async function run() {
     // lacks base.ref, so we fall back to the mode-provided value — tag mode
     // fetches it from GraphQL; agent mode on issue_comment is an edge case
     // that at worst restores from the wrong trusted branch (still secure).
-    if (isEntityContext(context) && context.isPR) {
-      let restoreBase = baseBranch;
-      if (
-        isPullRequestEvent(context) ||
-        isPullRequestReviewEvent(context) ||
-        isPullRequestReviewCommentEvent(context)
-      ) {
-        restoreBase = context.payload.pull_request.base.ref;
-        validateBranchName(restoreBase);
-      }
-      if (restoreBase) {
-        restoreConfigFromBase(restoreBase);
+    let projectConfigTrusted = false;
+    if (isEntityContext(context)) {
+      if (context.isPR) {
+        let restoreBase = baseBranch;
+        if (
+          isPullRequestEvent(context) ||
+          isPullRequestReviewEvent(context) ||
+          isPullRequestReviewCommentEvent(context)
+        ) {
+          restoreBase = context.payload.pull_request.base.ref;
+          validateBranchName(restoreBase);
+        }
+        if (restoreBase) {
+          restoreConfigFromBase(restoreBase);
+          projectConfigTrusted = true;
+        }
+      } else {
+        // issues / issue_comment on a non-PR issue: checkout is the
+        // default-branch tip, so project config is already merged code.
+        projectConfigTrusted = true;
       }
     }
 
-    await setupClaudeCodeSettings(process.env.INPUT_SETTINGS);
+    await setupClaudeCodeSettings(
+      process.env.INPUT_SETTINGS,
+      undefined, // homeDir
+      resolveEnableAllProjectMcpServers(
+        process.env.INPUT_ENABLE_ALL_PROJECT_MCP_SERVERS,
+        projectConfigTrusted,
+      ),
+    );
 
     await installPlugins(
       process.env.INPUT_PLUGIN_MARKETPLACES,

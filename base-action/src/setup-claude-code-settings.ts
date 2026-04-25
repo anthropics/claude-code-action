@@ -2,10 +2,31 @@ import { $ } from "bun";
 import { homedir } from "os";
 import { readFile } from "fs/promises";
 
+// Under pull_request_target/workflow_run/issue_comment, project config in the
+// workspace may not match the base ref; default to user-level only and let
+// callers opt in. issue_comment runs from the default branch with base-repo
+// context, same class as pull_request_target.
+function isPrivilegedExternalEvent(): boolean {
+  const e = process.env.GITHUB_EVENT_NAME ?? "";
+  return (
+    e === "pull_request_target" || e === "workflow_run" || e === "issue_comment"
+  );
+}
+
+export function resolveEnableAllProjectMcpServers(
+  inputValue: string | undefined,
+): boolean {
+  if (inputValue === "true") return true;
+  if (inputValue === "false") return false;
+  return !isPrivilegedExternalEvent();
+}
+
 export async function setupClaudeCodeSettings(
   settingsInput?: string,
   homeDir?: string,
+  enableAllProjectMcpServers?: boolean,
 ) {
+  enableAllProjectMcpServers ??= !isPrivilegedExternalEvent();
   const home = homeDir ?? homedir();
   const settingsPath = `${home}/.claude/settings.json`;
   console.log(`Setting up Claude settings at: ${settingsPath}`);
@@ -59,9 +80,14 @@ export async function setupClaudeCodeSettings(
     console.log(`Merged settings with input settings`);
   }
 
-  // Always set enableAllProjectMcpServers to true
-  settings.enableAllProjectMcpServers = true;
-  console.log(`Updated settings with enableAllProjectMcpServers: true`);
+  // enableAllProjectMcpServers controls whether Claude Code auto-loads every
+  // server in the checkout's .mcp.json. Defaults to true except under
+  // pull_request_target/workflow_run/issue_comment; the
+  // enable_all_project_mcp_servers action input always overrides.
+  settings.enableAllProjectMcpServers = enableAllProjectMcpServers;
+  console.log(
+    `Updated settings with enableAllProjectMcpServers: ${enableAllProjectMcpServers}`,
+  );
 
   await $`echo ${JSON.stringify(settings, null, 2)} > ${settingsPath}`.quiet();
   console.log(`Settings saved successfully`);

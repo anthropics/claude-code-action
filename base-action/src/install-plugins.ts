@@ -141,9 +141,14 @@ async function executeClaudeCommand(
   errorContext: string,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const childProcess: ChildProcess = spawn(claudeExecutable, args, {
-      stdio: "inherit",
-    });
+    // Pin to user-level settings only so plugin install does not read
+    // project/local settings from the checkout. Intentionally stricter than
+    // the main run's default.
+    const childProcess: ChildProcess = spawn(
+      claudeExecutable,
+      [...args, "--setting-sources", "user"],
+      { stdio: "inherit" },
+    );
 
     childProcess.on("close", (code: number | null) => {
       if (code === 0) {

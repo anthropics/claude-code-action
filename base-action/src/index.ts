@@ -3,7 +3,10 @@
 import * as core from "@actions/core";
 import { preparePrompt } from "./prepare-prompt";
 import { runClaude } from "./run-claude";
-import { setupClaudeCodeSettings } from "./setup-claude-code-settings";
+import {
+  setupClaudeCodeSettings,
+  resolveEnableAllProjectMcpServers,
+} from "./setup-claude-code-settings";
 import { validateEnvironmentVariables } from "./validate-env";
 import { installPlugins } from "./install-plugins";
 
@@ -22,6 +25,9 @@ async function run() {
     await setupClaudeCodeSettings(
       process.env.INPUT_SETTINGS,
       undefined, // homeDir
+      resolveEnableAllProjectMcpServers(
+        process.env.INPUT_ENABLE_ALL_PROJECT_MCP_SERVERS,
+      ),
     );
 
     // Install Claude Code plugins if specified
