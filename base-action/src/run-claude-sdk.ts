@@ -130,6 +130,19 @@ function sanitizeSdkOutput(
   return null;
 }
 
+async function writeExecutionFile(
+  messages: SDKMessage[],
+): Promise<string | undefined> {
+  try {
+    await writeFile(EXECUTION_FILE, JSON.stringify(messages, null, 2));
+    console.log(`Log saved to ${EXECUTION_FILE}`);
+    return EXECUTION_FILE;
+  } catch (error) {
+    core.warning(`Failed to write execution file: ${error}`);
+    return undefined;
+  }
+}
+
 /**
  * Run Claude using the Agent SDK
  */
@@ -172,6 +185,7 @@ export async function runClaudeWithSdk(
     }
   } catch (error) {
     console.error("SDK execution error:", error);
+    await writeExecutionFile(messages);
     throw new Error(`SDK execution error: ${error}`);
   }
 
@@ -179,13 +193,9 @@ export async function runClaudeWithSdk(
     conclusion: "failure",
   };
 
-  // Write execution file
-  try {
-    await writeFile(EXECUTION_FILE, JSON.stringify(messages, null, 2));
-    console.log(`Log saved to ${EXECUTION_FILE}`);
-    result.executionFile = EXECUTION_FILE;
-  } catch (error) {
-    core.warning(`Failed to write execution file: ${error}`);
+  const executionFile = await writeExecutionFile(messages);
+  if (executionFile) {
+    result.executionFile = executionFile;
   }
 
   // Extract session_id from system.init message
