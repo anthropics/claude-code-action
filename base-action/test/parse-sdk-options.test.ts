@@ -176,20 +176,27 @@ describe("parseSdkOptions", () => {
     });
   });
 
-  describe("mcp-config merging", () => {
-    test("should pass through single mcp-config in extraArgs", () => {
+  describe("mcp-config routing", () => {
+    // Inline JSON --mcp-config values are routed to sdkOptions.mcpServers
+    // (the SDK's typed registration path) so the spawned CLI sees them in
+    // session init. File paths stay in extraArgs for the CLI to load.
+    // Background: #1245 / #1191 — when inline JSON was forwarded via
+    // extraArgs["mcp-config"], the spawned CLI's session init reported
+    // `mcp_servers: []` despite the flag being correctly populated.
+    test("routes single inline mcp-config to sdkOptions.mcpServers", () => {
       const options: ClaudeOptions = {
         claudeArgs: `--mcp-config '{"mcpServers":{"server1":{"command":"cmd1"}}}'`,
       };
 
       const result = parseSdkOptions(options);
 
-      expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBe(
-        '{"mcpServers":{"server1":{"command":"cmd1"}}}',
-      );
+      expect(result.sdkOptions.mcpServers).toEqual({
+        server1: { command: "cmd1" },
+      });
+      expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBeUndefined();
     });
 
-    test("should merge multiple mcp-config flags with inline JSON", () => {
+    test("merges multiple inline mcp-config flags into sdkOptions.mcpServers", () => {
       // Simulates action prepending its config, then user providing their own
       const options: ClaudeOptions = {
         claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node","args":["server.js"]}}}' --mcp-config '{"mcpServers":{"user_server":{"command":"custom","args":["run"]}}}'`,
@@ -197,31 +204,29 @@ describe("parseSdkOptions", () => {
 
       const result = parseSdkOptions(options);
 
-      const mcpConfig = JSON.parse(
-        result.sdkOptions.extraArgs?.["mcp-config"] as string,
-      );
-      expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
-      expect(mcpConfig.mcpServers).toHaveProperty("user_server");
-      expect(mcpConfig.mcpServers.github_comment.command).toBe("node");
-      expect(mcpConfig.mcpServers.user_server.command).toBe("custom");
+      const servers = result.sdkOptions.mcpServers as Record<string, any>;
+      expect(servers).toHaveProperty("github_comment");
+      expect(servers).toHaveProperty("user_server");
+      expect(servers.github_comment.command).toBe("node");
+      expect(servers.user_server.command).toBe("custom");
+      expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBeUndefined();
     });
 
-    test("should merge three mcp-config flags", () => {
+    test("merges three inline mcp-config flags into sdkOptions.mcpServers", () => {
       const options: ClaudeOptions = {
         claudeArgs: `--mcp-config '{"mcpServers":{"server1":{"command":"cmd1"}}}' --mcp-config '{"mcpServers":{"server2":{"command":"cmd2"}}}' --mcp-config '{"mcpServers":{"server3":{"command":"cmd3"}}}'`,
       };
 
       const result = parseSdkOptions(options);
 
-      const mcpConfig = JSON.parse(
-        result.sdkOptions.extraArgs?.["mcp-config"] as string,
-      );
-      expect(mcpConfig.mcpServers).toHaveProperty("server1");
-      expect(mcpConfig.mcpServers).toHaveProperty("server2");
-      expect(mcpConfig.mcpServers).toHaveProperty("server3");
+      const servers = result.sdkOptions.mcpServers as Record<string, any>;
+      expect(servers).toHaveProperty("server1");
+      expect(servers).toHaveProperty("server2");
+      expect(servers).toHaveProperty("server3");
+      expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBeUndefined();
     });
 
-    test("should handle mcp-config file path when no inline JSON exists", () => {
+    test("forwards mcp-config file path through extraArgs (no inline JSON)", () => {
       const options: ClaudeOptions = {
         claudeArgs: `--mcp-config /tmp/user-mcp-config.json`,
       };
@@ -231,42 +236,45 @@ describe("parseSdkOptions", () => {
       expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBe(
         "/tmp/user-mcp-config.json",
       );
+      expect(result.sdkOptions.mcpServers).toBeUndefined();
     });
 
-    test("should merge inline JSON configs when file path is also present", () => {
+    test("splits inline JSON to mcpServers and keeps file path in extraArgs", () => {
       // When action provides inline JSON and user provides a file path,
-      // the inline JSON configs should be merged (file paths cannot be merged at parse time)
+      // inline servers go to mcpServers and the file path stays in extraArgs
+      // so the CLI loads it (and merges it with what the SDK already registered)
       const options: ClaudeOptions = {
         claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config '{"mcpServers":{"github_ci":{"command":"node"}}}' --mcp-config /tmp/user-config.json`,
       };
 
       const result = parseSdkOptions(options);
 
-      // The inline JSON configs should be merged
-      const mcpConfig = JSON.parse(
-        result.sdkOptions.extraArgs?.["mcp-config"] as string,
+      const servers = result.sdkOptions.mcpServers as Record<string, any>;
+      expect(servers).toHaveProperty("github_comment");
+      expect(servers).toHaveProperty("github_ci");
+      expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBe(
+        "/tmp/user-config.json",
       );
-      expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
-      expect(mcpConfig.mcpServers).toHaveProperty("github_ci");
     });
 
-    test("should handle mcp-config with other flags", () => {
+    test("routes inline mcp-config to mcpServers alongside other flags", () => {
       const options: ClaudeOptions = {
         claudeArgs: `--mcp-config '{"mcpServers":{"server1":{}}}' --model claude-3-5-sonnet --mcp-config '{"mcpServers":{"server2":{}}}'`,
       };
 
       const result = parseSdkOptions(options);
 
-      const mcpConfig = JSON.parse(
-        result.sdkOptions.extraArgs?.["mcp-config"] as string,
-      );
-      expect(mcpConfig.mcpServers).toHaveProperty("server1");
-      expect(mcpConfig.mcpServers).toHaveProperty("server2");
+      const servers = result.sdkOptions.mcpServers as Record<string, any>;
+      expect(servers).toHaveProperty("server1");
+      expect(servers).toHaveProperty("server2");
+      expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBeUndefined();
       expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-3-5-sonnet");
     });
 
-    test("should handle real-world scenario: action config + user config", () => {
-      // This is the exact scenario from the bug report
+    test("real-world scenario: action bundled config + user inline config", () => {
+      // This is the exact scenario from issue #1245 — both action-prepended
+      // and user-provided inline JSON should register through mcpServers so
+      // the spawned CLI lists them in session init.
       const actionConfig = JSON.stringify({
         mcpServers: {
           github_comment: {
@@ -288,13 +296,21 @@ describe("parseSdkOptions", () => {
 
       const result = parseSdkOptions(options);
 
-      const mcpConfig = JSON.parse(
-        result.sdkOptions.extraArgs?.["mcp-config"] as string,
-      );
-      // All servers should be present
-      expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
-      expect(mcpConfig.mcpServers).toHaveProperty("github_ci");
-      expect(mcpConfig.mcpServers).toHaveProperty("my_custom_server");
+      const servers = result.sdkOptions.mcpServers as Record<string, any>;
+      expect(servers).toHaveProperty("github_comment");
+      expect(servers).toHaveProperty("github_ci");
+      expect(servers).toHaveProperty("my_custom_server");
+      expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBeUndefined();
+    });
+
+    test("leaves mcpServers undefined when no --mcp-config is passed", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: `--model claude-3-5-sonnet`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.mcpServers).toBeUndefined();
     });
   });
 
