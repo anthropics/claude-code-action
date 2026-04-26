@@ -1,5 +1,7 @@
 # Setup Guide
 
+> **Using GitHub Enterprise Cloud?** See the [GitHub Enterprise Cloud setup guide](./github-enterprise-cloud.md) for GHEC-specific differences (data residency, EMU, SSO, IP allowlists).
+
 ## Manual Setup (Direct API)
 
 **Requirements**: You must be a repository admin to complete these steps.
@@ -19,6 +21,7 @@ If you prefer not to install the official Claude app, you can create your own Gi
 - You need more restrictive permissions than the official app
 - Organization policies prevent installing third-party apps
 - You're using AWS Bedrock or Google Vertex AI
+- You're on [GitHub Enterprise Cloud with data residency](./github-enterprise-cloud.md#ghec-with-data-residency-ghecom) (`*.ghe.com`)
 
 ### Option 1: Quick Setup with App Manifest (Recommended)
 
