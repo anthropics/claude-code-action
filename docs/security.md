@@ -22,22 +22,24 @@
 
 ## Using this action with `pull_request_target` or `workflow_run`
 
-`pull_request_target` and `workflow_run` execute with the **base repository's secrets**. If your workflow checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}`) into `$GITHUB_WORKSPACE` before this action, the action and Claude run with that checkout as the working directory.
+`pull_request_target` and `workflow_run` execute with the **base repository's secrets**. If your workflow checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}` for `pull_request_target`, `ref: ${{ github.event.workflow_run.head_sha }}` for `workflow_run`) into `$GITHUB_WORKSPACE` before this action, the action and Claude run with that checkout as the working directory.
 
 **Do not check out an untrusted ref into the workspace root before this action.** Use one of these patterns instead:
 
 ```yaml
-# Preferred — check out the base ref (default). Claude can still see the PR's
-# changes via `gh pr diff` / `gh pr view`, which the action provides.
+# Preferred — check out the base ref (default).
 - uses: actions/checkout@v4 # no `ref:` → base branch
 - uses: anthropics/claude-code-action@v1
 ```
 
 ```yaml
-# If you need the PR's files locally — check out into a subdirectory and
-# pass it via --add-dir, so the workspace root stays clean.
+# If you need the PR's files locally — check out the base ref at the workspace
+# root (this action expects a git repo there), then check out the head ref into
+# a subdirectory and pass it via --add-dir.
+- uses: actions/checkout@v4 # no `ref:` → base branch at workspace root
 - uses: actions/checkout@v4
   with:
+    # For workflow_run use: ${{ github.event.workflow_run.head_sha }}
     ref: ${{ github.event.pull_request.head.sha }}
     path: pr-head
 - uses: anthropics/claude-code-action@v1
@@ -45,7 +47,7 @@
     claude_args: "--add-dir pr-head"
 ```
 
-This is general `pull_request_target` guidance — see [GitHub's documentation](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/).
+This is general guidance for these event types — see [GitHub's documentation](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/).
 
 ### `claude-code-action` vs `claude-code-base-action`
 
