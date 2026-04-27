@@ -4,6 +4,14 @@ This GitHub Action allows you to run [Claude Code](https://www.anthropic.com/cla
 
 For simply tagging @claude in issues and PRs out of the box, [check out the Claude Code action and GitHub app](https://github.com/anthropics/claude-code-action).
 
+## Trust model
+
+This action is a thin wrapper that installs and runs Claude Code with the inputs you provide. It does **not** enforce any trust boundaries on its own. Running this action in a directory is equivalent to running Claude Code in that directory — Claude reads project-level configuration (`.claude/`, `CLAUDE.md`, `.mcp.json`, etc.) from the working directory, and the action's own setup steps run from there as well.
+
+**The caller is responsible for ensuring the working directory and prompt are trusted.** If your workflow processes untrusted input (issues, fork pull requests, external comments), use [`anthropics/claude-code-action`](https://github.com/anthropics/claude-code-action) instead — it provides actor permission checks, restores project configuration from the base ref in PR contexts, and is the supported path for those scenarios.
+
+See [Claude Code's security documentation](https://docs.anthropic.com/en/docs/claude-code/security) and the [GitHub Actions guidance on `pull_request_target`](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/) for background.
+
 ## Usage
 
 Add the following to your workflow file:
