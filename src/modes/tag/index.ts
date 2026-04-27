@@ -157,6 +157,10 @@ export async function prepareTagMode({
     );
   }
 
+  // Dedupe once so both the MCP config and the --allowedTools CLI flag
+  // see the same set (user-supplied CLAUDE_ARGS may include tools we also push)
+  const dedupedTools = Array.from(new Set(tagModeTools));
+
   // Get our GitHub MCP servers configuration
   const ourMcpConfig = await prepareMcpConfig({
     githubToken,
@@ -165,7 +169,7 @@ export async function prepareTagMode({
     branch: branchInfo.claudeBranch || branchInfo.currentBranch,
     baseBranch: branchInfo.baseBranch,
     claudeCommentId: commentId.toString(),
-    allowedTools: Array.from(new Set(tagModeTools)),
+    allowedTools: dedupedTools,
     mode: "tag",
     context,
   });
@@ -178,7 +182,7 @@ export async function prepareTagMode({
   claudeArgs = `--mcp-config '${escapedOurConfig}'`;
 
   // Add required tools for tag mode
-  claudeArgs += ` --allowedTools "${tagModeTools.join(",")}"`;
+  claudeArgs += ` --allowedTools "${dedupedTools.join(",")}"`;
 
   // Append user's claude_args (which may have more --mcp-config flags)
   if (userClaudeArgs) {
