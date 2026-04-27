@@ -24,6 +24,68 @@ const ACCUMULATING_FLAGS = new Set([
 // Delimiter used to join accumulated flag values
 const ACCUMULATE_DELIMITER = "\x00";
 
+// Built-in tool names recognized by the Claude Agent SDK.
+// These are the tools the SDK can register via Options.tools (string[] form).
+// Anything not in this set is either an MCP tool (mcp__*), a Bash() pattern,
+// or an unknown identifier — none of which belong in the registration list.
+// Source: @anthropic-ai/claude-agent-sdk type defs and CLI reference docs.
+const BUILT_IN_TOOL_NAMES = new Set([
+  "Bash",
+  "Read",
+  "Write",
+  "Edit",
+  "MultiEdit",
+  "Glob",
+  "Grep",
+  "LS",
+  "NotebookRead",
+  "NotebookEdit",
+  "Task",
+  "TodoWrite",
+  "WebFetch",
+  "WebSearch",
+]);
+
+/**
+ * Extract the set of built-in tool names that should be registered with the SDK
+ * (`Options.tools`) given a merged allow-list.
+ *
+ * The SDK's `Options.tools` field is the *registration* knob — it controls which
+ * built-in tools are wired into the spawned CLI session. `Options.allowedTools`
+ * is a separate, downstream auto-approve gate-list. Historically this action
+ * only set `allowedTools`, leaving `tools` undefined; in agent mode the result
+ * was that the SDK init reported `tools: ["Bash", "Read"]` regardless of what
+ * the user passed in `claude_args: --allowedTools …`. The model literally could
+ * not call Edit/Glob/Grep/Write/etc. even when allow-listed.
+ *
+ * Filtering rules (kept conservative for backwards compatibility):
+ *  - Strip any `(…)` suffix, e.g. `Bash(git:*)` → `Bash`.
+ *  - Drop entries that start with `mcp__` (MCP tool names, not base tools).
+ *  - Keep only entries whose stem is in `BUILT_IN_TOOL_NAMES`.
+ *  - Deduplicate, preserving input order.
+ *
+ * If the resulting set is empty, returns `undefined` so callers can leave
+ * `Options.tools` unset and let the SDK fall back to its default preset.
+ */
+function extractBuiltInTools(
+  mergedAllowedTools: string[],
+): string[] | undefined {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of mergedAllowedTools) {
+    if (!entry) continue;
+    if (entry.startsWith("mcp__")) continue;
+    // Strip any `(…)` suffix used for Bash command patterns.
+    const parenIdx = entry.indexOf("(");
+    const stem = parenIdx >= 0 ? entry.slice(0, parenIdx) : entry;
+    if (!BUILT_IN_TOOL_NAMES.has(stem)) continue;
+    if (seen.has(stem)) continue;
+    seen.add(stem);
+    result.push(stem);
+  }
+  return result.length > 0 ? result : undefined;
+}
+
 type McpConfig = {
   mcpServers?: Record<string, unknown>;
 };
@@ -253,6 +315,14 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     };
   }
 
+  // Derive the set of built-in tools to register with the SDK. The SDK uses
+  // `Options.tools` as the *registration* knob; `Options.allowedTools` is only
+  // the auto-approve gate-list. Without this, agent mode init reports
+  // `tools: ["Bash", "Read"]` regardless of what the user passes via
+  // `claude_args: --allowedTools …` — the model literally cannot call
+  // Edit/Glob/Grep/Write/etc. (See issues #690, #181, #533, #264.)
+  const builtInTools = extractBuiltInTools(mergedAllowedTools);
+
   // Build SDK options - use merged tools from both direct options and claudeArgs
   const sdkOptions: SdkOptions = {
     // Direct options from ClaudeOptions inputs
@@ -262,6 +332,12 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
       mergedAllowedTools.length > 0 ? mergedAllowedTools : undefined,
     disallowedTools:
       mergedDisallowedTools.length > 0 ? mergedDisallowedTools : undefined,
+    // Register the built-in tools the user actually asked for. If
+    // `mergedAllowedTools` contained no built-in stems (e.g. only MCP tools or
+    // bare `Bash(...)` was filtered to `Bash` only), `extractBuiltInTools`
+    // returns undefined and we leave `tools` unset so the SDK keeps its
+    // default preset — preserving prior behaviour for that case.
+    tools: builtInTools,
     systemPrompt,
     fallbackModel: options.fallbackModel,
     pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
