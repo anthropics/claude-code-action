@@ -152,6 +152,9 @@ export async function prepareMcpConfig(
           REPO_NAME: repo,
           PR_NUMBER: context.entityNumber?.toString() || "",
           GITHUB_API_URL: GITHUB_API_URL,
+          CLASSIFY_INLINE_COMMENTS: context.inputs.classifyInlineComments
+            ? "true"
+            : "false",
         },
       };
     }

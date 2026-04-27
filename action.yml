@@ -32,7 +32,16 @@ inputs:
     required: false
     default: ""
   allowed_non_write_users:
-    description: "Comma-separated list of usernames to allow without write permissions, or '*' to allow all users. Only works when github_token input is provided. WARNING: Use with extreme caution - this bypasses security checks and should only be used for workflows with very limited permissions (e.g., issue labeling)."
+    description: |
+      Comma-separated list of usernames to allow without write permissions, or '*' to allow all users.
+      Only works when github_token input is provided. WARNING: Use with extreme caution - this
+      bypasses security checks and should only be used for workflows with very limited permissions
+      (e.g., issue labeling).
+
+      SECURITY: Processing untrusted content exposes the workflow to prompt injection. When this
+      input is set, Claude does a best-effort scrub of Anthropic, cloud, and GitHub Actions secrets
+      from subprocess environments. This reduces but does not eliminate prompt injection risk -
+      only use for workflows with very limited permissions and validate all outputs.
     required: false
     default: ""
   include_comments_by_actor:
@@ -89,6 +98,10 @@ inputs:
     description: "Use just one comment to deliver issue/PR comments"
     required: false
     default: "false"
+  classify_inline_comments:
+    description: "Buffer inline comments without confirmed=true and classify them (real review vs test/probe) before posting after the session ends. Set to 'false' to post all inline comments immediately (pre-buffering behavior)."
+    required: false
+    default: "true"
   use_commit_signing:
     description: "Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands"
     required: false
@@ -160,7 +173,7 @@ runs:
   steps:
     - name: Install Bun
       if: inputs.path_to_bun_executable == ''
-      uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # https://github.com/oven-sh/setup-bun/releases/tag/v2.1.2
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # https://github.com/oven-sh/setup-bun/releases/tag/v2.2.0
       with:
         bun-version: 1.3.6
         token: ${{ inputs.github_token || github.token }}
@@ -182,11 +195,56 @@ runs:
         cd ${GITHUB_ACTION_PATH}
         bun install --production
 
+    - name: Install subprocess isolation dependencies
+      # Install subprocess isolation dependencies when processing content from non-write users.
+      # Best-effort: skips on non-Linux or when sudo/apt unavailable (self-hosted runners).
+      if: ${{ inputs.allowed_non_write_users != '' && runner.os == 'Linux' }}
+      continue-on-error: true
+      shell: bash
+      run: |
+        if [ "${CLAUDE_CODE_SUBPROCESS_ENV_SCRUB:-}" = "0" ]; then
+          echo "Subprocess isolation opted out via CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=0"
+          exit 0
+        fi
+        if command -v apt-get >/dev/null && command -v sudo >/dev/null; then
+          for i in 1 2 3; do
+            sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat && break
+            echo "apt-get attempt $i failed, retrying..."
+            sleep 5
+          done
+        fi
+        # Ubuntu 24.04+ restricts unprivileged user namespaces via AppArmor.
+        # The sysctl doesn't exist on older kernels — that's fine.
+        if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ] && command -v sudo >/dev/null; then
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        fi
+
+    - name: Pin bun binary for post-steps
+      if: ${{ inputs.allowed_non_write_users != '' }}
+      continue-on-error: true
+      shell: bash
+      run: |
+        # Keep a copy of the bun binary alongside the action's own files so
+        # post-steps use the same version that was on PATH at action start.
+        mkdir -p "$GITHUB_ACTION_PATH/bin"
+        cp "$(command -v bun)" "$GITHUB_ACTION_PATH/bin/bun"
+
+    - name: Prepend system bin dirs to PATH
+      if: ${{ inputs.allowed_non_write_users != '' && runner.os != 'Windows' }}
+      continue-on-error: true
+      shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+      run: |
+        echo "/usr/bin" >> "$GITHUB_PATH"
+        echo "/bin" >> "$GITHUB_PATH"
+
     - name: Run Claude Code Action
       id: run
       shell: bash
       run: |
-        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
+        bun --no-env-file \
+          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
+          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
+          run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
       env:
         # Prepare inputs
         MODE: ${{ inputs.mode }}
@@ -200,10 +258,13 @@ runs:
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
+        CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB || (inputs.allowed_non_write_users != '' && '1') || '' }}
+        CLAUDE_CODE_SCRIPT_CAPS: ${{ env.CLAUDE_CODE_SCRIPT_CAPS || '' }}
         INCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.include_comments_by_actor }}
         EXCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.exclude_comments_by_actor }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
+        CLASSIFY_INLINE_COMMENTS: ${{ inputs.classify_inline_comments }}
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
         SSH_SIGNING_KEY: ${{ inputs.ssh_signing_key }}
@@ -265,6 +326,15 @@ runs:
         ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ env.ANTHROPIC_DEFAULT_HAIKU_MODEL }}
         ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ env.ANTHROPIC_DEFAULT_OPUS_MODEL }}
 
+        # MCP configuration — these env vars are read directly from process.env by the
+        # Claude CLI subprocess. They must be listed explicitly here because this step's
+        # env: block shadows the calling workflow's job-level env vars (GitHub Actions
+        # composite action behavior). Set these in your workflow's job-level env: or via
+        # a prior step that writes to $GITHUB_ENV.
+        MCP_TIMEOUT: ${{ env.MCP_TIMEOUT }}
+        MCP_TOOL_TIMEOUT: ${{ env.MCP_TOOL_TIMEOUT }}
+        MAX_MCP_OUTPUT_TOKENS: ${{ env.MAX_MCP_OUTPUT_TOKENS }}
+
         # Telemetry configuration
         CLAUDE_CODE_ENABLE_TELEMETRY: ${{ env.CLAUDE_CODE_ENABLE_TELEMETRY }}
         OTEL_METRICS_EXPORTER: ${{ env.OTEL_METRICS_EXPORTER }}
@@ -276,14 +346,62 @@ runs:
         OTEL_LOGS_EXPORT_INTERVAL: ${{ env.OTEL_LOGS_EXPORT_INTERVAL }}
         OTEL_RESOURCE_ATTRIBUTES: ${{ env.OTEL_RESOURCE_ATTRIBUTES }}
 
+    - name: Re-prepend system bin dirs to PATH
+      if: ${{ always() && inputs.allowed_non_write_users != '' && runner.os != 'Windows' }}
+      continue-on-error: true
+      shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+      env:
+        BASH_ENV: ""
+        LD_PRELOAD: ""
+        LD_LIBRARY_PATH: ""
+        NODE_OPTIONS: ""
+        DYLD_INSERT_LIBRARIES: ""
+        DYLD_PRELOAD: ""
+        DYLD_LIBRARY_PATH: ""
+        DYLD_FRAMEWORK_PATH: ""
+      run: |
+        echo "/usr/bin" >> "$GITHUB_PATH"
+        echo "/bin" >> "$GITHUB_PATH"
+        {
+          echo "BASH_ENV="
+          echo "LD_PRELOAD="
+          echo "LD_LIBRARY_PATH="
+          echo "DYLD_INSERT_LIBRARIES="
+          echo "DYLD_PRELOAD="
+          echo "DYLD_LIBRARY_PATH="
+          echo "DYLD_FRAMEWORK_PATH="
+        } >> "$GITHUB_ENV"
+
     - name: Cleanup SSH signing key
       if: always() && inputs.ssh_signing_key != ''
       shell: bash
       run: |
-        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
+        BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
+        [ -x "$BUN_BIN" ] || BUN_BIN="bun"
+        "$BUN_BIN" --no-env-file \
+          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
+          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
+          run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
+
+    - name: Post buffered inline comments
+      if: always() && inputs.classify_inline_comments != 'false'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ steps.run.outputs.github_token || inputs.github_token || github.token }}
+        REPO_OWNER: ${{ github.event.repository.owner.login }}
+        REPO_NAME: ${{ github.event.repository.name }}
+        PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+      run: |
+        BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
+        [ -x "$BUN_BIN" ] || BUN_BIN="bun"
+        "$BUN_BIN" --no-env-file \
+          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
+          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
+          run ${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts
 
     - name: Revoke app token
-      if: always() && inputs.github_token == '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
+      if: always() && inputs.github_token == '' && steps.run.outputs.github_token != '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
       shell: bash
       run: |
         curl -L \

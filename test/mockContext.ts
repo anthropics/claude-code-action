@@ -19,6 +19,7 @@ const defaultInputs = {
   labelTrigger: "",
   branchPrefix: "claude/",
   useStickyComment: false,
+  classifyInlineComments: true,
   useCommitSigning: false,
   sshSigningKey: "",
   botId: String(CLAUDE_APP_BOT_ID),
@@ -35,6 +36,7 @@ const defaultRepository = {
   owner: "test-owner",
   repo: "test-repo",
   full_name: "test-owner/test-repo",
+  default_branch: "main",
 };
 
 type MockContextOverrides = Omit<Partial<ParsedGitHubContext>, "inputs"> & {

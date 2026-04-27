@@ -114,16 +114,17 @@ export async function prepareTagMode({
     tool.startsWith("mcp__github_"),
   );
 
-  // Build claude_args for tag mode with required tools
-  // Tag mode REQUIRES these tools to function properly
+  const gitPushWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-push.sh`;
+
+  // Build claude_args for tag mode with required tools.
+  // Edit/MultiEdit/Write are intentionally omitted: acceptEdits permission mode (set below)
+  // auto-allows file edits inside $GITHUB_WORKSPACE and denies writes outside (e.g. ~/.bashrc).
+  // Listing them here would grant blanket write access to the whole runner (Asana 1213310082312048).
   const tagModeTools = [
-    "Edit",
-    "MultiEdit",
     "Glob",
     "Grep",
     "LS",
     "Read",
-    "Write",
     "mcp__github_comment__update_claude_comment",
     "mcp__github_ci__get_ci_status",
     "mcp__github_ci__get_workflow_run_details",
@@ -143,10 +144,7 @@ export async function prepareTagMode({
     tagModeTools.push(
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)",
-      "Bash(git status:*)",
-      "Bash(git diff:*)",
-      "Bash(git log:*)",
+      `Bash(${gitPushWrapper}:*)`,
       "Bash(git rm:*)",
     );
   } else {
@@ -181,8 +179,10 @@ export async function prepareTagMode({
   const escapedOurConfig = ourMcpConfig.replace(/'/g, "'\\''");
   claudeArgs = `--mcp-config '${escapedOurConfig}'`;
 
-  // Add required tools for tag mode
-  claudeArgs += ` --allowedTools "${dedupedTools.join(",")}"`;
+  // Add required tools for tag mode.
+  // acceptEdits: file edits auto-allowed inside cwd ($GITHUB_WORKSPACE), denied outside.
+  // Headless SDK has no prompt handler, so anything that falls through to "ask" is denied.
+  claudeArgs += ` --permission-mode acceptEdits --allowedTools "${dedupedTools.join(",")}"`;
 
   // Append user's claude_args (which may have more --mcp-config flags)
   if (userClaudeArgs) {

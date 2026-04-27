@@ -141,10 +141,14 @@ export async function setupGitHubToken(): Promise<string> {
   const permissions = parseAdditionalPermissions();
 
   console.log("Exchanging OIDC token for app token...");
-  const appToken = await retryWithBackoff(() =>
-    exchangeForAppToken(oidcToken, permissions),
+  const appToken = await retryWithBackoff(
+    () => exchangeForAppToken(oidcToken, permissions),
+    {
+      shouldRetry: (error) => !(error instanceof WorkflowValidationSkipError),
+    },
   );
   console.log("App token successfully obtained");
+  core.setSecret(appToken);
 
   console.log("Using GITHUB_TOKEN from OIDC");
   return appToken;

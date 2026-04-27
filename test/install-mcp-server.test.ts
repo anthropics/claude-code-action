@@ -32,6 +32,7 @@ describe("prepareMcpConfig", () => {
       labelTrigger: "",
       branchPrefix: "",
       useStickyComment: false,
+      classifyInlineComments: true,
       useCommitSigning: false,
       sshSigningKey: "",
       botId: String(CLAUDE_APP_BOT_ID),

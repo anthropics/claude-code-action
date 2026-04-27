@@ -1,0 +1,2 @@
+# Intentionally minimal. action.yml pins --config to this file so bun resolves
+# its runtime config from the action directory rather than the workspace.

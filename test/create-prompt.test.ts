@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeAll } from "bun:test";
 import {
   generatePrompt,
   getEventTypeAndContext,
@@ -8,6 +8,10 @@ import {
   buildDisallowedToolsString,
 } from "../src/create-prompt";
 import type { PreparedContext } from "../src/create-prompt";
+
+beforeAll(() => {
+  process.env.GITHUB_ACTION_PATH = "/test/action/path";
+});
 
 describe("generatePrompt", () => {
   const mockGitHubData = {
@@ -23,6 +27,8 @@ describe("generatePrompt", () => {
       baseRefName: "main",
       headRefName: "feature-branch",
       headRefOid: "abc123",
+      isCrossRepository: false,
+      headRepository: { owner: { login: "testowner" }, name: "testrepo" },
       commits: {
         totalCount: 2,
         nodes: [
@@ -505,7 +511,7 @@ describe("generatePrompt", () => {
     const prompt = await generatePrompt(envVars, mockGitHubData, false, "tag");
 
     // Should contain PR-specific instructions (git commands when not using signing)
-    expect(prompt).toContain("git push");
+    expect(prompt).toContain("scripts/git-push.sh origin");
     expect(prompt).toContain(
       "Always push to the existing branch when triggered on a PR",
     );
@@ -643,7 +649,7 @@ describe("generatePrompt", () => {
     const prompt = await generatePrompt(envVars, mockGitHubData, false, "tag");
 
     // Should contain open PR instructions (git commands when not using signing)
-    expect(prompt).toContain("git push");
+    expect(prompt).toContain("scripts/git-push.sh origin");
     expect(prompt).toContain(
       "Always push to the existing branch when triggered on a PR",
     );
@@ -757,7 +763,7 @@ describe("generatePrompt", () => {
     expect(prompt).toContain("Use git commands via the Bash tool");
     expect(prompt).toContain("git add");
     expect(prompt).toContain("git commit");
-    expect(prompt).toContain("git push");
+    expect(prompt).toContain("scripts/git-push.sh origin");
 
     // Should use the minimal comment tool
     expect(prompt).toContain("mcp__github_comment__update_claude_comment");
@@ -886,17 +892,18 @@ describe("buildAllowedToolsString", () => {
     const result = buildAllowedToolsString();
 
     // The base tools should be in the result
-    expect(result).toContain("Edit");
+    // Edit/MultiEdit/Write are NOT in allowedTools — acceptEdits permission mode handles them
+    expect(result).not.toContain("Edit");
+    expect(result).not.toContain("Write");
     expect(result).toContain("Glob");
     expect(result).toContain("Grep");
     expect(result).toContain("LS");
     expect(result).toContain("Read");
-    expect(result).toContain("Write");
 
     // Default is no commit signing, so should have specific Bash git commands
     expect(result).toContain("Bash(git add:*)");
     expect(result).toContain("Bash(git commit:*)");
-    expect(result).toContain("Bash(git push:*)");
+    expect(result).toContain("scripts/git-push.sh:*)");
     expect(result).toContain("mcp__github_comment__update_claude_comment");
 
     // Should not have commit signing tools
@@ -908,12 +915,12 @@ describe("buildAllowedToolsString", () => {
     const result = buildAllowedToolsString([], false, false);
 
     // The base tools should be in the result
-    expect(result).toContain("Edit");
+    expect(result).not.toContain("Edit");
     expect(result).toContain("Glob");
     expect(result).toContain("Grep");
     expect(result).toContain("LS");
     expect(result).toContain("Read");
-    expect(result).toContain("Write");
+    expect(result).not.toContain("Write");
 
     // Should have specific Bash git commands for non-signing mode
     expect(result).toContain("Bash(git add:*)");
@@ -930,7 +937,7 @@ describe("buildAllowedToolsString", () => {
     const result = buildAllowedToolsString(customTools);
 
     // Base tools should be present
-    expect(result).toContain("Edit");
+    expect(result).toContain("Read");
     expect(result).toContain("Glob");
 
     // Custom tools should be appended
@@ -950,7 +957,7 @@ describe("buildAllowedToolsString", () => {
     const result = buildAllowedToolsString([], true);
 
     // Base tools should be present
-    expect(result).toContain("Edit");
+    expect(result).toContain("Read");
     expect(result).toContain("Glob");
 
     // GitHub Actions tools should be included
@@ -964,7 +971,7 @@ describe("buildAllowedToolsString", () => {
     const result = buildAllowedToolsString(customTools, true);
 
     // Base tools should be present
-    expect(result).toContain("Edit");
+    expect(result).toContain("Read");
 
     // Custom tools should be included
     expect(result).toContain("Tool1");
@@ -980,12 +987,12 @@ describe("buildAllowedToolsString", () => {
     const result = buildAllowedToolsString([], false, true);
 
     // Base tools should be present
-    expect(result).toContain("Edit");
+    expect(result).not.toContain("Edit");
     expect(result).toContain("Glob");
     expect(result).toContain("Grep");
     expect(result).toContain("LS");
     expect(result).toContain("Read");
-    expect(result).toContain("Write");
+    expect(result).not.toContain("Write");
 
     // Commit signing tools should be included
     expect(result).toContain("mcp__github_file_ops__commit_files");
@@ -1001,20 +1008,17 @@ describe("buildAllowedToolsString", () => {
     const result = buildAllowedToolsString([], false, false);
 
     // Base tools should be present
-    expect(result).toContain("Edit");
+    expect(result).not.toContain("Edit");
     expect(result).toContain("Glob");
     expect(result).toContain("Grep");
     expect(result).toContain("LS");
     expect(result).toContain("Read");
-    expect(result).toContain("Write");
+    expect(result).not.toContain("Write");
 
     // Specific Bash git commands should be included
     expect(result).toContain("Bash(git add:*)");
     expect(result).toContain("Bash(git commit:*)");
-    expect(result).toContain("Bash(git push:*)");
-    expect(result).toContain("Bash(git status:*)");
-    expect(result).toContain("Bash(git diff:*)");
-    expect(result).toContain("Bash(git log:*)");
+    expect(result).toContain("scripts/git-push.sh:*)");
     expect(result).toContain("Bash(git rm:*)");
 
     // Comment tool from minimal server should be included
@@ -1030,7 +1034,7 @@ describe("buildAllowedToolsString", () => {
     const result = buildAllowedToolsString(customTools, true, false);
 
     // Base tools should be present
-    expect(result).toContain("Edit");
+    expect(result).toContain("Read");
     expect(result).toContain("Bash(git add:*)");
 
     // Custom tools should be included

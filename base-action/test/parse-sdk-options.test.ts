@@ -313,6 +313,40 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("shell comment stripping", () => {
+    test("should parse flags before and after a comment line", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--model 'claude-haiku'\n# comment\n--allowed-tools 'Edit'",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
+      expect(result.sdkOptions.allowedTools).toEqual(["Edit"]);
+    });
+
+    test("should parse flags correctly when no comments are present", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--model 'claude-haiku'",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
+    });
+
+    test("should not strip inline # that appears inside a quoted value", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--model 'claude-haiku' --prompt 'use color #ff0000'",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
+      expect(result.sdkOptions.extraArgs?.["prompt"]).toBe("use color #ff0000");
+    });
+  });
+
   describe("environment variables passthrough", () => {
     test("should include OTEL environment variables in sdkOptions.env", () => {
       // Set up test environment variables
@@ -365,6 +399,27 @@ describe("parseSdkOptions", () => {
       expect(result.sdkOptions.env?.CLAUDE_CODE_ENTRYPOINT).toBe(
         "claude-code-github-action",
       );
+    });
+
+    test("should strip ACTIONS_ID_TOKEN_REQUEST_URL and ACTIONS_ID_TOKEN_REQUEST_TOKEN from env", () => {
+      const originalEnv = { ...process.env };
+      process.env.ACTIONS_ID_TOKEN_REQUEST_URL =
+        "https://token.actions.githubusercontent.com";
+      process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN = "secret-token-value";
+
+      try {
+        const options: ClaudeOptions = {};
+        const result = parseSdkOptions(options);
+
+        expect(
+          result.sdkOptions.env?.ACTIONS_ID_TOKEN_REQUEST_URL,
+        ).toBeUndefined();
+        expect(
+          result.sdkOptions.env?.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
+        ).toBeUndefined();
+      } finally {
+        process.env = originalEnv;
+      }
     });
   });
 });
