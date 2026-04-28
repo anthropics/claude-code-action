@@ -85,6 +85,17 @@ inputs:
     description: "Use Microsoft Foundry with OIDC authentication instead of direct Anthropic API"
     required: false
     default: "false"
+  use_openrouter:
+    description: "Use OpenRouter API instead of direct Anthropic API. Set model input to specify which model to use."
+    required: false
+    default: "false"
+  openrouter_api_key:
+    description: "OpenRouter API key (required when use_openrouter is true)"
+    required: false
+  model:
+    description: "Model ID to use (e.g. 'google/gemini-2.5-pro', 'openai/gpt-4o'). Required when use_openrouter is true."
+    required: false
+    default: ""
 
   claude_args:
     description: "Additional arguments to pass directly to Claude CLI"
@@ -292,9 +303,10 @@ runs:
         NODE_VERSION: ${{ env.NODE_VERSION }}
 
         # Provider configuration
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        ANTHROPIC_API_KEY: ${{ inputs.use_openrouter == 'true' && inputs.openrouter_api_key || inputs.anthropic_api_key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
-        ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
+        ANTHROPIC_BASE_URL: ${{ inputs.use_openrouter == 'true' && 'https://openrouter.ai/api/v1' || env.ANTHROPIC_BASE_URL }}
+        ANTHROPIC_MODEL: ${{ inputs.model }}
         ANTHROPIC_CUSTOM_HEADERS: ${{ env.ANTHROPIC_CUSTOM_HEADERS }}
         CLAUDE_CODE_USE_BEDROCK: ${{ inputs.use_bedrock == 'true' && '1' || '' }}
         CLAUDE_CODE_USE_VERTEX: ${{ inputs.use_vertex == 'true' && '1' || '' }}
@@ -391,7 +403,7 @@ runs:
         REPO_OWNER: ${{ github.event.repository.owner.login }}
         REPO_NAME: ${{ github.event.repository.name }}
         PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        ANTHROPIC_API_KEY: ${{ inputs.use_openrouter == 'true' && inputs.openrouter_api_key || inputs.anthropic_api_key }}
       run: |
         BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
         [ -x "$BUN_BIN" ] || BUN_BIN="bun"
