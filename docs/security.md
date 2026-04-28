@@ -28,7 +28,7 @@
 
 ```yaml
 # Preferred — check out the base ref (default).
-- uses: actions/checkout@v4 # no `ref:` → base branch
+- uses: actions/checkout@v6 # no `ref:` → base branch
 - uses: anthropics/claude-code-action@v1
 ```
 
@@ -36,8 +36,8 @@
 # If you need the PR's files locally — check out the base ref at the workspace
 # root (this action expects a git repo there), then check out the head ref into
 # a subdirectory and pass it via --add-dir.
-- uses: actions/checkout@v4 # no `ref:` → base branch at workspace root
-- uses: actions/checkout@v4
+- uses: actions/checkout@v6 # no `ref:` → base branch at workspace root
+- uses: actions/checkout@v6
   with:
     # For workflow_run use: ${{ github.event.workflow_run.head_sha }}
     ref: ${{ github.event.pull_request.head.sha }}
