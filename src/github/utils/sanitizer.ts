@@ -52,12 +52,15 @@ export function normalizeHtmlEntities(content: string): string {
 }
 
 export function sanitizeContent(content: string): string {
+  // Decode HTML entities first so that entity-encoded markup (e.g. comments,
+  // attributes) is converted to plain text before subsequent sanitization
+  // steps attempt to match and strip it.
+  content = normalizeHtmlEntities(content);
   content = stripHtmlComments(content);
   content = stripInvisibleCharacters(content);
   content = stripMarkdownImageAltText(content);
   content = stripMarkdownLinkTitles(content);
   content = stripHiddenAttributes(content);
-  content = normalizeHtmlEntities(content);
   content = redactGitHubTokens(content);
   return content;
 }
