@@ -156,6 +156,7 @@ export async function runClaudeWithSdk(
 
   const messages: SDKMessage[] = [];
   let resultMessage: SDKResultMessage | undefined;
+  let sdkError: unknown;
 
   try {
     for await (const message of query({ prompt, options: sdkOptions })) {
@@ -172,18 +173,24 @@ export async function runClaudeWithSdk(
     }
   } catch (error) {
     console.error("SDK execution error:", error);
-    throw new Error(`SDK execution error: ${error}`);
+    sdkError = error;
   }
 
   const result: ClaudeRunResult = {
     conclusion: "failure",
   };
 
-  // Write execution file
+  // Persist the execution file regardless of whether the SDK threw, so
+  // failures like max-turns still leave a partial transcript on disk for
+  // downstream upload/inspection steps.
   try {
     await writeFile(EXECUTION_FILE, JSON.stringify(messages, null, 2));
     console.log(`Log saved to ${EXECUTION_FILE}`);
     result.executionFile = EXECUTION_FILE;
+    // Publish the output eagerly: index.ts re-throws on SDK errors before
+    // reaching its own setOutput calls, so steps gated on `execution_file`
+    // would otherwise never see it on the failure path.
+    core.setOutput("execution_file", EXECUTION_FILE);
   } catch (error) {
     core.warning(`Failed to write execution file: ${error}`);
   }
@@ -195,6 +202,11 @@ export async function runClaudeWithSdk(
   if (initMessage && "session_id" in initMessage && initMessage.session_id) {
     result.sessionId = initMessage.session_id as string;
     core.info(`Set session_id: ${result.sessionId}`);
+    core.setOutput("session_id", result.sessionId);
+  }
+
+  if (sdkError) {
+    throw new Error(`SDK execution error: ${sdkError}`);
   }
 
   if (!resultMessage) {
