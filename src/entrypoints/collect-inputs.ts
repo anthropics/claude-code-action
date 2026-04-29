@@ -1,3 +1,9 @@
+import * as core from "@actions/core";
+import {
+  JsonParseError,
+  parseJsonWithLocation,
+} from "../../base-action/src/validate-json";
+
 export function collectActionInputsPresence(): string {
   const inputDefaults: Record<string, string> = {
     trigger_phrase: "@claude",
@@ -36,9 +42,13 @@ export function collectActionInputsPresence(): string {
 
   let allInputs: Record<string, string>;
   try {
-    allInputs = JSON.parse(allInputsJson);
+    allInputs = parseJsonWithLocation<Record<string, string>>(
+      allInputsJson,
+      "ALL_INPUTS environment variable",
+    );
   } catch (e) {
-    console.error("Failed to parse ALL_INPUTS JSON:", e);
+    const message = e instanceof JsonParseError ? e.message : String(e);
+    core.warning(`Failed to parse ALL_INPUTS JSON: ${message}`);
     return JSON.stringify({});
   }
 
