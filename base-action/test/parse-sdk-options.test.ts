@@ -298,6 +298,48 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("YAML list marker detection", () => {
+    test("should strip YAML list markers from allowed_tools", () => {
+      const options: ClaudeOptions = {
+        allowedTools: "- Edit,- Read,- Write",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual(["Edit", "Read", "Write"]);
+    });
+
+    test("should strip YAML list markers from disallowed_tools", () => {
+      const options: ClaudeOptions = {
+        disallowedTools: "- Bash,- Write",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.disallowedTools).toEqual(["Bash", "Write"]);
+    });
+
+    test("should not modify tools without YAML list markers", () => {
+      const options: ClaudeOptions = {
+        allowedTools: "Edit,Read,Write",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual(["Edit", "Read", "Write"]);
+    });
+
+    test("should filter out standalone dash entries", () => {
+      const options: ClaudeOptions = {
+        allowedTools: "-,Edit,-,Read",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual(["Edit", "Read"]);
+    });
+  });
+
   describe("other extraArgs passthrough", () => {
     test("should pass through json-schema in extraArgs", () => {
       const options: ClaudeOptions = {

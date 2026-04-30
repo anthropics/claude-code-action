@@ -1,3 +1,4 @@
+import * as core from "@actions/core";
 import { parse as parseShellArgs } from "shell-quote";
 import type { ClaudeOptions } from "./run-claude";
 import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
@@ -147,6 +148,35 @@ function parseClaudeArgsToExtraArgs(
 }
 
 /**
+ * Warn if tool list entries look like YAML list markers were accidentally included.
+ * This catches a common mistake where users write:
+ *   allowed_tools: |
+ *     - Edit
+ *     - Read
+ * instead of:
+ *   allowed_tools: |
+ *     Edit
+ *     Read
+ */
+function warnOnYamlListMarkers(
+  tools: string[],
+  inputName: string,
+): string[] {
+  const hasListMarkers = tools.some((t) => t === "-" || t.startsWith("- "));
+  if (!hasListMarkers) return tools;
+
+  core.warning(
+    `${inputName} appears to contain YAML list markers ("-"). ` +
+      `When using pipe (|) notation, list items directly without "- " prefixes. ` +
+      `Example:\n  ${inputName}: |\n    Edit\n    Read`,
+  );
+
+  return tools
+    .filter((t) => t !== "-")
+    .map((t) => (t.startsWith("- ") ? t.slice(2) : t));
+}
+
+/**
  * Parse ClaudeOptions into SDK-compatible options
  * Uses extraArgs for CLI pass-through instead of duplicating option parsing
  */
@@ -182,9 +212,10 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   const directAllowedTools = options.allowedTools
     ? options.allowedTools.split(",").map((t) => t.trim())
     : [];
-  const mergedAllowedTools = [
-    ...new Set([...extraArgsAllowedTools, ...directAllowedTools]),
-  ];
+  const mergedAllowedTools = warnOnYamlListMarkers(
+    [...new Set([...extraArgsAllowedTools, ...directAllowedTools])],
+    "allowed_tools",
+  );
   delete extraArgs["allowedTools"];
   delete extraArgs["allowed-tools"];
 
@@ -205,9 +236,10 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   const directDisallowedTools = options.disallowedTools
     ? options.disallowedTools.split(",").map((t) => t.trim())
     : [];
-  const mergedDisallowedTools = [
-    ...new Set([...extraArgsDisallowedTools, ...directDisallowedTools]),
-  ];
+  const mergedDisallowedTools = warnOnYamlListMarkers(
+    [...new Set([...extraArgsDisallowedTools, ...directDisallowedTools])],
+    "disallowed_tools",
+  );
   delete extraArgs["disallowedTools"];
   delete extraArgs["disallowed-tools"];
 

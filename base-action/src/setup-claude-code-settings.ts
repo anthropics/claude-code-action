@@ -1,4 +1,5 @@
 import { $ } from "bun";
+import * as core from "@actions/core";
 import { homedir } from "os";
 import { readFile } from "fs/promises";
 
@@ -27,7 +28,13 @@ export async function setupClaudeCodeSettings(
       console.log(`Settings file exists but is empty`);
     }
   } catch (e) {
-    console.log(`No existing settings file found, creating new one`);
+    if (e instanceof SyntaxError) {
+      core.warning(
+        `Failed to parse existing .claude/settings.json: ${e.message}. Starting with empty settings.`,
+      );
+    } else {
+      console.log(`No existing settings file found, creating new one`);
+    }
   }
 
   // Handle settings input (either file path or JSON string)
@@ -40,7 +47,17 @@ export async function setupClaudeCodeSettings(
       inputSettings = JSON.parse(settingsInput);
       console.log(`Parsed settings input as JSON`);
     } catch (e) {
-      // If not JSON, treat as file path
+      // If it looks like JSON (starts with {), report the syntax error
+      if (settingsInput.trim().startsWith("{")) {
+        const message =
+          e instanceof SyntaxError ? e.message : String(e);
+        core.error(
+          `Invalid JSON in settings input: ${message}`,
+        );
+        throw new Error(`Invalid JSON in settings input: ${message}`);
+      }
+
+      // Otherwise treat as file path
       console.log(
         `Settings input is not JSON, treating as file path: ${settingsInput}`,
       );
@@ -49,7 +66,11 @@ export async function setupClaudeCodeSettings(
         inputSettings = JSON.parse(fileContent);
         console.log(`Successfully read and parsed settings from file`);
       } catch (fileError) {
-        console.error(`Failed to read or parse settings file: ${fileError}`);
+        const message =
+          fileError instanceof SyntaxError
+            ? `Invalid JSON in settings file ${settingsInput}: ${fileError.message}`
+            : `Failed to read or parse settings file: ${fileError}`;
+        core.error(message);
         throw new Error(`Failed to process settings input: ${fileError}`);
       }
     }
