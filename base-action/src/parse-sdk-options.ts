@@ -29,14 +29,39 @@ type McpConfig = {
 };
 
 /**
- * Merge multiple MCP config values into a single config.
- * Each config can be a JSON string or a file path.
- * For JSON strings, mcpServers objects are merged.
- * For file paths, they are kept as-is (user's file takes precedence and is used last).
+ * Result of splitting --mcp-config values into the SDK-native inline path
+ * and the CLI-handled file-path passthrough.
+ *
+ * inlineServers: parsed mcpServers entries from inline JSON values (merged).
+ *   These are routed to Options.mcpServers — the SDK's typed, in-process MCP
+ *   registration path. Going through the typed API avoids the brittle CLI
+ *   forwarding of --mcp-config '{...}' from extraArgs, which is the failure
+ *   mode reported in #1245 / #1191 (action-prepended JSON correctly stored
+ *   in extraArgs but the spawned CLI's session init still reports
+ *   `mcp_servers: []`).
+ *
+ * filePath: at most one --mcp-config file path. File paths cannot be merged
+ *   at parse time (no fs access here) and are forwarded to the CLI via
+ *   extraArgs["mcp-config"] unchanged. The CLI loads and merges the file
+ *   alongside any servers we registered via Options.mcpServers.
  */
-function mergeMcpConfigs(configValues: string[]): string {
-  const merged: McpConfig = { mcpServers: {} };
-  let lastFilePath: string | null = null;
+type SplitMcpConfigs = {
+  inlineServers: Record<string, unknown>;
+  filePath: string | null;
+};
+
+/**
+ * Split --mcp-config values into inline mcpServers (for Options.mcpServers)
+ * and at most one file path (for extraArgs passthrough to the CLI).
+ *
+ * Inline JSON across multiple --mcp-config flags is merged into a single
+ * mcpServers map; later entries override earlier ones on key conflict, which
+ * matches the previous mergeMcpConfigs() behavior so user inline JSON can
+ * still override action-prepended servers.
+ */
+function splitMcpConfigs(configValues: string[]): SplitMcpConfigs {
+  const inlineServers: Record<string, unknown> = {};
+  let filePath: string | null = null;
 
   for (const config of configValues) {
     const trimmed = config.trim();
@@ -47,36 +72,19 @@ function mergeMcpConfigs(configValues: string[]): string {
       try {
         const parsed = JSON.parse(trimmed) as McpConfig;
         if (parsed.mcpServers) {
-          Object.assign(merged.mcpServers!, parsed.mcpServers);
+          Object.assign(inlineServers, parsed.mcpServers);
         }
       } catch {
         // If JSON parsing fails, treat as file path
-        lastFilePath = trimmed;
+        filePath = trimmed;
       }
     } else {
       // It's a file path - store it to handle separately
-      lastFilePath = trimmed;
+      filePath = trimmed;
     }
   }
 
-  // If we have file paths, we need to keep the merged JSON and let the file
-  // be handled separately. Since we can only return one value, merge what we can.
-  // If there's a file path, we need a different approach - read the file at runtime.
-  // For now, if there's a file path, we'll stringify the merged config.
-  // The action prepends its config as JSON, so we can safely merge inline JSON configs.
-
-  // If no inline configs were found (all file paths), return the last file path
-  if (Object.keys(merged.mcpServers!).length === 0 && lastFilePath) {
-    return lastFilePath;
-  }
-
-  // Note: If user passes a file path, we cannot merge it at parse time since
-  // we don't have access to the file system here. The action's built-in MCP
-  // servers are always passed as inline JSON, so they will be merged.
-  // If user also passes inline JSON, it will be merged.
-  // If user passes a file path, they should ensure it includes all needed servers.
-
-  return JSON.stringify(merged);
+  return { inlineServers, filePath };
 }
 
 /**
@@ -211,13 +219,31 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   delete extraArgs["disallowedTools"];
   delete extraArgs["disallowed-tools"];
 
-  // Merge multiple --mcp-config values by combining their mcpServers objects
-  // The action prepends its config (github_comment, github_ci, etc.) as inline JSON,
-  // and users may provide their own config as inline JSON or file path
+  // Route inline --mcp-config JSON to Options.mcpServers (SDK-native typed
+  // path), and leave file paths in extraArgs for the CLI to load.
+  //
+  // Background (#1245, #1191): the action prepends its bundled servers
+  // (github_comment, github_ci, github_inline_comment, github_file_ops,
+  // optional github) as a single `--mcp-config '{...}'` flag inside
+  // claudeArgs. Earlier this stayed in extraArgs and was meant to be
+  // forwarded to the spawned Claude CLI. Multiple users have reported that
+  // the spawned CLI's session init reports `mcp_servers: []` even though
+  // extraArgs["mcp-config"] is correctly populated — the CLI subprocess
+  // never registers the inline servers. The SDK exposes a typed,
+  // in-process registration path via Options.mcpServers (used by Anthropic's
+  // own SDK demos) which doesn't depend on stringified-JSON CLI forwarding.
+  // Routing inline JSON through that path makes the bundled servers spawn
+  // reliably; file paths still go through the CLI flag because we can't
+  // load them from disk here without changing this function's signature.
+  let inlineMcpServers: Record<string, unknown> = {};
   if (extraArgs["mcp-config"]) {
     const mcpConfigValues = extraArgs["mcp-config"].split(ACCUMULATE_DELIMITER);
-    if (mcpConfigValues.length > 1) {
-      extraArgs["mcp-config"] = mergeMcpConfigs(mcpConfigValues);
+    const { inlineServers, filePath } = splitMcpConfigs(mcpConfigValues);
+    inlineMcpServers = inlineServers;
+    if (filePath) {
+      extraArgs["mcp-config"] = filePath;
+    } else {
+      delete extraArgs["mcp-config"];
     }
   }
 
@@ -265,9 +291,21 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     systemPrompt,
     fallbackModel: options.fallbackModel,
     pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
+    // Inline --mcp-config JSON (action-bundled + user inline) registered via
+    // the SDK's typed mcpServers path so the spawned CLI sees them in
+    // session init (`mcp_servers`). Cast keeps the Record<string, unknown>
+    // shape we built compatible with the SDK's narrower McpServerConfig union
+    // (each entry is the same {command, args, env}/{type, url, ...} shape the
+    // SDK already accepts via .mcp.json).
+    mcpServers:
+      Object.keys(inlineMcpServers).length > 0
+        ? (inlineMcpServers as SdkOptions["mcpServers"])
+        : undefined,
 
-    // Pass through claudeArgs as extraArgs - CLI handles --mcp-config, --json-schema, etc.
-    // Note: allowedTools and disallowedTools have been removed from extraArgs to prevent duplicates
+    // Pass through claudeArgs as extraArgs - CLI handles --mcp-config (file
+    // paths only; inline JSON is lifted to mcpServers above), --json-schema,
+    // etc. Note: allowedTools and disallowedTools have been removed from
+    // extraArgs to prevent duplicates.
     extraArgs,
     env,
 
