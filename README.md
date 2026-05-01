@@ -31,6 +31,7 @@ This command will guide you through setting up the GitHub app and required secre
 
 - You must be a repository admin to install the GitHub app and add secrets
 - This quickstart method is only available for direct Anthropic API users. For AWS Bedrock, Google Vertex AI, or Microsoft Foundry setup, see [docs/cloud-providers.md](./docs/cloud-providers.md).
+- Using **GitHub Enterprise Cloud**? See [docs/github-enterprise-cloud.md](./docs/github-enterprise-cloud.md) for GHEC-specific setup (data residency, EMU, SSO, IP allowlists).
 
 ## 📚 Solutions & Use Cases
 
@@ -53,6 +54,7 @@ Each solution includes complete working examples, configuration details, and exp
 - **[Solutions Guide](./docs/solutions.md)** - **🎯 Ready-to-use automation patterns**
 - **[Migration Guide](./docs/migration-guide.md)** - **⭐ Upgrading from v0.x to v1.0**
 - [Setup Guide](./docs/setup.md) - Manual setup, custom GitHub apps, and security best practices
+- [GitHub Enterprise Cloud](./docs/github-enterprise-cloud.md) - GHEC setup (standard and data residency)
 - [Usage Guide](./docs/usage.md) - Basic usage, workflow configuration, and input parameters
 - [Custom Automations](./docs/custom-automations.md) - Examples of automated workflows and custom prompts
 - [Configuration](./docs/configuration.md) - MCP servers, permissions, environment variables, and advanced settings
