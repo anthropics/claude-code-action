@@ -177,6 +177,14 @@ runs:
       with:
         bun-version: 1.3.6
         token: ${{ inputs.github_token || github.token }}
+        # Disable setup-bun's cache. The upstream save step uses a deterministic
+        # key (Bun version) and isn't ref-aware: on every second-and-subsequent
+        # run against the same PR ref the GitHub cache API rejects the duplicate
+        # key+ref with a 409 (HTML body), and @actions/cache treats the unparsable
+        # response as transient and burns ~20-30s on 5 retries before warning.
+        # The 35 MB Bun binary downloads in 2-3s, so disabling the cache is a net
+        # wallclock win and removes the noisy warning. See issue #1252.
+        no-cache: true
 
     - name: Setup Custom Bun Path
       if: inputs.path_to_bun_executable != ''
