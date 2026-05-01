@@ -8,6 +8,7 @@ import {
   detectContentType,
   formatResultContent,
   formatToolWithResult,
+  truncateStepSummary,
   type Turn,
   type ToolUse,
   type ToolResult,
@@ -414,6 +415,68 @@ describe("formatTurnsFromData", () => {
     expect(result).toContain("### 🔧 `read_file`");
     expect(result).toContain("## ✅ Final Result");
     expect(result).toContain("Done");
+  });
+});
+
+describe("truncateStepSummary", () => {
+  test("returns markdown unchanged when under the limit", () => {
+    const small = "## Report\n\nSome content\n";
+    expect(truncateStepSummary(small, 1024)).toBe(small);
+  });
+
+  test("truncates markdown that exceeds the byte limit", () => {
+    const large = "x".repeat(2000);
+    const result = truncateStepSummary(large, 500);
+    const resultBytes = new TextEncoder().encode(result).byteLength;
+    expect(resultBytes).toBeLessThanOrEqual(500);
+    expect(result).toContain("truncated");
+    expect(result).toContain("display_report");
+  });
+
+  test("cuts at last section separator when possible", () => {
+    // Build content with section separators
+    const section1 = "## Section 1\n\nContent A\n\n---\n\n";
+    const section2 = "## Section 2\n\nContent B\n\n---\n\n";
+    const section3 = "## Section 3\n\n" + "C".repeat(500);
+    const content = section1 + section2 + section3;
+
+    // Set limit so the truncation notice + sections 1+2 fit, but section 3 doesn't.
+    // The notice is ~180 bytes, so we need section1+section2+notice to fit but not section3.
+    const s12Bytes = new TextEncoder().encode(section1 + section2).byteLength;
+    const limit = s12Bytes + 200; // enough for s1+s2+notice, but not s3
+
+    const result = truncateStepSummary(content, limit);
+    expect(result).toContain("Section 1");
+    expect(result).toContain("Section 2");
+    expect(result).not.toContain("Section 3");
+    expect(result).not.toContain("C".repeat(50));
+    expect(result).toContain("truncated");
+  });
+
+  test("handles multi-byte characters without corruption", () => {
+    // Unicode content with multi-byte chars
+    const content = "## Report\n\n" + "\u{1F600}".repeat(300) + "\n\n---\n\n" + "end";
+    const result = truncateStepSummary(content, 500);
+    // Should not throw or produce invalid UTF-8
+    expect(result).toContain("Report");
+    expect(result).toContain("truncated");
+    // Verify it's valid UTF-8 by encoding/decoding
+    const roundTrip = new TextDecoder().decode(new TextEncoder().encode(result));
+    expect(roundTrip).toBe(result);
+  });
+
+  test("uses default limit with headroom below GitHub's 1024k constraint", () => {
+    // Default budget is 1000k (leaving 24k headroom for earlier steps)
+    const small = "## Report\n";
+    expect(truncateStepSummary(small)).toBe(small);
+  });
+
+  test("handles edge case where maxBytes is smaller than truncation notice", () => {
+    const content = "x".repeat(100);
+    // Very small limit that can't even fit the notice
+    const result = truncateStepSummary(content, 50);
+    const resultBytes = new TextEncoder().encode(result).byteLength;
+    expect(resultBytes).toBeLessThanOrEqual(50);
   });
 });
 
