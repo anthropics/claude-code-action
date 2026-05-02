@@ -54,7 +54,7 @@ export function restoreConfigFromBase(baseBranch: string): void {
   rmSync(".claude-pr", { recursive: true, force: true });
   for (const p of SENSITIVE_PATHS) {
     if (existsSync(p)) {
-      cpSync(p, `.claude-pr/${p}`, { recursive: true });
+      cpSync(p, `.claude-pr/${p}`, { recursive: true, dereference: true });
     }
   }
   if (existsSync(".claude-pr")) {
