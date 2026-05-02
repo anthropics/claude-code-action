@@ -303,4 +303,104 @@ describe("checkWritePermissions", () => {
       );
     });
   });
+
+  describe("non-[bot] actors (e.g. GitHub Copilot)", () => {
+    // GitHub Copilot SWE Agent sets GITHUB_ACTOR="Copilot" which doesn't
+    // end with [bot] and is not a valid GitHub user, so the collaborator
+    // permission API returns 404 with "is not a user".
+
+    const createMockOctokitThat404s = () => ({
+      repos: {
+        getCollaboratorPermissionLevel: async () => {
+          const err = new Error(
+            "HttpError: Copilot is not a user - https://docs.github.com/rest/collaborators/collaborators#get-repository-permissions-for-a-user",
+          );
+          (err as any).status = 404;
+          throw err;
+        },
+      },
+    } as any);
+
+    test("should return true for non-[bot] actor in allowed_bots (pre-API check)", async () => {
+      // The allowed_bots check should happen BEFORE calling the API,
+      // so this should succeed even with a 404-ing mock.
+      const mockOctokit = createMockOctokitThat404s();
+      const context = createContext();
+      context.actor = "Copilot";
+      context.inputs.allowedBots = "copilot,cursor";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(true);
+      expect(coreInfoSpy).toHaveBeenCalledWith(
+        "Actor Copilot is in allowed_bots list, skipping permission check",
+      );
+    });
+
+    test("should return true for non-[bot] actor when allowed_bots is '*' (pre-API check)", async () => {
+      const mockOctokit = createMockOctokitThat404s();
+      const context = createContext();
+      context.actor = "Copilot";
+      context.inputs.allowedBots = "*";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(true);
+    });
+
+    test("should return true for non-[bot] actor in allowed_bots via 404 fallback", async () => {
+      // Even if somehow we reach the API call (e.g. race condition or
+      // future refactor), the 404 catch path should also check allowed_bots.
+      const mockOctokit = createMockOctokitThat404s();
+      const context = createContext();
+      context.actor = "SomeNewBot";
+      context.inputs.allowedBots = "somenewbot";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(true);
+    });
+
+    test("should return false for non-[bot] actor that 404s and is not in allowed_bots", async () => {
+      const mockOctokit = createMockOctokitThat404s();
+      const context = createContext();
+      context.actor = "Copilot";
+      context.inputs.allowedBots = "cursor";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(false);
+      expect(coreWarningSpy).toHaveBeenCalledWith(
+        "Non-user actor Copilot is not in allowed_bots list. Add it to allowed_bots or use '*' to allow all bots.",
+      );
+    });
+
+    test("should return false for non-[bot] actor that 404s with empty allowed_bots", async () => {
+      const mockOctokit = createMockOctokitThat404s();
+      const context = createContext();
+      context.actor = "Copilot";
+      context.inputs.allowedBots = "";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(false);
+    });
+
+    test("should still throw for non-404 API errors", async () => {
+      const mockOctokit = {
+        repos: {
+          getCollaboratorPermissionLevel: async () => {
+            throw new Error("Internal Server Error");
+          },
+        },
+      } as any;
+      const context = createContext();
+      context.actor = "Copilot";
+      context.inputs.allowedBots = "";
+
+      await expect(checkWritePermissions(mockOctokit, context)).rejects.toThrow(
+        "Failed to check permissions for Copilot",
+      );
+    });
+  });
 });
