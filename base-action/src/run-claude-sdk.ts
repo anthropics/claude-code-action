@@ -156,6 +156,7 @@ export async function runClaudeWithSdk(
 
   const messages: SDKMessage[] = [];
   let resultMessage: SDKResultMessage | undefined;
+  let sdkError: unknown;
 
   try {
     for await (const message of query({ prompt, options: sdkOptions })) {
@@ -171,21 +172,29 @@ export async function runClaudeWithSdk(
       }
     }
   } catch (error) {
+    sdkError = error;
     console.error("SDK execution error:", error);
-    throw new Error(`SDK execution error: ${error}`);
   }
 
   const result: ClaudeRunResult = {
     conclusion: "failure",
   };
 
-  // Write execution file
-  try {
-    await writeFile(EXECUTION_FILE, JSON.stringify(messages, null, 2));
-    console.log(`Log saved to ${EXECUTION_FILE}`);
-    result.executionFile = EXECUTION_FILE;
-  } catch (error) {
-    core.warning(`Failed to write execution file: ${error}`);
+  // Write execution file — always, even after SDK errors, so callers can
+  // inspect messages (e.g. to distinguish rate limits from other failures).
+  if (messages.length > 0) {
+    try {
+      await writeFile(EXECUTION_FILE, JSON.stringify(messages, null, 2));
+      console.log(`Log saved to ${EXECUTION_FILE}`);
+      result.executionFile = EXECUTION_FILE;
+    } catch (error) {
+      core.warning(`Failed to write execution file: ${error}`);
+    }
+  }
+
+  // Re-throw SDK error after writing execution file
+  if (sdkError) {
+    throw new Error(`SDK execution error: ${sdkError}`);
   }
 
   // Extract session_id from system.init message
