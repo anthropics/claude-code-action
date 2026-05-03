@@ -155,9 +155,20 @@ async function run() {
     // Phase 1: Prepare
     const actionInputsPresent = collectActionInputsPresence();
     context = parseGitHubContext();
-    const modeName = detectMode(context);
+    // Respect explicit mode input; fall back to auto-detection
+    const explicitMode = process.env.MODE as
+      | "agent"
+      | "tag"
+      | ""
+      | undefined;
+    const modeName =
+      explicitMode === "agent" || explicitMode === "tag"
+        ? explicitMode
+        : detectMode(context);
     console.log(
-      `Auto-detected mode: ${modeName} for event: ${context.eventName}`,
+      explicitMode
+        ? `Explicit mode: ${modeName} (from mode input)`
+        : `Auto-detected mode: ${modeName} for event: ${context.eventName}`,
     );
 
     try {
@@ -193,13 +204,17 @@ async function run() {
     }
 
     // Check trigger conditions
-    const containsTrigger =
-      modeName === "tag"
+    // When mode is explicitly set via input, the user opted in — skip trigger detection
+    const containsTrigger = explicitMode
+      ? true
+      : modeName === "tag"
         ? isEntityContext(context) && checkContainsTrigger(context)
         : !!context.inputs?.prompt;
     console.log(`Mode: ${modeName}`);
     console.log(`Context prompt: ${context.inputs?.prompt || "NO PROMPT"}`);
-    console.log(`Trigger result: ${containsTrigger}`);
+    console.log(
+      `Trigger result: ${containsTrigger}${explicitMode ? " (explicit mode — trigger bypassed)" : ""}`,
+    );
 
     if (!containsTrigger) {
       console.log("No trigger found, skipping remaining steps");
