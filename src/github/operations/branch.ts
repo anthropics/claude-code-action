@@ -249,10 +249,35 @@ export async function setupBranch(
       title,
     );
 
+    // Validate the generated branch name before any shell use
+    validateBranchName(newBranch);
+
     // Check if generated branch already exists on remote
+    let branchAlreadyExists = false;
     try {
       await $`git ls-remote --exit-code origin refs/heads/${newBranch}`.quiet();
+      branchAlreadyExists = true;
+    } catch (error) {
+      // git ls-remote --exit-code returns exit code 2 when no refs match (branch
+      // doesn't exist). Any other exit code indicates a real failure (network,
+      // auth, etc.) that should not be silently swallowed.
+      const exitCode =
+        error && typeof error === "object" && "exitCode" in error
+          ? (error as { exitCode?: number }).exitCode
+          : undefined;
 
+      // For git ls-remote with --exit-code, exit code 2 means "no matching refs"
+      if (exitCode !== 2) {
+        console.error(
+          "git ls-remote failed while checking remote branch existence:",
+          error,
+        );
+        throw error;
+      }
+      // exitCode === 2: branch doesn't exist, continue with generated name
+    }
+
+    if (branchAlreadyExists) {
       // If we get here, branch exists (exit code 0)
       console.log(
         `Branch '${newBranch}' already exists, falling back to default format`,
@@ -266,8 +291,13 @@ export async function setupBranch(
         firstLabel,
         title,
       );
-    } catch {
-      // Branch doesn't exist (non-zero exit code), continue with generated name
+      // Append a short random suffix so the fallback name is guaranteed unique.
+      // Without this, when no custom template is configured both generateBranchName
+      // calls produce the same output (minute-level timestamp, same inputs), and
+      // the subsequent `git checkout -b` would fail on a name that still exists.
+      const disambiguator = Math.random().toString(36).substring(2, 6);
+      newBranch = `${newBranch}-${disambiguator}`;
+      validateBranchName(newBranch);
     }
 
     // For commit signing, defer branch creation to the file ops server
@@ -297,7 +327,6 @@ export async function setupBranch(
     // Fetch and checkout the source branch first to ensure we branch from the correct base
     console.log(`Fetching and checking out source branch: ${sourceBranch}`);
     validateBranchName(sourceBranch);
-    validateBranchName(newBranch);
     execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
     execGit(["checkout", sourceBranch, "--"]);
 
@@ -315,6 +344,6 @@ export async function setupBranch(
     };
   } catch (error) {
     console.error("Error in branch setup:", error);
-    process.exit(1);
+    throw error;
   }
 }

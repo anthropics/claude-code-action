@@ -198,7 +198,10 @@ async function run() {
         ? isEntityContext(context) && checkContainsTrigger(context)
         : !!context.inputs?.prompt;
     console.log(`Mode: ${modeName}`);
-    console.log(`Context prompt: ${context.inputs?.prompt || "NO PROMPT"}`);
+    const promptPreview = context.inputs?.prompt
+      ? `${context.inputs.prompt.substring(0, 100)}${context.inputs.prompt.length > 100 ? "..." : ""}`
+      : "NO PROMPT";
+    console.log(`Context prompt: ${promptPreview}`);
     console.log(`Trigger result: ${containsTrigger}`);
 
     if (!containsTrigger) {
