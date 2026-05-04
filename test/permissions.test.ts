@@ -78,6 +78,7 @@ describe("checkWritePermissions", () => {
       includeFixLinks: true,
       includeCommentsByActor: "",
       excludeCommentsByActor: "",
+      allowWorkflowModifications: false,
     },
   });
 

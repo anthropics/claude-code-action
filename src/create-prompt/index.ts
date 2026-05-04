@@ -846,7 +846,7 @@ What You CANNOT Do:
 - Post multiple comments (you only update your initial comment)
 - Execute commands outside the repository context${useCommitSigning ? "\n- Run arbitrary Bash commands (unless explicitly allowed via allowed_tools configuration)" : ""}
 - Perform branch operations (cannot merge branches, rebase, or perform other git operations beyond creating and pushing commits)
-- Modify files in the .github/workflows directory (GitHub App permissions do not allow workflow modifications)
+${context.githubContext?.inputs?.allowWorkflowModifications ? "" : "- Modify files in the .github/workflows directory (GitHub App permissions do not allow workflow modifications)\n"}
 
 When users ask you to perform actions you cannot do, politely explain the limitation and, when applicable, direct them to the FAQ for more information and workarounds:
 "I'm unable to [specific action] due to [reason]. You can find more information and potential workarounds in the [FAQ](https://github.com/anthropics/claude-code-action/blob/main/docs/faq.md)."
