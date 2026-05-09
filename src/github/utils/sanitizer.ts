@@ -33,7 +33,82 @@ export function stripHiddenAttributes(content: string): string {
   return content;
 }
 
+// Named HTML entities that map to ASCII characters. These must be decoded
+// before sanitization so that entity-encoded markup (e.g. &lt;!-- ... --&gt;)
+// is converted to literal characters that subsequent stripping steps can match.
+const NAMED_ENTITIES: Record<string, string> = {
+  "&lt;": "<",
+  "&gt;": ">",
+  "&amp;": "&",
+  "&quot;": '"',
+  "&apos;": "'",
+  "&sol;": "/",
+  "&bsol;": "\\",
+  "&lpar;": "(",
+  "&rpar;": ")",
+  "&lsqb;": "[",
+  "&rsqb;": "]",
+  "&lcub;": "{",
+  "&rcub;": "}",
+  "&excl;": "!",
+  "&num;": "#",
+  "&dash;": "-",
+  "&hyphen;": "-",
+};
+
+// Semicolon-less legacy entity variants for the security-critical tokens.
+// Browsers historically accept &lt, &gt, &amp, &quot, &apos without a
+// trailing semicolon, which attackers can exploit to bypass sanitizers that
+// only match the semicolon-terminated forms.  We list these separately so we
+// can apply a safe boundary check (must NOT be followed by an alphanumeric
+// character or '_') to avoid false positives such as mis-matching "&lte" as
+// "&lt".
+const LEGACY_ENTITIES: Record<string, string> = {
+  "&lt": "<",
+  "&gt": ">",
+  "&amp": "&",
+  "&quot": '"',
+  "&apos": "'",
+};
+
+// Build the full pattern.
+// - Semicolon-terminated entities are matched literally (e.g. /&lt;/gi).
+// - Semicolon-less legacy entities are matched with a negative lookahead that
+//   ensures the next character is NOT a word character (letter, digit, or '_')
+//   and NOT a semicolon (which would have been caught by the first group).
+//   This prevents "&lte" from matching as "&lt".
+const NAMED_ENTITY_PATTERN = new RegExp(
+  [
+    ...Object.keys(NAMED_ENTITIES).map((e) =>
+      e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+    ),
+    ...Object.keys(LEGACY_ENTITIES).map(
+      (e) => e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\w;])",
+    ),
+  ].join("|"),
+  "gi",
+);
+
+// Merge lookup table used by the replace callback.
+const ALL_ENTITIES: Record<string, string> = {
+  ...NAMED_ENTITIES,
+  ...LEGACY_ENTITIES,
+};
+
 export function normalizeHtmlEntities(content: string): string {
+  // Decode named HTML entities (e.g. &lt; → <, &gt; → >, &amp; → &)
+  // This must happen so that entity-encoded HTML comments like
+  // &lt;!-- hidden --&gt; are converted to <!-- hidden --> and can be
+  // stripped by stripHtmlComments.  Semicolon-less legacy forms (e.g. &lt,
+  // &gt) are also decoded to prevent bypass via omission of the semicolon.
+  content = content.replace(NAMED_ENTITY_PATTERN, (match) => {
+    const lower = match.toLowerCase();
+    // First try an exact match (covers semicolon-terminated forms like "&lt;").
+    // Then try without a trailing semicolon (covers legacy forms like "&lt").
+    return ALL_ENTITIES[lower] ?? ALL_ENTITIES[lower.replace(/;$/, "")] ?? match;
+  });
+
+  // Decode decimal numeric entities (e.g. &#60; → <)
   content = content.replace(/&#(\d+);/g, (_, dec) => {
     const num = parseInt(dec, 10);
     if (num >= 32 && num <= 126) {
@@ -41,6 +116,8 @@ export function normalizeHtmlEntities(content: string): string {
     }
     return "";
   });
+
+  // Decode hex numeric entities (e.g. &#x3C; → <)
   content = content.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
     const num = parseInt(hex, 16);
     if (num >= 32 && num <= 126) {
@@ -52,12 +129,17 @@ export function normalizeHtmlEntities(content: string): string {
 }
 
 export function sanitizeContent(content: string): string {
+  // Decode HTML entities FIRST so that entity-encoded markup is converted to
+  // literal characters before subsequent steps attempt to match and strip it.
+  // Without this, &lt;!-- ... --&gt; bypasses stripHtmlComments entirely.
+  // Run twice to catch double-encoded entities (e.g. &amp;lt; → &lt; → <).
+  content = normalizeHtmlEntities(content);
+  content = normalizeHtmlEntities(content);
   content = stripHtmlComments(content);
   content = stripInvisibleCharacters(content);
   content = stripMarkdownImageAltText(content);
   content = stripMarkdownLinkTitles(content);
   content = stripHiddenAttributes(content);
-  content = normalizeHtmlEntities(content);
   content = redactGitHubTokens(content);
   return content;
 }
