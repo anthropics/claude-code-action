@@ -192,10 +192,6 @@ export async function downloadCommentImages(
           continue;
         }
 
-        const fileExtension = getImageExtension(originalUrl);
-        const filename = `image-${Date.now()}-${i}${fileExtension}`;
-        const localPath = path.join(downloadsDir, filename);
-
         try {
           console.log(`Downloading ${originalUrl}...`);
 
@@ -208,6 +204,16 @@ export async function downloadCommentImages(
 
           const arrayBuffer = await imageResponse.arrayBuffer();
           const buffer = Buffer.from(arrayBuffer);
+
+          // Detect the real image format from magic bytes in the downloaded
+          // buffer. Fall back to the URL extension only when the format cannot
+          // be identified — this fixes 400 errors caused by mismatches between
+          // the URL extension and the actual file content (e.g. Claude's own
+          // spinner GIF that GitHub serves with a .png URL).
+          const fileExtension =
+            getExtensionFromBuffer(buffer) ?? getImageExtension(originalUrl);
+          const filename = `image-${Date.now()}-${i}${fileExtension}`;
+          const localPath = path.join(downloadsDir, filename);
 
           await fs.writeFile(localPath, buffer);
           console.log(`✓ Saved: ${localPath}`);
@@ -232,6 +238,62 @@ export async function downloadCommentImages(
   }
 
   return urlToPathMap;
+}
+
+/**
+ * Inspect the first 12 bytes of a downloaded buffer to determine the real
+ * image format, independent of the filename or URL extension.
+ *
+ * Returns the file extension (including leading dot) for the detected format,
+ * or null when the bytes don't match any known signature.
+ *
+ * Supported formats match exactly what the Anthropic API accepts as vision
+ * inputs: PNG, JPEG, GIF (87a + 89a), and WebP.
+ */
+function getExtensionFromBuffer(buffer: Buffer): string | null {
+  if (buffer.length < 4) return null;
+
+  // PNG: \x89PNG\r\n\x1a\n
+  if (
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    return ".png";
+  }
+
+  // JPEG: \xFF\xD8\xFF
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return ".jpg";
+  }
+
+  // GIF87a / GIF89a: "GIF8"
+  if (
+    buffer[0] === 0x47 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x38
+  ) {
+    return ".gif";
+  }
+
+  // WebP: "RIFF" at offset 0 and "WEBP" at offset 8
+  if (
+    buffer.length >= 12 &&
+    buffer[0] === 0x52 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x46 &&
+    buffer[8] === 0x57 &&
+    buffer[9] === 0x45 &&
+    buffer[10] === 0x42 &&
+    buffer[11] === 0x50
+  ) {
+    return ".webp";
+  }
+
+  return null;
 }
 
 function getImageExtension(url: string): string {
