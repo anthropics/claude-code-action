@@ -121,10 +121,12 @@ Add the following to your workflow file:
 
 ## Outputs
 
-| Output           | Description                                                |
-| ---------------- | ---------------------------------------------------------- |
-| `conclusion`     | Execution status of Claude Code ('success' or 'failure')   |
-| `execution_file` | Path to the JSON file containing Claude Code execution log |
+| Output              | Description                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------- |
+| `conclusion`        | Execution status of Claude Code ('success' or 'failure')                                          |
+| `execution_file`    | Path to the JSON file containing Claude Code execution log                                        |
+| `structured_output` | JSON string containing structured output fields when `--json-schema` is provided in `claude_args` |
+| `session_id`        | The Claude Code session ID that can be used with `--resume` to continue this conversation         |
 
 ## Environment Variables
 
@@ -369,15 +371,36 @@ jobs:
             const executionFile = '${{ steps.code-review.outputs.execution_file }}';
             const executionLog = JSON.parse(fs.readFileSync(executionFile, 'utf8'));
 
-            // Extract the review content from the execution log
-            // The execution log contains the full conversation including Claude's responses
+            // Extract the review content from the execution log.
+            // The SDK writes top-level events with `type`; assistant text is nested
+            // under `message.content`.
             let review = '';
 
-            // Find the last assistant message which should contain the review
+            // Prefer the final result event when it is available.
             for (let i = executionLog.length - 1; i >= 0; i--) {
-              if (executionLog[i].role === 'assistant') {
-                review = executionLog[i].content;
+              const entry = executionLog[i];
+              if (entry?.type === 'result' && typeof entry.result === 'string') {
+                review = entry.result;
                 break;
+              }
+            }
+
+            // Fallback to the last assistant text block if no result event was written.
+            if (!review) {
+              for (let i = executionLog.length - 1; i >= 0; i--) {
+                const entry = executionLog[i];
+                if (entry?.type !== 'assistant' || !Array.isArray(entry.message?.content)) {
+                  continue;
+                }
+
+                review = entry.message.content
+                  .filter((block) => block?.type === 'text' && typeof block.text === 'string')
+                  .map((block) => block.text)
+                  .join('\n');
+
+                if (review) {
+                  break;
+                }
               }
             }
 
@@ -390,6 +413,10 @@ jobs:
               });
             }
 ```
+
+For typed automation output, prefer passing `--json-schema` in `claude_args`
+and reading `steps.<id>.outputs.structured_output` instead of parsing the full
+execution log.
 
 Check out additional examples in [`./examples`](./examples).
 
