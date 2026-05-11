@@ -8,9 +8,10 @@ import {
   mock,
 } from "bun:test";
 import { prepareAgentMode } from "../../src/modes/agent";
-import { createMockAutomationContext } from "../mockContext";
+import { createMockAutomationContext, createMockContext } from "../mockContext";
 import * as core from "@actions/core";
 import * as gitConfig from "../../src/github/operations/git-config";
+import * as createInitialCommentModule from "../../src/github/operations/comments/create-initial";
 
 describe("Agent Mode", () => {
   let exportVariableSpy: any;
@@ -256,5 +257,77 @@ describe("Agent Mode", () => {
     // should not include any MCP config
     // Should be empty or just whitespace when no MCP servers are included
     expect(result.claudeArgs).not.toContain("--mcp-config");
+  });
+
+  test("prepare creates sticky comment when useStickyComment is true and context is entity-based", async () => {
+    const createInitialCommentSpy = spyOn(
+      createInitialCommentModule,
+      "createInitialComment",
+    ).mockImplementation(async () => ({ id: 12345 }) as any);
+
+    const entityContext = createMockContext({
+      eventName: "pull_request",
+      entityNumber: 456,
+      isPR: true,
+      inputs: { useStickyComment: true, prompt: "Fix the bug" },
+    });
+
+    const mockOctokit = {
+      rest: {
+        users: {
+          getByUsername: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+        },
+      },
+    } as any;
+
+    const result = await prepareAgentMode({
+      context: entityContext,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+
+    expect(createInitialCommentSpy).toHaveBeenCalledTimes(1);
+    expect(result.commentId).toBe(12345);
+
+    createInitialCommentSpy.mockRestore();
+  });
+
+  test("prepare skips sticky comment when useStickyComment is true but context is automation", async () => {
+    const createInitialCommentSpy = spyOn(
+      createInitialCommentModule,
+      "createInitialComment",
+    ).mockImplementation(async () => ({ id: 99999 }) as any);
+
+    const automationContext = createMockAutomationContext({
+      eventName: "workflow_dispatch",
+      inputs: { useStickyComment: true },
+    });
+
+    const mockOctokit = {
+      rest: {
+        users: {
+          getByUsername: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+        },
+      },
+    } as any;
+
+    const result = await prepareAgentMode({
+      context: automationContext,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+
+    expect(createInitialCommentSpy).not.toHaveBeenCalled();
+    expect(result.commentId).toBeUndefined();
+
+    createInitialCommentSpy.mockRestore();
   });
 });
