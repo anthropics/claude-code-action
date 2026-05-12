@@ -1,0 +1,14 @@
+name: "Test Permission Override"
+on:
+  issue_comment:
+    types: [created]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          path_to_claude_code_executable: ./scripts/mock-claude.sh
+          claude_args: "--permission-mode allowAll --model claude-haiku"
+          anthropic_api_key: "sk-ant-fake-test-key"
