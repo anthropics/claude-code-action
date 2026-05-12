@@ -150,6 +150,10 @@ inputs:
     description: "Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., 'https://github.com/user/marketplace1.git\nhttps://github.com/user/marketplace2.git')"
     required: false
     default: ""
+  allow_workflow_modifications:
+    description: "Allow Claude to modify files in the .github/workflows directory. Only enable when using a github_token with workflows:write permission (e.g., a custom GitHub App token)."
+    required: false
+    default: "false"
 
 outputs:
   execution_file:
@@ -272,6 +276,7 @@ runs:
         BOT_NAME: ${{ inputs.bot_name }}
         TRACK_PROGRESS: ${{ inputs.track_progress }}
         INCLUDE_FIX_LINKS: ${{ inputs.include_fix_links }}
+        ALLOW_WORKFLOW_MODIFICATIONS: ${{ inputs.allow_workflow_modifications }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         CLAUDE_ARGS: ${{ inputs.claude_args }}
         ALL_INPUTS: ${{ toJson(inputs) }}
