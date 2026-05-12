@@ -17,3 +17,4 @@ jobs:
           claude_args: "--permission-mode allowAll --model claude-haiku"
           anthropic_api_key: "sk-ant-fake-test-key"
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_non_write_users: "*"
