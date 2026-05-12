@@ -8,8 +8,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./base-action
+        id: claude
+        continue-on-error: true
         with:
           prompt: "test"
           path_to_claude_code_executable: ${{ github.workspace }}/scripts/mock-claude.sh
           claude_args: "--permission-mode allowAll"
           claude_code_oauth_token: "fake-token-for-validation"
+      - name: Show captured Claude arguments
+        run: |
+          echo "=== ARGUMENTS PASSED TO MOCK CLAUDE ==="
+          cat /tmp/claude-args.txt || echo "No argument file found"
