@@ -2,19 +2,14 @@ name: "Test Permission Override"
 on:
   issue_comment:
     types: [created]
-permissions:
-  id-token: write
-  issues: write
-  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ./
+      - uses: ./base-action
         with:
-          path_to_claude_code_executable: ./scripts/mock-claude.sh
-          claude_args: "--permission-mode allowAll --model claude-haiku"
-          anthropic_api_key: "sk-ant-fake-test-key"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          allowed_non_write_users: "*"
+          prompt: "test"
+          path_to_claude_code_executable: ${{ github.workspace }}/scripts/mock-claude.sh
+          claude_args: "--permission-mode allowAll"
+          claude_code_oauth_token: "fake-token-for-validation"
