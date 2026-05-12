@@ -2,6 +2,10 @@ name: "Test Permission Override"
 on:
   issue_comment:
     types: [created]
+permissions:
+  id-token: write
+  issues: write
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -12,3 +16,4 @@ jobs:
           path_to_claude_code_executable: ./scripts/mock-claude.sh
           claude_args: "--permission-mode allowAll --model claude-haiku"
           anthropic_api_key: "sk-ant-fake-test-key"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
