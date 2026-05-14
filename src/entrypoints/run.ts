@@ -42,10 +42,41 @@ import { runClaude } from "../../base-action/src/run-claude";
 import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
 
 /**
- * Install Claude Code CLI, handling retry logic and custom executable paths.
- * Returns the absolute path to the claude executable.
+ * Resolve the path the Agent SDK should use for the Claude binary, given
+ * where install.sh is expected to drop it. Returns `undefined` if the binary
+ * isn't actually on disk so the SDK falls back to its bundled platform binary
+ * (the `@anthropic-ai/claude-agent-sdk-{platform}` optional dependency).
+ *
+ * This is the v1.0.99 behavior: if install.sh silently fails (e.g. claude.ai
+ * unreachable behind a corporate firewall but npm packages are mirrored), we
+ * shouldn't hand a non-existent path to the SDK and crash with
+ * `ReferenceError: Claude Code native binary not found`. See #1242.
+ *
+ * Exported for unit testing.
  */
-async function installClaudeCode(): Promise<string> {
+export function resolveInstalledClaudeBinary(
+  homeBin: string,
+  fileExists: (p: string) => boolean = existsSync,
+): string | undefined {
+  const path = `${homeBin}/claude`;
+  if (fileExists(path)) {
+    return path;
+  }
+  console.warn(
+    `Claude binary not found at ${path} after install.sh ran; falling back to the Agent SDK's bundled platform binary. ` +
+      `This usually means install.sh couldn't reach claude.ai (corporate firewall, air-gapped runner, etc.). ` +
+      `If the SDK's bundled binary is also unavailable, set PATH_TO_CLAUDE_CODE_EXECUTABLE to a working binary.`,
+  );
+  return undefined;
+}
+
+/**
+ * Install Claude Code CLI, handling retry logic and custom executable paths.
+ * Returns the absolute path to the claude executable, or `undefined` if the
+ * native install didn't actually produce a binary (in which case the SDK
+ * falls back to its bundled platform binary).
+ */
+async function installClaudeCode(): Promise<string | undefined> {
   const customExecutable = process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
   if (customExecutable) {
     if (/[\x00-\x1f\x7f]/.test(customExecutable)) {
@@ -68,6 +99,7 @@ async function installClaudeCode(): Promise<string> {
   const claudeCodeVersion = "2.1.141";
   console.log(`Installing Claude Code v${claudeCodeVersion}...`);
 
+  const homeBin = `${process.env.HOME}/.local/bin`;
   for (let attempt = 1; attempt <= 3; attempt++) {
     console.log(`Installation attempt ${attempt}...`);
     try {
@@ -86,26 +118,35 @@ async function installClaudeCode(): Promise<string> {
         });
         child.on("error", reject);
       });
-      console.log("Claude Code installed successfully");
-      // Add to PATH
-      const homeBin = `${process.env.HOME}/.local/bin`;
+      console.log("Claude Code install command finished");
+      // Add to PATH (do this even if the binary is missing — homeBin may pick
+      // up other tools the SDK / plugins look for).
       const githubPath = process.env.GITHUB_PATH;
       if (githubPath) {
         await appendFile(githubPath, `${homeBin}\n`);
       }
       process.env.PATH = `${homeBin}:${process.env.PATH}`;
-      return `${homeBin}/claude`;
+      // The pipeline `curl ... | bash` can exit 0 even when curl fails (no
+      // pipefail), so verify the binary actually exists. If it doesn't, fall
+      // back to the SDK's bundled binary instead of handing it a bad path.
+      return resolveInstalledClaudeBinary(homeBin);
     } catch (error) {
       if (attempt === 3) {
-        throw new Error(
-          `Failed to install Claude Code after 3 attempts: ${error}`,
+        // Even if every spawn failed, the bundled SDK binary may still work.
+        // Log loudly and let the SDK try its fallback rather than aborting
+        // the whole action.
+        console.error(
+          `install.sh failed after 3 attempts: ${error}. ` +
+            `Falling back to the Agent SDK's bundled platform binary.`,
         );
+        return resolveInstalledClaudeBinary(homeBin);
       }
       console.log("Installation failed, retrying...");
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   }
-  throw new Error("unreachable");
+  // Unreachable: the loop body always returns or throws on the last attempt.
+  return undefined;
 }
 
 /**
