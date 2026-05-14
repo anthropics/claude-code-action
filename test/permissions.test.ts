@@ -309,17 +309,18 @@ describe("checkWritePermissions", () => {
     // end with [bot] and is not a valid GitHub user, so the collaborator
     // permission API returns 404 with "is not a user".
 
-    const createMockOctokitThat404s = () => ({
-      repos: {
-        getCollaboratorPermissionLevel: async () => {
-          const err = new Error(
-            "HttpError: Copilot is not a user - https://docs.github.com/rest/collaborators/collaborators#get-repository-permissions-for-a-user",
-          );
-          (err as any).status = 404;
-          throw err;
+    const createMockOctokitThat404s = () =>
+      ({
+        repos: {
+          getCollaboratorPermissionLevel: async () => {
+            const err = new Error(
+              "HttpError: Copilot is not a user - https://docs.github.com/rest/collaborators/collaborators#get-repository-permissions-for-a-user",
+            );
+            (err as any).status = 404;
+            throw err;
+          },
         },
-      },
-    } as any);
+      }) as any;
 
     test("should return true for non-[bot] actor in allowed_bots (pre-API check)", async () => {
       // The allowed_bots check should happen BEFORE calling the API,
