@@ -12,12 +12,25 @@ export async function checkHumanActor(
   octokit: Octokit,
   githubContext: GitHubContext,
 ) {
-  // Fetch user information from GitHub API
-  const { data: userData } = await octokit.users.getByUsername({
-    username: githubContext.actor,
-  });
+  let actorType: string;
 
-  const actorType = userData.type;
+  try {
+    const { data: userData } = await octokit.users.getByUsername({
+      username: githubContext.actor,
+    });
+    actorType = userData.type;
+  } catch (error: any) {
+    if (error.status === 404) {
+      // Bot/app actors (e.g. github-merge-queue[bot]) can't be looked up
+      // via the Users API — treat as a bot and fall through to allowedBots check
+      console.log(
+        `Actor "${githubContext.actor}" not found via Users API (likely a bot/app), treating as Bot`,
+      );
+      actorType = "Bot";
+    } else {
+      throw error;
+    }
+  }
 
   console.log(`Actor type: ${actorType}`);
 
