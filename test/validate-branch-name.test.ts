@@ -55,6 +55,15 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("fix+issue-123")).not.toThrow();
       expect(() => validateBranchName("feature+new-thing")).not.toThrow();
     });
+
+    it("should accept branch names containing , (git-valid, common in title-derived branches)", () => {
+      // Reported in #1300: branches like "feature/a,b" were rejected, even though
+      // git check-ref-format and GitHub both accept commas. Common when branch names
+      // are derived from titles, place names, or external identifiers.
+      expect(() => validateBranchName("feature/a,b")).not.toThrow();
+      expect(() => validateBranchName("feature/paris,france")).not.toThrow();
+      expect(() => validateBranchName("fix/issue-1,2,3")).not.toThrow();
+    });
   });
 
   describe("command injection attempts", () => {
