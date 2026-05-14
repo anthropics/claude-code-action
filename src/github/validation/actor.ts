@@ -60,9 +60,7 @@ export async function checkHumanActor(
       (error.message.includes("Not Found") ||
         error.message.includes("is not a user"))
     ) {
-      const botName = githubContext.actor
-        .toLowerCase()
-        .replace(/\[bot\]$/, "");
+      const botName = githubContext.actor.toLowerCase().replace(/\[bot\]$/, "");
       throw new Error(
         `Workflow initiated by non-human actor: ${botName} (actor not found on GitHub). Add bot to allowed_bots list or use '*' to allow all bots.`,
       );

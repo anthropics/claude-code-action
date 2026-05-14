@@ -102,10 +102,7 @@ export async function checkWritePermissions(
     // Handle 404 errors for non-user actors (e.g. GitHub Apps like Copilot
     // whose GITHUB_ACTOR doesn't end with [bot]).
     // The collaborator permission API only works for user accounts.
-    if (
-      error instanceof Error &&
-      error.message.includes("is not a user")
-    ) {
+    if (error instanceof Error && error.message.includes("is not a user")) {
       core.info(
         `Actor ${actor} is not a GitHub user (likely a GitHub App). Checking allowed_bots...`,
       );
