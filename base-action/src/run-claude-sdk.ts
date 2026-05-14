@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import { readFile, writeFile, access } from "fs/promises";
+import { readFile, access } from "fs/promises";
 import { dirname, join } from "path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type {
@@ -8,6 +8,7 @@ import type {
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { ParsedSdkOptions } from "./parse-sdk-options";
+import { writeExecutionFile } from "./execution-file";
 
 export type ClaudeRunResult = {
   executionFile?: string;
@@ -15,8 +16,6 @@ export type ClaudeRunResult = {
   conclusion: "success" | "failure";
   structuredOutput?: string;
 };
-
-const EXECUTION_FILE = `${process.env.RUNNER_TEMP}/claude-execution-output.json`;
 
 /** Filename for the user request file, written by prompt generation */
 const USER_REQUEST_FILENAME = "claude-user-request.txt";
@@ -172,6 +171,7 @@ export async function runClaudeWithSdk(
     }
   } catch (error) {
     console.error("SDK execution error:", error);
+    await writeExecutionFile(messages);
     throw new Error(`SDK execution error: ${error}`);
   }
 
@@ -179,13 +179,9 @@ export async function runClaudeWithSdk(
     conclusion: "failure",
   };
 
-  // Write execution file
-  try {
-    await writeFile(EXECUTION_FILE, JSON.stringify(messages, null, 2));
-    console.log(`Log saved to ${EXECUTION_FILE}`);
-    result.executionFile = EXECUTION_FILE;
-  } catch (error) {
-    core.warning(`Failed to write execution file: ${error}`);
+  const executionFile = await writeExecutionFile(messages);
+  if (executionFile) {
+    result.executionFile = executionFile;
   }
 
   // Extract session_id from system.init message

@@ -6,6 +6,7 @@ import { runClaude } from "./run-claude";
 import { setupClaudeCodeSettings } from "./setup-claude-code-settings";
 import { validateEnvironmentVariables } from "./validate-env";
 import { installPlugins } from "./install-plugins";
+import { setExecutionFileOutputIfPresent } from "./execution-file";
 
 async function run() {
   try {
@@ -62,6 +63,7 @@ async function run() {
       core.setOutput("structured_output", result.structuredOutput);
     }
   } catch (error) {
+    setExecutionFileOutputIfPresent();
     core.setFailed(`Action failed with error: ${error}`);
     core.setOutput("conclusion", "failure");
     process.exit(1);
