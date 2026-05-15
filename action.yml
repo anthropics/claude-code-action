@@ -241,9 +241,13 @@ runs:
       id: run
       shell: bash
       run: |
+        # Do NOT pass --tsconfig-override here. It triggers a Bun runtime bug
+        # ("Internal error: directory mismatch for directory .../tsconfig.json")
+        # that aborts the run with exit code 1. Bun already auto-discovers the
+        # action's own tsconfig.json by walking up from the entry file, so the
+        # override is redundant. See oven-sh/bun#25730.
         bun --no-env-file \
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
           run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
       env:
         # Prepare inputs
@@ -378,9 +382,9 @@ runs:
       run: |
         BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
         [ -x "$BUN_BIN" ] || BUN_BIN="bun"
+        # No --tsconfig-override: see the "Run Claude Code Action" step above.
         "$BUN_BIN" --no-env-file \
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
           run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
 
     - name: Post buffered inline comments
@@ -395,9 +399,9 @@ runs:
       run: |
         BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
         [ -x "$BUN_BIN" ] || BUN_BIN="bun"
+        # No --tsconfig-override: see the "Run Claude Code Action" step above.
         "$BUN_BIN" --no-env-file \
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
           run ${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts
 
     - name: Revoke app token
