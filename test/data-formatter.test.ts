@@ -54,6 +54,53 @@ describe("formatContext", () => {
 PR Author: test-user
 PR Branch: feature/test -> main
 PR State: OPEN
+PR Labels: none
+PR Additions: 50
+PR Deletions: 30
+Total Commits: 3
+Changed Files: 2 files`,
+    );
+  });
+
+  test("formats PR context with labels", () => {
+    const prData: GitHubPullRequest = {
+      title: "Test PR",
+      body: "PR body",
+      author: { login: "test-user" },
+      baseRefName: "main",
+      headRefName: "feature/test",
+      headRefOid: "abc123",
+      isCrossRepository: false,
+      headRepository: { owner: { login: "testowner" }, name: "testrepo" },
+      createdAt: "2023-01-01T00:00:00Z",
+      additions: 50,
+      deletions: 30,
+      state: "OPEN",
+      labels: {
+        nodes: [{ name: "bug" }, { name: "enhancement" }],
+      },
+      commits: {
+        totalCount: 3,
+        nodes: [],
+      },
+      files: {
+        nodes: [{} as GitHubFile, {} as GitHubFile],
+      },
+      comments: {
+        nodes: [],
+      },
+      reviews: {
+        nodes: [],
+      },
+    };
+
+    const result = formatContext(prData, true);
+    expect(result).toBe(
+      `PR Title: Test PR
+PR Author: test-user
+PR Branch: feature/test -> main
+PR State: OPEN
+PR Labels: bug, enhancement
 PR Additions: 50
 PR Deletions: 30
 Total Commits: 3
@@ -80,7 +127,36 @@ Changed Files: 2 files`,
     expect(result).toBe(
       `Issue Title: Test Issue
 Issue Author: test-user
-Issue State: OPEN`,
+Issue State: OPEN
+Issue Labels: none`,
+    );
+  });
+
+  test("formats Issue context with labels", () => {
+    const issueData: GitHubIssue = {
+      title: "Test Issue",
+      body: "Issue body",
+      author: { login: "test-user" },
+      createdAt: "2023-01-01T00:00:00Z",
+      state: "OPEN",
+      labels: {
+        nodes: [
+          { name: "architecture" },
+          { name: "agent-sdk" },
+          { name: "drift:functional" },
+        ],
+      },
+      comments: {
+        nodes: [],
+      },
+    };
+
+    const result = formatContext(issueData, false);
+    expect(result).toBe(
+      `Issue Title: Test Issue
+Issue Author: test-user
+Issue State: OPEN
+Issue Labels: architecture, agent-sdk, drift:functional`,
     );
   });
 });

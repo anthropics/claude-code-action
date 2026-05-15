@@ -8,6 +8,11 @@ import type {
 import type { GitHubFileWithSHA } from "./fetcher";
 import { sanitizeContent } from "../utils/sanitizer";
 
+function formatLabels(labelNodes: Array<{ name: string }>): string {
+  if (labelNodes.length === 0) return "none";
+  return labelNodes.map((l) => l.name).join(", ");
+}
+
 export function formatContext(
   contextData: GitHubPullRequest | GitHubIssue,
   isPR: boolean,
@@ -19,6 +24,7 @@ export function formatContext(
 PR Author: ${prData.author.login}
 PR Branch: ${prData.headRefName} -> ${prData.baseRefName}
 PR State: ${prData.state}
+PR Labels: ${formatLabels(prData.labels.nodes)}
 PR Additions: ${prData.additions}
 PR Deletions: ${prData.deletions}
 Total Commits: ${prData.commits.totalCount}
@@ -28,7 +34,8 @@ Changed Files: ${prData.files.nodes.length} files`;
     const sanitizedTitle = sanitizeContent(issueData.title);
     return `Issue Title: ${sanitizedTitle}
 Issue Author: ${issueData.author.login}
-Issue State: ${issueData.state}`;
+Issue State: ${issueData.state}
+Issue Labels: ${formatLabels(issueData.labels.nodes)}`;
   }
 }
 
