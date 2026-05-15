@@ -314,4 +314,47 @@ describe("prepareMcpConfig", () => {
     const parsed = JSON.parse(result);
     expect(parsed.mcpServers.github_ci).not.toBeDefined();
   });
+
+  test("should not include inline comment server for non-PR contexts", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: ["mcp__github_inline_comment__create_inline_comment"],
+      mode: "tag",
+      context: mockContext, // isPR: false
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_inline_comment).not.toBeDefined();
+  });
+
+  test("should include both comment and inline comment servers for PR contexts", async () => {
+    const mockPRContextWithSticky: ParsedGitHubContext = {
+      ...mockPRContext,
+      inputs: {
+        ...mockPRContext.inputs,
+        useStickyComment: true,
+      },
+    };
+
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: ["mcp__github_inline_comment__create_inline_comment"],
+      mode: "tag",
+      context: mockPRContextWithSticky,
+    });
+
+    const parsed = JSON.parse(result);
+    // Both comment server (for sticky tracking comment) and inline comment server should coexist
+    expect(parsed.mcpServers.github_comment).toBeDefined();
+    expect(parsed.mcpServers.github_inline_comment).toBeDefined();
+    expect(parsed.mcpServers.github_inline_comment.env.PR_NUMBER).toBe("456");
+  });
 });

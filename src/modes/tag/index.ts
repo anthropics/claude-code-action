@@ -132,6 +132,12 @@ export async function prepareTagMode({
     ...userAllowedMCPTools,
   ];
 
+  // Enable inline PR comments for PR contexts so Claude can post
+  // review feedback directly on diff lines alongside the tracking comment
+  if (context.isPR) {
+    tagModeTools.push("mcp__github_inline_comment__create_inline_comment");
+  }
+
   // Add git commands when using git CLI (no API commit signing, or SSH signing)
   // SSH signing still uses git CLI, just with signing enabled
   if (!useApiCommitSigning) {
@@ -149,6 +155,10 @@ export async function prepareTagMode({
     );
   }
 
+  // Dedupe once so both the MCP config and the --allowedTools CLI flag
+  // see the same set (user-supplied CLAUDE_ARGS may include tools we also push)
+  const dedupedTools = Array.from(new Set(tagModeTools));
+
   // Get our GitHub MCP servers configuration
   const ourMcpConfig = await prepareMcpConfig({
     githubToken,
@@ -157,7 +167,7 @@ export async function prepareTagMode({
     branch: branchInfo.claudeBranch || branchInfo.currentBranch,
     baseBranch: branchInfo.baseBranch,
     claudeCommentId: commentId.toString(),
-    allowedTools: Array.from(new Set(tagModeTools)),
+    allowedTools: dedupedTools,
     mode: "tag",
     context,
   });
@@ -172,7 +182,7 @@ export async function prepareTagMode({
   // Add required tools for tag mode.
   // acceptEdits: file edits auto-allowed inside cwd ($GITHUB_WORKSPACE), denied outside.
   // Headless SDK has no prompt handler, so anything that falls through to "ask" is denied.
-  claudeArgs += ` --permission-mode acceptEdits --allowedTools "${tagModeTools.join(",")}"`;
+  claudeArgs += ` --permission-mode acceptEdits --allowedTools "${dedupedTools.join(",")}"`;
 
   // Append user's claude_args (which may have more --mcp-config flags)
   if (userClaudeArgs) {
