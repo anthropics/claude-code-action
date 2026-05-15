@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import * as core from "@actions/core";
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile, mkdir, rm } from "fs/promises";
 import type { FetchDataResult } from "../github/data/fetcher";
 import {
   formatContext,
@@ -938,9 +938,14 @@ export async function createPrompt(
       claudeBranch,
     );
 
-    await mkdir(`${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`, {
-      recursive: true,
-    });
+    // Clear any stale prompt files from a prior invocation. RUNNER_TEMP is documented
+    // to be emptied between jobs, but on non-ephemeral self-hosted runners this is
+    // not reliably honored — a stale claude-user-request.txt left behind by a prior
+    // mention-mode invocation would not be overwritten by a subsequent agent-mode
+    // invocation, and would leak into the model's context.
+    const promptDir = `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`;
+    await rm(promptDir, { recursive: true, force: true });
+    await mkdir(promptDir, { recursive: true });
 
     // Generate the prompt directly
     const promptContent = generatePrompt(
@@ -956,10 +961,7 @@ export async function createPrompt(
     console.log("=======================");
 
     // Write the prompt file
-    await writeFile(
-      `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts/claude-prompt.txt`,
-      promptContent,
-    );
+    await writeFile(`${promptDir}/claude-prompt.txt`, promptContent);
 
     // Extract and write the user request separately for SDK multi-block messaging
     // This allows the CLI to process slash commands (e.g., "@claude /review-pr")
@@ -968,10 +970,7 @@ export async function createPrompt(
       githubData,
     );
     if (userRequest) {
-      await writeFile(
-        `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts/${USER_REQUEST_FILENAME}`,
-        userRequest,
-      );
+      await writeFile(`${promptDir}/${USER_REQUEST_FILENAME}`, userRequest);
       console.log("===== USER REQUEST =====");
       console.log(userRequest);
       console.log("========================");
