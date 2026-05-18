@@ -395,7 +395,7 @@ function getCommitInstructions(
   useCommitSigning: boolean,
 ): string {
   const coAuthorLine =
-    ((githubData.triggerDisplayName ?? context.triggerUsername) !== "Unknown")
+    (githubData.triggerDisplayName ?? context.triggerUsername) !== "Unknown"
       ? `Co-authored-by: ${githubData.triggerDisplayName ?? context.triggerUsername} <${context.triggerUsername}@users.noreply.github.com>`
       : "";
 
