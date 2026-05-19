@@ -1,6 +1,7 @@
 import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
 import { $ } from "bun";
+import { encodeBranchNameForAPI } from "./branch";
 
 export async function checkAndCommitOrDeleteBranch(
   octokit: Octokits,
@@ -20,7 +21,7 @@ export async function checkAndCommitOrDeleteBranch(
       await octokit.rest.repos.getBranch({
         owner,
         repo,
-        branch: claudeBranch,
+        branch: encodeBranchNameForAPI(claudeBranch),
       });
       branchExistsRemotely = true;
     } catch (error: any) {
@@ -45,7 +46,7 @@ export async function checkAndCommitOrDeleteBranch(
         await octokit.rest.repos.compareCommitsWithBasehead({
           owner,
           repo,
-          basehead: `${baseBranch}...${claudeBranch}`,
+          basehead: `${encodeBranchNameForAPI(baseBranch)}...${encodeBranchNameForAPI(claudeBranch)}`,
         });
 
       // If there are no commits, check for uncommitted changes if not using commit signing
@@ -119,7 +120,7 @@ export async function checkAndCommitOrDeleteBranch(
       await octokit.rest.git.deleteRef({
         owner,
         repo,
-        ref: `heads/${claudeBranch}`,
+        ref: `heads/${encodeBranchNameForAPI(claudeBranch)}`,
       });
       console.log(`✅ Deleted empty branch: ${claudeBranch}`);
     } catch (deleteError) {

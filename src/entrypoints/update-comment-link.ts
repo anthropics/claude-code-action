@@ -16,6 +16,7 @@ import type { ParsedGitHubContext } from "../github/context";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import { checkAndCommitOrDeleteBranch } from "../github/operations/branch-cleanup";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
+import { encodeBranchNameForAPI } from "../github/operations/branch";
 
 export type UpdateCommentLinkParams = {
   commentId: number;
@@ -136,7 +137,7 @@ export async function updateCommentLink(
           await octokit.rest.repos.compareCommitsWithBasehead({
             owner,
             repo,
-            basehead: `${baseBranch}...${claudeBranch}`,
+            basehead: `${encodeBranchNameForAPI(baseBranch)}...${encodeBranchNameForAPI(claudeBranch)}`,
           });
 
         // If there are changes (commits or file changes), add the PR URL

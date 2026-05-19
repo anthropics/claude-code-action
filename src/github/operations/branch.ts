@@ -115,6 +115,18 @@ export function validateBranchName(branchName: string): void {
 }
 
 /**
+ * Encodes a branch name for use in GitHub API URLs.
+ * The GitHub API expects branch names in URL paths to be properly encoded.
+ * Special characters like # (fragment separator) must be percent-encoded.
+ *
+ * @param branchName - The branch name to encode
+ * @returns The URL-encoded branch name
+ */
+export function encodeBranchNameForAPI(branchName: string): string {
+  return encodeURIComponent(branchName);
+}
+
+/**
  * Executes a git command safely using execFileSync to avoid shell interpolation.
  *
  * Security: execFileSync passes arguments directly to the git binary without
@@ -228,7 +240,7 @@ export async function setupBranch(
     const sourceBranchRef = await octokits.rest.git.getRef({
       owner,
       repo,
-      ref: `heads/${sourceBranch}`,
+      ref: `heads/${encodeBranchNameForAPI(sourceBranch)}`,
     });
 
     sourceSHA = sourceBranchRef.data.object.sha;

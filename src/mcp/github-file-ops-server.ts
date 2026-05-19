@@ -54,6 +54,14 @@ const server = new McpServer({
   version: "0.0.1",
 });
 
+/**
+ * Encodes a branch name for use in GitHub API URLs.
+ * Special characters like # (fragment separator) must be percent-encoded.
+ */
+function encodeBranchNameForAPI(branchName: string): string {
+  return encodeURIComponent(branchName);
+}
+
 // Helper function to get or create branch reference
 async function getOrCreateBranchRef(
   owner: string,
@@ -62,7 +70,7 @@ async function getOrCreateBranchRef(
   githubToken: string,
 ): Promise<string> {
   // Try to get the branch reference
-  const refUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${branch}`;
+  const refUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${encodeBranchNameForAPI(branch)}`;
   const refResponse = await fetch(refUrl, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -83,7 +91,7 @@ async function getOrCreateBranchRef(
   const baseBranch = process.env.BASE_BRANCH!;
 
   // Get the SHA of the base branch
-  const baseRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${baseBranch}`;
+  const baseRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${encodeBranchNameForAPI(baseBranch)}`;
   const baseRefResponse = await fetch(baseRefUrl, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -115,7 +123,7 @@ async function getOrCreateBranchRef(
     const defaultBranch = repoData.default_branch;
 
     // Try default branch
-    const defaultRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${defaultBranch}`;
+    const defaultRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${encodeBranchNameForAPI(defaultBranch)}`;
     const defaultRefResponse = await fetch(defaultRefUrl, {
       headers: {
         Accept: "application/vnd.github+json",
@@ -365,7 +373,7 @@ server.tool(
       const newCommitData = (await newCommitResponse.json()) as GitHubNewCommit;
 
       // 6. Update the reference to point to the new commit
-      const updateRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${branch}`;
+      const updateRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${encodeBranchNameForAPI(branch)}`;
 
       // We're seeing intermittent 403 "Resource not accessible by integration" errors
       // on certain repos when updating git references. These appear to be transient
@@ -580,7 +588,7 @@ server.tool(
       const newCommitData = (await newCommitResponse.json()) as GitHubNewCommit;
 
       // 6. Update the reference to point to the new commit
-      const updateRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${branch}`;
+      const updateRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${encodeBranchNameForAPI(branch)}`;
 
       // We're seeing intermittent 403 "Resource not accessible by integration" errors
       // on certain repos when updating git references. These appear to be transient
