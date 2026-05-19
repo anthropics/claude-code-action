@@ -40,6 +40,6 @@ ${jobRunLink}${branchLink}`;
 }
 
 export function extractBotHeader(body: string): string {
-  const match = body.match(/^(<!--\s*bot:\s*\S+\s*-->\n?)/);
-  return match?.[1] ?? "";
+  const match = body.match(/^<!--\s*bot:\s*\S+\s*-->/);
+  return match ? `${match[0]}\n` : "";
 }
