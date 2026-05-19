@@ -698,15 +698,7 @@ ${sanitizeContent(eventData.commentBody)}
 </trigger_comment>`
     : ""
 }
-${`<comment_tool_info>
-IMPORTANT: You have been provided with the mcp__github_comment__update_claude_comment tool to update your comment. This tool automatically handles both issue and PR comments.
-
-Tool usage example for mcp__github_comment__update_claude_comment:
-{
-  "body": "Your comment text here"
-}
-Only the body parameter is required - the tool automatically knows which comment to update.
-</comment_tool_info>`}
+IMPORTANT: Use the mcp__github_comment__update_claude_comment tool to update your comment (load it with ToolSearch first).
 
 Your task is to analyze the context, understand the request, and provide helpful responses and/or implement code changes as needed.
 
