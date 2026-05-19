@@ -134,6 +134,27 @@ describe("restoreConfigFromBase", () => {
     expect(countClaudePrExcludeEntries()).toBe(1);
   });
 
+  test("handles dangling symlinks in .claude/ without crashing", () => {
+    const skillsDir = join(repoDir, ".claude/skills");
+    mkdirSync(skillsDir, { recursive: true });
+
+    // Create a symlink pointing to a non-existent file (simulating a dependency
+    // directory that hasn't been installed yet)
+    execFileSync("ln", ["-s", "../../vendor/package/.claude/skills/check", join(skillsDir, "check")], {
+      cwd: repoDir,
+      stdio: "pipe",
+    });
+
+    git(["add", ".claude/skills/check"]);
+    git(["commit", "-m", "add dangling symlink"]);
+
+    // This should not throw ENOENT
+    expect(() => restoreConfigFromBase("main")).not.toThrow();
+
+    // Verify the symlink was preserved in .claude-pr/
+    expect(existsRepoFile(".claude-pr/.claude/skills/check")).toBe(true);
+  });
+
   function git(args: string[]): string {
     return execFileSync("git", args, {
       cwd: repoDir,
