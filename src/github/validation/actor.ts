@@ -32,35 +32,32 @@ export async function checkHumanActor(
   githubContext: GitHubContext,
 ) {
   const allowedBots = githubContext.inputs.allowedBots;
+  const actor = githubContext.actor;
 
-  // Check allowed_bots BEFORE calling the GitHub Users API.
-  // Some bot actors (e.g. GitHub Copilot with GITHUB_ACTOR="Copilot") are
-  // not resolvable via the Users API and would cause a 404 if we called it
-  // first.  By checking the allow-list early we avoid the unnecessary API
-  // call and the resulting crash.
-  if (isAllowedBot(githubContext.actor, allowedBots)) {
-    console.log(
-      `Actor ${githubContext.actor} is in allowed_bots list, skipping human actor check`,
-    );
-    return;
-  }
-
-  // Fetch user information from GitHub API
+  // Resolve the actor's account type before consulting allowed_bots so the
+  // allow-list only ever applies to non-User accounts. Some app actors
+  // (e.g. GitHub Copilot with GITHUB_ACTOR="Copilot") are not resolvable
+  // via the Users API and 404 — that path is handled in the catch below.
   let actorType: string;
   try {
     const { data: userData } = await octokit.users.getByUsername({
-      username: githubContext.actor,
+      username: actor,
     });
     actorType = userData.type;
   } catch (error) {
-    // Handle 404 for non-user actors (GitHub Apps whose GITHUB_ACTOR
-    // doesn't match any user account, e.g. "Copilot").
     if (
       error instanceof Error &&
       (error.message.includes("Not Found") ||
         error.message.includes("is not a user"))
     ) {
-      const botName = githubContext.actor.toLowerCase().replace(/\[bot\]$/, "");
+      // Unresolvable actors are GitHub Apps without a backing user account.
+      if (isAllowedBot(actor, allowedBots)) {
+        console.log(
+          `Actor ${actor} is in allowed_bots list, skipping human actor check`,
+        );
+        return;
+      }
+      const botName = actor.toLowerCase().replace(/\[bot\]$/, "");
       throw new Error(
         `Workflow initiated by non-human actor: ${botName} (actor not found on GitHub). Add bot to allowed_bots list or use '*' to allow all bots.`,
       );
@@ -70,15 +67,22 @@ export async function checkHumanActor(
 
   console.log(`Actor type: ${actorType}`);
 
-  // Check bot permissions if actor is not a User
   if (actorType !== "User") {
-    const botName = githubContext.actor.toLowerCase().replace(/\[bot\]$/, "");
-
-    // Bot not allowed (we already checked allowed_bots above)
+    // GitHub Apps and other bot accounts.
+    if (isAllowedBot(actor, allowedBots)) {
+      console.log(
+        `Actor ${actor} is in allowed_bots list, skipping human actor check`,
+      );
+      return;
+    }
+    const botName = actor.toLowerCase().replace(/\[bot\]$/, "");
     throw new Error(
       `Workflow initiated by non-human actor: ${botName} (type: ${actorType}). Add bot to allowed_bots list or use '*' to allow all bots.`,
     );
   }
 
-  console.log(`Verified human actor: ${githubContext.actor}`);
+  // Regular User account. allowed_bots is only for bot actors and is not
+  // consulted here; write-access enforcement for users happens separately
+  // in checkWritePermissions.
+  console.log(`Verified human actor: ${actor}`);
 }

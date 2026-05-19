@@ -307,7 +307,9 @@ describe("checkWritePermissions", () => {
   describe("non-[bot] actors (e.g. GitHub Copilot)", () => {
     // GitHub Copilot SWE Agent sets GITHUB_ACTOR="Copilot" which doesn't
     // end with [bot] and is not a valid GitHub user, so the collaborator
-    // permission API returns 404 with "is not a user".
+    // permission API returns 404 with "is not a user". allowed_bots is
+    // applied in that catch path once the API has confirmed the actor is
+    // not a regular user account.
 
     const createMockOctokitThat404s = () =>
       ({
@@ -322,9 +324,7 @@ describe("checkWritePermissions", () => {
         },
       }) as any;
 
-    test("should return true for non-[bot] actor in allowed_bots (pre-API check)", async () => {
-      // The allowed_bots check should happen BEFORE calling the API,
-      // so this should succeed even with a 404-ing mock.
+    test("should return true for non-[bot] app actor in allowed_bots", async () => {
       const mockOctokit = createMockOctokitThat404s();
       const context = createContext();
       context.actor = "Copilot";
@@ -334,11 +334,11 @@ describe("checkWritePermissions", () => {
 
       expect(result).toBe(true);
       expect(coreInfoSpy).toHaveBeenCalledWith(
-        "Actor Copilot is in allowed_bots list, skipping permission check",
+        "Non-user actor Copilot is in allowed_bots list, granting access",
       );
     });
 
-    test("should return true for non-[bot] actor when allowed_bots is '*' (pre-API check)", async () => {
+    test("should return true for non-[bot] app actor when allowed_bots is '*'", async () => {
       const mockOctokit = createMockOctokitThat404s();
       const context = createContext();
       context.actor = "Copilot";
@@ -349,20 +349,18 @@ describe("checkWritePermissions", () => {
       expect(result).toBe(true);
     });
 
-    test("should return true for non-[bot] actor in allowed_bots via 404 fallback", async () => {
-      // Even if somehow we reach the API call (e.g. race condition or
-      // future refactor), the 404 catch path should also check allowed_bots.
+    test("should match config entries written with the [bot] suffix", async () => {
       const mockOctokit = createMockOctokitThat404s();
       const context = createContext();
       context.actor = "SomeNewBot";
-      context.inputs.allowedBots = "somenewbot";
+      context.inputs.allowedBots = "somenewbot[bot]";
 
       const result = await checkWritePermissions(mockOctokit, context);
 
       expect(result).toBe(true);
     });
 
-    test("should return false for non-[bot] actor that 404s and is not in allowed_bots", async () => {
+    test("should return false for non-[bot] app actor that is not in allowed_bots", async () => {
       const mockOctokit = createMockOctokitThat404s();
       const context = createContext();
       context.actor = "Copilot";
@@ -376,7 +374,7 @@ describe("checkWritePermissions", () => {
       );
     });
 
-    test("should return false for non-[bot] actor that 404s with empty allowed_bots", async () => {
+    test("should return false for non-[bot] app actor with empty allowed_bots", async () => {
       const mockOctokit = createMockOctokitThat404s();
       const context = createContext();
       context.actor = "Copilot";
@@ -402,6 +400,59 @@ describe("checkWritePermissions", () => {
       await expect(checkWritePermissions(mockOctokit, context)).rejects.toThrow(
         "Failed to check permissions for Copilot",
       );
+    });
+  });
+
+  describe("allowed_bots only applies to non-user actors", () => {
+    // The permission endpoint resolves the actor's account type. Actors
+    // that resolve to a regular user account go through the standard write
+    // permission check; allowed_bots does not short-circuit it for them.
+
+    test("should require write permission for a user account whose name matches allowed_bots", async () => {
+      const mockOctokit = createMockOctokit("read");
+      const context = createContext();
+      context.actor = "renovate";
+      context.inputs.allowedBots = "renovate";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(false);
+      expect(coreWarningSpy).toHaveBeenCalledWith(
+        "Actor has insufficient permissions: read",
+      );
+    });
+
+    test("should require write permission for a user account when allowed_bots uses the [bot] form", async () => {
+      const mockOctokit = createMockOctokit("read");
+      const context = createContext();
+      context.actor = "renovate";
+      context.inputs.allowedBots = "renovate[bot]";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(false);
+    });
+
+    test("should require write permission for a user account when allowed_bots is '*'", async () => {
+      const mockOctokit = createMockOctokit("none");
+      const context = createContext();
+      context.actor = "some-user";
+      context.inputs.allowedBots = "*";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(false);
+    });
+
+    test("should still grant access for a user account with write permission", async () => {
+      const mockOctokit = createMockOctokit("write");
+      const context = createContext();
+      context.actor = "renovate";
+      context.inputs.allowedBots = "renovate";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(true);
     });
   });
 });
