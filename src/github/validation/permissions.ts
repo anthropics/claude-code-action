@@ -66,22 +66,19 @@ export async function checkWritePermissions(
       }
     }
 
-    // Check if the actor is a GitHub App (bot user with [bot] suffix)
+    // Check if the actor is a GitHub App (bot user with [bot] suffix).
+    // Usernames cannot contain "[" or "]", so the suffix is a reliable
+    // bot signal that doesn't require an API lookup.
     if (actor.endsWith("[bot]")) {
       core.info(`Actor is a GitHub App: ${actor}`);
       return true;
     }
 
-    // Check if the actor is in the allowed bots list (handles non-[bot] actors
-    // like GitHub Copilot whose GITHUB_ACTOR is "Copilot", not "Copilot[bot]")
-    if (isAllowedBot(actor, allowedBots)) {
-      core.info(
-        `Actor ${actor} is in allowed_bots list, skipping permission check`,
-      );
-      return true;
-    }
-
-    // Check permissions directly using the permission endpoint
+    // For all other actors, resolve the account via the collaborator
+    // permission endpoint. allowed_bots is only consulted in the catch
+    // block below, after the API has confirmed the actor is not a regular
+    // user account (e.g. GitHub Apps like Copilot whose GITHUB_ACTOR is
+    // "Copilot" rather than "Copilot[bot]").
     const response = await octokit.repos.getCollaboratorPermissionLevel({
       owner: repository.owner,
       repo: repository.repo,
