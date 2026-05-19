@@ -9,7 +9,6 @@ import { appendFileSync } from "fs";
 import { createJobRunLink, createCommentBody } from "./common";
 import {
   isPullRequestReviewCommentEvent,
-  isPullRequestEvent,
   type ParsedGitHubContext,
 } from "../../context";
 import type { Octokit } from "@octokit/rest";
@@ -33,11 +32,7 @@ export async function createInitialComment(
   try {
     let response;
 
-    if (
-      context.inputs.useStickyComment &&
-      context.isPR &&
-      isPullRequestEvent(context)
-    ) {
+    if (context.inputs.useStickyComment && context.isPR) {
       // Use pagination to fetch all comments (handles PRs with 30+ comments)
       const comments = await octokit.paginate(
         octokit.rest.issues.listComments,
@@ -54,7 +49,6 @@ export async function createInitialComment(
 
         const headerPattern = new RegExp(
           `<!--\\s*bot:\\s*${escapeRegex(botIdentifier)}\\s*-->`,
-          "i",
         );
         return headerPattern.test(comment.body || "");
       });

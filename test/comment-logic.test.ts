@@ -503,6 +503,21 @@ describe("updateCommentBody", () => {
       expect(result).toContain("**Claude encountered an error after 10s**");
     });
 
+    it("should add a line break after bot header even when original lacks one", () => {
+      const input: CommentUpdateInput = {
+        currentBody:
+          "<!-- bot: claude-review -->Claude Code is working…\n\n[View job run](https://github.com/owner/repo/actions/runs/123)",
+        actionFailed: false,
+        executionDetails: { duration_ms: 5000 },
+        jobUrl: "https://github.com/owner/repo/actions/runs/123",
+        triggerUsername: "test-user",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).toStartWith("<!-- bot: claude-review -->\n");
+      expect(result).not.toContain("<!-- bot: claude-review -->**");
+    });
+
     it("should not preserve bot header if not at start of comment", () => {
       const input: CommentUpdateInput = {
         currentBody:
