@@ -1,29 +1,66 @@
 export function parseAllowedTools(claudeArgs: string): string[] {
-  // Match --allowedTools or --allowed-tools followed by the value
-  // Handle both quoted and unquoted values
-  // Use /g flag to find ALL occurrences, not just the first one
-  const patterns = [
-    /--(?:allowedTools|allowed-tools)\s+"([^"]+)"/g, // Double quoted
-    /--(?:allowedTools|allowed-tools)\s+'([^']+)'/g, // Single quoted
-    /--(?:allowedTools|allowed-tools)\s+([^'"\s][^\s]*)/g, // Unquoted (must not start with quote)
-  ];
+  if (!claudeArgs.trim()) {
+    return [];
+  }
+
+  const args = claudeArgs.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
 
   const tools: string[] = [];
   const seen = new Set<string>();
 
-  for (const pattern of patterns) {
-    for (const match of claudeArgs.matchAll(pattern)) {
-      if (match[1]) {
-        // Don't add if the value starts with -- (another flag)
-        if (match[1].startsWith("--")) {
-          continue;
+  let foundFlag = false;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (
+      arg === "--allowedTools" ||
+      arg === "--allowed-tools"
+    ) {
+      // Prevent duplicate flag abuse
+      if (foundFlag) {
+        throw new Error(
+          "Multiple --allowedTools flags are not allowed",
+        );
+      }
+
+      foundFlag = true;
+
+      const value = args[i + 1];
+
+      if (!value || value.startsWith("--")) {
+        throw new Error(
+          "--allowedTools requires a value",
+        );
+      }
+
+      i++;
+
+      const cleaned = value.replace(/^['"]|['"]$/g, "");
+
+      const parsedTools = cleaned
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      for (const tool of parsedTools) {
+        // Block wildcard permissions
+        if (tool.includes("*")) {
+          throw new Error(
+            `Wildcard tool permissions are not allowed: ${tool}`,
+          );
         }
-        for (const tool of match[1].split(",")) {
-          const trimmed = tool.trim();
-          if (trimmed && !seen.has(trimmed)) {
-            seen.add(trimmed);
-            tools.push(trimmed);
-          }
+
+        // Block shell metacharacters
+        if (/[;&|`$<>]/.test(tool)) {
+          throw new Error(
+            `Invalid tool name: ${tool}`,
+          );
+        }
+
+        if (!seen.has(tool)) {
+          seen.add(tool);
+          tools.push(tool);
         }
       }
     }
