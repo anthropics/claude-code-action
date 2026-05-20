@@ -1,10 +1,18 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect } from "bun:test";
+import * as core from "@actions/core";
+import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { parseSdkOptions } from "../src/parse-sdk-options";
 import type { ClaudeOptions } from "../src/run-claude";
 
 describe("parseSdkOptions", () => {
+  let warningSpy: ReturnType<typeof spyOn> | undefined;
+
+  afterEach(() => {
+    warningSpy?.mockRestore();
+    warningSpy = undefined;
+  });
+
   describe("allowedTools merging", () => {
     test("should extract allowedTools from claudeArgs", () => {
       const options: ClaudeOptions = {
@@ -149,6 +157,27 @@ describe("parseSdkOptions", () => {
       expect(result.sdkOptions.allowedTools).toContain("Read");
       expect(result.sdkOptions.allowedTools).toContain("Write");
       expect(result.sdkOptions.allowedTools).toContain("Glob");
+    });
+
+    test("should warn and ignore YAML list markers in multiline allowed-tools", () => {
+      warningSpy = spyOn(core, "warning").mockImplementation(() => {});
+      const options: ClaudeOptions = {
+        claudeArgs: `
+          --allowed-tools
+          - 'Bash(pnpm install)'
+          - 'Bash(pnpm test)'
+        `,
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(pnpm install)",
+        "Bash(pnpm test)",
+      ]);
+      expect(warningSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Remove '-' list markers"),
+      );
     });
   });
 
