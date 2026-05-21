@@ -70,6 +70,21 @@ inputs:
   claude_code_oauth_token:
     description: "Claude Code OAuth token (alternative to anthropic_api_key)"
     required: false
+  anthropic_federation_rule_id:
+    description: "Workload identity federation rule ID (fdrl_...). When set with anthropic_organization_id, the action authenticates to the Claude API by exchanging the workflow's GitHub OIDC token instead of using a static API key. Requires `id-token: write` permission."
+    required: false
+  anthropic_organization_id:
+    description: "Anthropic organization UUID used for workload identity federation"
+    required: false
+  anthropic_service_account_id:
+    description: "Service account ID (svac_...) the federated token acts as (optional, used with workload identity federation)"
+    required: false
+  anthropic_workspace_id:
+    description: "Workspace ID (wrkspc_...) for workload identity federation. Optional when the federation rule targets a single workspace."
+    required: false
+  anthropic_oidc_audience:
+    description: "Audience to request on the GitHub OIDC token used for workload identity federation. Defaults to GitHub's default audience (the repository owner URL)."
+    required: false
   github_token:
     description: "GitHub token with repo and pull request permissions (optional if using GitHub App)"
     required: false
@@ -294,6 +309,11 @@ runs:
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
+        ANTHROPIC_FEDERATION_RULE_ID: ${{ inputs.anthropic_federation_rule_id }}
+        ANTHROPIC_ORGANIZATION_ID: ${{ inputs.anthropic_organization_id }}
+        ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ inputs.anthropic_service_account_id }}
+        ANTHROPIC_WORKSPACE_ID: ${{ inputs.anthropic_workspace_id }}
+        ANTHROPIC_OIDC_AUDIENCE: ${{ inputs.anthropic_oidc_audience }}
         ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
         ANTHROPIC_CUSTOM_HEADERS: ${{ env.ANTHROPIC_CUSTOM_HEADERS }}
         CLAUDE_CODE_USE_BEDROCK: ${{ inputs.use_bedrock == 'true' && '1' || '' }}

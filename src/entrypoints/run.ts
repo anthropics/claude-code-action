@@ -29,6 +29,8 @@ import { prepareAgentMode } from "../modes/agent";
 import { checkContainsTrigger } from "../github/validation/trigger";
 import { restoreConfigFromBase } from "../github/operations/restore-config";
 import { validateBranchName } from "../github/operations/branch";
+import { setupWorkloadIdentity } from "../auth/workload-identity";
+import type { WorkloadIdentityHandle } from "../auth/workload-identity";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
 import { formatTurnsFromData } from "./format-turns";
@@ -150,6 +152,7 @@ async function run() {
   let prepareError: string | undefined;
   let context: GitHubContext | undefined;
   let octokit: Octokits | undefined;
+  let workloadIdentity: WorkloadIdentityHandle | undefined;
   // Track whether we've completed prepare phase, so we can attribute errors correctly
   let prepareCompleted = false;
   try {
@@ -231,6 +234,10 @@ async function run() {
     process.env.CLAUDE_CODE_ACTION = "1";
     process.env.DETAILED_PERMISSION_MESSAGES = "1";
 
+    // When workload identity federation is configured, fetch the GitHub OIDC
+    // identity token and expose it to the CLI before validating auth env vars.
+    workloadIdentity = await setupWorkloadIdentity();
+
     validateEnvironmentVariables();
 
     // On PRs, .claude/ and .mcp.json in the checkout are attacker-controlled.
@@ -306,6 +313,9 @@ async function run() {
     core.setFailed(`Action failed with error: ${errorMessage}`);
   } finally {
     // Phase 4: Cleanup (always runs)
+
+    // Stop refreshing the workload identity token file
+    workloadIdentity?.stop();
 
     // Update tracking comment
     if (
