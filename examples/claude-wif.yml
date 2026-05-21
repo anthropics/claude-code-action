@@ -50,6 +50,7 @@ jobs:
           # one workspace.
           # anthropic_workspace_id: wrkspc_xxxxxxxxxxxx
 
-          # Optional: set this if the federation rule has an expected audience
-          # configured; the values must match exactly.
-          # anthropic_oidc_audience: https://api.anthropic.com
+          # Optional: audience requested on the GitHub OIDC token. Defaults to
+          # https://api.anthropic.com — only set this if your federation rule
+          # expects a different audience.
+          # anthropic_oidc_audience: https://example.com/custom-audience

@@ -22,6 +22,13 @@ import { retryWithBackoff } from "../utils/retry";
 /** How often the GitHub OIDC identity token file is rewritten. */
 const REFRESH_INTERVAL_MS = 4 * 60 * 1000;
 
+/**
+ * Default audience requested on the GitHub OIDC token. Scopes the JWT to the
+ * Claude API token exchange; override with the anthropic_oidc_audience input
+ * if your federation rule expects a different audience.
+ */
+const DEFAULT_OIDC_AUDIENCE = "https://api.anthropic.com";
+
 export type WorkloadIdentityHandle = {
   tokenFile: string;
   stop: () => void;
@@ -39,10 +46,8 @@ export function isWorkloadIdentityConfigured(): boolean {
   );
 }
 
-async function fetchIdentityToken(audience: string | undefined) {
-  return retryWithBackoff(() =>
-    audience ? core.getIDToken(audience) : core.getIDToken(),
-  );
+async function fetchIdentityToken(audience: string) {
+  return retryWithBackoff(() => core.getIDToken(audience));
 }
 
 /**
@@ -71,7 +76,8 @@ export async function setupWorkloadIdentity(): Promise<
     return undefined;
   }
 
-  const audience = process.env.ANTHROPIC_OIDC_AUDIENCE?.trim() || undefined;
+  const audience =
+    process.env.ANTHROPIC_OIDC_AUDIENCE?.trim() || DEFAULT_OIDC_AUDIENCE;
   const tokenDir = join(
     process.env.RUNNER_TEMP || "/tmp",
     "claude-workload-identity",

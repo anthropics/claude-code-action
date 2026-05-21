@@ -83,7 +83,7 @@ inputs:
     description: "Workspace ID (wrkspc_...) for workload identity federation. Optional when the federation rule targets a single workspace."
     required: false
   anthropic_oidc_audience:
-    description: "Audience to request on the GitHub OIDC token used for workload identity federation. Defaults to GitHub's default audience (the repository owner URL)."
+    description: "Audience to request on the GitHub OIDC token used for workload identity federation. Defaults to https://api.anthropic.com."
     required: false
   github_token:
     description: "GitHub token with repo and pull request permissions (optional if using GitHub App)"

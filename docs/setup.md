@@ -53,7 +53,7 @@ Notes:
 
 - The workflow must grant `id-token: write` permission so the action can fetch a GitHub OIDC token. The default GitHub App authentication path already requires this permission.
 - Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federation inputs — a static credential takes precedence and federation will not be used.
-- If your federation rule matches on audience, set `anthropic_oidc_audience` to the same value. By default the GitHub OIDC token uses GitHub's default audience (the repository owner URL, e.g. `https://github.com/your-org`).
+- The GitHub OIDC token is requested with audience `https://api.anthropic.com` by default, so set the federation rule's expected audience to that value (or leave the rule's audience unmatched). Use `anthropic_oidc_audience` only if your rule expects a different audience.
 - Inline comment classification (`classify_inline_comments`) currently requires `anthropic_api_key`; with federation it is skipped and unconfirmed inline comments are posted directly.
 
 ## Using a Custom GitHub App

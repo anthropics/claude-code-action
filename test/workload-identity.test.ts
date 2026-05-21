@@ -101,8 +101,8 @@ describe("workload identity federation", () => {
         );
         expect(statSync(handle!.tokenFile).mode & 0o777).toBe(0o600);
         expect(setSecretSpy).toHaveBeenCalledWith("test-identity-token");
-        // Default audience: getIDToken called with no arguments
-        expect(getIDTokenSpy).toHaveBeenCalledWith();
+        // Default audience scopes the JWT to the Claude API token exchange
+        expect(getIDTokenSpy).toHaveBeenCalledWith("https://api.anthropic.com");
       } finally {
         handle?.stop();
       }
@@ -112,11 +112,13 @@ describe("workload identity federation", () => {
       process.env.ANTHROPIC_FEDERATION_RULE_ID = "fdrl_test";
       process.env.ANTHROPIC_ORGANIZATION_ID =
         "00000000-0000-0000-0000-000000000000";
-      process.env.ANTHROPIC_OIDC_AUDIENCE = "https://api.anthropic.com";
+      process.env.ANTHROPIC_OIDC_AUDIENCE = "https://example.com/custom";
 
       const handle = await setupWorkloadIdentity();
       try {
-        expect(getIDTokenSpy).toHaveBeenCalledWith("https://api.anthropic.com");
+        expect(getIDTokenSpy).toHaveBeenCalledWith(
+          "https://example.com/custom",
+        );
       } finally {
         handle?.stop();
       }
