@@ -91,6 +91,24 @@ Add the following to your workflow file:
     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 ```
 
+### Workload Identity Federation
+
+Instead of a static API key or OAuth token, you can authenticate via [Workload Identity Federation](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation) by setting the federation environment variables on the step. Fetch an OIDC identity token from your provider, write it to a file, and point the action at it:
+
+```yaml
+- name: Run Claude Code with workload identity federation
+  uses: anthropics/claude-code-base-action@beta
+  with:
+    prompt: "Your prompt here"
+  env:
+    ANTHROPIC_FEDERATION_RULE_ID: fdrl_xxxxxxxxxxxx
+    ANTHROPIC_ORGANIZATION_ID: 00000000-0000-0000-0000-000000000000
+    ANTHROPIC_SERVICE_ACCOUNT_ID: svac_xxxxxxxxxxxx
+    ANTHROPIC_IDENTITY_TOKEN_FILE: /path/to/identity-token
+```
+
+Note: the base action does not fetch or refresh the identity token itself — you are responsible for providing a valid token file. [`anthropics/claude-code-action`](https://github.com/anthropics/claude-code-action) handles fetching and refreshing the GitHub Actions OIDC token automatically via its `anthropic_federation_rule_id` input.
+
 ## Inputs
 
 | Input                     | Description                                                                                                             | Required | Default                      |

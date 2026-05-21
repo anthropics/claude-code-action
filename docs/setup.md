@@ -24,7 +24,7 @@ You need admin access to your Anthropic organization (Console → **Settings →
 2. **Create a service account** (Settings → Service accounts) and add it to the workspace it should act in. Note the `svac_...` ID.
 3. **Create a federation rule** targeting that service account, matched to your repository's OIDC claims (for example a subject prefix of `repo:your-org/your-repo:`). Note the `fdrl_...` rule ID.
 
-See the [Workload Identity Federation documentation](https://docs.claude.com/en/docs/manage-claude/workload-identity-federation) for full details.
+See the [Workload Identity Federation documentation](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation) for full details.
 
 ### Workflow configuration
 
