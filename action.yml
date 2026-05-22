@@ -307,8 +307,8 @@ runs:
         NODE_VERSION: ${{ env.NODE_VERSION }}
 
         # Provider configuration
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
-        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key || env.ANTHROPIC_API_KEY }}
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token || env.CLAUDE_CODE_OAUTH_TOKEN }}
         ANTHROPIC_FEDERATION_RULE_ID: ${{ inputs.anthropic_federation_rule_id }}
         ANTHROPIC_ORGANIZATION_ID: ${{ inputs.anthropic_organization_id }}
         ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ inputs.anthropic_service_account_id }}
