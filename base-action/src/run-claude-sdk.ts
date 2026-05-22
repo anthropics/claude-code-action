@@ -167,6 +167,16 @@ export async function runClaudeWithSdk(
 
       if (message.type === "result") {
         resultMessage = message as SDKResultMessage;
+        // The SDK's query() iterator should close itself after the
+        // result message, but in some workflow contexts (notably
+        // pull_request-triggered runs) it stays open indefinitely and
+        // the for-await hangs until the workflow's timeout-minutes
+        // kills the job. This causes the action to "succeed" inside
+        // Claude (verdict posted, $cost recorded) but be reported as
+        // cancelled with no execution-output.json written. Break
+        // explicitly: by SDK contract no further messages follow a
+        // result, so the break is safe.
+        break;
       }
     }
   } catch (error) {
