@@ -1,7 +1,10 @@
 #!/usr/bin/env bun
 
 import { describe, test, expect } from "bun:test";
-import { checkHumanActor } from "../src/github/validation/actor";
+import {
+  checkHumanActor,
+  SelfTriggeringBotSkipError,
+} from "../src/github/validation/actor";
 import type { Octokit } from "@octokit/rest";
 import { createMockContext } from "./mockContext";
 
@@ -37,6 +40,44 @@ describe("checkHumanActor", () => {
     await expect(checkHumanActor(mockOctokit, context)).rejects.toThrow(
       "Workflow initiated by non-human actor: test-bot (type: Bot). Add bot to allowed_bots list or use '*' to allow all bots.",
     );
+  });
+
+  test("should skip configured bot pull_request synchronize events", async () => {
+    const mockOctokit = createMockOctokit("Bot");
+    const context = createMockContext({
+      eventName: "pull_request",
+      eventAction: "synchronize",
+      isPR: true,
+    });
+    context.actor = "claude[bot]";
+    context.inputs.allowedBots = "";
+
+    let error: unknown;
+    try {
+      await checkHumanActor(mockOctokit, context);
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(SelfTriggeringBotSkipError);
+    expect((error as Error).message).toContain(
+      "skipping to avoid a bot feedback loop",
+    );
+  });
+
+  test("should honor explicit allowed_bots for configured bot pull_request synchronize events", async () => {
+    const mockOctokit = createMockOctokit("Bot");
+    const context = createMockContext({
+      eventName: "pull_request",
+      eventAction: "synchronize",
+      isPR: true,
+    });
+    context.actor = "claude[bot]";
+    context.inputs.allowedBots = "claude";
+
+    await expect(
+      checkHumanActor(mockOctokit, context),
+    ).resolves.toBeUndefined();
   });
 
   test("should pass for bot actor when all bots allowed", async () => {

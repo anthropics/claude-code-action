@@ -26,6 +26,7 @@ import type { GitHubContext } from "../github/context";
 import { detectMode } from "../modes/detector";
 import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
+import { SelfTriggeringBotSkipError } from "../github/validation/actor";
 import { checkContainsTrigger } from "../github/validation/trigger";
 import { restoreConfigFromBase } from "../github/operations/restore-config";
 import { validateBranchName } from "../github/operations/branch";
@@ -43,6 +44,10 @@ import { preparePrompt } from "../../base-action/src/prepare-prompt";
 import { runClaude } from "../../base-action/src/run-claude";
 import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
 import { setExecutionFileOutputIfPresent } from "../../base-action/src/execution-file";
+
+type PrepareResult =
+  | Awaited<ReturnType<typeof prepareTagMode>>
+  | Awaited<ReturnType<typeof prepareAgentMode>>;
 
 /**
  * Install Claude Code CLI, handling retry logic and custom executable paths.
@@ -215,10 +220,21 @@ async function run() {
     console.log(
       `Preparing with mode: ${modeName} for event: ${context.eventName}`,
     );
-    const prepareResult =
-      modeName === "tag"
-        ? await prepareTagMode({ context, octokit, githubToken })
-        : await prepareAgentMode({ context, octokit, githubToken });
+    let prepareResult: PrepareResult;
+    try {
+      prepareResult =
+        modeName === "tag"
+          ? await prepareTagMode({ context, octokit, githubToken })
+          : await prepareAgentMode({ context, octokit, githubToken });
+    } catch (error) {
+      if (error instanceof SelfTriggeringBotSkipError) {
+        console.log(error.message);
+        core.setOutput("github_token", githubToken);
+        core.setOutput("conclusion", "skipped");
+        return;
+      }
+      throw error;
+    }
 
     commentId = prepareResult.commentId;
     claudeBranch = prepareResult.branchInfo.claudeBranch;
