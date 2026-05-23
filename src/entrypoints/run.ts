@@ -92,12 +92,23 @@ async function installClaudeCode(): Promise<string> {
       console.log("Claude Code installed successfully");
       // Add to PATH
       const homeBin = `${process.env.HOME}/.local/bin`;
+      const claudePath = `${homeBin}/claude`;
+      // Verify the binary was actually placed on disk. The installer can
+      // exit 0 while emitting warnings and skipping binary placement (e.g.
+      // when ~/.local/bin does not exist), which later surfaces as an opaque
+      // ENOENT during posix_spawn in installPlugins/addMarketplace. Fail
+      // fast here with a clear, retryable error instead.
+      if (!existsSync(claudePath)) {
+        throw new Error(
+          `Claude Code installer exited 0 but binary was not placed at ${claudePath}`,
+        );
+      }
       const githubPath = process.env.GITHUB_PATH;
       if (githubPath) {
         await appendFile(githubPath, `${homeBin}\n`);
       }
       process.env.PATH = `${homeBin}:${process.env.PATH}`;
-      return `${homeBin}/claude`;
+      return claudePath;
     } catch (error) {
       if (attempt === 3) {
         throw new Error(
