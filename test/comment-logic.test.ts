@@ -139,6 +139,26 @@ describe("updateCommentBody", () => {
       );
       expect(result).not.toContain("View branch");
     });
+
+    it("parses owner/repo from jobUrl on non-github.com hosts", () => {
+      // jobUrl is built from GITHUB_SERVER_URL, which on a self-hosted GitHub
+      // Enterprise instance is not github.com. Owner/repo must still be
+      // extracted so the branch link is not lost.
+      const input = {
+        ...baseInput,
+        jobUrl: "https://ghe.example.com/my-org/my-repo/actions/runs/456",
+        branchName: "claude/issue-1",
+      };
+
+      const result = updateCommentBody(input);
+      // GITHUB_SERVER_URL is captured at module import; the test does not
+      // change it. Asserting that the branch appears as a clickable link
+      // confirms the path parsing succeeded — previously the github.com-only
+      // regex would fail to match and the branch would degrade to plain text.
+      expect(result).toMatch(
+        /• \[`claude\/issue-1`\]\(https:\/\/[^/]+\/my-org\/my-repo\/tree\/claude\/issue-1\)/,
+      );
+    });
   });
 
   describe("PR link", () => {
