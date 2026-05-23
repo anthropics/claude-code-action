@@ -137,6 +137,110 @@ describe("parseSdkOptions", () => {
       ]);
     });
 
+    test("should preserve unquoted Bash(cmd:*) rules instead of collapsing to bare Bash", () => {
+      // Regression: shell-quote tokenizes unquoted `(`/`)` as control ops and
+      // `*` as a glob, which were filtered out — collapsing scoped rules like
+      // `Bash(gh:*)` into bare `Bash` (= Bash(*), unrestricted shell).
+      const options: ClaudeOptions = {
+        claudeArgs: "--allowedTools View,Bash(gh:*),Bash(cat:*)",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "View",
+        "Bash(gh:*)",
+        "Bash(cat:*)",
+      ]);
+      expect(result.sdkOptions.allowedTools).not.toContain("Bash");
+    });
+
+    test("should preserve unquoted space-separated Bash(cmd:*) rules", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--allowed-tools Bash(gh:*) Bash(cat:*) Read(//tmp/**)",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(gh:*)",
+        "Bash(cat:*)",
+        "Read(//tmp/**)",
+      ]);
+      expect(result.sdkOptions.allowedTools).not.toContain("Bash");
+    });
+
+    test("should preserve unquoted Tool(content) rules without glob chars", () => {
+      const options: ClaudeOptions = {
+        claudeArgs:
+          "--allowedTools Read(~/file),WebFetch(domain:example.com),Edit",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Read(~/file)",
+        "WebFetch(domain:example.com)",
+        "Edit",
+      ]);
+    });
+
+    test("should still preserve quoted Bash(cmd:*) rules (no regression)", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--allowedTools "Bash(gh:*),Bash(cat:*)"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(gh:*)",
+        "Bash(cat:*)",
+      ]);
+    });
+
+    test("should merge quoted tag-mode tools with unquoted user tools without widening", () => {
+      // Real-world shape: the action's tag mode wraps its own --allowedTools in
+      // double quotes, then appends the user's claude_args (typically unquoted
+      // in workflow YAML). Both halves must round-trip.
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--permission-mode acceptEdits --allowedTools "Glob,Grep,Read,Bash(git add:*),Bash(git commit:*)" ' +
+          "--model claude-opus-4-7\n" +
+          "--allowedTools View,Bash(gh:*),Bash(printf:*),Bash(cat:*)",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Glob",
+        "Grep",
+        "Read",
+        "Bash(git add:*)",
+        "Bash(git commit:*)",
+        "View",
+        "Bash(gh:*)",
+        "Bash(printf:*)",
+        "Bash(cat:*)",
+      ]);
+      expect(result.sdkOptions.allowedTools).not.toContain("Bash");
+    });
+
+    test("should preserve unquoted disallowedTools rules without widening", () => {
+      // Same bug class on the deny side: a scoped deny collapsing to bare
+      // `Bash` would block all shell instead of the intended prefix.
+      const options: ClaudeOptions = {
+        claudeArgs: "--disallowedTools Bash(rm:*),Bash(sudo:*)",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.disallowedTools).toEqual([
+        "Bash(rm:*)",
+        "Bash(sudo:*)",
+      ]);
+      expect(result.sdkOptions.disallowedTools).not.toContain("Bash");
+    });
+
     test("should handle mixed camelCase and hyphenated allowedTools flags", () => {
       const options: ClaudeOptions = {
         claudeArgs: '--allowedTools "Edit,Read" --allowed-tools "Write,Glob"',

@@ -24,6 +24,35 @@ const ACCUMULATING_FLAGS = new Set([
 // Delimiter used to join accumulated flag values
 const ACCUMULATE_DELIMITER = "\x00";
 
+// shell-quote treats ()|&;<> as control operators and splits adjacent text
+// around them into separate tokens (returned as `{op}` objects, which we then
+// dropped). For CLI args these must be literal characters — e.g. unquoted
+// `--allowedTools Bash(gh:*)` was being mangled into bare `Bash`, silently
+// widening a scoped permission rule to Bash(*). We escape each metachar to a
+// Unicode private-use codepoint before parsing and restore it afterward,
+// keeping shell-quote's quote/whitespace handling intact.
+const SHELL_META_PAIRS: [string, string][] = [
+  ["(", ""],
+  [")", ""],
+  ["|", ""],
+  ["&", ""],
+  [";", ""],
+  ["<", ""],
+  [">", ""],
+];
+const SHELL_META_ESCAPE = new Map(SHELL_META_PAIRS);
+const SHELL_META_UNESCAPE = new Map(SHELL_META_PAIRS.map(([k, v]) => [v, k]));
+const SHELL_META_ESCAPE_RE = /[()|&;<>]/g;
+const SHELL_META_UNESCAPE_RE = /[-]/g;
+
+function escapeShellMeta(s: string): string {
+  return s.replace(SHELL_META_ESCAPE_RE, (c) => SHELL_META_ESCAPE.get(c)!);
+}
+
+function unescapeShellMeta(s: string): string {
+  return s.replace(SHELL_META_UNESCAPE_RE, (c) => SHELL_META_UNESCAPE.get(c)!);
+}
+
 type McpConfig = {
   mcpServers?: Record<string, unknown>;
 };
@@ -106,9 +135,19 @@ function parseClaudeArgsToExtraArgs(
   if (!claudeArgs?.trim()) return {};
 
   const result: Record<string, string | null> = {};
-  const args = parseShellArgs(stripShellComments(claudeArgs)).filter(
-    (arg): arg is string => typeof arg === "string",
-  );
+  const args = parseShellArgs(escapeShellMeta(stripShellComments(claudeArgs)))
+    .map((arg) => {
+      if (typeof arg === "string") return unescapeShellMeta(arg);
+      // With control metachars escaped above, the only non-string shell-quote
+      // can still emit is a glob op (bareword containing *, ?, or [). Its
+      // `pattern` field is the verbatim token text — use it as-is so values
+      // like `Bash(cmd:*)` and `Read(path/**)` round-trip intact.
+      if (typeof arg === "object" && arg !== null && "pattern" in arg) {
+        return unescapeShellMeta((arg as { pattern: string }).pattern);
+      }
+      return undefined;
+    })
+    .filter((arg): arg is string => typeof arg === "string");
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
