@@ -192,10 +192,6 @@ export async function downloadCommentImages(
           continue;
         }
 
-        const fileExtension = getImageExtension(originalUrl);
-        const filename = `image-${Date.now()}-${i}${fileExtension}`;
-        const localPath = path.join(downloadsDir, filename);
-
         try {
           console.log(`Downloading ${originalUrl}...`);
 
@@ -206,15 +202,21 @@ export async function downloadCommentImages(
             );
           }
 
+          const fileExtension = getImageExtension(
+            originalUrl,
+            imageResponse.headers?.get("content-type"),
+          );
+          const filename = `image-${Date.now()}-${i}${fileExtension}`;
+          const localPath = path.join(downloadsDir, filename);
           const arrayBuffer = await imageResponse.arrayBuffer();
           const buffer = Buffer.from(arrayBuffer);
 
           await fs.writeFile(localPath, buffer);
-          console.log(`✓ Saved: ${localPath}`);
+          console.log(`âœ“ Saved: ${localPath}`);
 
           urlToPathMap.set(originalUrl, localPath);
         } catch (error) {
-          console.error(`✗ Failed to download ${originalUrl}:`, error);
+          console.error(`âœ— Failed to download ${originalUrl}:`, error);
         }
       }
     } catch (error) {
@@ -234,7 +236,12 @@ export async function downloadCommentImages(
   return urlToPathMap;
 }
 
-function getImageExtension(url: string): string {
+function getImageExtension(url: string, contentType?: string | null): string {
+  const contentTypeExtension = getImageExtensionFromContentType(contentType);
+  if (contentTypeExtension) {
+    return contentTypeExtension;
+  }
+
   const urlParts = url.split("/");
   const filename = urlParts[urlParts.length - 1];
   if (!filename) {
@@ -243,4 +250,25 @@ function getImageExtension(url: string): string {
 
   const match = filename.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i);
   return match ? match[0] : ".png";
+}
+
+function getImageExtensionFromContentType(
+  contentType?: string | null,
+): string | undefined {
+  const mediaType = contentType?.split(";")[0]?.trim().toLowerCase();
+
+  switch (mediaType) {
+    case "image/png":
+      return ".png";
+    case "image/jpeg":
+      return ".jpg";
+    case "image/gif":
+      return ".gif";
+    case "image/webp":
+      return ".webp";
+    case "image/svg+xml":
+      return ".svg";
+    default:
+      return undefined;
+  }
 }

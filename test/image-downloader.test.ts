@@ -154,7 +154,7 @@ describe("downloadCommentImages", () => {
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(`Downloading ${imageUrl}...`);
     expect(consoleLogSpy).toHaveBeenCalledWith(
-      "✓ Saved: /tmp/github-images/image-1704067200000-0.png",
+      "âœ“ Saved: /tmp/github-images/image-1704067200000-0.png",
     );
   });
 
@@ -511,7 +511,7 @@ describe("downloadCommentImages", () => {
 
     expect(result.size).toBe(0);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      `✗ Failed to download ${imageUrl}:`,
+      `âœ— Failed to download ${imageUrl}:`,
       expect.any(Error),
     );
   });
@@ -620,6 +620,50 @@ describe("downloadCommentImages", () => {
     }
   });
 
+  test("should prefer response content type for extensionless attachments", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl =
+      "https://github.com/user-attachments/assets/5ac382c7-e004-429b-8e35-7feb3e8f9c6f";
+    const signedUrl =
+      "https://private-user-images.githubusercontent.com/spinner?jwt=token";
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "image/gif" }),
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "1010",
+        body: `Claude Code is workingâ€¦ <img src="${imageUrl}" width="14px" height="14px" />`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(result.get(imageUrl)).toBe(
+      "/tmp/github-images/image-1704067200000-0.gif",
+    );
+    expect(fsWriteFileSpy).toHaveBeenCalledWith(
+      "/tmp/github-images/image-1704067200000-0.gif",
+      expect.any(Buffer),
+    );
+  });
+
   test("should handle mismatched signed URL count", async () => {
     const mockOctokit = createMockOctokit();
     const imageUrl1 = "https://github.com/user-attachments/assets/img1.png";
@@ -722,7 +766,7 @@ describe("downloadCommentImages", () => {
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(`Downloading ${imageUrl}...`);
     expect(consoleLogSpy).toHaveBeenCalledWith(
-      "✓ Saved: /tmp/github-images/image-1704067200000-0.png",
+      "âœ“ Saved: /tmp/github-images/image-1704067200000-0.png",
     );
   });
 
