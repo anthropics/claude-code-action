@@ -387,15 +387,35 @@ jobs:
             const executionFile = '${{ steps.code-review.outputs.execution_file }}';
             const executionLog = JSON.parse(fs.readFileSync(executionFile, 'utf8'));
 
-            // Extract the review content from the execution log
-            // The execution log contains the full conversation including Claude's responses
+            // Extract the review content from the execution log.
+            // SDK messages store the assistant response under message.content.
+            const getTextContent = (content) => {
+              if (typeof content === 'string') {
+                return content;
+              }
+
+              if (Array.isArray(content)) {
+                return content
+                  .filter(
+                    (block) => block?.type === 'text' && typeof block.text === 'string'
+                  )
+                  .map((block) => block.text)
+                  .join('\n');
+              }
+
+              return '';
+            };
+
             let review = '';
 
             // Find the last assistant message which should contain the review
             for (let i = executionLog.length - 1; i >= 0; i--) {
-              if (executionLog[i].role === 'assistant') {
-                review = executionLog[i].content;
-                break;
+              const entry = executionLog[i];
+              if (entry?.type === 'assistant') {
+                review = getTextContent(entry.message?.content);
+                if (review) {
+                  break;
+                }
               }
             }
 
