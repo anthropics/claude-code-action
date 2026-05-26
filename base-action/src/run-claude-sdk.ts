@@ -15,6 +15,14 @@ export type ClaudeRunResult = {
   sessionId?: string;
   conclusion: "success" | "failure";
   structuredOutput?: string;
+  /**
+   * Claude's final assistant text response, extracted from the last
+   * `type: "assistant"` message in the stream. Useful for read-only
+   * review workflows that capture the response in a sandboxed AI job
+   * and post it from a separate, more-privileged job (defense-in-depth).
+   * Undefined when Claude's last action was a tool call (no text).
+   */
+  finalMessage?: string;
 };
 
 /** Filename for the user request file, written by prompt generation */
@@ -130,6 +138,48 @@ function sanitizeSdkOutput(
 }
 
 /**
+ * Extract the final assistant text response from the message stream.
+ *
+ * Walks `messages` backward to find the last `type: "assistant"` message
+ * and joins all of its `type: "text"` content blocks with newlines.
+ *
+ * Returns `undefined` when there are no assistant messages, or when the
+ * last assistant message contains only tool_use blocks (no text). This is
+ * intentional: when the agent's last action was a tool call rather than
+ * speech, there is no "final message" to surface.
+ *
+ * Mirrors the text-extraction logic in src/entrypoints/format-turns.ts so
+ * the output here matches what users see in the Step Summary.
+ */
+export function extractFinalAssistantMessage(
+  messages: SDKMessage[],
+): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (!msg || msg.type !== "assistant") continue;
+    if (!("message" in msg) || !msg.message) continue;
+
+    const content = (msg.message as { content?: unknown }).content;
+    if (!Array.isArray(content)) return undefined;
+
+    const textParts: string[] = [];
+    for (const block of content) {
+      if (
+        block != null &&
+        typeof block === "object" &&
+        (block as { type?: unknown }).type === "text" &&
+        typeof (block as { text?: unknown }).text === "string"
+      ) {
+        textParts.push((block as { text: string }).text);
+      }
+    }
+
+    return textParts.length > 0 ? textParts.join("\n") : undefined;
+  }
+  return undefined;
+}
+
+/**
  * Run Claude using the Agent SDK
  */
 export async function runClaudeWithSdk(
@@ -234,6 +284,15 @@ export async function runClaudeWithSdk(
           : "unknown error"
       }`,
     );
+  }
+
+  // Extract Claude's final assistant text response for downstream steps.
+  // See ClaudeRunResult.finalMessage for the rationale (defense-in-depth
+  // review workflows that post from a separate, more-privileged job).
+  const finalMessage = extractFinalAssistantMessage(messages);
+  if (finalMessage) {
+    result.finalMessage = finalMessage;
+    core.info(`Set final_message (${finalMessage.length} chars)`);
   }
 
   return result;
