@@ -6,6 +6,21 @@ export type RetryOptions = {
   shouldRetry?: (error: Error) => boolean;
 };
 
+/**
+ * Error class for errors that should not be retried.
+ * When thrown inside a retryWithBackoff operation, the retry loop
+ * will immediately rethrow without further attempts.
+ */
+export class NonRetryableError extends Error {
+  constructor(
+    message: string,
+    public readonly cause?: Error,
+  ) {
+    super(message);
+    this.name = "NonRetryableError";
+  }
+}
+
 export async function retryWithBackoff<T>(
   operation: () => Promise<T>,
   options: RetryOptions = {},
@@ -26,6 +41,11 @@ export async function retryWithBackoff<T>(
       console.log(`Attempt ${attempt} of ${maxAttempts}...`);
       return await operation();
     } catch (error) {
+      // Non-retryable errors should fail immediately without further retries
+      if (error instanceof NonRetryableError) {
+        throw error.cause ?? error;
+      }
+
       lastError = error instanceof Error ? error : new Error(String(error));
       console.error(`Attempt ${attempt} failed:`, lastError.message);
 
