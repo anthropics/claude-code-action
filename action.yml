@@ -187,6 +187,7 @@ runs:
   using: "composite"
   steps:
     - name: Install Bun
+      id: setup-bun
       if: inputs.path_to_bun_executable == ''
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # https://github.com/oven-sh/setup-bun/releases/tag/v2.2.0
       with:
@@ -238,11 +239,20 @@ runs:
       if: ${{ inputs.allowed_non_write_users != '' }}
       continue-on-error: true
       shell: bash
+      env:
+        PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
+        SETUP_BUN_PATH: ${{ steps.setup-bun.outputs.bun-path }}
       run: |
         # Keep a copy of the bun binary alongside the action's own files so
-        # post-steps use the same version that was on PATH at action start.
+        # post-steps use the same version the action installed or was given.
         mkdir -p "$GITHUB_ACTION_PATH/bin"
-        cp "$(command -v bun)" "$GITHUB_ACTION_PATH/bin/bun"
+        for bun_path in "$PATH_TO_BUN_EXECUTABLE" "$SETUP_BUN_PATH" "$(command -v bun || true)"; do
+          if [ -n "$bun_path" ] && [ -x "$bun_path" ]; then
+            cp "$bun_path" "$GITHUB_ACTION_PATH/bin/bun"
+            break
+          fi
+        done
+        test -x "$GITHUB_ACTION_PATH/bin/bun"
 
     - name: Prepend system bin dirs to PATH
       if: ${{ inputs.allowed_non_write_users != '' && runner.os != 'Windows' }}
