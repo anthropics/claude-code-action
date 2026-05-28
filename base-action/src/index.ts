@@ -45,6 +45,7 @@ async function run() {
       mcpConfig: process.env.INPUT_MCP_CONFIG,
       systemPrompt: process.env.INPUT_SYSTEM_PROMPT,
       appendSystemPrompt: process.env.INPUT_APPEND_SYSTEM_PROMPT,
+      excludeDynamicSections: process.env.INPUT_EXCLUDE_DYNAMIC_SECTIONS === "true",
       fallbackModel: process.env.INPUT_FALLBACK_MODEL,
       model: process.env.ANTHROPIC_MODEL,
       pathToClaudeCodeExecutable: claudeExecutable,
