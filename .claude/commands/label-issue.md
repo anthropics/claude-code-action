@@ -17,7 +17,6 @@ TASK OVERVIEW:
 1. First, fetch the list of labels available in this repository by running: `./scripts/gh.sh label list`. Run exactly this command with nothing else.
 
 2. Next, use gh wrapper commands to get context about the issue:
-
    - Use `./scripts/gh.sh issue view ${{ github.event.issue.number }}` to retrieve the current issue's details
    - Use `./scripts/gh.sh search issues` to find similar issues that might provide context for proper categorization
    - `./scripts/gh.sh` is a wrapper for `gh` CLI. Example commands:
@@ -28,7 +27,6 @@ TASK OVERVIEW:
    - `./scripts/edit-issue-labels.sh` — apply labels to the issue
 
 3. Analyze the issue content, considering:
-
    - The issue title and description
    - The type of issue (bug report, feature request, question, etc.)
    - Technical areas mentioned
@@ -37,7 +35,6 @@ TASK OVERVIEW:
    - Components affected
 
 4. Select appropriate labels from the available labels list provided above:
-
    - Choose labels that accurately reflect the issue's nature
    - Be specific but comprehensive
    - IMPORTANT: Add a priority label (P1, P2, or P3) based on the label descriptions from ./scripts/gh.sh label list
