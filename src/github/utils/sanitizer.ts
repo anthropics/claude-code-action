@@ -20,15 +20,23 @@ export function stripMarkdownLinkTitles(content: string): string {
 }
 
 export function stripHiddenAttributes(content: string): string {
-  content = content.replace(/\salt\s*=\s*["'][^"']*["']/gi, "");
+  // Quoted values are matched per quote type so that a value containing the
+  // other quote character (e.g. an apostrophe inside a double-quoted value)
+  // does not terminate the match early and mangle surrounding content (#1366).
+  content = content.replace(/\salt\s*=\s*"[^"]*"/gi, "");
+  content = content.replace(/\salt\s*=\s*'[^']*'/gi, "");
   content = content.replace(/\salt\s*=\s*[^\s>]+/gi, "");
-  content = content.replace(/\stitle\s*=\s*["'][^"']*["']/gi, "");
+  content = content.replace(/\stitle\s*=\s*"[^"]*"/gi, "");
+  content = content.replace(/\stitle\s*=\s*'[^']*'/gi, "");
   content = content.replace(/\stitle\s*=\s*[^\s>]+/gi, "");
-  content = content.replace(/\saria-label\s*=\s*["'][^"']*["']/gi, "");
+  content = content.replace(/\saria-label\s*=\s*"[^"]*"/gi, "");
+  content = content.replace(/\saria-label\s*=\s*'[^']*'/gi, "");
   content = content.replace(/\saria-label\s*=\s*[^\s>]+/gi, "");
-  content = content.replace(/\sdata-[a-zA-Z0-9-]+\s*=\s*["'][^"']*["']/gi, "");
+  content = content.replace(/\sdata-[a-zA-Z0-9-]+\s*=\s*"[^"]*"/gi, "");
+  content = content.replace(/\sdata-[a-zA-Z0-9-]+\s*=\s*'[^']*'/gi, "");
   content = content.replace(/\sdata-[a-zA-Z0-9-]+\s*=\s*[^\s>]+/gi, "");
-  content = content.replace(/\splaceholder\s*=\s*["'][^"']*["']/gi, "");
+  content = content.replace(/\splaceholder\s*=\s*"[^"]*"/gi, "");
+  content = content.replace(/\splaceholder\s*=\s*'[^']*'/gi, "");
   content = content.replace(/\splaceholder\s*=\s*[^\s>]+/gi, "");
   return content;
 }
