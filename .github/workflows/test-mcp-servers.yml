@@ -27,6 +27,8 @@ jobs:
         with:
           prompt: "List all available tools"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Explicitly include project so .mcp.json is discovered regardless of the event-gated default
+          setting_sources: "user,project"
         env:
           # Change to test directory so it finds .mcp.json
           CLAUDE_WORKING_DIR: ${{ github.workspace }}/base-action/test/mcp-test
@@ -108,7 +110,11 @@ jobs:
         with:
           prompt: "List all available tools"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          mcp_config: '{"mcpServers":{"test-server":{"type":"stdio","command":"bun","args":["simple-mcp-server.ts"],"env":{}}}}'
+          # mcp_config input was removed; pass via claude_args. Pin setting_sources to "user"
+          # so .mcp.json is NOT auto-discovered — this proves the flag itself works.
+          setting_sources: "user"
+          claude_args: >-
+            --mcp-config '{"mcpServers":{"test-server":{"type":"stdio","command":"bun","args":["simple-mcp-server.ts"],"env":{}}}}'
         env:
           # Change to test directory so bun can find the MCP server script
           CLAUDE_WORKING_DIR: ${{ github.workspace }}/base-action/test/mcp-test

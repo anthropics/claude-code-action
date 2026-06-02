@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, afterEach } from "bun:test";
 import { parseSdkOptions } from "../src/parse-sdk-options";
 import type { ClaudeOptions } from "../src/run-claude";
 
@@ -420,6 +420,131 @@ describe("parseSdkOptions", () => {
       } finally {
         process.env = originalEnv;
       }
+    });
+  });
+
+  describe("settingSources", () => {
+    const originalEventName = process.env.GITHUB_EVENT_NAME;
+    afterEach(() => {
+      if (originalEventName === undefined) {
+        delete process.env.GITHUB_EVENT_NAME;
+      } else {
+        process.env.GITHUB_EVENT_NAME = originalEventName;
+      }
+    });
+
+    test("should default to ['user','project','local'] for non-gated events", () => {
+      process.env.GITHUB_EVENT_NAME = "push";
+      const result = parseSdkOptions({});
+
+      expect(result.sdkOptions.settingSources).toEqual([
+        "user",
+        "project",
+        "local",
+      ]);
+    });
+
+    test("should default to ['user'] under pull_request_target", () => {
+      process.env.GITHUB_EVENT_NAME = "pull_request_target";
+      const result = parseSdkOptions({});
+
+      expect(result.sdkOptions.settingSources).toEqual(["user"]);
+    });
+
+    test("should default to ['user'] under workflow_run", () => {
+      process.env.GITHUB_EVENT_NAME = "workflow_run";
+      const result = parseSdkOptions({});
+
+      expect(result.sdkOptions.settingSources).toEqual(["user"]);
+    });
+
+    test("should default to ['user'] under issue_comment", () => {
+      process.env.GITHUB_EVENT_NAME = "issue_comment";
+      const result = parseSdkOptions({});
+
+      expect(result.sdkOptions.settingSources).toEqual(["user"]);
+    });
+
+    test("should use direct settingSources input when provided", () => {
+      const options: ClaudeOptions = {
+        settingSources: "user,project,local",
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual([
+        "user",
+        "project",
+        "local",
+      ]);
+    });
+
+    test("should use --setting-sources from claudeArgs when no direct input", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--setting-sources user,project",
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual(["user", "project"]);
+      expect(result.sdkOptions.extraArgs?.["setting-sources"]).toBeUndefined();
+    });
+
+    test("direct input should take precedence over claudeArgs", () => {
+      const options: ClaudeOptions = {
+        settingSources: "user",
+        claudeArgs: "--setting-sources user,project,local",
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual(["user"]);
+    });
+
+    test("should trim whitespace in comma-separated values", () => {
+      const options: ClaudeOptions = {
+        settingSources: "user, project , local",
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual([
+        "user",
+        "project",
+        "local",
+      ]);
+    });
+
+    test("explicit defaultSettingSources overrides the event-gated default", () => {
+      process.env.GITHUB_EVENT_NAME = "pull_request_target";
+      const options: ClaudeOptions = {
+        defaultSettingSources: ["user", "project", "local"],
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual([
+        "user",
+        "project",
+        "local",
+      ]);
+    });
+
+    test("--setting-sources in claudeArgs should win over defaultSettingSources", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--setting-sources user",
+        defaultSettingSources: ["user", "project", "local"],
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual(["user"]);
+    });
+
+    test("empty-string settingSources falls through to claudeArgs then default", () => {
+      // YAML default: "" — INPUT_SETTING_SOURCES is "" when the user doesn't set the input
+      const options: ClaudeOptions = {
+        settingSources: "",
+        claudeArgs: "--setting-sources user,project",
+        defaultSettingSources: ["user", "project", "local"],
+      };
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.settingSources).toEqual(["user", "project"]);
     });
   });
 });

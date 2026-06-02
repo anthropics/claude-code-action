@@ -271,13 +271,22 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     extraArgs,
     env,
 
-    // Load settings from sources - prefer user's --setting-sources if provided, otherwise use all sources
-    // This ensures users can override the default behavior (e.g., --setting-sources user to avoid in-repo configs)
-    settingSources: extraArgs["setting-sources"]
-      ? (extraArgs["setting-sources"].split(
-          ",",
-        ) as SdkOptions["settingSources"])
-      : ["user", "project", "local"],
+    // Setting sources precedence: direct input > --setting-sources in claude_args > default.
+    // The default is supplied by the caller (the wrapper action passes
+    // ["user","project","local"]); base-action applies an event-gated default of ["user"]
+    // under pull_request_target/workflow_run/issue_comment and ["user","project","local"]
+    // otherwise. Both action.yml files leave the YAML default empty so that
+    // --setting-sources in claude_args is reachable when the input is not set.
+    settingSources: (options.settingSources
+      ? options.settingSources.split(",").map((s) => s.trim())
+      : extraArgs["setting-sources"]
+        ? extraArgs["setting-sources"].split(",").map((s) => s.trim())
+        : (options.defaultSettingSources ??
+          (process.env.GITHUB_EVENT_NAME === "pull_request_target" ||
+          process.env.GITHUB_EVENT_NAME === "workflow_run" ||
+          process.env.GITHUB_EVENT_NAME === "issue_comment"
+            ? ["user"]
+            : ["user", "project", "local"]))) as SdkOptions["settingSources"],
   };
 
   // Remove setting-sources from extraArgs to avoid passing it twice

@@ -249,6 +249,7 @@ async function run() {
     // lacks base.ref, so we fall back to the mode-provided value — tag mode
     // fetches it from GraphQL; agent mode on issue_comment is an edge case
     // that at worst restores from the wrong trusted branch (still secure).
+    let configRestoredFromBase = false;
     if (isEntityContext(context) && context.isPR) {
       let restoreBase = baseBranch;
       if (
@@ -261,6 +262,7 @@ async function run() {
       }
       if (restoreBase) {
         restoreConfigFromBase(restoreBase);
+        configRestoredFromBase = true;
       }
     }
 
@@ -286,6 +288,13 @@ async function run() {
       model: process.env.ANTHROPIC_MODEL,
       pathToClaudeCodeExecutable: claudeExecutable,
       showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
+      settingSources: process.env.INPUT_SETTING_SOURCES,
+      // Only assert that project/local config is safe to load when it was actually
+      // restored from the base branch above. Otherwise leave undefined so
+      // parseSdkOptions applies its event-gated default.
+      defaultSettingSources: configRestoredFromBase
+        ? ["user", "project", "local"]
+        : undefined,
     });
 
     claudeSuccess = claudeResult.conclusion === "success";
