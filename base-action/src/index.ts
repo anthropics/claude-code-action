@@ -42,6 +42,7 @@ async function run() {
       allowedTools: process.env.INPUT_ALLOWED_TOOLS,
       disallowedTools: process.env.INPUT_DISALLOWED_TOOLS,
       maxTurns: process.env.INPUT_MAX_TURNS,
+      taskBudget: process.env.INPUT_TASK_BUDGET,
       mcpConfig: process.env.INPUT_MCP_CONFIG,
       systemPrompt: process.env.INPUT_SYSTEM_PROMPT,
       appendSystemPrompt: process.env.INPUT_APPEND_SYSTEM_PROMPT,

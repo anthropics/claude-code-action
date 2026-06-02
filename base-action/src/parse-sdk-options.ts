@@ -258,6 +258,9 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     // Direct options from ClaudeOptions inputs
     model: options.model,
     maxTurns: options.maxTurns ? parseInt(options.maxTurns, 10) : undefined,
+    taskBudget: options.taskBudget
+      ? { total: parseInt(options.taskBudget, 10) }
+      : undefined,
     allowedTools:
       mergedAllowedTools.length > 0 ? mergedAllowedTools : undefined,
     disallowedTools:
