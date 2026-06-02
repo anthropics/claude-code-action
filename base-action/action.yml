@@ -34,6 +34,26 @@ inputs:
     description: "Claude Code OAuth token (alternative to anthropic_api_key)"
     required: false
     default: ""
+  anthropic_federation_rule_id:
+    description: "Workload identity federation rule ID (fdrl_...). When set with anthropic_organization_id, the action authenticates to the Claude API by exchanging the workflow's GitHub OIDC token instead of using a static API key. Requires `id-token: write` permission."
+    required: false
+    default: ""
+  anthropic_organization_id:
+    description: "Anthropic organization UUID used for workload identity federation"
+    required: false
+    default: ""
+  anthropic_service_account_id:
+    description: "Service account ID (svac_...) the federated token acts as (optional, used with workload identity federation)"
+    required: false
+    default: ""
+  anthropic_workspace_id:
+    description: "Workspace ID (wrkspc_...) for workload identity federation. Optional when the federation rule targets a single workspace."
+    required: false
+    default: ""
+  anthropic_oidc_audience:
+    description: "Audience to request on the GitHub OIDC token used for workload identity federation. Defaults to https://api.anthropic.com."
+    required: false
+    default: ""
   use_bedrock:
     description: "Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API"
     required: false
@@ -175,6 +195,11 @@ runs:
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
+        ANTHROPIC_FEDERATION_RULE_ID: ${{ inputs.anthropic_federation_rule_id }}
+        ANTHROPIC_ORGANIZATION_ID: ${{ inputs.anthropic_organization_id }}
+        ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ inputs.anthropic_service_account_id }}
+        ANTHROPIC_WORKSPACE_ID: ${{ inputs.anthropic_workspace_id }}
+        ANTHROPIC_OIDC_AUDIENCE: ${{ inputs.anthropic_oidc_audience }}
         ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
         ANTHROPIC_CUSTOM_HEADERS: ${{ env.ANTHROPIC_CUSTOM_HEADERS }}
         # Only set provider flags if explicitly true, since any value (including "false") is truthy

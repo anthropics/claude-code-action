@@ -29,13 +29,13 @@ import { prepareAgentMode } from "../modes/agent";
 import { checkContainsTrigger } from "../github/validation/trigger";
 import { restoreConfigFromBase } from "../github/operations/restore-config";
 import { validateBranchName } from "../github/operations/branch";
-import { setupWorkloadIdentity } from "../auth/workload-identity";
-import type { WorkloadIdentityHandle } from "../auth/workload-identity";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
 import { formatTurnsFromData } from "./format-turns";
 import type { Turn } from "./format-turns";
 // Base-action imports (used directly instead of subprocess)
+import { setupWorkloadIdentity } from "../../base-action/src/workload-identity";
+import type { WorkloadIdentityHandle } from "../../base-action/src/workload-identity";
 import { validateEnvironmentVariables } from "../../base-action/src/validate-env";
 import { setupClaudeCodeSettings } from "../../base-action/src/setup-claude-code-settings";
 import { installPlugins } from "../../base-action/src/install-plugins";
