@@ -94,6 +94,7 @@ runs:
       with:
         node-version: ${{ env.NODE_VERSION || '18.x' }}
         cache: ${{ inputs.use_node_cache == 'true' && 'npm' || '' }}
+        package-manager-cache: false
 
     - name: Install Bun
       if: inputs.path_to_bun_executable == ''
