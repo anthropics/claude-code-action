@@ -10,6 +10,13 @@ on:
         default: "List the files in the current directory starting with 'package'"
   workflow_call:
 
+# The Claude API is authenticated via workload identity federation: id-token
+# lets the action mint the GitHub OIDC token it exchanges for a short-lived
+# access token. See docs/setup.md.
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   test-inline-prompt:
     runs-on: ubuntu-latest
@@ -21,7 +28,9 @@ jobs:
         uses: ./base-action
         with:
           prompt: ${{ github.event.inputs.test_prompt || 'List the files in the current directory starting with "package"' }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           allowed_tools: "LS,Read"
 
       - name: Verify inline prompt output
@@ -78,7 +87,9 @@ jobs:
         uses: ./base-action
         with:
           prompt_file: "test-prompt.txt"
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           allowed_tools: "LS,Read"
 
       - name: Verify prompt file output

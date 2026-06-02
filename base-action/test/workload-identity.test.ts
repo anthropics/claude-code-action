@@ -8,7 +8,7 @@ import { join } from "path";
 import {
   isWorkloadIdentityConfigured,
   setupWorkloadIdentity,
-} from "../src/auth/workload-identity";
+} from "../src/workload-identity";
 
 describe("workload identity federation", () => {
   let originalEnv: NodeJS.ProcessEnv;

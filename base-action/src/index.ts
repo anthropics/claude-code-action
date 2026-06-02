@@ -7,9 +7,16 @@ import { setupClaudeCodeSettings } from "./setup-claude-code-settings";
 import { validateEnvironmentVariables } from "./validate-env";
 import { installPlugins } from "./install-plugins";
 import { setExecutionFileOutputIfPresent } from "./execution-file";
+import { setupWorkloadIdentity } from "./workload-identity";
+import type { WorkloadIdentityHandle } from "./workload-identity";
 
 async function run() {
+  let workloadIdentity: WorkloadIdentityHandle | undefined;
   try {
+    // When workload identity federation is configured, fetch the GitHub OIDC
+    // identity token and expose it to the CLI before validating auth env vars.
+    workloadIdentity = await setupWorkloadIdentity();
+
     validateEnvironmentVariables();
 
     // The composite action's "Install Claude Code" step writes the binary to
@@ -67,6 +74,9 @@ async function run() {
     core.setFailed(`Action failed with error: ${error}`);
     core.setOutput("conclusion", "failure");
     process.exit(1);
+  } finally {
+    // Stop refreshing the workload identity token file so the process can exit
+    workloadIdentity?.stop();
   }
 }
 
