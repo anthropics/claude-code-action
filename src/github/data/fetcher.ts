@@ -299,7 +299,7 @@ export async function fetchGitHubData({
           includeCommentsByActor,
           excludeCommentsByActor,
         );
-        reviewData = pullRequest.reviews || [];
+        reviewData = pullRequest.reviews || { nodes: [] };
 
         console.log(`Successfully fetched PR #${prNumber} data`);
       } else {

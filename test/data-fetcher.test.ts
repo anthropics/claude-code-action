@@ -1006,6 +1006,8 @@ describe("fetchGitHubData integration with time filtering", () => {
             baseRefName: "main",
             headRefName: "feature",
             headRefOid: "abc123",
+            isCrossRepository: false,
+            headRepository: { owner: { login: "testowner" }, name: "testrepo" },
             createdAt: "2024-01-15T10:00:00Z",
             updatedAt: "2024-01-15T12:30:00Z", // Edited after trigger
             lastEditedAt: "2024-01-15T12:30:00Z", // Edited after trigger
