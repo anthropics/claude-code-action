@@ -51,6 +51,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(
       `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+      "i",
     );
 
     // Check in body
@@ -77,6 +78,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(
       `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+      "i",
     );
 
     // Check in body
@@ -105,6 +107,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(
       `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+      "i",
     );
     if (regex.test(reviewBody)) {
       console.log(
@@ -125,6 +128,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(
       `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+      "i",
     );
     if (regex.test(commentBody)) {
       console.log(`Comment contains exact trigger phrase '${triggerPhrase}'`);

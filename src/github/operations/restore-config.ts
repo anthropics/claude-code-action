@@ -1,5 +1,13 @@
 import { execFileSync } from "child_process";
-import { cpSync, existsSync, rmSync } from "fs";
+import {
+  appendFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+} from "fs";
+import { dirname } from "path";
 
 // Paths that are both PR-controllable and read from cwd at CLI startup.
 //
@@ -19,6 +27,30 @@ const SENSITIVE_PATHS = [
   "CLAUDE.local.md",
   ".husky",
 ];
+
+const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
+
+function ensureClaudePrExcludedFromGit(): void {
+  const excludePath = execFileSync(
+    "git",
+    ["rev-parse", "--git-path", "info/exclude"],
+    { encoding: "utf8" },
+  ).trim();
+
+  const excludeContents = existsSync(excludePath)
+    ? readFileSync(excludePath, "utf8")
+    : "";
+
+  if (excludeContents.split(/\r?\n/).includes(CLAUDE_PR_EXCLUDE_PATTERN)) {
+    return;
+  }
+
+  mkdirSync(dirname(excludePath), { recursive: true });
+
+  const prefix =
+    excludeContents.length === 0 || excludeContents.endsWith("\n") ? "" : "\n";
+  appendFileSync(excludePath, `${prefix}${CLAUDE_PR_EXCLUDE_PATTERN}\n`);
+}
 
 /**
  * Restores security-sensitive config paths from the PR base branch.
@@ -54,13 +86,14 @@ export function restoreConfigFromBase(baseBranch: string): void {
   rmSync(".claude-pr", { recursive: true, force: true });
   for (const p of SENSITIVE_PATHS) {
     if (existsSync(p)) {
-      cpSync(p, `.claude-pr/${p}`, { recursive: true });
+      cpSync(p, `.claude-pr/${p}`, { recursive: true, dereference: true });
     }
   }
   if (existsSync(".claude-pr")) {
     console.log(
-      "Preserved PR's sensitive paths → .claude-pr/ for review agents (not executed)",
+      "Preserved PR's sensitive paths -> .claude-pr/ for review agents (not executed)",
     );
+    ensureClaudePrExcludedFromGit();
   }
 
   // Delete PR-controlled versions BEFORE fetching so the attacker-controlled

@@ -11,6 +11,9 @@ jobs:
     permissions:
       contents: read
       issues: write
+      # Required to mint the OIDC token that is exchanged for a Claude API
+      # access token (Workload Identity Federation).
+      id-token: write
 
     steps:
       - name: Checkout repository
@@ -24,6 +27,11 @@ jobs:
           CLAUDE_CODE_SCRIPT_CAPS: '{"edit-issue-labels.sh":2}'
         with:
           prompt: "/label-issue REPO: ${{ github.repository }} ISSUE_NUMBER: ${{ github.event.issue.number }}"
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Authenticate to the Claude API via Workload Identity Federation
+          # (the workflow's OIDC token is exchanged for a short-lived access
+          # token) instead of a static API key. See docs/setup.md.
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           allowed_non_write_users: "*" # Required for issue triage workflow, if users without repo write access create issues
           github_token: ${{ secrets.GITHUB_TOKEN }}

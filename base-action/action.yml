@@ -34,6 +34,26 @@ inputs:
     description: "Claude Code OAuth token (alternative to anthropic_api_key)"
     required: false
     default: ""
+  anthropic_federation_rule_id:
+    description: "Workload identity federation rule ID (fdrl_...). When set with anthropic_organization_id, the action authenticates to the Claude API by exchanging the workflow's GitHub OIDC token instead of using a static API key. Requires `id-token: write` permission."
+    required: false
+    default: ""
+  anthropic_organization_id:
+    description: "Anthropic organization UUID used for workload identity federation"
+    required: false
+    default: ""
+  anthropic_service_account_id:
+    description: "Service account ID (svac_...) the federated token acts as (optional, used with workload identity federation)"
+    required: false
+    default: ""
+  anthropic_workspace_id:
+    description: "Workspace ID (wrkspc_...) for workload identity federation. Optional when the federation rule targets a single workspace."
+    required: false
+    default: ""
+  anthropic_oidc_audience:
+    description: "Audience to request on the GitHub OIDC token used for workload identity federation. Defaults to https://api.anthropic.com."
+    required: false
+    default: ""
   use_bedrock:
     description: "Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API"
     required: false
@@ -90,16 +110,17 @@ runs:
   using: "composite"
   steps:
     - name: Setup Node.js
-      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # https://github.com/actions/setup-node/releases/tag/v4.4.0
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # https://github.com/actions/setup-node/releases/tag/v6.4.0
       with:
         node-version: ${{ env.NODE_VERSION || '18.x' }}
         cache: ${{ inputs.use_node_cache == 'true' && 'npm' || '' }}
+        package-manager-cache: false
 
     - name: Install Bun
       if: inputs.path_to_bun_executable == ''
       uses: classpass/setup-bun@main
       with:
-        bun-version: 1.3.6
+        bun-version: 1.3.14
 
     - name: Setup Custom Bun Path
       if: inputs.path_to_bun_executable != ''
@@ -124,7 +145,7 @@ runs:
         PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
       run: |
         if [ -z "$PATH_TO_CLAUDE_CODE_EXECUTABLE" ]; then
-          CLAUDE_CODE_VERSION="2.1.112"
+          CLAUDE_CODE_VERSION="2.1.161"
           echo "Installing Claude Code v${CLAUDE_CODE_VERSION}..."
           for attempt in 1 2 3; do
             echo "Installation attempt $attempt..."
@@ -175,6 +196,11 @@ runs:
         # Provider configuration
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
+        ANTHROPIC_FEDERATION_RULE_ID: ${{ inputs.anthropic_federation_rule_id }}
+        ANTHROPIC_ORGANIZATION_ID: ${{ inputs.anthropic_organization_id }}
+        ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ inputs.anthropic_service_account_id }}
+        ANTHROPIC_WORKSPACE_ID: ${{ inputs.anthropic_workspace_id }}
+        ANTHROPIC_OIDC_AUDIENCE: ${{ inputs.anthropic_oidc_audience }}
         ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
         ANTHROPIC_CUSTOM_HEADERS: ${{ env.ANTHROPIC_CUSTOM_HEADERS }}
         # Only set provider flags if explicitly true, since any value (including "false") is truthy

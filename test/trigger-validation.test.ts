@@ -186,6 +186,8 @@ describe("checkContainsTrigger", () => {
         { issueBody: "@claude: here's the issue", expected: true },
         { issueBody: "@claude; and another thing", expected: true },
         { issueBody: "Hey @claude, can you help?", expected: true },
+        { issueBody: "@Claude can you help?", expected: true },
+        { issueBody: "@CLAUDE fix this", expected: true },
         { issueBody: "claudette contains claude", expected: false },
         { issueBody: "email@claude.com", expected: false },
       ];

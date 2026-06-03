@@ -1,0 +1,56 @@
+name: Claude Code (Workload Identity Federation)
+
+# Authenticates to the Claude API by exchanging the workflow's GitHub OIDC
+# token for a short-lived access token — no ANTHROPIC_API_KEY secret needed.
+# One-time Console setup (issuer, service account, federation rule):
+# https://platform.claude.com/docs/en/manage-claude/workload-identity-federation
+# See also docs/setup.md#workload-identity-federation in this repository.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write # Required: used to fetch the GitHub OIDC token for the federation exchange
+      actions: read # Required for Claude to read CI results on PRs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          # These values are identifiers, not secrets — they can live directly
+          # in the workflow file or in repository variables.
+          anthropic_federation_rule_id: fdrl_xxxxxxxxxxxx
+          anthropic_organization_id: 00000000-0000-0000-0000-000000000000
+          anthropic_service_account_id: svac_xxxxxxxxxxxx
+
+          # Optional: only needed when the federation rule targets more than
+          # one workspace.
+          # anthropic_workspace_id: wrkspc_xxxxxxxxxxxx
+
+          # Optional: audience requested on the GitHub OIDC token. Defaults to
+          # https://api.anthropic.com — only set this if your federation rule
+          # expects a different audience.
+          # anthropic_oidc_audience: https://example.com/custom-audience
