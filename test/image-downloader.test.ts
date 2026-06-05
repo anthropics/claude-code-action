@@ -9,9 +9,37 @@ import {
   setSystemTime,
 } from "bun:test";
 import fs from "fs/promises";
+import { readFileSync } from "fs";
+import { join } from "path";
 import { downloadCommentImages } from "../src/github/utils/image-downloader";
 import type { CommentWithImages } from "../src/github/utils/image-downloader";
 import type { Octokits } from "../src/github/api/client";
+
+// Load actual image fixtures
+const fixturesDir = join(import.meta.dir, "fixtures", "images");
+const testImages = {
+  png: readFileSync(join(fixturesDir, "test.png")),
+  jpg: readFileSync(join(fixturesDir, "test.jpg")),
+  gif: readFileSync(join(fixturesDir, "test.gif")),
+  webp: readFileSync(join(fixturesDir, "test.webp")),
+};
+
+// Helper function to get test image data
+function getTestImageBuffer(format: string): ArrayBuffer {
+  switch (format) {
+    case "jpg":
+    case "jpeg":
+      return testImages.jpg.buffer;
+    case "png":
+      return testImages.png.buffer;
+    case "gif":
+      return testImages.gif.buffer;
+    case "webp":
+      return testImages.webp.buffer;
+    default:
+      return testImages.png.buffer;
+  }
+}
 
 describe("downloadCommentImages", () => {
   let consoleLogSpy: any;
@@ -111,7 +139,7 @@ describe("downloadCommentImages", () => {
     });
 
     // Mock fetch for image download
-    const mockArrayBuffer = new ArrayBuffer(8);
+    const mockArrayBuffer = getTestImageBuffer("png");
     fetchSpy = spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       arrayBuffer: async () => mockArrayBuffer,
@@ -174,7 +202,7 @@ describe("downloadCommentImages", () => {
 
     fetchSpy = spyOn(global, "fetch").mockResolvedValue({
       ok: true,
-      arrayBuffer: async () => new ArrayBuffer(8),
+      arrayBuffer: async () => getTestImageBuffer("jpg"),
     } as Response);
 
     const comments: CommentWithImages[] = [
@@ -220,7 +248,7 @@ describe("downloadCommentImages", () => {
 
     fetchSpy = spyOn(global, "fetch").mockResolvedValue({
       ok: true,
-      arrayBuffer: async () => new ArrayBuffer(8),
+      arrayBuffer: async () => getTestImageBuffer("png"),
     } as Response);
 
     const comments: CommentWithImages[] = [
@@ -268,7 +296,7 @@ describe("downloadCommentImages", () => {
 
     fetchSpy = spyOn(global, "fetch").mockResolvedValue({
       ok: true,
-      arrayBuffer: async () => new ArrayBuffer(8),
+      arrayBuffer: async () => getTestImageBuffer("gif"),
     } as Response);
 
     const comments: CommentWithImages[] = [
@@ -316,7 +344,7 @@ describe("downloadCommentImages", () => {
 
     fetchSpy = spyOn(global, "fetch").mockResolvedValue({
       ok: true,
-      arrayBuffer: async () => new ArrayBuffer(8),
+      arrayBuffer: async () => getTestImageBuffer("webp"),
     } as Response);
 
     const comments: CommentWithImages[] = [
@@ -365,10 +393,14 @@ describe("downloadCommentImages", () => {
       },
     });
 
-    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      arrayBuffer: async () => new ArrayBuffer(8),
-    } as Response);
+    let callCount = 0;
+    fetchSpy = spyOn(global, "fetch").mockImplementation((async () => {
+      const format = callCount++ === 0 ? "png" : "jpg";
+      return {
+        ok: true,
+        arrayBuffer: async () => getTestImageBuffer(format),
+      } as Response;
+    }) as any);
 
     const comments: CommentWithImages[] = [
       {
@@ -413,7 +445,7 @@ describe("downloadCommentImages", () => {
 
     fetchSpy = spyOn(global, "fetch").mockResolvedValue({
       ok: true,
-      arrayBuffer: async () => new ArrayBuffer(8),
+      arrayBuffer: async () => getTestImageBuffer("png"),
     } as Response);
 
     const comments: CommentWithImages[] = [
@@ -560,7 +592,7 @@ describe("downloadCommentImages", () => {
       },
       {
         url: "https://github.com/user-attachments/assets/test.jpeg",
-        ext: ".jpeg",
+        ext: ".jpg", // JPEG images are detected as .jpg from binary data
       },
       {
         url: "https://github.com/user-attachments/assets/test.gif",
@@ -570,15 +602,7 @@ describe("downloadCommentImages", () => {
         url: "https://github.com/user-attachments/assets/test.webp",
         ext: ".webp",
       },
-      {
-        url: "https://github.com/user-attachments/assets/test.svg",
-        ext: ".svg",
-      },
-      {
-        // default
-        url: "https://github.com/user-attachments/assets/no-extension",
-        ext: ".png",
-      },
+      // Note: SVG and unknown formats would be skipped (not included in test)
     ];
 
     let callIndex = 0;
@@ -589,12 +613,21 @@ describe("downloadCommentImages", () => {
       },
     });
 
-    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      arrayBuffer: async () => new ArrayBuffer(8),
-    } as Response);
-
     for (const { url, ext } of extensions) {
+      // Mock appropriate image data based on expected extension
+      const format =
+        ext === ".jpg"
+          ? "jpg"
+          : ext === ".gif"
+            ? "gif"
+            : ext === ".webp"
+              ? "webp"
+              : "png"; // Default to PNG for .png, .svg, and no extension
+
+      fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => getTestImageBuffer(format),
+      } as Response);
       const comments: CommentWithImages[] = [
         {
           type: "issue_comment",
@@ -637,7 +670,7 @@ describe("downloadCommentImages", () => {
 
     fetchSpy = spyOn(global, "fetch").mockResolvedValue({
       ok: true,
-      arrayBuffer: async () => new ArrayBuffer(8),
+      arrayBuffer: async () => getTestImageBuffer("png"),
     } as Response);
 
     const comments: CommentWithImages[] = [
@@ -679,7 +712,7 @@ describe("downloadCommentImages", () => {
     });
 
     // Mock fetch for image download
-    const mockArrayBuffer = new ArrayBuffer(8);
+    const mockArrayBuffer = getTestImageBuffer("png");
     fetchSpy = spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       arrayBuffer: async () => mockArrayBuffer,
@@ -744,10 +777,14 @@ describe("downloadCommentImages", () => {
       },
     });
 
-    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      arrayBuffer: async () => new ArrayBuffer(8),
-    } as Response);
+    let fetchCallCount = 0;
+    fetchSpy = spyOn(global, "fetch").mockImplementation((async () => {
+      const format = fetchCallCount++ === 0 ? "jpg" : "png";
+      return {
+        ok: true,
+        arrayBuffer: async () => getTestImageBuffer(format),
+      } as Response;
+    }) as any);
 
     const comments: CommentWithImages[] = [
       {
@@ -777,6 +814,64 @@ describe("downloadCommentImages", () => {
     );
   });
 
+  test("should detect actual image format from binary data when URL has no extension", async () => {
+    const mockOctokit = createMockOctokit();
+    // GitHub attachment URL without file extension (common case)
+    const imageUrl = "https://github.com/user-attachments/assets/abc123def456";
+    const signedUrl =
+      "https://private-user-images.githubusercontent.com/image?jwt=token";
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    // Create mock JPEG data (starts with FF D8 FF magic bytes)
+    const jpegMagicBytes = new Uint8Array([
+      0xff,
+      0xd8,
+      0xff,
+      0xe0, // JPEG magic bytes
+      0x00,
+      0x10,
+      0x4a,
+      0x46, // Additional JPEG header
+    ]);
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => jpegMagicBytes.buffer,
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "999",
+        body: `![Image](${imageUrl})`, // URL without extension
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    // Test verifies that JPEG images are correctly detected and saved as .jpg
+    // even when the URL has no file extension (common for GitHub attachments)
+    expect(fsWriteFileSpy).toHaveBeenCalledWith(
+      "/tmp/github-images/image-1704067200000-0.jpg", // Correctly saved as .jpg based on binary detection
+      Buffer.from(jpegMagicBytes.buffer),
+    );
+
+    expect(result.get(imageUrl)).toBe(
+      "/tmp/github-images/image-1704067200000-0.jpg", // Returns correct .jpg extension
+    );
+  });
+
   test("should handle mixed Markdown and HTML images", async () => {
     const mockOctokit = createMockOctokit();
     const markdownUrl =
@@ -794,10 +889,14 @@ describe("downloadCommentImages", () => {
       },
     });
 
-    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      arrayBuffer: async () => new ArrayBuffer(8),
-    } as Response);
+    let fetchCallCount = 0;
+    fetchSpy = spyOn(global, "fetch").mockImplementation((async () => {
+      const format = fetchCallCount++ === 0 ? "png" : "jpg";
+      return {
+        ok: true,
+        arrayBuffer: async () => getTestImageBuffer(format),
+      } as Response;
+    }) as any);
 
     const comments: CommentWithImages[] = [
       {
@@ -842,7 +941,7 @@ describe("downloadCommentImages", () => {
 
     fetchSpy = spyOn(global, "fetch").mockResolvedValue({
       ok: true,
-      arrayBuffer: async () => new ArrayBuffer(8),
+      arrayBuffer: async () => getTestImageBuffer("png"),
     } as Response);
 
     const comments: CommentWithImages[] = [
@@ -870,6 +969,56 @@ describe("downloadCommentImages", () => {
     );
   });
 
+  test("should skip images with unrecognized formats", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl =
+      "https://github.com/user-attachments/assets/unknown-format";
+    const signedUrl =
+      "https://private-user-images.githubusercontent.com/unknown?jwt=token";
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    // Create unrecognized binary data
+    const unknownData = Buffer.from([0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde]);
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => unknownData.buffer,
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "1002",
+        body: `Unknown format: ![unknown](${imageUrl})`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    // Should not save the file
+    expect(fsWriteFileSpy).not.toHaveBeenCalled();
+
+    // Should not add to result map
+    expect(result.size).toBe(0);
+    expect(result.get(imageUrl)).toBeUndefined();
+
+    // Should log warning
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Skipping unrecognized image format"),
+    );
+  });
+
   test("should handle HTML img tags with additional attributes", async () => {
     const mockOctokit = createMockOctokit();
     const imageUrl =
@@ -886,7 +1035,7 @@ describe("downloadCommentImages", () => {
 
     fetchSpy = spyOn(global, "fetch").mockResolvedValue({
       ok: true,
-      arrayBuffer: async () => new ArrayBuffer(8),
+      arrayBuffer: async () => getTestImageBuffer("webp"),
     } as Response);
 
     const comments: CommentWithImages[] = [

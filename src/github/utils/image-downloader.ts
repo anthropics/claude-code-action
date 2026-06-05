@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
+import { detectImageFormat } from "./detect-image-format";
 
 const escapedUrl = GITHUB_SERVER_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const IMAGE_REGEX = new RegExp(
@@ -192,10 +193,6 @@ export async function downloadCommentImages(
           continue;
         }
 
-        const fileExtension = getImageExtension(originalUrl);
-        const filename = `image-${Date.now()}-${i}${fileExtension}`;
-        const localPath = path.join(downloadsDir, filename);
-
         try {
           console.log(`Downloading ${originalUrl}...`);
 
@@ -208,6 +205,20 @@ export async function downloadCommentImages(
 
           const arrayBuffer = await imageResponse.arrayBuffer();
           const buffer = Buffer.from(arrayBuffer);
+
+          // Detect actual image format from binary data
+          const detectedExtension = detectImageFormat(buffer);
+
+          // Skip if format cannot be detected
+          if (!detectedExtension) {
+            console.warn(
+              `✗ Skipping unrecognized image format for ${originalUrl}`,
+            );
+            continue;
+          }
+
+          const filename = `image-${Date.now()}-${i}${detectedExtension}`;
+          const localPath = path.join(downloadsDir, filename);
 
           await fs.writeFile(localPath, buffer);
           console.log(`✓ Saved: ${localPath}`);
@@ -232,15 +243,4 @@ export async function downloadCommentImages(
   }
 
   return urlToPathMap;
-}
-
-function getImageExtension(url: string): string {
-  const urlParts = url.split("/");
-  const filename = urlParts[urlParts.length - 1];
-  if (!filename) {
-    throw new Error("Invalid URL: No filename found");
-  }
-
-  const match = filename.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i);
-  return match ? match[0] : ".png";
 }
