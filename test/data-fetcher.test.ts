@@ -723,16 +723,17 @@ describe("fetchGitHubData integration with time filtering", () => {
       triggerTime: "2024-01-15T12:00:00Z",
     });
 
-    // The reviewData field returns all reviews (not filtered), but the filtering
-    // happens when processing review bodies for download
-    // We can check the image download map to verify filtering
-    expect(result.reviewData?.nodes?.length).toBe(3); // All reviews are returned
+    // Only the review submitted before the trigger and not edited afterward
+    // reaches the prompt. The review submitted after the trigger and the one
+    // edited after the trigger are dropped (TOCTOU protection), matching the
+    // issue/PR comment and body handling.
+    expect(result.reviewData?.nodes?.length).toBe(1);
+    expect(result.reviewData?.nodes?.[0]?.databaseId).toBe("1");
 
-    // Check that only the first review's body would be downloaded (filtered)
+    // Only that surviving review's body is queued for image download.
     const reviewsInMap = Object.keys(result.imageUrlMap).filter((key) =>
       key.startsWith("review_body"),
     );
-    // Only review 1 should have its body processed (before trigger and not edited after)
     expect(reviewsInMap.length).toBeLessThanOrEqual(1);
   });
 
@@ -805,14 +806,83 @@ describe("fetchGitHubData integration with time filtering", () => {
       triggerTime: "2024-01-15T12:00:00Z",
     });
 
-    // The imageUrlMap contains processed comments for image downloading
-    // We should have processed review comments, but only those before trigger time
-    // The exact check depends on how imageUrlMap is structured, but we can verify
-    // that filtering occurred by checking the review data still has all nodes
-    expect(result.reviewData?.nodes?.length).toBe(1); // Original review is kept
+    // The review itself is pre-trigger and kept, but its inline comments are
+    // filtered to trigger time: the comment created after the trigger (id 11)
+    // and the one edited after the trigger (id 12) are dropped, leaving only
+    // the pre-trigger comment (id 10).
+    expect(result.reviewData?.nodes?.length).toBe(1);
+    const reviewCommentIds =
+      result.reviewData?.nodes?.[0]?.comments?.nodes?.map((c) => c.databaseId);
+    expect(reviewCommentIds).toEqual(["10"]);
+  });
 
-    // The actual filtering happens during processing for image download
-    // Since the mock doesn't actually download images, we verify the input was correct
+  it("should filter reviews by both trigger time and actor", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          pullRequest: {
+            number: 321,
+            title: "Test PR",
+            body: "PR body",
+            author: { login: "author" },
+            comments: { nodes: [] },
+            files: { nodes: [] },
+            reviews: {
+              nodes: [
+                {
+                  id: "1",
+                  databaseId: "1",
+                  author: { login: "reviewer1" },
+                  body: "Pre-trigger human review",
+                  state: "APPROVED",
+                  submittedAt: "2024-01-15T11:00:00Z",
+                  comments: { nodes: [] },
+                },
+                {
+                  id: "2",
+                  databaseId: "2",
+                  author: { login: "scanner[bot]" },
+                  body: "Pre-trigger bot review",
+                  state: "COMMENTED",
+                  submittedAt: "2024-01-15T11:00:00Z",
+                  comments: { nodes: [] },
+                },
+                {
+                  id: "3",
+                  databaseId: "3",
+                  author: { login: "reviewer3" },
+                  body: "Post-trigger human review",
+                  state: "CHANGES_REQUESTED",
+                  submittedAt: "2024-01-15T13:00:00Z",
+                  comments: { nodes: [] },
+                },
+              ],
+            },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: {
+        pulls: {
+          listFiles: jest.fn().mockResolvedValue({ data: [] }),
+        },
+      },
+    };
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "321",
+      isPR: true,
+      triggerUsername: "trigger-user",
+      triggerTime: "2024-01-15T12:00:00Z",
+      excludeCommentsByActor: "*[bot]",
+    });
+
+    // The trigger-time and actor filters compose: the pre-trigger human review
+    // is kept, the pre-trigger bot review is dropped by actor, and the
+    // post-trigger human review is dropped by trigger time.
+    expect(result.reviewData?.nodes?.map((r) => r.databaseId)).toEqual(["1"]);
   });
 
   it("should handle backward compatibility when no trigger time provided", async () => {

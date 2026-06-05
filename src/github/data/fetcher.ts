@@ -378,34 +378,26 @@ export async function fetchGitHubData({
       body: c.body,
     }));
 
-  // Filter review bodies to trigger time
-  const filteredReviewBodies = reviewData?.nodes
-    ? filterReviewsToTriggerTime(reviewData.nodes, triggerTime).filter(
-        (r) => r.body,
-      )
-    : [];
-
-  const reviewBodies: CommentWithImages[] = filteredReviewBodies.map((r) => ({
-    type: "review_body" as const,
-    id: r.databaseId,
-    pullNumber: prNumber,
-    body: r.body,
-  }));
-
-  // Filter review comments to trigger time and by actor
+  // Filter reviews and inline review comments to trigger time and by actor
+  // before building anything from them. The trigger-time filter is the TOCTOU
+  // protection applied to issue/PR comments and the body above: it drops
+  // anything submitted, created, or edited at/after the trigger so an attacker
+  // cannot inject content into the prompt after an authorized trigger. Without
+  // it, review bodies and inline review comments would reach the prompt
+  // verbatim regardless of when they landed.
   if (reviewData && reviewData.nodes) {
-    // Filter reviews by actor
+    // Drop reviews submitted or edited after the trigger, then filter by actor.
     reviewData.nodes = filterCommentsByActor(
-      reviewData.nodes,
+      filterReviewsToTriggerTime(reviewData.nodes, triggerTime),
       includeCommentsByActor,
       excludeCommentsByActor,
     );
 
-    // Also filter inline review comments within each review
+    // Apply the same trigger-time + actor filtering to inline review comments.
     reviewData.nodes.forEach((review) => {
       if (review.comments?.nodes) {
         review.comments.nodes = filterCommentsByActor(
-          review.comments.nodes,
+          filterCommentsToTriggerTime(review.comments.nodes, triggerTime),
           includeCommentsByActor,
           excludeCommentsByActor,
         );
@@ -413,14 +405,19 @@ export async function fetchGitHubData({
     });
   }
 
-  const allReviewComments =
-    reviewData?.nodes?.flatMap((r) => r.comments?.nodes ?? []) ?? [];
-  const filteredReviewComments = filterCommentsToTriggerTime(
-    allReviewComments,
-    triggerTime,
-  );
+  // Build the image-processing lists from the already-filtered review nodes,
+  // so reviews/comments excluded from the prompt are not processed for images.
+  const reviewBodies: CommentWithImages[] = (reviewData?.nodes ?? [])
+    .filter((r) => r.body)
+    .map((r) => ({
+      type: "review_body" as const,
+      id: r.databaseId,
+      pullNumber: prNumber,
+      body: r.body,
+    }));
 
-  const reviewComments: CommentWithImages[] = filteredReviewComments
+  const reviewComments: CommentWithImages[] = (reviewData?.nodes ?? [])
+    .flatMap((r) => r.comments?.nodes ?? [])
     .filter((c) => c.body && !c.isMinimized)
     .map((c) => ({
       type: "review_comment" as const,
