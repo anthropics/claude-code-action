@@ -45,6 +45,6 @@ Single entrypoint: `src/entrypoints/run.ts` orchestrates everything — prepare 
 
 
 ## Security — recurring vuln patterns
-- All prompt/workspace content reflects trigger-time state: checkout headRefOid; extractTriggerTimestamp returns a timestamp for EVERY event type (undefined disables filtering); time-filter everything fetchGitHubData returns; image URLs from the pinned body; regression test per new trigger.
-- SENSITIVE_PATHS fails open: any startup-consumed file not listed is PR-controlled (bunfig.toml, package.json, settings paths, marketplaces) — list, base-restore, or hard-reject; hooks invoke binaries directly; child bun spawns pin --config outside the workspace.
-- Every model/PR-driven file op goes through validatePathWithinRepo, which lstat-rejects symlinks and excludes .git/; treat .git/config as a secret (unset extraheader in all modes); git wrappers reject path-reading flags (-F, -t, -C/-c, --pathspec-from-file).
+- All prompt/workspace content reflects trigger-time state: checkout `headRefOid`; `extractTriggerTimestamp` must return a timestamp for EVERY event type (undefined disables filtering); time-filter everything `fetchGitHubData` returns.
+- `SENSITIVE_PATHS` fails open: any startup-consumed file not listed is PR-controlled (bunfig.toml, package.json, settings, marketplaces) — list it, base-restore it, or hard-reject.
+- Every model/PR-driven file op goes through `validatePathWithinRepo` (lstat-rejects symlinks, excludes `.git/`); treat `.git/config` as a secret; git wrappers reject path-reading flags (`-F`, `-C/-c`, `--pathspec-from-file`).
