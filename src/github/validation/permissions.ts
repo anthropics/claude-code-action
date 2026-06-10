@@ -71,7 +71,16 @@ export async function checkWritePermissions(
     // bot signal that doesn't require an API lookup.
     if (actor.endsWith("[bot]")) {
       core.info(`Actor is a GitHub App: ${actor}`);
-      return true;
+      if (isAllowedBot(actor, allowedBots)) {
+        core.info(
+          `Bot actor ${actor} is in allowed_bots list, granting access`,
+        );
+        return true;
+      }
+      core.warning(
+        `Bot actor ${actor} is not in allowed_bots list. Add it to allowed_bots or use '*' to allow all bots.`,
+      );
+      return false;
     }
 
     // For all other actors, resolve the account via the collaborator

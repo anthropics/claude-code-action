@@ -131,14 +131,60 @@ describe("checkWritePermissions", () => {
     );
   });
 
-  test("should return true for bot user", async () => {
+  test("should return true for bot user when in allowed_bots", async () => {
     const mockOctokit = createMockOctokit("none");
     const context = createContext();
     context.actor = "test-bot[bot]";
+    context.inputs.allowedBots = "test-bot";
 
     const result = await checkWritePermissions(mockOctokit, context);
 
     expect(result).toBe(true);
+    expect(coreInfoSpy).toHaveBeenCalledWith(
+      "Bot actor test-bot[bot] is in allowed_bots list, granting access",
+    );
+  });
+
+  test("should return true for bot user when allowed_bots is '*'", async () => {
+    const mockOctokit = createMockOctokit("none");
+    const context = createContext();
+    context.actor = "test-bot[bot]";
+    context.inputs.allowedBots = "*";
+
+    const result = await checkWritePermissions(mockOctokit, context);
+
+    expect(result).toBe(true);
+    expect(coreInfoSpy).toHaveBeenCalledWith(
+      "Bot actor test-bot[bot] is in allowed_bots list, granting access",
+    );
+  });
+
+  test("should return false for bot user when not in allowed_bots", async () => {
+    const mockOctokit = createMockOctokit("none");
+    const context = createContext();
+    context.actor = "test-bot[bot]";
+    context.inputs.allowedBots = "other-bot";
+
+    const result = await checkWritePermissions(mockOctokit, context);
+
+    expect(result).toBe(false);
+    expect(coreWarningSpy).toHaveBeenCalledWith(
+      "Bot actor test-bot[bot] is not in allowed_bots list. Add it to allowed_bots or use '*' to allow all bots.",
+    );
+  });
+
+  test("should return false for bot user when allowed_bots is empty", async () => {
+    const mockOctokit = createMockOctokit("none");
+    const context = createContext();
+    context.actor = "github-actions[bot]";
+    context.inputs.allowedBots = "";
+
+    const result = await checkWritePermissions(mockOctokit, context);
+
+    expect(result).toBe(false);
+    expect(coreWarningSpy).toHaveBeenCalledWith(
+      "Bot actor github-actions[bot] is not in allowed_bots list. Add it to allowed_bots or use '*' to allow all bots.",
+    );
   });
 
   test("should throw error when permission check fails", async () => {
@@ -285,10 +331,11 @@ describe("checkWritePermissions", () => {
       );
     });
 
-    test("should bypass for bot users even when allowed_non_write_users is set", async () => {
+    test("should check allowed_bots for bot users even when allowed_non_write_users is set", async () => {
       const mockOctokit = createMockOctokit("none");
       const context = createContext();
       context.actor = "test-bot[bot]";
+      context.inputs.allowedBots = "test-bot";
 
       const result = await checkWritePermissions(
         mockOctokit,
@@ -300,6 +347,9 @@ describe("checkWritePermissions", () => {
       expect(result).toBe(true);
       expect(coreInfoSpy).toHaveBeenCalledWith(
         "Actor is a GitHub App: test-bot[bot]",
+      );
+      expect(coreInfoSpy).toHaveBeenCalledWith(
+        "Bot actor test-bot[bot] is in allowed_bots list, granting access",
       );
     });
   });
