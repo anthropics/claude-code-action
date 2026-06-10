@@ -19,6 +19,7 @@ const ACCUMULATING_FLAGS = new Set([
   "disallowedTools",
   "disallowed-tools",
   "mcp-config",
+  "add-dir",
 ]);
 
 // Delimiter used to join accumulated flag values
