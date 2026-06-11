@@ -277,6 +277,14 @@ describe("parseGitHubContext", () => {
       expect(isAutomationContext(context)).toBe(true);
     });
 
+    test("payload without repository keeps default_branch undefined", () => {
+      setEvent("schedule", { schedule: "0 0 * * *" });
+
+      const context = parseGitHubContext();
+
+      expect(context.repository.default_branch).toBeUndefined();
+    });
+
     test("workflow_run produces an automation context", () => {
       setEvent("workflow_run", {
         action: "completed",
@@ -332,25 +340,45 @@ describe("parseGitHubContext", () => {
 
       expect(inputs.prompt).toBe("");
       expect(inputs.triggerPhrase).toBe("@claude");
+      expect(inputs.assigneeTrigger).toBe("");
+      expect(inputs.labelTrigger).toBe("");
       expect(inputs.branchPrefix).toBe("claude/");
+      expect(inputs.branchNameTemplate).toBeUndefined();
       expect(inputs.useStickyComment).toBe(false);
       expect(inputs.classifyInlineComments).toBe(true);
       expect(inputs.useCommitSigning).toBe(false);
+      expect(inputs.sshSigningKey).toBe("");
       expect(inputs.botId).toBe(String(CLAUDE_APP_BOT_ID));
       expect(inputs.botName).toBe(CLAUDE_BOT_LOGIN);
+      expect(inputs.allowedBots).toBe("");
+      expect(inputs.allowedNonWriteUsers).toBe("");
+      expect(inputs.trackProgress).toBe(false);
+      expect(inputs.includeFixLinks).toBe(false);
+      expect(inputs.includeCommentsByActor).toBe("");
+      expect(inputs.excludeCommentsByActor).toBe("");
       expect(inputs.baseBranch).toBeUndefined();
     });
 
     test("inputs reflect the env vars set by action.yml", () => {
       process.env.PROMPT = "do something";
       process.env.TRIGGER_PHRASE = "/claude";
+      process.env.ASSIGNEE_TRIGGER = "@claude-bot";
+      process.env.LABEL_TRIGGER = "claude-task";
+      process.env.BASE_BRANCH = "develop";
       process.env.BRANCH_PREFIX = "bot/";
+      process.env.BRANCH_NAME_TEMPLATE = "{{description}}";
       process.env.USE_STICKY_COMMENT = "true";
       process.env.CLASSIFY_INLINE_COMMENTS = "false";
       process.env.USE_COMMIT_SIGNING = "true";
+      process.env.SSH_SIGNING_KEY = "ssh-key-material";
       process.env.BOT_ID = "111";
       process.env.BOT_NAME = "custom-bot";
+      process.env.ALLOWED_BOTS = "dependabot[bot]";
+      process.env.ALLOWED_NON_WRITE_USERS = "trusted-user";
       process.env.TRACK_PROGRESS = "true";
+      process.env.INCLUDE_FIX_LINKS = "true";
+      process.env.INCLUDE_COMMENTS_BY_ACTOR = "alice";
+      process.env.EXCLUDE_COMMENTS_BY_ACTOR = "bob";
 
       setEvent("issues", {
         action: "opened",
@@ -362,13 +390,23 @@ describe("parseGitHubContext", () => {
 
       expect(inputs.prompt).toBe("do something");
       expect(inputs.triggerPhrase).toBe("/claude");
+      expect(inputs.assigneeTrigger).toBe("@claude-bot");
+      expect(inputs.labelTrigger).toBe("claude-task");
+      expect(inputs.baseBranch).toBe("develop");
       expect(inputs.branchPrefix).toBe("bot/");
+      expect(inputs.branchNameTemplate).toBe("{{description}}");
       expect(inputs.useStickyComment).toBe(true);
       expect(inputs.classifyInlineComments).toBe(false);
       expect(inputs.useCommitSigning).toBe(true);
+      expect(inputs.sshSigningKey).toBe("ssh-key-material");
       expect(inputs.botId).toBe("111");
       expect(inputs.botName).toBe("custom-bot");
+      expect(inputs.allowedBots).toBe("dependabot[bot]");
+      expect(inputs.allowedNonWriteUsers).toBe("trusted-user");
       expect(inputs.trackProgress).toBe(true);
+      expect(inputs.includeFixLinks).toBe(true);
+      expect(inputs.includeCommentsByActor).toBe("alice");
+      expect(inputs.excludeCommentsByActor).toBe("bob");
     });
 
     test("boolean inputs only accept the lowercase string true", () => {
