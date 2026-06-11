@@ -27,6 +27,11 @@ describe("workload identity federation", () => {
     delete process.env.ANTHROPIC_ORGANIZATION_ID;
     delete process.env.ANTHROPIC_OIDC_AUDIENCE;
     delete process.env.ANTHROPIC_IDENTITY_TOKEN_FILE;
+    delete process.env.ANTHROPIC_SERVICE_ACCOUNT_ID;
+    delete process.env.ANTHROPIC_WORKSPACE_ID;
+    delete process.env.ANTHROPIC_BASE_URL;
+    delete process.env.ANTHROPIC_CONFIG_DIR;
+    delete process.env.ANTHROPIC_PROFILE;
 
     getIDTokenSpy = spyOn(core, "getIDToken").mockResolvedValue(
       "test-identity-token",
@@ -119,6 +124,64 @@ describe("workload identity federation", () => {
         expect(getIDTokenSpy).toHaveBeenCalledWith(
           "https://example.com/custom",
         );
+      } finally {
+        handle?.stop();
+      }
+    });
+
+    test("writes a federation profile and selects it", async () => {
+      process.env.ANTHROPIC_FEDERATION_RULE_ID = "fdrl_test";
+      process.env.ANTHROPIC_ORGANIZATION_ID =
+        "00000000-0000-0000-0000-000000000000";
+      process.env.ANTHROPIC_SERVICE_ACCOUNT_ID = "svac_test";
+      process.env.ANTHROPIC_WORKSPACE_ID = "wrkspc_test";
+
+      const handle = await setupWorkloadIdentity();
+      try {
+        const configDir = join(tempDir, "claude-workload-identity", "config");
+        expect(process.env.ANTHROPIC_CONFIG_DIR).toBe(configDir);
+        expect(process.env.ANTHROPIC_PROFILE).toBe("default");
+
+        const profilePath = join(configDir, "configs", "default.json");
+        expect(statSync(profilePath).mode & 0o777).toBe(0o600);
+        expect(JSON.parse(readFileSync(profilePath, "utf-8"))).toEqual({
+          version: "1.0",
+          authentication: {
+            type: "oidc_federation",
+            federation_rule_id: "fdrl_test",
+            identity_token: { source: "file", path: handle!.tokenFile },
+            service_account_id: "svac_test",
+          },
+          organization_id: "00000000-0000-0000-0000-000000000000",
+          workspace_id: "wrkspc_test",
+        });
+      } finally {
+        handle?.stop();
+      }
+    });
+
+    test("omits optional profile fields when unset", async () => {
+      process.env.ANTHROPIC_FEDERATION_RULE_ID = "fdrl_test";
+      process.env.ANTHROPIC_ORGANIZATION_ID =
+        "00000000-0000-0000-0000-000000000000";
+
+      const handle = await setupWorkloadIdentity();
+      try {
+        const profile = JSON.parse(
+          readFileSync(
+            join(
+              tempDir,
+              "claude-workload-identity",
+              "config",
+              "configs",
+              "default.json",
+            ),
+            "utf-8",
+          ),
+        );
+        expect(profile.authentication.service_account_id).toBeUndefined();
+        expect(profile.workspace_id).toBeUndefined();
+        expect(profile.base_url).toBeUndefined();
       } finally {
         handle?.stop();
       }

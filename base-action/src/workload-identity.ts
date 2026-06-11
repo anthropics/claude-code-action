@@ -51,6 +51,54 @@ async function fetchIdentityToken(audience: string) {
 }
 
 /**
+ * Writes a profile config that loads federation from the identity-token file.
+ * Resolving federation through a profile (rather than bare env vars) enables
+ * the SDK's on-disk credentials cache, so the several `claude` processes the
+ * action spawns (plugin installs, main query) share one exchanged access token
+ * instead of each re-exchanging the single-use GitHub OIDC token, which fails
+ * with 401 (`jti_reused`).
+ */
+function writeFederationProfile(tokenFile: string): string {
+  const configDir = join(
+    process.env.RUNNER_TEMP || "/tmp",
+    "claude-workload-identity",
+    "config",
+  );
+  const serviceAccountId = process.env.ANTHROPIC_SERVICE_ACCOUNT_ID?.trim();
+  const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
+  const baseUrl = process.env.ANTHROPIC_BASE_URL?.trim();
+
+  const authentication: Record<string, unknown> = {
+    type: "oidc_federation",
+    federation_rule_id: process.env.ANTHROPIC_FEDERATION_RULE_ID?.trim(),
+    identity_token: { source: "file", path: tokenFile },
+  };
+  if (serviceAccountId) {
+    authentication.service_account_id = serviceAccountId;
+  }
+
+  const profile: Record<string, unknown> = {
+    version: "1.0",
+    authentication,
+    organization_id: process.env.ANTHROPIC_ORGANIZATION_ID?.trim(),
+  };
+  if (workspaceId) {
+    profile.workspace_id = workspaceId;
+  }
+  if (baseUrl) {
+    profile.base_url = baseUrl;
+  }
+
+  mkdirSync(join(configDir, "configs"), { recursive: true, mode: 0o700 });
+  writeFileSync(
+    join(configDir, "configs", "default.json"),
+    JSON.stringify(profile, null, 2),
+    { mode: 0o600 },
+  );
+  return configDir;
+}
+
+/**
  * Fetches a GitHub Actions OIDC token, writes it to a file in RUNNER_TEMP,
  * exports ANTHROPIC_IDENTITY_TOKEN_FILE, and starts a background refresh so
  * the file stays valid for long executions.
@@ -101,6 +149,8 @@ export async function setupWorkloadIdentity(): Promise<
   }
 
   process.env.ANTHROPIC_IDENTITY_TOKEN_FILE = tokenFile;
+  process.env.ANTHROPIC_CONFIG_DIR = writeFederationProfile(tokenFile);
+  process.env.ANTHROPIC_PROFILE = "default";
   console.log(
     `Workload identity federation configured (rule: ${process.env.ANTHROPIC_FEDERATION_RULE_ID}, identity token file: ${tokenFile})`,
   );
