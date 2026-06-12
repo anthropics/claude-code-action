@@ -1,3 +1,4 @@
+import * as core from "@actions/core";
 import { parse as parseShellArgs } from "shell-quote";
 import type { ClaudeOptions } from "./run-claude";
 import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
@@ -106,6 +107,7 @@ function parseClaudeArgsToExtraArgs(
   if (!claudeArgs?.trim()) return {};
 
   const result: Record<string, string | null> = {};
+  let warnedAboutYamlListMarker = false;
   const args = parseShellArgs(stripShellComments(claudeArgs)).filter(
     (arg): arg is string => typeof arg === "string",
   );
@@ -124,6 +126,15 @@ function parseClaudeArgsToExtraArgs(
           const values: string[] = [];
           while (i + 1 < args.length && !args[i + 1]?.startsWith("--")) {
             i++;
+            if (args[i] === "-") {
+              if (!warnedAboutYamlListMarker) {
+                core.warning(
+                  "Detected '-' list markers in claude_args. Remove '-' list markers when using a multiline string; pass Claude CLI flags and values directly.",
+                );
+                warnedAboutYamlListMarker = true;
+              }
+              continue;
+            }
             values.push(args[i]!);
           }
           const joinedValues = values.join(ACCUMULATE_DELIMITER);
