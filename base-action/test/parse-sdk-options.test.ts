@@ -152,6 +152,103 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("built-in tool registration (sdkOptions.tools)", () => {
+    // Regression coverage for the bug where `--allowedTools` only set the
+    // auto-approve gate-list (`Options.allowedTools`) but left `Options.tools`
+    // undefined, causing agent-mode init to report `tools: [Bash, Read]`
+    // regardless of what the user requested. See issues #690, #181, #533, #264.
+
+    test("registers built-in tools from --allowedTools in input order", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--allowedTools "Edit,Read,Glob,Grep"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.tools).toEqual(["Edit", "Read", "Glob", "Grep"]);
+    });
+
+    test("strips Bash() suffix and drops mcp__ entries from registration list", () => {
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--allowedTools "Bash(git:*),Edit,Read,mcp__github_comment__update_claude_comment"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.tools).toEqual(["Bash", "Edit", "Read"]);
+      // allowedTools (the auto-approve gate-list) keeps the original entries
+      // — registration is the only thing we filter.
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(git:*)",
+        "Edit",
+        "Read",
+        "mcp__github_comment__update_claude_comment",
+      ]);
+    });
+
+    test("leaves tools undefined when no --allowedTools is provided", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--model "claude-3-5-sonnet"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.tools).toBeUndefined();
+    });
+
+    test("leaves tools undefined when --allowedTools contains only MCP entries", () => {
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--allowedTools "mcp__github_comment__update_claude_comment,mcp__github__get_issue"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.tools).toBeUndefined();
+      // allowedTools still carries the MCP entries for the gate-list.
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "mcp__github_comment__update_claude_comment",
+        "mcp__github__get_issue",
+      ]);
+    });
+
+    test("deduplicates registered tools while preserving input order", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--allowedTools "Edit,Edit,Read"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.tools).toEqual(["Edit", "Read"]);
+    });
+
+    test("silently drops unknown tool names from registration list", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--allowedTools "Foobar,Read"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      // Foobar is not a known built-in tool — it would not work even if
+      // registered, so we keep it out of `tools`. It still appears in
+      // `allowedTools` (we don't second-guess what the user typed there).
+      expect(result.sdkOptions.tools).toEqual(["Read"]);
+      expect(result.sdkOptions.allowedTools).toEqual(["Foobar", "Read"]);
+    });
+
+    test("merges direct options.allowedTools into the registration list", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--allowedTools "Edit"',
+        allowedTools: "Glob,Grep",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.tools).toEqual(["Edit", "Glob", "Grep"]);
+    });
+  });
+
   describe("disallowedTools merging", () => {
     test("should extract disallowedTools from claudeArgs", () => {
       const options: ClaudeOptions = {
