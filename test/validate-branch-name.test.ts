@@ -64,6 +64,16 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("feature/paris,france")).not.toThrow();
       expect(() => validateBranchName("fix/issue-1,2,3")).not.toThrow();
     });
+
+    it("should accept branch names containing @ (git-valid, used in team and tooling conventions)", () => {
+      // Reported in #998: branches like "TICKET-123@add-feature" were rejected, even
+      // though git check-ref-format and GitHub both accept @ anywhere in a ref name.
+      // Also common as a leading prefix (e.g. "@hotfix/...") and in agent-generated
+      // names ("task@sessionid"). Bare "@" and "@{" are still rejected.
+      expect(() => validateBranchName("TICKET-123@add-feature")).not.toThrow();
+      expect(() => validateBranchName("@hotfix/login-timeout")).not.toThrow();
+      expect(() => validateBranchName("agent/task@abc123")).not.toThrow();
+    });
   });
 
   describe("command injection attempts", () => {
@@ -135,6 +145,12 @@ describe("validateBranchName", () => {
     it("should reject @{ sequence", () => {
       expect(() => validateBranchName("branch@{1}")).toThrow(/@{/);
       expect(() => validateBranchName("HEAD@{yesterday}")).toThrow(/@{/);
+    });
+
+    it("should reject the single character @", () => {
+      // Per git-check-ref-format, a refname cannot be the single character "@";
+      // "@" also resolves to HEAD in git revision syntax.
+      expect(() => validateBranchName("@")).toThrow(/single character '@'/);
     });
 
     it("should reject .lock suffix", () => {
