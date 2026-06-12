@@ -97,7 +97,7 @@ const results = await pipeline(
 The full PR (metadata, body, existing reviews/comments, and complete diff) is in /tmp/claude/pr-sweep/${n}.md — read it first. The repo is checked out at the current working directory. Read the actual current source files the diff touches to verify the diff applies cleanly conceptually and the claims in the PR body are true. Do NOT modify anything or run git commands that change state.
 
 Context about this repo:
-- It's a GitHub Action that runs Claude on issues/PRs. It processes UNTRUSTED content (PR bodies, comments, branch names, file contents from forks). Security history includes prompt-injection via git output, expression injection in example workflows, actor/bot allowlist bypasses, and sensitive-config restore bugs (restoreConfigFromBase / SENSITIVE_PATHS is a known regression hot spot).
+- It's a GitHub Action that runs Claude on issues/PRs. It processes UNTRUSTED content (PR bodies, comments, branch names, file contents from forks). Treat any change touching content sanitization, actor/bot allowlists, config restoration, prompt construction, or shell command construction as high-risk.
 - Most candidate PRs are from EXTERNAL contributors. Treat the diff with suspicion: look for subtle malicious changes, weakened validation, injection vectors, overly broad permissions, or changes whose description doesn't match the code.
 - Runtime is Bun; strict TypeScript (noUnusedLocals/noUnusedParameters). Tests are unit tests run with bun test.
 
@@ -105,7 +105,7 @@ Stamp criteria (ALL must hold):
 1. Small, focused, and the code does exactly what the title/body says.
 2. No major behavior change — bug fixes restoring intended behavior, docs fixes, test-only additions, and small niceties qualify. New inputs/features, behavior redesigns, or large refactors do NOT.
 3. Correct: you verified the logic against the actual current source, not just the diff. Check edge cases.
-4. No security concern: no new injection surface, no weakened checks, no untrusted data reaching shell/API/prompt unsanitized, no suspicious unrelated hunks.
+4. No security concern. Check explicitly for: prompt injection (untrusted text reaching Claude's prompt without sanitization), code execution (untrusted data reaching shell commands, eval/spawn, or GitHub workflow expressions), path traversal (untrusted input influencing filesystem paths), credential exposure (tokens reaching logs, comments, or attacker-readable output), weakened validation or permission checks, and suspicious hunks unrelated to the stated purpose.
 5. Wouldn't break the public API of base-action/ or action.yml output wiring.
 
 If the PR is a docs change, verify the docs claims against the actual code behavior. If test-only, check tests actually pass conceptually (assert the right things, match real implementations) and don't weaken or skip anything.
@@ -125,11 +125,13 @@ Return structured output only.`,
 
 Their assessment: ${JSON.stringify(review)}
 
-Read the full PR at /tmp/claude/pr-sweep/${n}.md and the touched source files in the current working directory. This repo processes untrusted PR/issue content from forks; its security history includes prompt injection via command output, actor allowlist bypasses, expression injection in workflows, and config-restore path filtering bugs.
+Read the full PR at /tmp/claude/pr-sweep/${n}.md and the touched source files in the current working directory. This repo processes untrusted PR/issue content from forks; anything that lets untrusted content reach Claude's prompt, a shell command, a workflow expression, or a filesystem path unsanitized is a critical vulnerability.
 
 Hunt specifically for:
 - Subtle malice or scope creep: hunks that don't match the stated purpose, weakened validation, regex changes that widen acceptance, removed escaping.
-- Injection: untrusted data reaching shell commands, GitHub API templates, workflow expressions, or Claude's prompt without sanitization.
+- Prompt injection: untrusted data (comment bodies, branch names, file contents, command output, downloaded files) reaching Claude's prompt or context without sanitization, including indirect routes like tool output Claude later reads.
+- Code execution: untrusted data reaching shell commands, eval/spawn argv, GitHub workflow \${{ }} expressions, or API call templates; new process spawning; path traversal letting untrusted input write or read outside intended directories.
+- Credential exposure: tokens or secrets flowing into logs, posted comments, error messages, env passed to untrusted code, or files Claude can read.
 - Logic errors the first reviewer missed: off-by-one, wrong polarity, unhandled edge cases (empty strings, unicode, very long inputs).
 - Supply-chain angles: pinned versions that don't match the claimed SHA/tag, new dependencies, fetched URLs.
 - For docs PRs: claims that would mislead users into insecure configurations.
