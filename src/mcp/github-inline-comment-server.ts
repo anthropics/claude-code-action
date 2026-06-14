@@ -5,6 +5,7 @@ import { appendFileSync } from "fs";
 import { z } from "zod";
 import { createOctokit } from "../github/api/client";
 import { sanitizeContent } from "../github/utils/sanitizer";
+import { removeBufferedComment } from "./inline-comment-buffer";
 
 // Get repository and PR information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -179,6 +180,16 @@ server.tool(
       }
 
       const result = await octokit.rest.pulls.createReviewComment(params);
+
+      // The comment is now live. Drop any buffered copy of it so the
+      // post-session replay step cannot post it a second time (the model often
+      // re-issues a buffered call with confirmed=true after the buffer reply).
+      if (CLASSIFY_ENABLED) {
+        removeBufferedComment(
+          { path, line, startLine, body: sanitizedBody },
+          BUFFER_PATH,
+        );
+      }
 
       return {
         content: [
