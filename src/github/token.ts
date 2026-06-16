@@ -10,6 +10,49 @@ export class WorkflowValidationSkipError extends Error {
   }
 }
 
+type AppTokenExchangeErrorResponse = {
+  error?: {
+    message?: string;
+    details?: {
+      error_code?: string;
+    };
+  };
+  type?: string;
+  message?: string;
+};
+
+const WORKFLOW_VALIDATION_ERROR_CODES = new Set([
+  "workflow_not_found_on_default_branch",
+]);
+
+function getAppTokenExchangeErrorMessage(
+  responseJson: AppTokenExchangeErrorResponse,
+): string {
+  return responseJson.error?.message ?? responseJson.message ?? "Unknown error";
+}
+
+function isWorkflowValidationError(
+  status: number,
+  responseJson: AppTokenExchangeErrorResponse,
+): boolean {
+  const errorCode = responseJson.error?.details?.error_code;
+  if (
+    errorCode !== undefined &&
+    WORKFLOW_VALIDATION_ERROR_CODES.has(errorCode)
+  ) {
+    return true;
+  }
+
+  if (status !== 401) {
+    return false;
+  }
+
+  const workflowValidationMessage = "workflow validation failed";
+  return [responseJson.message, responseJson.error?.message].some((message) =>
+    message?.toLowerCase().includes(workflowValidationMessage),
+  );
+}
+
 async function getOidcToken(): Promise<string> {
   try {
     const oidcToken = await core.getIDToken("claude-code-github-action");
@@ -80,25 +123,11 @@ async function exchangeForAppToken(
   );
 
   if (!response.ok) {
-    const responseJson = (await response.json()) as {
-      error?: {
-        message?: string;
-        details?: {
-          error_code?: string;
-        };
-      };
-      type?: string;
-      message?: string;
-    };
+    const responseJson =
+      (await response.json()) as AppTokenExchangeErrorResponse;
 
-    // Check for specific workflow validation error codes that should skip the action
-    const errorCode = responseJson.error?.details?.error_code;
-
-    if (errorCode === "workflow_not_found_on_default_branch") {
-      const message =
-        responseJson.message ??
-        responseJson.error?.message ??
-        "Workflow validation failed";
+    if (isWorkflowValidationError(response.status, responseJson)) {
+      const message = getAppTokenExchangeErrorMessage(responseJson);
       core.warning(`Skipping action due to workflow validation: ${message}`);
       console.log(
         "Action skipped due to workflow validation error. This is expected when adding Claude Code workflows to new repositories or on PRs with workflow changes. If you're seeing this, your workflow will begin working once you merge your PR.",
@@ -106,10 +135,11 @@ async function exchangeForAppToken(
       throw new WorkflowValidationSkipError(message);
     }
 
+    const message = getAppTokenExchangeErrorMessage(responseJson);
     console.error(
-      `App token exchange failed: ${response.status} ${response.statusText} - ${responseJson?.error?.message ?? "Unknown error"}`,
+      `App token exchange failed: ${response.status} ${response.statusText} - ${message}`,
     );
-    throw new Error(`${responseJson?.error?.message ?? "Unknown error"}`);
+    throw new Error(message);
   }
 
   const appTokenData = (await response.json()) as {
