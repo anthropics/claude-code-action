@@ -21,13 +21,20 @@ jobs:
       - name: Install Bun manually
         run: |
           echo "Installing Bun..."
-          curl -fsSL https://bun.sh/install | bash
+          # 1. Ensure the script has execution permissions on the runner
+          chmod +x .github/workflows/scripts/bun-install.sh
+        
+          # 2. Run the script and pass your specific version target
+          ./.github/workflows/scripts/bun-install.sh -s "bun-v1.2.12"
+
           echo "Bun installed at: $HOME/.bun/bin/bun"
 
           # Verify Bun installation
           if [ -f "$HOME/.bun/bin/bun" ]; then
             echo "✅ Bun executable found"
             $HOME/.bun/bin/bun --version
+            # Append the directory to GITHUB_PATH
+            echo "$HOME/.bun/bin" >> $GITHUB_PATH
           else
             echo "❌ Bun executable not found"
             exit 1

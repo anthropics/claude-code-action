@@ -19,8 +19,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Install Bun manually
+        run: |
+          echo "Installing Bun..."
+          # 1. Ensure the script has execution permissions on the runner
+          chmod +x .github/workflows/scripts/bun-install.sh
+        
+          # 2. Run the script and pass your specific version target
+          ./.github/workflows/scripts/bun-install.sh -s "bun-v2.2.0"
+
+          echo "Bun installed at: $HOME/.bun/bin/bun"
+
+          # Verify Bun installation
+          if [ -f "$HOME/.bun/bin/bun" ]; then
+            echo "✅ Bun executable found"
+            $HOME/.bun/bin/bun --version
+            # Append the directory to GITHUB_PATH
+            echo "$HOME/.bun/bin" >> $GITHUB_PATH
+          else
+            echo "❌ Bun executable not found"
+            exit 1
+          fi
 
       - name: Install dependencies
         run: |
