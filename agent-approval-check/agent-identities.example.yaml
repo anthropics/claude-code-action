@@ -1,0 +1,33 @@
+---
+# Optional config-file form of the agent-approval-check inputs.
+# Pass via `with: { config_file: .github/agent-identities.yaml }` instead of
+# the inline `agent_emails` / `agent_logins` / … inputs.
+
+# Committer emails that mark a commit as agent-authored.
+agent_emails:
+  - noreply@anthropic.com
+
+# GitHub logins treated as agents — a PR opened by, or an APPROVED review
+# from, one of these triggers the check.
+agent_app_logins:
+  - claude[bot]
+  - claude-code[bot]
+
+# Logins whose approvals never count toward the required total.
+excluded_approver_logins: []
+
+# Head-branch glob patterns that auto-pass. Leave empty: branch names are
+# attacker-controlled, so this is not a safe place to encode trust.
+exempt_head_branches: []
+
+# Per-repo path prefixes whose PRs auto-pass when ONLY those paths change.
+exempt_path_prefixes:
+  owner/repo:
+    - docs/
+
+# Per-repo base branches this check gates. A repo with no entry defaults to
+# its default branch only. Listing a repo here REPLACES that default.
+protected_bases:
+  owner/repo:
+    exact: [main]
+    prefixes: [release/]
