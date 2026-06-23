@@ -8,7 +8,7 @@ This is the same gate Anthropic runs internally on every agent-authored PR.
 
 ## What it does
 
-When a PR is opened, pushed to, reviewed, or commented on, this action:
+When a PR is opened, pushed to, or commented on, this action:
 
 1. Scans the PR's commits, author, and reviews for the configured agent
    identities (committer email, bot login, or an `APPROVED` review from a
@@ -21,8 +21,11 @@ When a PR is opened, pushed to, reviewed, or commented on, this action:
 3. Posts an `agent-approval-check` commit status (`success` once the count
    reaches `required_approvals`, otherwise `pending`) and a sticky PR
    comment explaining what's still needed.
-4. Re-evaluates on every new push, review, or comment. A push moves the
-   head SHA, so earlier `/approve <old-sha>` comments are flagged stale.
+4. Re-evaluates on every new push or comment. A push moves the head SHA,
+   so earlier `/approve <old-sha>` comments are flagged stale. Approving
+   reviews still count toward the threshold — they're picked up the next
+   time the workflow runs (on push or `/approve`); they just don't trigger
+   a run on their own.
 
 Mark `agent-approval-check` as a **required status check** on your protected
 branches and GitHub will refuse to merge until it's green.

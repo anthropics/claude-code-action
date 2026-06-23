@@ -166,6 +166,7 @@ query GetPRData($owner: String!, $repo: String!, $prNumber: Int!) {
       headCommit: commits(last: 1) {
         nodes {
           commit {
+            oid
             associatedPullRequests(first: 50) {
               nodes {
                 number
@@ -1431,15 +1432,25 @@ class GitHubClient:
         # `.get(k) or default` (not `.get(k, default)`) throughout: an explicit
         # JSON null returns None from .get(k, default), and these values feed
         # security decisions.
+        # commits(last:1) is date-ordered, so it can return a non-head commit;
+        # if its oid != headRefOid the associatedPullRequests below are for the
+        # wrong commit and the sibling list is unverifiable.
+        head_commit_oid = head_commit.get("oid")
         assoc = head_commit.get("associatedPullRequests")
         assoc_nodes = (assoc or {}).get("nodes")
-        if not head_commit or not head_ref_oid or assoc_nodes is None:
+        if (
+            not head_commit
+            or not head_ref_oid
+            or head_commit_oid != head_ref_oid
+            or assoc_nodes is None
+        ):
             # Without the head OID the stacked-PR filter below can't tell
             # siblings from stacked PRs, so the whole list is unverifiable.
             same_sha_prs_incomplete = True
             logger.warning(
-                "Partial GraphQL response for head commit's associatedPullRequests "
-                "— treating same-SHA sibling list as unverifiable"
+                "Head commit's associatedPullRequests unverifiable (partial "
+                "response or commits(last:1) != headRefOid) — treating "
+                "same-SHA sibling list as incomplete"
             )
         else:
             same_sha_prs_incomplete = ((assoc or {}).get("pageInfo") or {}).get(
