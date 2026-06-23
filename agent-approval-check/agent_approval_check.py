@@ -52,9 +52,11 @@ OUTPUTS:
 
 RATE LIMIT OPTIMIZATION:
     - 1 GraphQL query to fetch PR, commits, reviews, and comments
+      (paginated only if >100 comments)
+    - 1 REST permission check per unique candidate approver (cached)
     - 1 GraphQL mutation batch for all writes (comments, reactions, minimize)
     - 1 REST call for commit status (no GraphQL equivalent)
-    Total: 2-3 API calls per workflow run
+    Total: a small, bounded number of API calls per workflow run
 """
 
 import fnmatch
@@ -72,10 +74,21 @@ import httpx
 import yaml
 from tenacity import (
     retry,
+    retry_if_exception,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
 )
+
+
+def _retryable_http_error(exc: BaseException) -> bool:
+    # Retry network errors and 5xx; 4xx won't succeed on retry and the
+    # collaborator-permission endpoint legitimately returns 404.
+    if isinstance(exc, httpx.RequestError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response is not None and exc.response.status_code >= 500
+    return False
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1168,7 +1181,7 @@ def generate_stale_notification(stale_approvals: list[dict], latest_sha: str) ->
     short_sha = latest_sha[:12]
     users = ", ".join(f"@{a['user']}" for a in stale_approvals)
     return f"""{STALE_MARKER}
-{users}: Your previous `/approve` has become stale due to new agent commits.
+{users}: Your previous `/approve` has become stale because new commits were pushed (head is now `{short_sha}`).
 
 Please re-approve:
 ```
@@ -1227,7 +1240,7 @@ class GitHubClient:
         return data.get("data", {})
 
     @retry(
-        retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
+        retry=retry_if_exception(_retryable_http_error),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         reraise=True,
