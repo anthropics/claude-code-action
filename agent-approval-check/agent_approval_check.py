@@ -28,10 +28,11 @@ AGENT DETECTION:
     this check on its own).
 
 APPROVAL COUNTING:
-    Valid approvals come from:
-    - Non-dismissed APPROVED reviews from non-agent users (staleness is
-      controlled by GitHub's branch protection dismiss_stale_reviews setting)
-    - /approve <sha> comments from any non-agent user
+    Valid approvals come from non-agent users with write access to the
+    repository (verified via the collaborators permission API), via either:
+    - A non-dismissed APPROVED review (staleness is controlled by GitHub's
+      branch protection dismiss_stale_reviews setting)
+    - A /approve <sha> comment
 
     Approvals that DON'T count:
     - Reviews/comments from agent identities
@@ -57,7 +58,7 @@ import logging
 import os
 import re
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -83,10 +84,13 @@ logger = logging.getLogger(__name__)
 CHECK_NAME = "agent-approval-check"
 REQUIRED_APPROVALS = int(os.environ.get("REQUIRED_APPROVALS") or 2)
 
-# Only approvals from users with write access to the repo count. GitHub's
-# authorAssociation reflects the relationship at the time of the API call,
-# so a revoked collaborator's old approval stops counting.
+# Only approvals from users with write access to the repo count. authorAssociation
+# alone can't prove that (a MEMBER or COLLABORATOR may have read/triage only), so
+# it's used as a cheap pre-filter and the actual gate is a per-user REST
+# `GET /repos/{o}/{r}/collaborators/{login}/permission` check. A login outside
+# this set is not a collaborator at all, so the REST call is skipped.
 WRITE_ACCESS_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
+WRITE_PERMISSION_LEVELS = frozenset({"write", "push", "maintain", "admin"})
 DOCS_URL = (
     os.environ.get("DOCS_URL")
     or "https://github.com/anthropics/claude-code-action/tree/main/agent-approval-check"
@@ -122,7 +126,7 @@ query GetPRData($owner: String!, $repo: String!, $prNumber: Int!) {
         __typename
         login
       }
-      commits(last: 250) {
+      commits(last: 100) {
         nodes {
           commit {
             oid
@@ -262,7 +266,7 @@ class PRData:
     reviews: list[dict]  # Normalized to REST-like format
     comments: list[dict]  # Normalized to REST-like format
     files: list[str]  # Changed file paths
-    commits_incomplete: bool  # True if PR has >250 commits (fail-closed)
+    commits_incomplete: bool  # True if PR has >100 commits (fail-closed)
     files_incomplete: bool  # True if PR has >100 files (fail-closed)
     # Other OPEN PRs whose head is this exact commit, as (number, base_ref).
     # Statuses are SHA-scoped, so a success here would satisfy them too.
@@ -647,6 +651,7 @@ def sha_matches(approved_sha: str, target_sha: str) -> bool:
 def iter_approve_commands(
     comments: list[dict],
     config: AgentConfig,
+    permission_check: Callable[[str], bool],
 ) -> Iterator[ApproveCommand]:
     for comment in comments:
         commenter = comment.get("user", {}).get("login", "")
@@ -660,6 +665,8 @@ def iter_approve_commands(
             continue
         approved_sha = parse_approve_command(comment.get("body", ""))
         if not approved_sha:
+            continue
+        if not permission_check(commenter):
             continue
         yield ApproveCommand(
             commenter=commenter,
@@ -953,6 +960,7 @@ def count_approvers(
     reviews: list[dict],
     comments: list[dict],
     config: AgentConfig,
+    permission_check: Callable[[str], bool],
 ) -> set[str]:
     # Use lowercase for deduplication (GitHub usernames are case-insensitive)
     approvers: set[str] = set()
@@ -969,12 +977,14 @@ def count_approvers(
             continue
         if review.get("state") != "APPROVED":
             continue
+        if not permission_check(login):
+            continue
         logger.info("Counting APPROVE from %s", login)
         approvers.add(login.lower())
 
     # /approve comments must match the PR head SHA — approving an older
     # commit does not vouch for what's currently being merged.
-    for cmd in iter_approve_commands(comments, config):
+    for cmd in iter_approve_commands(comments, config, permission_check):
         if not sha_matches(cmd.sha, head_sha):
             continue
         logger.info("Counting /approve from %s for SHA %s", cmd.commenter, cmd.sha)
@@ -994,12 +1004,13 @@ def collect_approval_reactions(
     comments: list[dict],
     head_sha: str,
     config: AgentConfig,
+    permission_check: Callable[[str], bool],
 ) -> None:
     """Add reactions for valid /approve comments to the batch."""
     if not head_sha:
         return
 
-    for cmd in iter_approve_commands(comments, config):
+    for cmd in iter_approve_commands(comments, config, permission_check):
         if sha_matches(cmd.sha, head_sha) and cmd.node_id:
             batch.reactions.append((cmd.node_id, REACTION_VALID))
             logger.info("Will add thumbs up to /approve from %s", cmd.commenter)
@@ -1010,6 +1021,7 @@ def find_stale_approvals(
     head_sha: str,
     config: AgentConfig,
     commits: list[dict],
+    permission_check: Callable[[str], bool],
     current_approvers: set[str] | None = None,
 ) -> list[dict]:
     if not head_sha:
@@ -1020,7 +1032,7 @@ def find_stale_approvals(
     stale_by_user: dict[str, str] = {}
     commit_shas = [c.get("sha", "") for c in commits]
 
-    for cmd in iter_approve_commands(comments, config):
+    for cmd in iter_approve_commands(comments, config, permission_check):
         # Use lowercase to match current_approvers
         commenter_lower = cmd.commenter.lower()
         if commenter_lower in current_approvers:
@@ -1180,6 +1192,7 @@ class GitHubClient:
         if len(parts) != 2:
             raise ValueError(f"Invalid repo format, expected 'owner/repo': {repo}")
         self.owner, self.repo_name = parts
+        self._write_permission_cache: dict[str, bool] = {}
         self.base_url = "https://api.github.com"
         self.graphql_url = "https://api.github.com/graphql"
         self.headers = {
@@ -1228,6 +1241,35 @@ class GitHubClient:
         log_rest_rate_limit(response, "commit-status")
         return response
 
+    def has_write_permission(self, login: str) -> bool:
+        """True if `login` has write/maintain/admin on this repo.
+
+        Cached per login so repeated reviews/comments from the same user cost
+        one REST call. 404 (not a collaborator) and read/triage return False.
+        """
+        key = login.lower()
+        if key in self._write_permission_cache:
+            return self._write_permission_cache[key]
+        path = f"/repos/{self.owner}/{self.repo_name}/collaborators/{login}/permission"
+        try:
+            response = self._rest_request("GET", path)
+        except httpx.HTTPStatusError as e:
+            if e.response is not None and e.response.status_code == 404:
+                logger.info("Permission check: %s is not a collaborator", login)
+                self._write_permission_cache[key] = False
+                return False
+            raise
+        permission = (response.json() or {}).get("permission", "")
+        result = permission in WRITE_PERMISSION_LEVELS
+        logger.info(
+            "Permission check: %s -> %s (%s)",
+            login,
+            permission,
+            "write" if result else "no-write",
+        )
+        self._write_permission_cache[key] = result
+        return result
+
     def fetch_pr_data(self, pr_number: int) -> PRData:
         """Fetch all PR data in a single GraphQL call."""
         logger.info("Fetching PR #%d data via GraphQL", pr_number)
@@ -1270,7 +1312,7 @@ class GitHubClient:
         )
         if commits_incomplete:
             logger.warning(
-                "PR has >250 commits - cannot verify all commits, will require approval"
+                "PR has >100 commits - cannot verify all commits, will require approval"
             )
         if (reviews_conn.get("pageInfo") or {}).get("hasPreviousPage"):
             logger.warning("PR has more than 100 reviews - some may be missed")
@@ -1609,13 +1651,13 @@ def process_pr(
         return
 
     # If we couldn't fetch all commits, fail-closed (require approval)
-    # This prevents an attacker from hiding agent commits beyond the 250 limit
+    # This prevents an attacker from hiding agent commits beyond the 100 limit
     if pr_data.commits_incomplete:
         result = AgentActivityResult(
             has_agent_activity=True,
             latest_agent_commit=pr_data.commits[-1] if pr_data.commits else None,
             detection_reason=(
-                "⚠️ PR has >250 commits — cannot verify all commits are human-authored, "
+                "⚠️ PR has >100 commits — cannot verify all commits are human-authored, "
                 "so approval is required as a security precaution"
             ),
         )
@@ -1646,12 +1688,14 @@ def process_pr(
         pr_data.reviews,
         pr_data.comments,
         config,
+        client.has_write_permission,
     )
     stale_approvals = find_stale_approvals(
         pr_data.comments,
         head_sha,
         config,
         pr_data.commits,
+        client.has_write_permission,
         current_approvers=approvers,
     )
 
@@ -1662,7 +1706,9 @@ def process_pr(
     batch = MutationBatch()
 
     # Collect reactions for valid /approve comments
-    collect_approval_reactions(batch, pr_data.comments, head_sha, config)
+    collect_approval_reactions(
+        batch, pr_data.comments, head_sha, config, client.has_write_permission
+    )
 
     # Prepare notification comment. The sibling blocker is threaded in so the
     # comment never claims "approved" while post_status holds the required

@@ -15,8 +15,9 @@ When a PR is opened, pushed to, reviewed, or commented on, this action:
    bot). If none are found it posts `success: No agent activity` and stops.
 2. Counts distinct human approvals: the latest `APPROVED` review per login,
    plus any `/approve <head-sha>` comment whose SHA matches the current
-   head. Only users with write access to the repo (owner / member /
-   collaborator) count; agent and excluded-bot logins never count.
+   head. Only users with write access to the repo count (verified per-user
+   via the collaborators permission API); agent and excluded-bot logins
+   never count.
 3. Posts an `agent-approval-check` commit status (`success` once the count
    reaches `required_approvals`, otherwise `pending`) and a sticky PR
    comment explaining what's still needed.
@@ -101,7 +102,7 @@ A human counts as an approver by either:
   `issue_comment` all run the workflow file from the base/default branch,
   so the PR under review cannot edit this check.
 - **Fail-closed.** Any unhandled error exits non-zero; the required status
-  stays non-success and the PR stays blocked. PRs with >250 commits are
+  stays non-success and the PR stays blocked. PRs with >100 commits are
   treated as agent-authored because the full commit list can't be verified.
 - **Sibling-PR guard.** Commit statuses attach to a SHA, not a PR. The
   action refuses to post a status on a PR whose base isn't in
