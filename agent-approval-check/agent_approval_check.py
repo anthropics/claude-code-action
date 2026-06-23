@@ -1550,7 +1550,6 @@ def process_pr(
         logger.info("Review-exempt PR (2 API calls total)")
         return
 
-    # Exempt branches skip agent approval (e.g., claude/** for CCR)
     if is_exempt_branch(pr_data.head_ref, config):
         post_status("success", "Exempt branch")
         logger.info("Exempt branch '%s' (2 API calls total)", pr_data.head_ref)
