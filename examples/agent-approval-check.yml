@@ -1,7 +1,10 @@
 # Require human approvals on PRs that contain agent-authored commits.
 #
-# All three triggers run the workflow file from the BASE/DEFAULT branch,
-# so a PR cannot edit this check to approve itself.
+# Both triggers run the workflow file from the BASE/DEFAULT branch, so a PR
+# cannot edit this check to approve itself. (`pull_request_review` is not
+# used because it runs from the merge ref, not the default branch; native
+# Approve reviews are picked up on the next synchronize or `/approve`
+# comment.)
 #
 # After adding this workflow, mark `agent-approval-check` as a required
 # status check on your protected branches.
@@ -11,8 +14,6 @@ name: agent-approval-check
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
-  pull_request_review:
-    types: [submitted, dismissed]
   issue_comment:
     types: [created]
 

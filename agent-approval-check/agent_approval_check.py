@@ -16,9 +16,14 @@ gate merges.
 
 SECURITY MODEL:
     This script must run from the BASE/DEFAULT branch — via pull_request_target,
-    pull_request_review, issue_comment, or workflow_run triggers — so a PR
-    cannot modify the check that gates it. It is fail-closed: any unhandled
-    exception exits non-zero and the required status stays non-success.
+    issue_comment, or workflow_run triggers — so a PR cannot modify the check
+    that gates it. It is fail-closed: any unhandled exception exits non-zero
+    and the required status stays non-success.
+
+    Tamper-resistance assumes the workflow file itself is protected (branch
+    protection or CODEOWNERS on .github/workflows/). An actor who can push
+    workflow changes to the default branch can spoof any required status
+    check, including this one.
 
 AGENT DETECTION:
     A commit is agent-authored if its committer email is in `agent_emails`.
@@ -119,6 +124,7 @@ query GetPRData($owner: String!, $repo: String!, $prNumber: Int!) {
     pullRequest(number: $prNumber) {
       id
       number
+      headRefOid
       headRefName
       baseRefName
       createdAt
@@ -147,7 +153,6 @@ query GetPRData($owner: String!, $repo: String!, $prNumber: Int!) {
       headCommit: commits(last: 1) {
         nodes {
           commit {
-            oid
             associatedPullRequests(first: 50) {
               nodes {
                 number
@@ -257,6 +262,7 @@ class PRData:
 
     node_id: str  # GraphQL node ID for the PR (used for addComment)
     number: int
+    head_sha: str  # headRefOid — authoritative head commit (status target)
     head_ref: str  # Branch name (for exempt branch check)
     base_ref: str  # Target branch (for protected-base check)
     default_branch: str  # Repo default branch (protected-base fallback)
@@ -481,12 +487,6 @@ def is_agent_commit(commit: dict, config: AgentConfig) -> bool:
 
 
 # --- User/PR Helpers ---
-
-
-def get_head_sha(commits: list[dict]) -> str:
-    if not commits:
-        return ""
-    return commits[-1].get("sha", "")
 
 
 def is_review_exempt_pr(pr_data: PRData, config: AgentConfig, repo: str) -> bool:
@@ -1286,6 +1286,11 @@ class GitHubClient:
         if not pr_data:
             raise RuntimeError(f"PR #{pr_number} not found")
 
+        # Authoritative head commit. commits(last:1) is usually the head, but
+        # headRefOid is the branch tip GitHub actually merges and attaches
+        # statuses to, so it's used everywhere a head SHA is needed.
+        head_ref_oid = pr_data.get("headRefOid") or ""
+
         # GraphQL can return an explicit `null` for a connection on a
         # partial/retried response. For commits/reviews/comments/headCommit,
         # acting on empty data is fail-open (missed agent activity, dropped
@@ -1413,10 +1418,9 @@ class GitHubClient:
         # `.get(k) or default` (not `.get(k, default)`) throughout: an explicit
         # JSON null returns None from .get(k, default), and these values feed
         # security decisions.
-        head_commit_oid = head_commit.get("oid") or ""
         assoc = head_commit.get("associatedPullRequests")
         assoc_nodes = (assoc or {}).get("nodes")
-        if not head_commit or not head_commit_oid or assoc_nodes is None:
+        if not head_commit or not head_ref_oid or assoc_nodes is None:
             # Without the head OID the stacked-PR filter below can't tell
             # siblings from stacked PRs, so the whole list is unverifiable.
             same_sha_prs_incomplete = True
@@ -1448,13 +1452,14 @@ class GitHubClient:
                     continue
                 if state != "OPEN" or number == pr_number:
                     continue
-                if node_head_oid != head_commit_oid:
+                if node_head_oid != head_ref_oid:
                     continue
                 same_sha_open_prs.append((number, base_ref))
 
         return PRData(
             node_id=pr_data.get("id") or "",
             number=pr_data.get("number") or pr_number,
+            head_sha=head_ref_oid,
             head_ref=pr_data.get("headRefName") or "",
             base_ref=pr_data.get("baseRefName") or "",
             default_branch=(repository.get("defaultBranchRef") or {}).get("name") or "",
@@ -1590,7 +1595,7 @@ def process_pr(
         logger.info("No commits found in PR")
         return
 
-    head_sha = get_head_sha(pr_data.commits)
+    head_sha = pr_data.head_sha
     if not head_sha:
         logger.error("Could not determine HEAD SHA")
         return

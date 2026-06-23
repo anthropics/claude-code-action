@@ -44,8 +44,6 @@ name: agent-approval-check
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
-  pull_request_review:
-    types: [submitted, dismissed]
   issue_comment:
     types: [created]
 permissions:
@@ -98,9 +96,15 @@ A human counts as an approver by either:
 
 ## Threat model
 
-- **Tamper-proof.** `pull_request_target`, `pull_request_review` and
-  `issue_comment` all run the workflow file from the base/default branch,
-  so the PR under review cannot edit this check.
+- **Tamper-proof triggers.** `pull_request_target` and `issue_comment` run
+  the workflow file from the base/default branch, so the PR under review
+  cannot edit this check. `pull_request_review` does **not** share this
+  property — it runs from the merge ref — so the example workflow omits it;
+  native Approve reviews are picked up on the next synchronize or
+  `/approve` comment. This tamper-resistance assumes the workflow file
+  itself is protected: an actor who can push workflow changes to the
+  default branch can spoof any required status check, including this one,
+  so protect `.github/workflows/` via branch protection or CODEOWNERS.
 - **Fail-closed.** Any unhandled error exits non-zero; the required status
   stays non-success and the PR stays blocked. PRs with >100 commits are
   treated as agent-authored because the full commit list can't be verified.
