@@ -858,41 +858,6 @@ def get_detection_reason(commit: dict, config: AgentConfig) -> str:
     return f"Commit {short_sha} has agent email ({email})"
 
 
-def get_commit_verified_at(commit: dict) -> str | None:
-    """Get the server-side verification timestamp for a signed commit.
-
-    Uses signature.verifiedAt instead of committedDate because:
-    - committedDate can be forged via GIT_COMMITTER_DATE
-    - verifiedAt is set by GitHub servers when the commit is first pushed
-    - verifiedAt cannot be manipulated by users
-
-    Returns None if the commit is unsigned or has an invalid signature,
-    which triggers fail-closed behavior (commit requires approval).
-    """
-    signature = commit.get("commit", {}).get("signature")
-    if not signature:
-        return None
-    if signature.get("state") != "VALID":
-        return None
-    return signature.get("verifiedAt")
-
-
-def is_commit_after_pr_creation(commit: dict, pr_created_at: str) -> bool:
-    """Check if a commit was pushed after the PR was created.
-
-    Uses signature.verifiedAt (server-side, tamper-proof) instead of
-    committedDate (user-controlled, can be forged).
-
-    Fail-closed: returns True (requires approval) if verification timestamp
-    is missing or signature is invalid.
-    """
-    verified_at = get_commit_verified_at(commit)
-    if not verified_at or not pr_created_at:
-        # Fail-closed: no verification timestamp means we can't trust the commit
-        return True
-    return verified_at > pr_created_at
-
-
 def has_agent_approval(
     reviews: list[dict],
     config: AgentConfig,
@@ -913,23 +878,21 @@ def has_agent_approval(
 def check_for_agent_activity(
     commits: list[dict],
     pr_author: str,
-    pr_created_at: str,
     config: AgentConfig,
     reviews: list[dict] | None = None,
 ) -> AgentActivityResult:
     is_agent_pr = is_pr_created_by_agent(pr_author, config)
     latest_agent_commit: dict | None = None
 
+    # Any agent-email commit counts as agent activity. An earlier carve-out
+    # that endorsed agent commits pushed before the PR was opened was removed:
+    # closing a pending PR and reopening a new one against the same head
+    # rewinds pr.createdAt past every commit, so the carve-out auto-passed
+    # the very PR it was meant to gate.
     for commit in commits:
         if is_agent_commit(commit, config):
-            if is_agent_pr or is_commit_after_pr_creation(commit, pr_created_at):
-                logger.info("Agent commit detected: %s", commit.get("sha"))
-                latest_agent_commit = commit
-            else:
-                logger.info(
-                    "Agent commit %s endorsed (verified before PR creation)",
-                    commit.get("sha", "")[:12],
-                )
+            logger.info("Agent commit detected: %s", commit.get("sha"))
+            latest_agent_commit = commit
 
     if latest_agent_commit:
         return AgentActivityResult(
@@ -1700,7 +1663,6 @@ def process_pr(
         result = check_for_agent_activity(
             pr_data.commits,
             pr_data.author_login,
-            pr_data.created_at,
             config,
             reviews=pr_data.reviews,
         )
@@ -1831,6 +1793,9 @@ def main() -> None:
         logger.error(
             "No agent identities configured (agent_emails / agent_logins are empty)"
         )
+        sys.exit(1)
+    if REQUIRED_APPROVALS < 1:
+        logger.error("REQUIRED_APPROVALS must be >= 1 (got %d)", REQUIRED_APPROVALS)
         sys.exit(1)
 
     pr_number_str = os.environ.get("GH_PR_NUMBER", "").strip()

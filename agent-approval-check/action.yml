@@ -10,7 +10,7 @@ inputs:
     description: Token with statuses:write and pull-requests:write on this repo.
     default: ${{ github.token }}
   required_approvals:
-    description: Number of distinct human approvals required.
+    description: Number of distinct human approvals required. Must be >= 1.
     default: "2"
   agent_emails:
     description: Comma-separated committer emails treated as agent-authored.
@@ -24,7 +24,10 @@ inputs:
     description: Comma-separated logins whose approvals never count (e.g. rubber-stamp bots).
     default: ""
   exempt_head_branches:
-    description: Comma-separated glob patterns; PRs from matching head branches auto-pass.
+    description: |
+      Comma-separated glob patterns; PRs from matching head branches auto-pass.
+      WARNING: leave empty — branch names are attacker-controlled, so this is
+      not a safe place to encode trust.
     default: ""
   exempt_path_prefixes:
     description: Comma-separated path prefixes; PRs touching only these auto-pass.

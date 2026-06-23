@@ -67,18 +67,18 @@ jobs:
 
 ## Inputs
 
-| Input                  | Default                        | Meaning                                                                                                                 |
-| ---------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `required_approvals`   | `2`                            | Distinct human approvals needed.                                                                                        |
-| `agent_emails`         | `noreply@anthropic.com`        | Committer emails that mark a commit agent-authored.                                                                     |
-| `agent_logins`         | `claude[bot],claude-code[bot]` | Logins treated as agents (PR author or approving reviewer).                                                             |
-| `excluded_approvers`   | _(empty)_                      | Logins whose approvals never count.                                                                                     |
-| `exempt_head_branches` | _(empty)_                      | Head-branch globs that auto-pass.                                                                                       |
-| `exempt_path_prefixes` | _(empty)_                      | PRs touching only these prefixes auto-pass.                                                                             |
-| `protected_bases`      | _(default branch)_             | Base branches this check gates (see threat model).                                                                      |
-| `config_file`          | _(empty)_                      | Path to an [agent-identities YAML](./agent-identities.example.yaml) replacing the inline inputs. See the warning below. |
-| `docs_url`             | this README                    | Link in the PR comment footer.                                                                                          |
-| `github_token`         | `${{ github.token }}`          | Needs `statuses:write` + `pull-requests:write`.                                                                         |
+| Input                  | Default                        | Meaning                                                                                                                               |
+| ---------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `required_approvals`   | `2`                            | Distinct human approvals needed.                                                                                                      |
+| `agent_emails`         | `noreply@anthropic.com`        | Committer emails that mark a commit agent-authored.                                                                                   |
+| `agent_logins`         | `claude[bot],claude-code[bot]` | Logins treated as agents (PR author or approving reviewer).                                                                           |
+| `excluded_approvers`   | _(empty)_                      | Logins whose approvals never count.                                                                                                   |
+| `exempt_head_branches` | _(empty)_                      | Head-branch globs that auto-pass. ⚠️ Leave empty — branch names are attacker-controlled, so this is not a safe place to encode trust. |
+| `exempt_path_prefixes` | _(empty)_                      | PRs touching only these prefixes auto-pass.                                                                                           |
+| `protected_bases`      | _(default branch)_             | Base branches this check gates (see threat model).                                                                                    |
+| `config_file`          | _(empty)_                      | Path to an [agent-identities YAML](./agent-identities.example.yaml) replacing the inline inputs. See the warning below.               |
+| `docs_url`             | this README                    | Link in the PR comment footer.                                                                                                        |
+| `github_token`         | `${{ github.token }}`          | Needs `statuses:write` + `pull-requests:write`.                                                                                       |
 
 > ⚠️ **`config_file` and checkout:** if you set `config_file`, your workflow
 > must check out the **base** branch to read it (the default behaviour of
