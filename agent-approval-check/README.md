@@ -94,8 +94,10 @@ A human counts as an approver by either:
 - commenting `/approve <sha>` where `<sha>` is the current head commit
   (12–40 hex chars). This path lets the PR author — who can't approve their
   own PR in GitHub's UI — vouch for commits an agent pushed on their behalf.
-  The author counts as **one** approval; the remaining approvals must come
-  from other reviewers with write access.
+  The author's `/approve` is subject to the same write-access verification
+  as any other approver, so a fork-PR author without write access on the
+  base repository cannot self-count. The author counts as **one** approval;
+  the remaining approvals must come from other reviewers with write access.
 
 ## Threat model
 

@@ -1246,13 +1246,15 @@ class GitHubClient:
         wait=wait_exponential(multiplier=1, min=2, max=10),
         reraise=True,
     )
-    def _rest_request(self, method: str, path: str, **kwargs) -> httpx.Response:
+    def _rest_request(
+        self, method: str, path: str, context: str = "rest", **kwargs
+    ) -> httpx.Response:
         url = f"{self.base_url}{path}"
         response = httpx.request(
             method, url, headers=self.headers, timeout=30, **kwargs
         )
         response.raise_for_status()
-        log_rest_rate_limit(response, "commit-status")
+        log_rest_rate_limit(response, context)
         return response
 
     def has_write_permission(self, login: str) -> bool:
@@ -1266,7 +1268,9 @@ class GitHubClient:
             return self._write_permission_cache[key]
         path = f"/repos/{self.owner}/{self.repo_name}/collaborators/{login}/permission"
         try:
-            response = self._rest_request("GET", path)
+            response = self._rest_request(
+                "GET", path, context="collaborator-permission"
+            )
         except httpx.HTTPStatusError as e:
             if e.response is not None and e.response.status_code == 404:
                 logger.info("Permission check: %s is not a collaborator", login)
@@ -1559,6 +1563,7 @@ class GitHubClient:
         return self._rest_request(
             "POST",
             f"/repos/{self.repo}/statuses/{sha}",
+            context="commit-status",
             json=payload,
         ).json()
 
@@ -1596,7 +1601,7 @@ def process_pr(
     logger.info("Processing PR #%d", pr_number)
     run_url = get_workflow_run_url(client.repo)
 
-    # === API CALL 1: GraphQL read ===
+    # === GraphQL read ===
     pr_data = client.fetch_pr_data(pr_number)
 
     if not is_protected_base(
@@ -1671,12 +1676,12 @@ def process_pr(
 
     if is_review_exempt_pr(pr_data, config, client.repo):
         post_status("success", "Review-exempt PR")
-        logger.info("Review-exempt PR (2 API calls total)")
+        logger.info("Review-exempt PR")
         return
 
     if is_exempt_branch(pr_data.head_ref, config):
         post_status("success", "Exempt branch")
-        logger.info("Exempt branch '%s' (2 API calls total)", pr_data.head_ref)
+        logger.info("Exempt branch '%s'", pr_data.head_ref)
         return
 
     # If we couldn't fetch all commits, fail-closed (require approval)
@@ -1702,9 +1707,9 @@ def process_pr(
 
     if not result.has_agent_activity:
         # No agent activity - set success status directly
-        # === API CALL 2 (only call): REST commit status ===
+        # === REST commit status ===
         post_status("success", "No agent activity")
-        logger.info("No agent activity detected (2 API calls total)")
+        logger.info("No agent activity detected")
         return
 
     logger.info("Agent activity detected. Head SHA: %s", head_sha)
@@ -1784,10 +1789,10 @@ def process_pr(
             stale_body = generate_stale_notification(stale_approvals, head_sha)
             batch.create_stale_comment = (pr_data.node_id, stale_body)
 
-    # === API CALL 2: GraphQL batch write ===
+    # === GraphQL batch write ===
     client.execute_mutation_batch(batch)
 
-    # === API CALL 3: REST commit status ===
+    # === REST commit status ===
     if has_enough:
         post_status("success", f"{approver_count}/{REQUIRED_APPROVALS} approvals")
     else:
@@ -1796,11 +1801,7 @@ def process_pr(
             f"Need {REQUIRED_APPROVALS} approvals (have {approver_count})",
         )
 
-    logger.info(
-        "Approvals: %d/%d - 3 API calls total",
-        approver_count,
-        REQUIRED_APPROVALS,
-    )
+    logger.info("Approvals: %d/%d", approver_count, REQUIRED_APPROVALS)
 
 
 def main() -> None:
