@@ -15,7 +15,8 @@ When a PR is opened, pushed to, reviewed, or commented on, this action:
    bot). If none are found it posts `success: No agent activity` and stops.
 2. Counts distinct human approvals: the latest `APPROVED` review per login,
    plus any `/approve <head-sha>` comment whose SHA matches the current
-   head. Agent and excluded-bot logins never count.
+   head. Only users with write access to the repo (owner / member /
+   collaborator) count; agent and excluded-bot logins never count.
 3. Posts an `agent-approval-check` commit status (`success` once the count
    reaches `required_approvals`, otherwise `pending`) and a sticky PR
    comment explaining what's still needed.
@@ -30,6 +31,12 @@ branches and GitHub will refuse to merge until it's green.
 Copy [`examples/agent-approval-check.yml`](../examples/agent-approval-check.yml)
 into `.github/workflows/` in your repo, then add `agent-approval-check` to the
 required status checks on your protected branch.
+
+This action is designed to run **alongside** GitHub's native branch
+protection, not replace it. On the same protected branch you should also:
+
+1. Require at least 1 approving review from someone with write access.
+2. Enable **Dismiss stale pull request approvals when new commits are pushed**.
 
 ```yaml
 name: agent-approval-check
@@ -67,9 +74,15 @@ jobs:
 | `exempt_head_branches` | _(empty)_                      | Head-branch globs that auto-pass.                                                                |
 | `exempt_path_prefixes` | _(empty)_                      | PRs touching only these prefixes auto-pass.                                                      |
 | `protected_bases`      | _(default branch)_             | Base branches this check gates (see threat model).                                               |
-| `config_file`          | _(empty)_                      | Path to an [agent-identities YAML](./agent-identities.example.yaml) replacing the inline inputs. |
+| `config_file`          | _(empty)_                      | Path to an [agent-identities YAML](./agent-identities.example.yaml) replacing the inline inputs. See the warning below. |
 | `docs_url`             | this README                    | Link in the PR comment footer.                                                                   |
 | `github_token`         | `${{ github.token }}`          | Needs `statuses:write` + `pull-requests:write`.                                                  |
+
+> ⚠️ **`config_file` and checkout:** if you set `config_file`, your workflow
+> must check out the **base** branch to read it (the default behaviour of
+> `actions/checkout` under `pull_request_target`). Never check out the PR
+> head ref — doing so would let the PR author control the config and bypass
+> this check.
 
 ## Approving
 
@@ -78,8 +91,9 @@ A human counts as an approver by either:
 - submitting a normal GitHub **Approve** review, or
 - commenting `/approve <sha>` where `<sha>` is the current head commit
   (12–40 hex chars). This path lets the PR author — who can't approve their
-  own PR in GitHub's UI — vouch for commits an agent pushed on their behalf;
-  branch protection's required review then supplies the second human.
+  own PR in GitHub's UI — vouch for commits an agent pushed on their behalf.
+  The author counts as **one** approval; the remaining approvals must come
+  from other reviewers with write access.
 
 ## Threat model
 

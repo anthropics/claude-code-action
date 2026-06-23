@@ -35,7 +35,7 @@ APPROVAL COUNTING:
 
     Approvals that DON'T count:
     - Reviews/comments from agent identities
-    - /approve for a SHA that doesn't match the latest agent commit
+    - /approve for a SHA that doesn't match the PR head commit
     - CHANGES_REQUESTED overrides earlier APPROVED from same user
       (COMMENTED reviews are ignored - they don't change approval status)
 
@@ -82,6 +82,11 @@ logger = logging.getLogger(__name__)
 
 CHECK_NAME = "agent-approval-check"
 REQUIRED_APPROVALS = int(os.environ.get("REQUIRED_APPROVALS") or 2)
+
+# Only approvals from users with write access to the repo count. GitHub's
+# authorAssociation reflects the relationship at the time of the API call,
+# so a revoked collaborator's old approval stops counting.
+WRITE_ACCESS_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 DOCS_URL = (
     os.environ.get("DOCS_URL")
     or "https://github.com/anthropics/claude-code-action/tree/main/agent-approval-check"
@@ -93,7 +98,8 @@ DOCS_URL = (
 # PAGINATION STRATEGY:
 # - Use `last:` to get the most recent items (HEAD commit, recent reviews/approvals)
 # - For commits: fail-closed if hasPreviousPage (can't verify all commits are human)
-# - For reviews/comments: warn only (old items are likely stale anyway)
+# - For reviews: warn only (old items are likely stale anyway)
+# - For comments: paginated fully (older /approve and the sticky comment must be found)
 GRAPHQL_PR_QUERY = """
 query GetPRData($owner: String!, $repo: String!, $prNumber: Int!) {
   rateLimit {
@@ -158,6 +164,7 @@ query GetPRData($owner: String!, $repo: String!, $prNumber: Int!) {
             __typename
             login
           }
+          authorAssociation
           state
           commit {
             oid
@@ -176,11 +183,13 @@ query GetPRData($owner: String!, $repo: String!, $prNumber: Int!) {
             __typename
             login
           }
+          authorAssociation
           body
           isMinimized
         }
         pageInfo {
           hasPreviousPage
+          startCursor
         }
       }
       files(first: 100) {
@@ -189,6 +198,32 @@ query GetPRData($owner: String!, $repo: String!, $prNumber: Int!) {
         }
         pageInfo {
           hasNextPage
+        }
+      }
+    }
+  }
+}
+"""
+
+GRAPHQL_COMMENTS_PAGE_QUERY = """
+query GetPRComments($owner: String!, $repo: String!, $prNumber: Int!, $before: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $prNumber) {
+      comments(last: 100, before: $before) {
+        nodes {
+          id
+          databaseId
+          author {
+            __typename
+            login
+          }
+          authorAssociation
+          body
+          isMinimized
+        }
+        pageInfo {
+          hasPreviousPage
+          startCursor
         }
       }
     }
@@ -617,6 +652,8 @@ def iter_approve_commands(
         commenter = comment.get("user", {}).get("login", "")
         if not commenter:  # Skip deleted users or null authors
             continue
+        if comment.get("author_association") not in WRITE_ACCESS_ASSOCIATIONS:
+            continue
         if is_agent_user(commenter, config):
             continue
         if is_excluded_approver(commenter, config):
@@ -912,7 +949,7 @@ def check_for_agent_activity(
 
 
 def count_approvers(
-    latest_agent_commit: dict | None,
+    head_sha: str,
     reviews: list[dict],
     comments: list[dict],
     config: AgentConfig,
@@ -924,6 +961,8 @@ def count_approvers(
     # GitHub's branch protection settings (dismiss_stale_reviews_on_push)
     # control which reviews remain active — we defer to that.
     for login, review in get_latest_review_per_user(reviews).items():
+        if review.get("author_association") not in WRITE_ACCESS_ASSOCIATIONS:
+            continue
         if is_agent_user(login, config):
             continue
         if is_excluded_approver(login, config):
@@ -933,13 +972,10 @@ def count_approvers(
         logger.info("Counting APPROVE from %s", login)
         approvers.add(login.lower())
 
-    # /approve comments still require SHA match against latest agent commit
-    latest_agent_sha = ""
-    if latest_agent_commit:
-        latest_agent_sha = latest_agent_commit.get("sha", "")
-
+    # /approve comments must match the PR head SHA — approving an older
+    # commit does not vouch for what's currently being merged.
     for cmd in iter_approve_commands(comments, config):
-        if not sha_matches(cmd.sha, latest_agent_sha):
+        if not sha_matches(cmd.sha, head_sha):
             continue
         logger.info("Counting /approve from %s for SHA %s", cmd.commenter, cmd.sha)
         approvers.add(cmd.commenter.lower())
@@ -956,31 +992,29 @@ REACTION_VALID = "THUMBS_UP"  # GraphQL enum value
 def collect_approval_reactions(
     batch: MutationBatch,
     comments: list[dict],
-    latest_agent_commit: dict | None,
+    head_sha: str,
     config: AgentConfig,
 ) -> None:
     """Add reactions for valid /approve comments to the batch."""
-    if not latest_agent_commit:
+    if not head_sha:
         return
-    latest_agent_sha = latest_agent_commit.get("sha", "")
 
     for cmd in iter_approve_commands(comments, config):
-        if sha_matches(cmd.sha, latest_agent_sha) and cmd.node_id:
+        if sha_matches(cmd.sha, head_sha) and cmd.node_id:
             batch.reactions.append((cmd.node_id, REACTION_VALID))
             logger.info("Will add thumbs up to /approve from %s", cmd.commenter)
 
 
 def find_stale_approvals(
     comments: list[dict],
-    latest_agent_commit: dict | None,
+    head_sha: str,
     config: AgentConfig,
     commits: list[dict],
     current_approvers: set[str] | None = None,
 ) -> list[dict]:
-    if not latest_agent_commit:
+    if not head_sha:
         return []
 
-    latest_sha = latest_agent_commit.get("sha", "")
     # current_approvers uses lowercase (from count_approvers)
     current_approvers = current_approvers or set()
     stale_by_user: dict[str, str] = {}
@@ -993,7 +1027,7 @@ def find_stale_approvals(
             continue
         if not any(sha_matches(cmd.sha, sha) for sha in commit_shas):
             continue
-        if not sha_matches(cmd.sha, latest_sha):
+        if not sha_matches(cmd.sha, head_sha):
             if commenter_lower not in stale_by_user:
                 # Store original case for display in notifications
                 stale_by_user[commenter_lower] = cmd.sha
@@ -1040,26 +1074,17 @@ def generate_notification_comment(
     approvers: set[str],
     stale_approvals: list[dict],
     detection_reason: str,
-    latest_agent_sha: str,
-    author_approved: bool = False,
+    head_sha: str,
     sibling_blocker_prs: list[int] | None = None,
     sibling_list_incomplete: bool = False,
 ) -> str:
-    short_sha = latest_agent_sha[:12]
+    short_sha = head_sha[:12]
     approver_count = len(approvers)
-    has_enough = approver_count >= REQUIRED_APPROVALS or author_approved
+    has_enough = approver_count >= REQUIRED_APPROVALS
 
     lines = [COMMENT_MARKER]
 
-    if has_enough and author_approved and approver_count < REQUIRED_APPROVALS:
-        lines.append(
-            f"### Agent Activity - Author Approved ({approver_count}/{REQUIRED_APPROVALS})\n"
-        )
-        lines.append(
-            "PR author has approved the agent's changes. "
-            "A GitHub review approval is still required to merge.\n"
-        )
-    elif has_enough:
+    if has_enough:
         lines.append(
             f"### Agent Activity - Approved ({approver_count}/{REQUIRED_APPROVALS})\n"
         )
@@ -1117,7 +1142,8 @@ def generate_notification_comment(
         lines.append("2. **Comment:**")
         lines.append(f"```\n/approve {short_sha}\n```")
         lines.append(
-            "\n> **Note:** If you requested this change, your approval counts as one of the two required approvals."
+            f"\n> **Note:** If you requested this change, your approval counts as "
+            f"one of the {REQUIRED_APPROVALS} required approvals."
         )
 
     lines.append("\n---\n")
@@ -1246,14 +1272,8 @@ class GitHubClient:
             logger.warning(
                 "PR has >250 commits - cannot verify all commits, will require approval"
             )
-        for field_conn, field_name, limit in [
-            (reviews_conn, "reviews", 100),
-            (comments_conn, "comments", 100),
-        ]:
-            if (field_conn.get("pageInfo") or {}).get("hasPreviousPage"):
-                logger.warning(
-                    "PR has more than %d %s - some may be missed", limit, field_name
-                )
+        if (reviews_conn.get("pageInfo") or {}).get("hasPreviousPage"):
+            logger.warning("PR has more than 100 reviews - some may be missed")
 
         commit_nodes = commits_conn["nodes"]
 
@@ -1276,6 +1296,7 @@ class GitHubClient:
         reviews = [
             {
                 "user": {"login": normalize_graphql_login(node.get("author"))},
+                "author_association": node.get("authorAssociation", ""),
                 "state": node.get("state", ""),
                 "commit_id": (node.get("commit") or {}).get("oid", ""),
                 "submitted_at": node.get("submittedAt", ""),
@@ -1283,16 +1304,48 @@ class GitHubClient:
             for node in reviews_conn["nodes"]
         ]
 
-        comments = [
-            {
+        def normalize_comment(node: dict) -> dict:
+            return {
                 "id": node.get("databaseId", 0),
                 "node_id": node.get("id", ""),
                 "user": {"login": normalize_graphql_login(node.get("author"))},
+                "author_association": node.get("authorAssociation", ""),
                 "body": node.get("body", ""),
                 "is_minimized": node.get("isMinimized", False),
             }
-            for node in comments_conn["nodes"]
-        ]
+
+        comments = [normalize_comment(node) for node in comments_conn["nodes"]]
+
+        # Paginate the full comment history. The notification comment (and any
+        # earlier /approve commands) can fall outside the most-recent-100 window
+        # on long-lived PRs; without the full set we'd post duplicate sticky
+        # comments and silently drop valid approvals.
+        page_info = comments_conn.get("pageInfo") or {}
+        cursor = page_info.get("startCursor")
+        while page_info.get("hasPreviousPage") and cursor:
+            page = self._graphql(
+                GRAPHQL_COMMENTS_PAGE_QUERY,
+                {
+                    "owner": self.owner,
+                    "repo": self.repo_name,
+                    "prNumber": pr_number,
+                    "before": cursor,
+                },
+            )
+            page_conn = (
+                ((page.get("repository") or {}).get("pullRequest") or {}).get(
+                    "comments"
+                )
+                or {}
+            )
+            page_nodes = page_conn.get("nodes")
+            if page_nodes is None:
+                raise RuntimeError(
+                    "GraphQL returned null for paginated comments (partial response)"
+                )
+            comments = [normalize_comment(n) for n in page_nodes] + comments
+            page_info = page_conn.get("pageInfo") or {}
+            cursor = page_info.get("startCursor")
 
         files = [node.get("path", "") for node in (files_conn.get("nodes") or [])]
         files_incomplete = (files_conn.get("pageInfo") or {}).get("hasNextPage", False)
@@ -1583,52 +1636,33 @@ def process_pr(
         logger.info("No agent activity detected (2 API calls total)")
         return
 
-    latest_agent_sha = (
-        result.latest_agent_commit.get("sha", "")
-        if result.latest_agent_commit
-        else head_sha
-    )
-    logger.info("Agent activity detected. Latest agent commit: %s", latest_agent_sha)
+    logger.info("Agent activity detected. Head SHA: %s", head_sha)
 
-    # Count approvals
+    # Count approvals. The PR author counts as one approver (via /approve
+    # comment) like anyone else with write access — they cannot single-handedly
+    # satisfy the threshold.
     approvers = count_approvers(
-        result.latest_agent_commit,
+        head_sha,
         pr_data.reviews,
         pr_data.comments,
         config,
     )
     stale_approvals = find_stale_approvals(
         pr_data.comments,
-        result.latest_agent_commit,
+        head_sha,
         config,
         pr_data.commits,
         current_approvers=approvers,
     )
 
     approver_count = len(approvers)
-
-    # PR author auto-succeed: when the PR author (who can't submit a GitHub
-    # APPROVE review on their own PR) posts /approve, auto-succeed this check.
-    # Branch protection's required APPROVE review from a non-author provides
-    # the second gate, preserving the 2-person review invariant.
-    pr_author_lower = pr_data.author_login.lower() if pr_data.author_login else ""
-    author_approved = bool(pr_author_lower) and pr_author_lower in approvers
-    if author_approved:
-        logger.info(
-            "PR author %s has valid /approve — auto-succeeding "
-            "(branch protection provides additional gate)",
-            pr_data.author_login,
-        )
-
-    has_enough = approver_count >= REQUIRED_APPROVALS or author_approved
+    has_enough = approver_count >= REQUIRED_APPROVALS
 
     # Build mutation batch
     batch = MutationBatch()
 
     # Collect reactions for valid /approve comments
-    collect_approval_reactions(
-        batch, pr_data.comments, result.latest_agent_commit, config
-    )
+    collect_approval_reactions(batch, pr_data.comments, head_sha, config)
 
     # Prepare notification comment. The sibling blocker is threaded in so the
     # comment never claims "approved" while post_status holds the required
@@ -1637,8 +1671,7 @@ def process_pr(
         approvers=approvers,
         stale_approvals=stale_approvals,
         detection_reason=result.detection_reason,
-        latest_agent_sha=latest_agent_sha,
-        author_approved=author_approved,
+        head_sha=head_sha,
         sibling_blocker_prs=open_protected_siblings or None,
         sibling_list_incomplete=pr_data.same_sha_prs_incomplete,
     )
@@ -1667,26 +1700,20 @@ def process_pr(
     # Handle stale notifications
     if stale_approvals and not has_enough:
         # Minimize old stale notifications
-        for old_comment in find_old_stale_notifications(
-            pr_data.comments, latest_agent_sha
-        ):
+        for old_comment in find_old_stale_notifications(pr_data.comments, head_sha):
             if not old_comment.get("is_minimized"):
                 batch.minimize_comments.append((old_comment["node_id"], "OUTDATED"))
 
         # Create new stale notification if not exists
-        if not find_stale_notification_for_commit(pr_data.comments, latest_agent_sha):
-            stale_body = generate_stale_notification(stale_approvals, latest_agent_sha)
+        if not find_stale_notification_for_commit(pr_data.comments, head_sha):
+            stale_body = generate_stale_notification(stale_approvals, head_sha)
             batch.create_stale_comment = (pr_data.node_id, stale_body)
 
     # === API CALL 2: GraphQL batch write ===
     client.execute_mutation_batch(batch)
 
     # === API CALL 3: REST commit status ===
-    if has_enough and author_approved and approver_count < REQUIRED_APPROVALS:
-        # Author approved via /approve — check succeeds, but GitHub review
-        # is still required to merge (enforced by branch protection)
-        post_status("success", "Author approved (review required)")
-    elif has_enough:
+    if has_enough:
         post_status("success", f"{approver_count}/{REQUIRED_APPROVALS} approvals")
     else:
         post_status(
@@ -1695,10 +1722,9 @@ def process_pr(
         )
 
     logger.info(
-        "Approvals: %d/%d (author_approved=%s) - 3 API calls total",
+        "Approvals: %d/%d - 3 API calls total",
         approver_count,
         REQUIRED_APPROVALS,
-        author_approved,
     )
 
 
