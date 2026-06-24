@@ -3,6 +3,28 @@ import type { ParsedGitHubContext } from "../context";
 import type { Octokit } from "@octokit/rest";
 
 /**
+ * Check if a bot actor is in the allowed bots list.
+ */
+function isAllowedBot(actor: string, allowedBots: string): boolean {
+  const trimmed = allowedBots.trim();
+  if (trimmed === "*") return true;
+  if (!trimmed) return false;
+
+  const allowedList = trimmed
+    .split(",")
+    .map((bot) =>
+      bot
+        .trim()
+        .toLowerCase()
+        .replace(/\[bot\]$/, ""),
+    )
+    .filter((bot) => bot.length > 0);
+
+  const normalizedActor = actor.toLowerCase().replace(/\[bot\]$/, "");
+  return allowedList.includes(normalizedActor);
+}
+
+/**
  * Check if the actor has write permissions to the repository
  * @param octokit - The Octokit REST client
  * @param context - The GitHub context
@@ -17,6 +39,7 @@ export async function checkWritePermissions(
   githubTokenProvided?: boolean,
 ): Promise<boolean> {
   const { repository, actor } = context;
+  const allowedBots = context.inputs.allowedBots ?? "";
 
   try {
     core.info(`Checking permissions for actor: ${actor}`);
@@ -43,13 +66,19 @@ export async function checkWritePermissions(
       }
     }
 
-    // Check if the actor is a GitHub App (bot user)
+    // Check if the actor is a GitHub App (bot user with [bot] suffix).
+    // Usernames cannot contain "[" or "]", so the suffix is a reliable
+    // bot signal that doesn't require an API lookup.
     if (actor.endsWith("[bot]")) {
       core.info(`Actor is a GitHub App: ${actor}`);
       return true;
     }
 
-    // Check permissions directly using the permission endpoint
+    // For all other actors, resolve the account via the collaborator
+    // permission endpoint. allowed_bots is only consulted in the catch
+    // block below, after the API has confirmed the actor is not a regular
+    // user account (e.g. GitHub Apps like Copilot whose GITHUB_ACTOR is
+    // "Copilot" rather than "Copilot[bot]").
     const response = await octokit.repos.getCollaboratorPermissionLevel({
       owner: repository.owner,
       repo: repository.repo,
@@ -67,6 +96,25 @@ export async function checkWritePermissions(
       return false;
     }
   } catch (error) {
+    // Handle 404 errors for non-user actors (e.g. GitHub Apps like Copilot
+    // whose GITHUB_ACTOR doesn't end with [bot]).
+    // The collaborator permission API only works for user accounts.
+    if (error instanceof Error && error.message.includes("is not a user")) {
+      core.info(
+        `Actor ${actor} is not a GitHub user (likely a GitHub App). Checking allowed_bots...`,
+      );
+      if (isAllowedBot(actor, allowedBots)) {
+        core.info(
+          `Non-user actor ${actor} is in allowed_bots list, granting access`,
+        );
+        return true;
+      }
+      core.warning(
+        `Non-user actor ${actor} is not in allowed_bots list. Add it to allowed_bots or use '*' to allow all bots.`,
+      );
+      return false;
+    }
+
     core.error(`Failed to check permissions: ${error}`);
     throw new Error(`Failed to check permissions for ${actor}: ${error}`);
   }

@@ -131,6 +131,21 @@ describe("stripHiddenAttributes", () => {
       ),
     ).toBe('<img src="pic.jpg" class="image">');
   });
+
+  it("should not corrupt content when an attribute value contains the other quote type", () => {
+    // Regression for #1366: an apostrophe inside a double-quoted attribute
+    // (or a double quote inside a single-quoted attribute) must not cause the
+    // closing quote to be mismatched, which previously mangled later text.
+    expect(
+      stripHiddenAttributes(`<Tooltip title="We'll do it" placement="top">`),
+    ).toBe('<Tooltip placement="top">');
+    expect(
+      stripHiddenAttributes(`<img alt="Bob's avatar" src="pic.jpg">`),
+    ).toBe('<img src="pic.jpg">');
+    expect(stripHiddenAttributes(`<div title='say "hi"'>Content</div>`)).toBe(
+      "<div>Content</div>",
+    );
+  });
 });
 
 describe("normalizeHtmlEntities", () => {

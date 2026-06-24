@@ -303,4 +303,156 @@ describe("checkWritePermissions", () => {
       );
     });
   });
+
+  describe("non-[bot] actors (e.g. GitHub Copilot)", () => {
+    // GitHub Copilot SWE Agent sets GITHUB_ACTOR="Copilot" which doesn't
+    // end with [bot] and is not a valid GitHub user, so the collaborator
+    // permission API returns 404 with "is not a user". allowed_bots is
+    // applied in that catch path once the API has confirmed the actor is
+    // not a regular user account.
+
+    const createMockOctokitThat404s = () =>
+      ({
+        repos: {
+          getCollaboratorPermissionLevel: async () => {
+            const err = new Error(
+              "HttpError: Copilot is not a user - https://docs.github.com/rest/collaborators/collaborators#get-repository-permissions-for-a-user",
+            );
+            (err as any).status = 404;
+            throw err;
+          },
+        },
+      }) as any;
+
+    test("should return true for non-[bot] app actor in allowed_bots", async () => {
+      const mockOctokit = createMockOctokitThat404s();
+      const context = createContext();
+      context.actor = "Copilot";
+      context.inputs.allowedBots = "copilot,cursor";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(true);
+      expect(coreInfoSpy).toHaveBeenCalledWith(
+        "Non-user actor Copilot is in allowed_bots list, granting access",
+      );
+    });
+
+    test("should return true for non-[bot] app actor when allowed_bots is '*'", async () => {
+      const mockOctokit = createMockOctokitThat404s();
+      const context = createContext();
+      context.actor = "Copilot";
+      context.inputs.allowedBots = "*";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(true);
+    });
+
+    test("should match config entries written with the [bot] suffix", async () => {
+      const mockOctokit = createMockOctokitThat404s();
+      const context = createContext();
+      context.actor = "SomeNewBot";
+      context.inputs.allowedBots = "somenewbot[bot]";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(true);
+    });
+
+    test("should return false for non-[bot] app actor that is not in allowed_bots", async () => {
+      const mockOctokit = createMockOctokitThat404s();
+      const context = createContext();
+      context.actor = "Copilot";
+      context.inputs.allowedBots = "cursor";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(false);
+      expect(coreWarningSpy).toHaveBeenCalledWith(
+        "Non-user actor Copilot is not in allowed_bots list. Add it to allowed_bots or use '*' to allow all bots.",
+      );
+    });
+
+    test("should return false for non-[bot] app actor with empty allowed_bots", async () => {
+      const mockOctokit = createMockOctokitThat404s();
+      const context = createContext();
+      context.actor = "Copilot";
+      context.inputs.allowedBots = "";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(false);
+    });
+
+    test("should still throw for non-404 API errors", async () => {
+      const mockOctokit = {
+        repos: {
+          getCollaboratorPermissionLevel: async () => {
+            throw new Error("Internal Server Error");
+          },
+        },
+      } as any;
+      const context = createContext();
+      context.actor = "Copilot";
+      context.inputs.allowedBots = "";
+
+      await expect(checkWritePermissions(mockOctokit, context)).rejects.toThrow(
+        "Failed to check permissions for Copilot",
+      );
+    });
+  });
+
+  describe("allowed_bots only applies to non-user actors", () => {
+    // The permission endpoint resolves the actor's account type. Actors
+    // that resolve to a regular user account go through the standard write
+    // permission check; allowed_bots does not short-circuit it for them.
+
+    test("should require write permission for a user account whose name matches allowed_bots", async () => {
+      const mockOctokit = createMockOctokit("read");
+      const context = createContext();
+      context.actor = "renovate";
+      context.inputs.allowedBots = "renovate";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(false);
+      expect(coreWarningSpy).toHaveBeenCalledWith(
+        "Actor has insufficient permissions: read",
+      );
+    });
+
+    test("should require write permission for a user account when allowed_bots uses the [bot] form", async () => {
+      const mockOctokit = createMockOctokit("read");
+      const context = createContext();
+      context.actor = "renovate";
+      context.inputs.allowedBots = "renovate[bot]";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(false);
+    });
+
+    test("should require write permission for a user account when allowed_bots is '*'", async () => {
+      const mockOctokit = createMockOctokit("none");
+      const context = createContext();
+      context.actor = "some-user";
+      context.inputs.allowedBots = "*";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(false);
+    });
+
+    test("should still grant access for a user account with write permission", async () => {
+      const mockOctokit = createMockOctokit("write");
+      const context = createContext();
+      context.actor = "renovate";
+      context.inputs.allowedBots = "renovate";
+
+      const result = await checkWritePermissions(mockOctokit, context);
+
+      expect(result).toBe(true);
+    });
+  });
 });

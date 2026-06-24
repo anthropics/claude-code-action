@@ -12,13 +12,20 @@ export const PR_QUERY = `
         baseRefName
         headRefName
         headRefOid
+        isCrossRepository
+        headRepository {
+          owner {
+            login
+          }
+          name
+        }
         createdAt
         updatedAt
         lastEditedAt
         additions
         deletions
         state
-        labels(first: 1) {
+        labels(first: 100) {
           nodes {
             name
           }
@@ -106,7 +113,7 @@ export const ISSUE_QUERY = `
         updatedAt
         lastEditedAt
         state
-        labels(first: 1) {
+        labels(first: 100) {
           nodes {
             name
           }

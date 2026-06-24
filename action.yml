@@ -70,6 +70,21 @@ inputs:
   claude_code_oauth_token:
     description: "Claude Code OAuth token (alternative to anthropic_api_key)"
     required: false
+  anthropic_federation_rule_id:
+    description: "Workload identity federation rule ID (fdrl_...). When set with anthropic_organization_id, the action authenticates to the Claude API by exchanging the workflow's GitHub OIDC token instead of using a static API key. Requires `id-token: write` permission."
+    required: false
+  anthropic_organization_id:
+    description: "Anthropic organization UUID used for workload identity federation"
+    required: false
+  anthropic_service_account_id:
+    description: "Service account ID (svac_...) the federated token acts as (optional, used with workload identity federation)"
+    required: false
+  anthropic_workspace_id:
+    description: "Workspace ID (wrkspc_...) for workload identity federation. Optional when the federation rule targets a single workspace."
+    required: false
+  anthropic_oidc_audience:
+    description: "Audience to request on the GitHub OIDC token used for workload identity federation. Defaults to https://api.anthropic.com."
+    required: false
   github_token:
     description: "GitHub token with repo and pull request permissions (optional if using GitHub App)"
     required: false
@@ -172,10 +187,11 @@ runs:
   using: "composite"
   steps:
     - name: Install Bun
+      id: setup-bun
       if: inputs.path_to_bun_executable == ''
-      uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # https://github.com/oven-sh/setup-bun/releases/tag/v2.1.2
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # https://github.com/oven-sh/setup-bun/releases/tag/v2.2.0
       with:
-        bun-version: 1.3.6
+        bun-version: 1.3.14
         token: ${{ inputs.github_token || github.token }}
 
     - name: Setup Custom Bun Path
@@ -195,11 +211,69 @@ runs:
         cd ${GITHUB_ACTION_PATH}
         bun install --production
 
+    - name: Install subprocess isolation dependencies
+      # Install subprocess isolation dependencies when processing content from non-write users.
+      # Best-effort: skips on non-Linux or when sudo/apt unavailable (self-hosted runners).
+      if: ${{ inputs.allowed_non_write_users != '' && runner.os == 'Linux' }}
+      continue-on-error: true
+      shell: bash
+      run: |
+        if [ "${CLAUDE_CODE_SUBPROCESS_ENV_SCRUB:-}" = "0" ]; then
+          echo "Subprocess isolation opted out via CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=0"
+          exit 0
+        fi
+        if command -v apt-get >/dev/null && command -v sudo >/dev/null; then
+          for i in 1 2 3; do
+            sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat && break
+            echo "apt-get attempt $i failed, retrying..."
+            sleep 5
+          done
+        fi
+        # Ubuntu 24.04+ restricts unprivileged user namespaces via AppArmor.
+        # The sysctl doesn't exist on older kernels — that's fine.
+        if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ] && command -v sudo >/dev/null; then
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        fi
+
+    - name: Pin bun binary for post-steps
+      if: ${{ inputs.allowed_non_write_users != '' }}
+      continue-on-error: true
+      shell: bash
+      env:
+        PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
+        SETUP_BUN_PATH: ${{ steps.setup-bun.outputs.bun-path }}
+      run: |
+        # Keep a copy of the bun binary alongside the action's own files so
+        # post-steps use the same version the action installed or was given.
+        mkdir -p "$GITHUB_ACTION_PATH/bin"
+        for bun_path in "$PATH_TO_BUN_EXECUTABLE" "$SETUP_BUN_PATH" "$(command -v bun || true)"; do
+          if [ -n "$bun_path" ] && [ -x "$bun_path" ]; then
+            cp "$bun_path" "$GITHUB_ACTION_PATH/bin/bun"
+            break
+          fi
+        done
+        test -x "$GITHUB_ACTION_PATH/bin/bun"
+
+    - name: Prepend system bin dirs to PATH
+      if: ${{ inputs.allowed_non_write_users != '' && runner.os != 'Windows' }}
+      continue-on-error: true
+      shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+      run: |
+        echo "/usr/bin" >> "$GITHUB_PATH"
+        echo "/bin" >> "$GITHUB_PATH"
+
     - name: Run Claude Code Action
       id: run
       shell: bash
       run: |
-        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
+        # Do NOT pass --tsconfig-override here. It triggers a Bun runtime bug
+        # ("Internal error: directory mismatch for directory .../tsconfig.json")
+        # that aborts the run with exit code 1. Bun already auto-discovers the
+        # action's own tsconfig.json by walking up from the entry file, so the
+        # override is redundant. See oven-sh/bun#25730.
+        bun --no-env-file \
+          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
+          run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
       env:
         # Prepare inputs
         MODE: ${{ inputs.mode }}
@@ -214,6 +288,7 @@ runs:
         ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
         CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB || (inputs.allowed_non_write_users != '' && '1') || '' }}
+        CLAUDE_CODE_SCRIPT_CAPS: ${{ env.CLAUDE_CODE_SCRIPT_CAPS || '' }}
         INCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.include_comments_by_actor }}
         EXCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.exclude_comments_by_actor }}
         GITHUB_RUN_ID: ${{ github.run_id }}
@@ -246,8 +321,13 @@ runs:
         NODE_VERSION: ${{ env.NODE_VERSION }}
 
         # Provider configuration
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
-        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key || env.ANTHROPIC_API_KEY }}
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token || env.CLAUDE_CODE_OAUTH_TOKEN }}
+        ANTHROPIC_FEDERATION_RULE_ID: ${{ inputs.anthropic_federation_rule_id }}
+        ANTHROPIC_ORGANIZATION_ID: ${{ inputs.anthropic_organization_id }}
+        ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ inputs.anthropic_service_account_id }}
+        ANTHROPIC_WORKSPACE_ID: ${{ inputs.anthropic_workspace_id }}
+        ANTHROPIC_OIDC_AUDIENCE: ${{ inputs.anthropic_oidc_audience }}
         ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
         ANTHROPIC_CUSTOM_HEADERS: ${{ env.ANTHROPIC_CUSTOM_HEADERS }}
         CLAUDE_CODE_USE_BEDROCK: ${{ inputs.use_bedrock == 'true' && '1' || '' }}
@@ -280,6 +360,15 @@ runs:
         ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ env.ANTHROPIC_DEFAULT_HAIKU_MODEL }}
         ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ env.ANTHROPIC_DEFAULT_OPUS_MODEL }}
 
+        # MCP configuration — these env vars are read directly from process.env by the
+        # Claude CLI subprocess. They must be listed explicitly here because this step's
+        # env: block shadows the calling workflow's job-level env vars (GitHub Actions
+        # composite action behavior). Set these in your workflow's job-level env: or via
+        # a prior step that writes to $GITHUB_ENV.
+        MCP_TIMEOUT: ${{ env.MCP_TIMEOUT }}
+        MCP_TOOL_TIMEOUT: ${{ env.MCP_TOOL_TIMEOUT }}
+        MAX_MCP_OUTPUT_TOKENS: ${{ env.MAX_MCP_OUTPUT_TOKENS }}
+
         # Telemetry configuration
         CLAUDE_CODE_ENABLE_TELEMETRY: ${{ env.CLAUDE_CODE_ENABLE_TELEMETRY }}
         OTEL_METRICS_EXPORTER: ${{ env.OTEL_METRICS_EXPORTER }}
@@ -291,11 +380,42 @@ runs:
         OTEL_LOGS_EXPORT_INTERVAL: ${{ env.OTEL_LOGS_EXPORT_INTERVAL }}
         OTEL_RESOURCE_ATTRIBUTES: ${{ env.OTEL_RESOURCE_ATTRIBUTES }}
 
+    - name: Re-prepend system bin dirs to PATH
+      if: ${{ always() && inputs.allowed_non_write_users != '' && runner.os != 'Windows' }}
+      continue-on-error: true
+      shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+      env:
+        BASH_ENV: ""
+        LD_PRELOAD: ""
+        LD_LIBRARY_PATH: ""
+        NODE_OPTIONS: ""
+        DYLD_INSERT_LIBRARIES: ""
+        DYLD_PRELOAD: ""
+        DYLD_LIBRARY_PATH: ""
+        DYLD_FRAMEWORK_PATH: ""
+      run: |
+        echo "/usr/bin" >> "$GITHUB_PATH"
+        echo "/bin" >> "$GITHUB_PATH"
+        {
+          echo "BASH_ENV="
+          echo "LD_PRELOAD="
+          echo "LD_LIBRARY_PATH="
+          echo "DYLD_INSERT_LIBRARIES="
+          echo "DYLD_PRELOAD="
+          echo "DYLD_LIBRARY_PATH="
+          echo "DYLD_FRAMEWORK_PATH="
+        } >> "$GITHUB_ENV"
+
     - name: Cleanup SSH signing key
       if: always() && inputs.ssh_signing_key != ''
       shell: bash
       run: |
-        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
+        BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
+        [ -x "$BUN_BIN" ] || BUN_BIN="bun"
+        # No --tsconfig-override: see the "Run Claude Code Action" step above.
+        "$BUN_BIN" --no-env-file \
+          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
+          run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
 
     - name: Post buffered inline comments
       if: always() && inputs.classify_inline_comments != 'false'
@@ -307,10 +427,15 @@ runs:
         PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
       run: |
-        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts
+        BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
+        [ -x "$BUN_BIN" ] || BUN_BIN="bun"
+        # No --tsconfig-override: see the "Run Claude Code Action" step above.
+        "$BUN_BIN" --no-env-file \
+          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
+          run ${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts
 
     - name: Revoke app token
-      if: always() && inputs.github_token == '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
+      if: always() && inputs.github_token == '' && steps.run.outputs.github_token != '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
       shell: bash
       run: |
         curl -L \

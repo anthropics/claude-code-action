@@ -10,18 +10,27 @@ on:
         default: "List the files in the current directory starting with 'package'"
   workflow_call:
 
+# The Claude API is authenticated via workload identity federation: id-token
+# lets the action mint the GitHub OIDC token it exchanges for a short-lived
+# access token. See docs/setup.md.
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   test-inline-prompt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Test with inline prompt
         id: inline-test
         uses: ./base-action
         with:
           prompt: ${{ github.event.inputs.test_prompt || 'List the files in the current directory starting with "package"' }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           allowed_tools: "LS,Read"
 
       - name: Verify inline prompt output
@@ -63,7 +72,7 @@ jobs:
   test-prompt-file:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Create test prompt file
         run: |
@@ -78,7 +87,9 @@ jobs:
         uses: ./base-action
         with:
           prompt_file: "test-prompt.txt"
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           allowed_tools: "LS,Read"
 
       - name: Verify prompt file output

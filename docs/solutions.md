@@ -421,7 +421,8 @@ jobs:
             - `./scripts/gh.sh label list` to see available labels
 
             Based on your analysis, add the appropriate labels using:
-            `./scripts/edit-issue-labels.sh --issue [number] --add-label "label1" --add-label "label2"`
+            `./scripts/edit-issue-labels.sh --add-label "label1" --add-label "label2"`
+            (the issue number is read automatically from the workflow event)
 
             If it appears to be a duplicate, post a comment mentioning the original issue.
 

@@ -45,7 +45,7 @@ TASK OVERVIEW:
    - If you find similar issues using ./scripts/gh.sh search, consider using a "duplicate" label if appropriate. Only do so if the issue is a duplicate of another OPEN issue.
 
 5. Apply the selected labels:
-   - Use `./scripts/edit-issue-labels.sh --issue NUMBER --add-label LABEL1 --add-label LABEL2` to apply your selected labels
+   - Use `./scripts/edit-issue-labels.sh --add-label LABEL1 --add-label LABEL2` to apply your selected labels (issue number is read from the workflow event)
    - DO NOT post any comments explaining your decision
    - DO NOT communicate directly with users
    - If no labels are clearly applicable, do not apply any labels

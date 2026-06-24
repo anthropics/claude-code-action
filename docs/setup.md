@@ -10,6 +10,52 @@
    - Or `CLAUDE_CODE_OAUTH_TOKEN` for OAuth token authentication (Pro and Max users can generate this by running `claude setup-token` locally)
 3. Copy the workflow file from [`examples/claude.yml`](../examples/claude.yml) into your repository's `.github/workflows/`
 
+> Don't want to store a static API key at all? See [Workload Identity Federation](#workload-identity-federation) below.
+
+## Workload Identity Federation
+
+Workload Identity Federation (WIF) lets the action authenticate to the Claude API by exchanging the workflow's GitHub Actions OIDC token for a short-lived Anthropic access token — no `ANTHROPIC_API_KEY` secret to create, store, or rotate.
+
+### One-time setup in the Claude Console
+
+You need admin access to your Anthropic organization (Console → **Settings → Workload identity**):
+
+1. **Register an issuer** for GitHub Actions with issuer URL `https://token.actions.githubusercontent.com` (JWKS source: `discovery`).
+2. **Create a service account** (Settings → Service accounts) and add it to the workspace it should act in. Note the `svac_...` ID.
+3. **Create a federation rule** targeting that service account, matched to your repository's OIDC claims (for example a subject prefix of `repo:your-org/your-repo:`). Note the `fdrl_...` rule ID.
+
+See the [Workload Identity Federation documentation](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation) for full details.
+
+### Workflow configuration
+
+```yaml
+jobs:
+  claude-response:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write # required: used to fetch the GitHub OIDC token
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_federation_rule_id: fdrl_xxxxxxxxxxxx
+          anthropic_organization_id: 00000000-0000-0000-0000-000000000000
+          anthropic_service_account_id: svac_xxxxxxxxxxxx
+          # Optional when the federation rule targets a single workspace:
+          anthropic_workspace_id: wrkspc_xxxxxxxxxxxx
+```
+
+These values are identifiers, not credentials, so they can live directly in the workflow file (or in repository variables).
+
+Notes:
+
+- The workflow must grant `id-token: write` permission so the action can fetch a GitHub OIDC token. The default GitHub App authentication path already requires this permission.
+- Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federation inputs — a static credential takes precedence and federation will not be used.
+- The GitHub OIDC token is requested with audience `https://api.anthropic.com` by default, so set the federation rule's expected audience to that value (or leave the rule's audience unmatched). Use `anthropic_oidc_audience` only if your rule expects a different audience.
+- Inline comment classification (`classify_inline_comments`) currently requires `anthropic_api_key`; with federation it is skipped and unconfirmed inline comments are posted directly.
+
 ## Using a Custom GitHub App
 
 If you prefer not to install the official Claude app, you can create your own GitHub App to use with this action. This gives you complete control over permissions and access.

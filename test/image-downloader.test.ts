@@ -158,6 +158,55 @@ describe("downloadCommentImages", () => {
     );
   });
 
+  test("should save a JPEG from an extensionless URL with a .jpg extension", async () => {
+    // Regression for the case where a JPEG screenshot is pasted into an issue.
+    // GitHub serves it from /user-attachments/assets/<uuid> (no extension), so
+    // the URL-based guess used to default to ".png" while the bytes are JPEG —
+    // producing a mislabeled file that the Anthropic API rejected with a 400.
+    const mockOctokit = createMockOctokit();
+    const imageUrl =
+      "https://github.com/user-attachments/assets/f871c23e-a84d-4f1f-b9a0-86626c63f161";
+    const signedUrl =
+      "https://private-user-images.githubusercontent.com/screenshot?jwt=token";
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.get = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    // JPEG magic bytes: FF D8 FF, then arbitrary padding.
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => jpegBytes.buffer,
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_body",
+        issueNumber: "143",
+        body: `![Screenshot_20260607_204205_Chrome.jpg](${imageUrl})`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(fsWriteFileSpy).toHaveBeenCalledWith(
+      "/tmp/github-images/image-1704067200000-0.jpg",
+      Buffer.from(jpegBytes.buffer),
+    );
+    expect(result.get(imageUrl)).toBe(
+      "/tmp/github-images/image-1704067200000-0.jpg",
+    );
+  });
+
   test("should handle review comments", async () => {
     const mockOctokit = createMockOctokit();
     const imageUrl =

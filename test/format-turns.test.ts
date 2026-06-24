@@ -437,3 +437,51 @@ describe("integration tests", () => {
     expect(actualOutput).toBe(expectedOutput);
   });
 });
+
+describe("detectContentType fallbacks", () => {
+  test("falls back to text for malformed JSON objects", () => {
+    // Looks like an object (starts with { ends with }) but does not parse.
+    expect(detectContentType("{not valid json}")).toBe("text");
+  });
+
+  test("falls back to text for malformed JSON arrays", () => {
+    // Looks like an array (starts with [ ends with ]) but does not parse.
+    expect(detectContentType("[not, valid, json]")).toBe("text");
+  });
+
+  test("classifies non-python, non-js code keywords as python by default", () => {
+    // Contains a code keyword ("class ") but matches neither the python-specific
+    // nor the javascript-specific checks, so it hits the default branch.
+    expect(detectContentType("class Foo {}")).toBe("python");
+  });
+});
+
+describe("formatResultContent non-string input", () => {
+  test("handles a numeric (non-string) result value", () => {
+    const result = formatResultContent(42);
+    expect(result).toContain("42");
+  });
+
+  test("handles a plain object (non-string, non-text-array) result value", () => {
+    const result = formatResultContent({ status: "ok" });
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+describe("system_other handling", () => {
+  test("groups a non-init system turn as system_other", () => {
+    const systemTurn: Turn = { type: "system", subtype: "some_other_subtype" };
+    const grouped = groupTurnsNaturally([systemTurn]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]?.type).toBe("system_other");
+    expect(grouped[0]?.data).toEqual(systemTurn);
+  });
+
+  test("renders a system_other group as a System Message section", () => {
+    const markdown = formatGroupedContent([
+      { type: "system_other", data: { type: "system" } as Turn },
+    ]);
+    expect(markdown).toContain("## ⚙️ System Message");
+  });
+});

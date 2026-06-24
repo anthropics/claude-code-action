@@ -253,7 +253,8 @@ async function run() {
       commentId: parseInt(process.env.CLAUDE_COMMENT_ID!),
       githubToken,
       claudeBranch: process.env.CLAUDE_BRANCH,
-      baseBranch: process.env.BASE_BRANCH || "main",
+      baseBranch:
+        process.env.BASE_BRANCH || context.repository.default_branch || "main",
       triggerUsername: process.env.TRIGGER_USERNAME,
       context,
       octokit,
