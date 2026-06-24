@@ -526,4 +526,88 @@ describe("parseSdkOptions", () => {
       }
     });
   });
+
+  describe("model defaulting", () => {
+    // Guard against leaking provider env vars between tests.
+    function withEnv(env: Record<string, string | undefined>, fn: () => void) {
+      const originalEnv = { ...process.env };
+      delete process.env.CLAUDE_CODE_USE_BEDROCK;
+      delete process.env.CLAUDE_CODE_USE_VERTEX;
+      delete process.env.CLAUDE_CODE_USE_FOUNDRY;
+      Object.assign(process.env, env);
+      try {
+        fn();
+      } finally {
+        process.env = originalEnv;
+      }
+    }
+
+    test("should default to the first-party alias when no model is specified", () => {
+      // Regression for #1416: with no model anywhere, the action used to pass
+      // model: undefined and inherit the SDK/CLI's retired default (404).
+      withEnv({}, () => {
+        const result = parseSdkOptions({});
+        expect(result.sdkOptions.model).toBe("sonnet");
+      });
+    });
+
+    test("should preserve an explicit options.model", () => {
+      withEnv({}, () => {
+        const result = parseSdkOptions({ model: "claude-opus-4-7" });
+        expect(result.sdkOptions.model).toBe("claude-opus-4-7");
+      });
+    });
+
+    test("should trim whitespace from an explicit options.model", () => {
+      withEnv({}, () => {
+        const result = parseSdkOptions({ model: "  claude-opus-4-7  " });
+        expect(result.sdkOptions.model).toBe("claude-opus-4-7");
+      });
+    });
+
+    test("should not set sdkOptions.model when --model is provided via claudeArgs", () => {
+      // The CLI flag in extraArgs wins; setting model here too would specify it twice.
+      withEnv({}, () => {
+        const result = parseSdkOptions({
+          claudeArgs: "--model claude-sonnet-4-6",
+        });
+        expect(result.sdkOptions.model).toBeUndefined();
+        expect(result.sdkOptions.extraArgs?.["model"]).toBe(
+          "claude-sonnet-4-6",
+        );
+      });
+    });
+
+    test("should not inject a default for Bedrock", () => {
+      withEnv({ CLAUDE_CODE_USE_BEDROCK: "1" }, () => {
+        const result = parseSdkOptions({});
+        expect(result.sdkOptions.model).toBeUndefined();
+      });
+    });
+
+    test("should not inject a default for Vertex", () => {
+      withEnv({ CLAUDE_CODE_USE_VERTEX: "1" }, () => {
+        const result = parseSdkOptions({});
+        expect(result.sdkOptions.model).toBeUndefined();
+      });
+    });
+
+    test("should not inject a default for Foundry", () => {
+      withEnv({ CLAUDE_CODE_USE_FOUNDRY: "1" }, () => {
+        const result = parseSdkOptions({});
+        expect(result.sdkOptions.model).toBeUndefined();
+      });
+    });
+
+    test("should preserve an explicit model even for third-party providers", () => {
+      withEnv({ CLAUDE_CODE_USE_BEDROCK: "1" }, () => {
+        const result = parseSdkOptions({
+          model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        });
+        expect(result.sdkOptions.model).toBe(
+          "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        );
+      });
+    });
+  });
 });
