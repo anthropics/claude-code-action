@@ -79,6 +79,7 @@ type BaseContext = {
     owner: string;
     repo: string;
     full_name: string;
+    default_branch?: string;
   };
   actor: string;
   inputs: {
@@ -140,6 +141,7 @@ export function parseGitHubContext(): GitHubContext {
       owner: context.repo.owner,
       repo: context.repo.repo,
       full_name: `${context.repo.owner}/${context.repo.repo}`,
+      default_branch: context.payload.repository?.default_branch,
     },
     actor: context.actor,
     inputs: {

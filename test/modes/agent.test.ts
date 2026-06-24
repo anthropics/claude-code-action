@@ -88,7 +88,7 @@ describe("Agent Mode", () => {
     expect(result.claudeArgs).toBe("--model claude-sonnet-4 --max-turns 10");
     expect(result.claudeArgs).not.toContain("--mcp-config");
 
-    // Verify return structure - should use "main" as fallback when no env vars set
+    // Verify return structure - should fall back to repository.default_branch when no env vars set
     expect(result).toEqual({
       commentId: undefined,
       branchInfo: {
@@ -102,6 +102,60 @@ describe("Agent Mode", () => {
 
     // Clean up
     delete process.env.CLAUDE_ARGS;
+    if (originalHeadRef !== undefined)
+      process.env.GITHUB_HEAD_REF = originalHeadRef;
+    if (originalRefName !== undefined)
+      process.env.GITHUB_REF_NAME = originalRefName;
+  });
+
+  test("prepare falls back to repository.default_branch when not 'main'", async () => {
+    const contextWithDevelop = createMockAutomationContext({
+      eventName: "workflow_dispatch",
+      repository: {
+        owner: "test-owner",
+        repo: "test-repo",
+        full_name: "test-owner/test-repo",
+        default_branch: "develop",
+      },
+    });
+
+    // Save and clear env vars that would otherwise override the fallback
+    const originalClaudeBranch = process.env.CLAUDE_BRANCH;
+    const originalHeadRef = process.env.GITHUB_HEAD_REF;
+    const originalRefName = process.env.GITHUB_REF_NAME;
+    delete process.env.CLAUDE_BRANCH;
+    delete process.env.GITHUB_HEAD_REF;
+    delete process.env.GITHUB_REF_NAME;
+
+    const mockOctokit = {
+      rest: {
+        users: {
+          getAuthenticated: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+          getByUsername: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+        },
+      },
+    } as any;
+
+    const result = await prepareAgentMode({
+      context: contextWithDevelop,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+
+    expect(result.branchInfo.baseBranch).toBe("develop");
+    expect(result.branchInfo.currentBranch).toBe("develop");
+
+    // Restore env vars
+    if (originalClaudeBranch !== undefined)
+      process.env.CLAUDE_BRANCH = originalClaudeBranch;
     if (originalHeadRef !== undefined)
       process.env.GITHUB_HEAD_REF = originalHeadRef;
     if (originalRefName !== undefined)

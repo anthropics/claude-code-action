@@ -11,6 +11,8 @@ describe("validateEnvironmentVariables", () => {
     originalEnv = { ...process.env };
     // Clear relevant environment variables
     delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_FEDERATION_RULE_ID;
+    delete process.env.ANTHROPIC_ORGANIZATION_ID;
     delete process.env.CLAUDE_CODE_USE_BEDROCK;
     delete process.env.CLAUDE_CODE_USE_VERTEX;
     delete process.env.CLAUDE_CODE_USE_FOUNDRY;
@@ -42,7 +44,32 @@ describe("validateEnvironmentVariables", () => {
 
     test("should fail when ANTHROPIC_API_KEY is missing", () => {
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Either ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is required when using direct Anthropic API.",
+        "Either ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, or workload identity federation (ANTHROPIC_FEDERATION_RULE_ID and ANTHROPIC_ORGANIZATION_ID) is required when using direct Anthropic API.",
+      );
+    });
+
+    test("should pass when workload identity federation variables are provided", () => {
+      process.env.ANTHROPIC_FEDERATION_RULE_ID = "fdrl_test";
+      process.env.ANTHROPIC_ORGANIZATION_ID =
+        "00000000-0000-0000-0000-000000000000";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should fail when only ANTHROPIC_FEDERATION_RULE_ID is provided", () => {
+      process.env.ANTHROPIC_FEDERATION_RULE_ID = "fdrl_test";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "Workload identity federation requires both ANTHROPIC_FEDERATION_RULE_ID and ANTHROPIC_ORGANIZATION_ID to be set.",
+      );
+    });
+
+    test("should fail when only ANTHROPIC_ORGANIZATION_ID is provided", () => {
+      process.env.ANTHROPIC_ORGANIZATION_ID =
+        "00000000-0000-0000-0000-000000000000";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "Workload identity federation requires both ANTHROPIC_FEDERATION_RULE_ID and ANTHROPIC_ORGANIZATION_ID to be set.",
       );
     });
   });

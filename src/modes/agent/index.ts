@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, rm, writeFile } from "fs/promises";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { parseAllowedTools } from "./parse-tools";
 import {
@@ -64,20 +64,19 @@ export async function prepareAgentMode({
     }
   }
 
-  // Create prompt directory
-  await mkdir(`${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`, {
-    recursive: true,
-  });
+  // Create prompt directory. Clear any stale files from a prior invocation first —
+  // see src/create-prompt/index.ts for context (non-ephemeral self-hosted runners
+  // do not reliably honor the RUNNER_TEMP cleanup contract).
+  const promptDir = `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`;
+  await rm(promptDir, { recursive: true, force: true });
+  await mkdir(promptDir, { recursive: true });
 
   // Write the prompt file - use the user's prompt directly
   const promptContent =
     context.inputs.prompt ||
     `Repository: ${context.repository.owner}/${context.repository.repo}`;
 
-  await writeFile(
-    `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts/claude-prompt.txt`,
-    promptContent,
-  );
+  await writeFile(`${promptDir}/claude-prompt.txt`, promptContent);
 
   // Parse allowed tools from user's claude_args
   const userClaudeArgs = process.env.CLAUDE_ARGS || "";
@@ -85,15 +84,15 @@ export async function prepareAgentMode({
 
   // Check for branch info from environment variables (useful for auto-fix workflows)
   const claudeBranch = process.env.CLAUDE_BRANCH || undefined;
-  const baseBranch =
-    process.env.BASE_BRANCH || context.inputs.baseBranch || "main";
+  const defaultBranch = context.repository.default_branch || "main";
+  const baseBranch = context.inputs.baseBranch || defaultBranch;
 
   // Detect current branch from GitHub environment
   const currentBranch =
     claudeBranch ||
     process.env.GITHUB_HEAD_REF ||
     process.env.GITHUB_REF_NAME ||
-    "main";
+    defaultBranch;
 
   // Get our GitHub MCP servers config
   const ourMcpConfig = await prepareMcpConfig({

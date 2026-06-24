@@ -5,8 +5,12 @@ on:
   workflow_dispatch:
   workflow_call:
 
+# The Claude API is authenticated via workload identity federation: id-token
+# lets the action mint the GitHub OIDC token it exchanges for a short-lived
+# access token. See docs/setup.md.
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   test-basic-types:
@@ -14,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Test with explicit values
         id: test
@@ -28,7 +32,9 @@ jobs:
             - number_field: 42
             - boolean_true: true
             - boolean_false: false
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           claude_args: |
             --allowedTools Bash
             --json-schema '{"type":"object","properties":{"text_field":{"type":"string"},"number_field":{"type":"number"},"boolean_true":{"type":"boolean"},"boolean_false":{"type":"boolean"}},"required":["text_field","number_field","boolean_true","boolean_false"]}'
@@ -73,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Test complex types
         id: test
@@ -86,7 +92,9 @@ jobs:
             - items: ["apple", "banana", "cherry"]
             - config: {"key": "value", "count": 3}
             - empty_array: []
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           claude_args: |
             --allowedTools Bash
             --json-schema '{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}},"config":{"type":"object"},"empty_array":{"type":"array"}},"required":["items","config","empty_array"]}'
@@ -124,7 +132,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Test edge cases
         id: test
@@ -138,7 +146,9 @@ jobs:
             - empty_string: ""
             - negative: -5
             - decimal: 3.14
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           claude_args: |
             --allowedTools Bash
             --json-schema '{"type":"object","properties":{"zero":{"type":"number"},"empty_string":{"type":"string"},"negative":{"type":"number"},"decimal":{"type":"number"}},"required":["zero","empty_string","negative","decimal"]}'
@@ -183,7 +193,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Test special characters in field names
         id: test
@@ -192,7 +202,9 @@ jobs:
           prompt: |
             Run: echo "test"
             Return EXACTLY: {test-result: "passed", item_count: 10}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           claude_args: |
             --allowedTools Bash
             --json-schema '{"type":"object","properties":{"test-result":{"type":"string"},"item_count":{"type":"number"}},"required":["test-result","item_count"]}'
@@ -223,14 +235,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Run with structured output
         id: test
         uses: ./base-action
         with:
           prompt: "Run: echo 'complete'. Return: {done: true}"
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           claude_args: |
             --allowedTools Bash
             --json-schema '{"type":"object","properties":{"done":{"type":"boolean"}},"required":["done"]}'

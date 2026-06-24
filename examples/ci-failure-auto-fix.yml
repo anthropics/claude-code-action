@@ -1,5 +1,21 @@
 name: Auto Fix CI Failures
 
+# ⚠️ SECURITY NOTE
+#
+# This workflow checks out the PR branch and runs build/test commands
+# (npm, bun, etc.) against it with elevated permissions (contents:write,
+# id-token:write). This means code from the PR branch executes in a
+# trusted context with access to secrets and the ability to push to the
+# repository.
+#
+# Only use this workflow in repositories where everyone with write access
+# is fully trusted with these permissions. Do not use this in repositories
+# that accept contributions from untrusted or semi-trusted collaborators.
+#
+# The pull_requests[0] check below limits this to same-repo PRs (fork PRs
+# are excluded), but anyone who can push a branch to this repository can
+# control what code runs here.
+
 on:
   workflow_run:
     workflows: ["CI"]
@@ -35,10 +51,14 @@ jobs:
 
       - name: Create fix branch
         id: branch
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_ID: ${{ github.run_id }}
         run: |
-          BRANCH_NAME="claude-auto-fix-ci-${{ github.event.workflow_run.head_branch }}-${{ github.run_id }}"
+          SAFE_BRANCH=$(printf '%s' "$HEAD_BRANCH" | tr -cd 'a-zA-Z0-9/_.-')
+          BRANCH_NAME="claude-auto-fix-ci-${SAFE_BRANCH}-${RUN_ID}"
           git checkout -b "$BRANCH_NAME"
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Get CI failure details
         id: failure_details

@@ -5,15 +5,22 @@ on:
   workflow_dispatch:
   workflow_call:
 
+# The Claude API is authenticated via workload identity federation: id-token
+# lets the action mint the GitHub OIDC token it exchanges for a short-lived
+# access token. See docs/setup.md.
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   test-mcp-integration:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 #v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
 
       - name: Install dependencies
         run: |
@@ -25,8 +32,11 @@ jobs:
         uses: ./base-action
         id: claude-test
         with:
-          prompt: "List all available tools"
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: "Call the test_tool tool and report its response."
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          claude_args: --allowedTools mcp__test-server__test_tool
         env:
           # Change to test directory so it finds .mcp.json
           CLAUDE_WORKING_DIR: ${{ github.workspace }}/base-action/test/mcp-test
@@ -50,21 +60,29 @@ jobs:
           if jq -e '.[] | select(.type == "system" and .subtype == "init") | .mcp_servers' "$OUTPUT_FILE" > /dev/null; then
             echo "✓ Found mcp_servers in output"
             
-            # Check if test-server is connected
-            if jq -e '.[] | select(.type == "system" and .subtype == "init") | .mcp_servers[] | select(.name == "test-server" and .status == "connected")' "$OUTPUT_FILE" > /dev/null; then
-              echo "✓ test-server is connected"
+            # MCP servers can connect asynchronously, so the init event may
+            # report the server as pending — check registration there, then
+            # verify the tool actually ran.
+            if jq -e '.[] | select(.type == "system" and .subtype == "init") | .mcp_servers[] | select(.name == "test-server")' "$OUTPUT_FILE" > /dev/null; then
+              echo "✓ test-server is registered"
             else
-              echo "✗ test-server not found or not connected"
+              echo "✗ test-server not found"
               jq '.[] | select(.type == "system" and .subtype == "init") | .mcp_servers' "$OUTPUT_FILE"
               exit 1
             fi
-            
-            # Check if mcp tools are available
-            if jq -e '.[] | select(.type == "system" and .subtype == "init") | .tools[] | select(. == "mcp__test-server__test_tool")' "$OUTPUT_FILE" > /dev/null; then
-              echo "✓ MCP test tool found"
+
+            if jq -e '.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use" and .name == "mcp__test-server__test_tool")' "$OUTPUT_FILE" > /dev/null; then
+              echo "✓ MCP test tool was called"
             else
-              echo "✗ MCP test tool not found"
-              jq '.[] | select(.type == "system" and .subtype == "init") | .tools' "$OUTPUT_FILE"
+              echo "✗ MCP test tool was not called"
+              jq '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use") | .name]' "$OUTPUT_FILE"
+              exit 1
+            fi
+
+            if jq -e '.[] | select(.type == "user") | .message.content[]? | select(.type == "tool_result") | select(.content | tostring | contains("Test tool response"))' "$OUTPUT_FILE" > /dev/null; then
+              echo "✓ MCP test tool returned its response"
+            else
+              echo "✗ MCP test tool response not found"
               exit 1
             fi
           else
@@ -79,10 +97,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 #v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
 
       - name: Install dependencies
         run: |
@@ -106,9 +124,13 @@ jobs:
         uses: ./base-action
         id: claude-config-test
         with:
-          prompt: "List all available tools"
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          mcp_config: '{"mcpServers":{"test-server":{"type":"stdio","command":"bun","args":["simple-mcp-server.ts"],"env":{}}}}'
+          prompt: "Call the test_tool tool and report its response."
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          claude_args: |
+            --allowedTools mcp__test-server__test_tool
+            --mcp-config '{"mcpServers":{"test-server":{"type":"stdio","command":"bun","args":["simple-mcp-server.ts"],"env":{}}}}'
         env:
           # Change to test directory so bun can find the MCP server script
           CLAUDE_WORKING_DIR: ${{ github.workspace }}/base-action/test/mcp-test
@@ -132,21 +154,29 @@ jobs:
           if jq -e '.[] | select(.type == "system" and .subtype == "init") | .mcp_servers' "$OUTPUT_FILE" > /dev/null; then
             echo "✓ Found mcp_servers in output"
             
-            # Check if test-server is connected
-            if jq -e '.[] | select(.type == "system" and .subtype == "init") | .mcp_servers[] | select(.name == "test-server" and .status == "connected")' "$OUTPUT_FILE" > /dev/null; then
-              echo "✓ test-server is connected"
+            # MCP servers can connect asynchronously, so the init event may
+            # report the server as pending — check registration there, then
+            # verify the tool actually ran.
+            if jq -e '.[] | select(.type == "system" and .subtype == "init") | .mcp_servers[] | select(.name == "test-server")' "$OUTPUT_FILE" > /dev/null; then
+              echo "✓ test-server is registered"
             else
-              echo "✗ test-server not found or not connected"
+              echo "✗ test-server not found"
               jq '.[] | select(.type == "system" and .subtype == "init") | .mcp_servers' "$OUTPUT_FILE"
               exit 1
             fi
-            
-            # Check if mcp tools are available
-            if jq -e '.[] | select(.type == "system" and .subtype == "init") | .tools[] | select(. == "mcp__test-server__test_tool")' "$OUTPUT_FILE" > /dev/null; then
-              echo "✓ MCP test tool found"
+
+            if jq -e '.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use" and .name == "mcp__test-server__test_tool")' "$OUTPUT_FILE" > /dev/null; then
+              echo "✓ MCP test tool was called"
             else
-              echo "✗ MCP test tool not found"
-              jq '.[] | select(.type == "system" and .subtype == "init") | .tools' "$OUTPUT_FILE"
+              echo "✗ MCP test tool was not called"
+              jq '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use") | .name]' "$OUTPUT_FILE"
+              exit 1
+            fi
+
+            if jq -e '.[] | select(.type == "user") | .message.content[]? | select(.type == "tool_result") | select(.content | tostring | contains("Test tool response"))' "$OUTPUT_FILE" > /dev/null; then
+              echo "✓ MCP test tool returned its response"
+            else
+              echo "✗ MCP test tool response not found"
               exit 1
             fi
           else
