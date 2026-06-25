@@ -58,6 +58,10 @@ inputs:
     description: "Instructions for Claude. Can be a direct prompt or custom template."
     required: false
     default: ""
+  user_request:
+    description: "Optional user request appended after prompt context in agent mode. Use this for slash commands that must be processed by Claude Code."
+    required: false
+    default: ""
   settings:
     description: "Claude Code settings as JSON string or path to settings JSON file"
     required: false
@@ -278,6 +282,7 @@ runs:
         # Prepare inputs
         MODE: ${{ inputs.mode }}
         PROMPT: ${{ inputs.prompt }}
+        USER_REQUEST: ${{ inputs.user_request }}
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
         LABEL_TRIGGER: ${{ inputs.label_trigger }}

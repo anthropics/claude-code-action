@@ -14,6 +14,7 @@ describe("detectMode with enhanced routing", () => {
     actor: "test-user",
     inputs: {
       prompt: "",
+      userRequest: "",
       triggerPhrase: "@claude",
       assigneeTrigger: "",
       labelTrigger: "",

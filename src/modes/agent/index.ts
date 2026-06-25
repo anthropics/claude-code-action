@@ -9,6 +9,8 @@ import { checkHumanActor } from "../../github/validation/actor";
 import type { GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
 
+const USER_REQUEST_FILENAME = "claude-user-request.txt";
+
 /**
  * Prepares the agent mode execution context.
  *
@@ -77,6 +79,13 @@ export async function prepareAgentMode({
     `Repository: ${context.repository.owner}/${context.repository.repo}`;
 
   await writeFile(`${promptDir}/claude-prompt.txt`, promptContent);
+
+  if (context.inputs.userRequest) {
+    await writeFile(
+      `${promptDir}/${USER_REQUEST_FILENAME}`,
+      context.inputs.userRequest,
+    );
+  }
 
   // Parse allowed tools from user's claude_args
   const userClaudeArgs = process.env.CLAUDE_ARGS || "";
