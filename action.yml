@@ -439,8 +439,10 @@ runs:
       shell: bash
       run: |
         curl -L \
+          --connect-timeout 5 \
+          --max-time 10 \
           -X DELETE \
           -H "Accept: application/vnd.github+json" \
           -H "Authorization: Bearer ${{ steps.run.outputs.github_token }}" \
           -H "X-GitHub-Api-Version: 2022-11-28" \
-          ${GITHUB_API_URL:-https://api.github.com}/installation/token
+          ${GITHUB_API_URL:-https://api.github.com}/installation/token || true
