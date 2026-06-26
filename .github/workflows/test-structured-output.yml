@@ -16,6 +16,7 @@ jobs:
   test-basic-types:
     name: Test Basic Type Conversions
     runs-on: ubuntu-latest
+    if: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -77,6 +78,7 @@ jobs:
   test-complex-types:
     name: Test Arrays and Objects
     runs-on: ubuntu-latest
+    if: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -130,6 +132,7 @@ jobs:
   test-edge-cases:
     name: Test Edge Cases
     runs-on: ubuntu-latest
+    if: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -191,6 +194,7 @@ jobs:
   test-name-sanitization:
     name: Test Output Name Sanitization
     runs-on: ubuntu-latest
+    if: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
