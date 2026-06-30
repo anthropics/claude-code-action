@@ -119,12 +119,12 @@ To allow Claude to view workflow run results, job logs, and CI status:
 
    - When using the default `GITHUB_TOKEN`, add the `actions: read` permission to your workflow:
 
-   ```yaml
+   ```diff
    permissions:
      contents: write
      pull-requests: write
      issues: write
-     actions: read # Add this line
+   + actions: read # Add this line
    ```
 
 2. **Configure the action with additional permissions**:
