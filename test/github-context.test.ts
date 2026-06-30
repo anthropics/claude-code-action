@@ -49,6 +49,7 @@ const ENV_KEYS = [
   "USE_STICKY_COMMENT",
   "CLASSIFY_INLINE_COMMENTS",
   "USE_COMMIT_SIGNING",
+  "READ_ONLY",
   "SSH_SIGNING_KEY",
   "BOT_ID",
   "BOT_NAME",
@@ -102,6 +103,19 @@ function setEvent(eventName: string, payload: unknown) {
 
 describe("parseGitHubContext", () => {
   describe("entity events (one test per equivalence partition)", () => {
+    test("parses read-only input", () => {
+      process.env.READ_ONLY = "true";
+      setEvent("issues", {
+        action: "opened",
+        issue: { number: 42 },
+        repository: repositoryPayload,
+      } as unknown as IssuesEvent);
+
+      const context = parseGitHubContext();
+
+      expect(context.inputs.readOnly).toBe(true);
+    });
+
     test("issues event extracts issue number and isPR false", () => {
       setEvent("issues", {
         action: "opened",

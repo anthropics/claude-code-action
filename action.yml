@@ -121,6 +121,10 @@ inputs:
     description: "Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands"
     required: false
     default: "false"
+  read_only:
+    description: "Prevent Claude from receiving git or GitHub file-operation tools that can commit, push, or delete files"
+    required: false
+    default: "false"
   ssh_signing_key:
     description: "SSH private key for signing commits. When provided, git will be configured to use SSH signing. Takes precedence over use_commit_signing."
     required: false
@@ -296,6 +300,7 @@ runs:
         CLASSIFY_INLINE_COMMENTS: ${{ inputs.classify_inline_comments }}
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
+        READ_ONLY: ${{ inputs.read_only }}
         SSH_SIGNING_KEY: ${{ inputs.ssh_signing_key }}
         BOT_ID: ${{ inputs.bot_id }}
         BOT_NAME: ${{ inputs.bot_name }}
