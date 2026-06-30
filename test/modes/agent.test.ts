@@ -84,8 +84,11 @@ describe("Agent Mode", () => {
       githubToken: "test-token",
     });
 
-    // Verify claude_args includes user args (no MCP config in agent mode without allowed tools)
-    expect(result.claudeArgs).toBe("--model claude-sonnet-4 --max-turns 10");
+    // Verify claude_args includes disallowed tools and user args
+    expect(result.claudeArgs).toContain("--disallowedTools");
+    expect(result.claudeArgs).toContain("WebSearch");
+    expect(result.claudeArgs).toContain("WebFetch");
+    expect(result.claudeArgs).toContain("--model claude-sonnet-4 --max-turns 10");
     expect(result.claudeArgs).not.toContain("--mcp-config");
 
     // Verify return structure - should fall back to repository.default_branch when no env vars set
@@ -97,7 +100,7 @@ describe("Agent Mode", () => {
         claudeBranch: undefined,
       },
       mcpConfig: expect.any(String),
-      claudeArgs: "--model claude-sonnet-4 --max-turns 10",
+      claudeArgs: expect.stringContaining("--disallowedTools"),
     });
 
     // Clean up
@@ -256,5 +259,104 @@ describe("Agent Mode", () => {
     // should not include any MCP config
     // Should be empty or just whitespace when no MCP servers are included
     expect(result.claudeArgs).not.toContain("--mcp-config");
+  });
+
+
+  test("--allowedTools WebSearch removes WebSearch from disallowed list", async () => {
+    const context = createMockAutomationContext({
+      eventName: "workflow_dispatch",
+    });
+
+    const originalHeadRef = process.env.GITHUB_HEAD_REF;
+    const originalRefName = process.env.GITHUB_REF_NAME;
+    delete process.env.GITHUB_HEAD_REF;
+    delete process.env.GITHUB_REF_NAME;
+
+    // Set CLAUDE_ARGS with --allowedTools WebSearch
+    process.env.CLAUDE_ARGS = '--allowedTools "WebSearch"';
+
+    const mockOctokit = {
+      rest: {
+        users: {
+          getAuthenticated: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+          getByUsername: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+        },
+      },
+    } as any;
+
+    const result = await prepareAgentMode({
+      context,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+
+    // WebSearch should NOT be in disallowed tools since user explicitly allowed it
+    // WebFetch should still be disallowed
+    expect(result.claudeArgs).toContain("--disallowedTools");
+    expect(result.claudeArgs).not.toMatch(/--disallowedTools[^"]*WebSearch/);
+    expect(result.claudeArgs).toContain("WebFetch");
+
+    // Clean up
+    delete process.env.CLAUDE_ARGS;
+    if (originalHeadRef !== undefined)
+      process.env.GITHUB_HEAD_REF = originalHeadRef;
+    if (originalRefName !== undefined)
+      process.env.GITHUB_REF_NAME = originalRefName;
+  });
+
+  test("--allowedTools WebSearch,WebFetch removes both from disallowed list", async () => {
+    const context = createMockAutomationContext({
+      eventName: "workflow_dispatch",
+    });
+
+    const originalHeadRef = process.env.GITHUB_HEAD_REF;
+    const originalRefName = process.env.GITHUB_REF_NAME;
+    delete process.env.GITHUB_HEAD_REF;
+    delete process.env.GITHUB_REF_NAME;
+
+    // Set CLAUDE_ARGS with both tools allowed
+    process.env.CLAUDE_ARGS = '--allowedTools "WebSearch,WebFetch"';
+
+    const mockOctokit = {
+      rest: {
+        users: {
+          getAuthenticated: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+          getByUsername: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+        },
+      },
+    } as any;
+
+    const result = await prepareAgentMode({
+      context,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+
+    // Neither WebSearch nor WebFetch should be in disallowed tools
+    // So --disallowedTools should not be present at all
+    expect(result.claudeArgs).not.toContain("--disallowedTools");
+
+    // Clean up
+    delete process.env.CLAUDE_ARGS;
+    if (originalHeadRef !== undefined)
+      process.env.GITHUB_HEAD_REF = originalHeadRef;
+    if (originalRefName !== undefined)
+      process.env.GITHUB_REF_NAME = originalRefName;
   });
 });
