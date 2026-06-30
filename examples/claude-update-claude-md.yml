@@ -1,0 +1,68 @@
+name: Auto-Update CLAUDE.md Files
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  update-claude-md:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Update CLAUDE.md files
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          timeout_minutes: "30"
+          branch_prefix: "claude-md-update/"
+          direct_prompt: |
+            Analyze the pull request changes and update all CLAUDE.md files in the repository to reflect these changes.
+
+            IMPORTANT INSTRUCTIONS:
+            1. First, use glob search to find all CLAUDE.md files in the repository (search for "**/CLAUDE.md")
+            2. Examine the pull request that triggered this workflow:
+               - Get the PR diff to understand all changes
+               - Identify which areas/features were changed
+               - Review the PR description and title for context
+            3. For each CLAUDE.md file found, determine if it needs updating based on:
+               - The commit message description
+               - The files that were changed
+               - The nature of the changes
+            4. Update ONLY the relevant sections - do not rewrite entire files
+            5. Preserve the existing structure and formatting of each CLAUDE.md file
+
+            Focus on updating:
+            - Architecture descriptions if structural changes were made
+            - Development tools/scripts if package.json or build configs changed
+            - API documentation if endpoints or interfaces changed
+            - Component descriptions if new components were added or modified
+            - Configuration instructions if config files changed
+            - Any outdated information that no longer matches the codebase
+
+            For monorepo projects:
+            - Update the root CLAUDE.md if changes affect shared/core functionality
+            - Update package-specific CLAUDE.md files only if changes affect that package
+            - Consider the directory structure when determining which CLAUDE.md to update
+
+            After updating, create a pull request with:
+            - Title: "chore: auto-update CLAUDE.md files based on recent changes"
+            - Description listing:
+              - Which CLAUDE.md files were updated
+              - What sections were modified in each file
+              - Brief summary of why each update was necessary
+              - Reference to the pull request that triggered these updates
+            - Label the PR with "documentation" if available
+
+            DO NOT update the documentation if:
+            - The changes are trivial (like fixing typos in comments)
+            - The changes don't affect the documented behavior or structure
+            - The CLAUDE.md files already accurately reflect the current state
+            - The PR only modifies test files or CI/CD configurations (unless those are documented)
