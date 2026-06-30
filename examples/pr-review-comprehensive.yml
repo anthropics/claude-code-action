@@ -2,28 +2,40 @@ name: PR Review with Progress Tracking
 
 # This example demonstrates how to use the track_progress feature to get
 # visual progress tracking for PR reviews, similar to v0.x agent mode.
+#
+# IMPORTANT: This workflow uses pull_request_target to support fork PRs.
+# See docs/fork-pr-support.md for security considerations.
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, ready_for_review, reopened]
 
 jobs:
   review-with-tracking:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
+      issues: write
       id-token: write
+      actions: read
     steps:
+      # Checkout fork repository for fork PR support
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: 1
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
 
       - name: PR Review with Progress Tracking
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # Required for fork PR support with pull_request_target
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_non_write_users: '*'
 
           # Enable progress tracking
           track_progress: true
