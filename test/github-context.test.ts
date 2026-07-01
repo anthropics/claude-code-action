@@ -40,6 +40,7 @@ import { createMockContext, createMockAutomationContext } from "./mockContext";
 const ENV_KEYS = [
   "GITHUB_RUN_ID",
   "PROMPT",
+  "USER_REQUEST",
   "TRIGGER_PHRASE",
   "ASSIGNEE_TRIGGER",
   "LABEL_TRIGGER",
@@ -339,6 +340,7 @@ describe("parseGitHubContext", () => {
       const { inputs } = parseGitHubContext();
 
       expect(inputs.prompt).toBe("");
+      expect(inputs.userRequest).toBe("");
       expect(inputs.triggerPhrase).toBe("@claude");
       expect(inputs.assigneeTrigger).toBe("");
       expect(inputs.labelTrigger).toBe("");
@@ -361,6 +363,8 @@ describe("parseGitHubContext", () => {
 
     test("inputs reflect the env vars set by action.yml", () => {
       process.env.PROMPT = "do something";
+      process.env.USER_REQUEST =
+        "/review https://github.com/example/repo/pull/1";
       process.env.TRIGGER_PHRASE = "/claude";
       process.env.ASSIGNEE_TRIGGER = "@claude-bot";
       process.env.LABEL_TRIGGER = "claude-task";
@@ -389,6 +393,9 @@ describe("parseGitHubContext", () => {
       const { inputs } = parseGitHubContext();
 
       expect(inputs.prompt).toBe("do something");
+      expect(inputs.userRequest).toBe(
+        "/review https://github.com/example/repo/pull/1",
+      );
       expect(inputs.triggerPhrase).toBe("/claude");
       expect(inputs.assigneeTrigger).toBe("@claude-bot");
       expect(inputs.labelTrigger).toBe("claude-task");

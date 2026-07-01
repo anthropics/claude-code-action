@@ -27,6 +27,7 @@ describe("prepareMcpConfig", () => {
     isPR: false,
     inputs: {
       prompt: "",
+      userRequest: "",
       triggerPhrase: "@claude",
       assigneeTrigger: "",
       labelTrigger: "",
