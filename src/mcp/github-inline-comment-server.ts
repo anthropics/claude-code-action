@@ -227,6 +227,123 @@ server.tool(
   },
 );
 
+server.tool(
+  "list_inline_comments",
+  "List inline (review) comments on the current PR, optionally filtered by user login",
+  {
+    user_login: z
+      .string()
+      .optional()
+      .describe(
+        "Filter comments by this GitHub user login (e.g. 'claude[bot]'). If omitted, returns all inline comments.",
+      ),
+    limit: z
+      .number()
+      .positive()
+      .optional()
+      .describe(
+        "Maximum number of comments to return. Use limit=1 to efficiently check whether any matching comments exist.",
+      ),
+  },
+  async ({ user_login, limit }) => {
+    try {
+      const githubToken = process.env.GITHUB_TOKEN;
+
+      if (!githubToken) {
+        throw new Error("GITHUB_TOKEN environment variable is required");
+      }
+
+      const owner = REPO_OWNER;
+      const repo = REPO_NAME;
+      const pull_number = parseInt(PR_NUMBER, 10);
+
+      const octokit = createOctokit(githubToken).rest;
+
+      // Paginate through review comments (stops early when limit is reached)
+      const comments: Array<{
+        id: number;
+        user_login: string;
+        path: string;
+        line: number | null;
+        body: string;
+        in_reply_to_id?: number;
+        created_at: string;
+      }> = [];
+
+      let page = 1;
+      const per_page = 100;
+
+      pagination: while (true) {
+        const response = await octokit.pulls.listReviewComments({
+          owner,
+          repo,
+          pull_number,
+          per_page,
+          page,
+        });
+
+        for (const comment of response.data) {
+          if (user_login && comment.user?.login !== user_login) {
+            continue;
+          }
+
+          comments.push({
+            id: comment.id,
+            user_login: comment.user?.login ?? "",
+            path: comment.path,
+            line: comment.line ?? comment.original_line ?? null,
+            body: comment.body,
+            ...(comment.in_reply_to_id && {
+              in_reply_to_id: comment.in_reply_to_id,
+            }),
+            created_at: comment.created_at,
+          });
+
+          if (limit && comments.length >= limit) {
+            break pagination;
+          }
+        }
+
+        if (response.data.length < per_page) {
+          break;
+        }
+        page++;
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                success: true,
+                count: comments.length,
+                comments,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error listing inline comments: ${errorMessage}`,
+          },
+        ],
+        error: errorMessage,
+        isError: true,
+      };
+    }
+  },
+);
+
 async function runServer() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
