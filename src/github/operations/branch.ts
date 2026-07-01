@@ -184,8 +184,12 @@ export async function setupBranch(
       validateBranchName(branchName);
 
       // For cross-repository (fork) PRs, fetch via the pull ref since the
-      // branch only exists on the fork's remote, not on origin.
+      // branch only exists on the fork's remote, not on origin. Fetch into a
+      // namespaced remote-tracking ref so a fork branch named like the checked
+      // out local branch (for example "main") cannot collide with refs/heads/*.
       if (prData.isCrossRepository) {
+        const pullHeadRef = `refs/remotes/pull/${entityNumber}/head`;
+
         console.log(
           `PR #${entityNumber} is from a fork, fetching via refs/pull/${entityNumber}/head...`,
         );
@@ -193,14 +197,15 @@ export async function setupBranch(
           "fetch",
           "origin",
           `--depth=${fetchDepth}`,
-          `pull/${entityNumber}/head:${branchName}`,
+          `+pull/${entityNumber}/head:${pullHeadRef}`,
         ]);
+        execGit(["checkout", "--detach", pullHeadRef, "--"]);
       } else {
         // Execute git commands to checkout PR branch (dynamic depth based on PR size)
         // Using execFileSync instead of shell template literals for security
         execGit(["fetch", "origin", `--depth=${fetchDepth}`, branchName]);
+        execGit(["checkout", branchName, "--"]);
       }
-      execGit(["checkout", branchName, "--"]);
 
       console.log(`Successfully checked out PR branch for PR #${entityNumber}`);
 
