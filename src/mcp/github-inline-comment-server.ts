@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { appendFileSync } from "fs";
 import { z } from "zod";
 import { createOctokit } from "../github/api/client";
-import { sanitizeContent } from "../github/utils/sanitizer";
+import { sanitizeOutgoingCommentContent } from "../github/utils/sanitizer";
 
 // Get repository and PR information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -97,8 +97,8 @@ server.tool(
       const repo = REPO_NAME;
       const pull_number = parseInt(PR_NUMBER, 10);
 
-      // Sanitize the comment body to remove any potential GitHub tokens
-      const sanitizedBody = sanitizeContent(body);
+      // Preserve review suggestions exactly while still redacting accidental tokens.
+      const sanitizedBody = sanitizeOutgoingCommentContent(body);
 
       // Validate that either line or both startLine and line are provided
       if (!line && !startLine) {
