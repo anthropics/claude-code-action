@@ -495,6 +495,32 @@ describe("generatePrompt", () => {
     );
   });
 
+  test("should use numeric GitHub noreply address when trigger user id is provided", async () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      triggerUsername: "johndoe",
+      triggerUserId: 123456,
+      eventData: {
+        eventName: "issue_comment",
+        commentId: "67890",
+        isPR: false,
+        issueNumber: "123",
+        baseBranch: "main",
+        claudeBranch: "claude/issue-67890-20240101-1200",
+        commentBody: "@claude please fix this",
+      },
+    };
+
+    const prompt = await generatePrompt(envVars, mockGitHubData, false, "tag");
+
+    expect(prompt).toContain(
+      "Co-authored-by: johndoe <123456+johndoe@users.noreply.github.com>",
+    );
+    expect(prompt).not.toContain("<johndoe@users.noreply.github.com>");
+  });
+
   test("should include PR-specific instructions only for PR events", async () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
