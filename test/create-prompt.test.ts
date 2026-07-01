@@ -6,8 +6,10 @@ import {
   getEventTypeAndContext,
   buildAllowedToolsString,
   buildDisallowedToolsString,
+  prepareContext,
 } from "../src/create-prompt";
 import type { PreparedContext } from "../src/create-prompt";
+import { createMockContext } from "./mockContext";
 
 beforeAll(() => {
   process.env.GITHUB_ACTION_PATH = "/test/action/path";
@@ -1268,5 +1270,85 @@ describe("buildDisallowedToolsString", () => {
 
     // Only custom disallowed tools should remain
     expect(result).toBe("BadTool1,BadTool2");
+  });
+});
+
+describe("prepareContext validation errors", () => {
+  const commentId = "12345";
+
+  test("throws on an unsupported event type", () => {
+    const context = createMockContext({
+      eventName: "deployment_status" as any,
+    });
+
+    expect(() => prepareContext(context, commentId)).toThrow(
+      "Unsupported event type: deployment_status",
+    );
+  });
+
+  test("pull_request event requires a PR number (isPR must be true)", () => {
+    const context = createMockContext({
+      eventName: "pull_request",
+      eventAction: "opened",
+      isPR: false,
+    });
+
+    expect(() => prepareContext(context, commentId)).toThrow(
+      "PR_NUMBER is required for pull_request event",
+    );
+  });
+
+  test("pull_request_review event requires a PR number", () => {
+    const context = createMockContext({
+      eventName: "pull_request_review",
+      isPR: false,
+      payload: {
+        review: { body: "please fix", user: { login: "user1" } },
+      } as any,
+    });
+
+    expect(() => prepareContext(context, commentId)).toThrow(
+      "PR_NUMBER is required for pull_request_review event",
+    );
+  });
+
+  test("issues event requires an event action", () => {
+    const context = createMockContext({
+      eventName: "issues",
+      eventAction: "",
+      isPR: false,
+      payload: { issue: { user: { login: "user1" } } } as any,
+    });
+
+    expect(() => prepareContext(context, commentId)).toThrow(
+      "GITHUB_EVENT_ACTION is required for issues event",
+    );
+  });
+
+  test("issues event rejects an unsupported action", () => {
+    const context = createMockContext({
+      eventName: "issues",
+      eventAction: "deleted",
+      isPR: false,
+      payload: { issue: { user: { login: "user1" } } } as any,
+    });
+
+    expect(() =>
+      prepareContext(context, commentId, "main", "claude/issue-1"),
+    ).toThrow("Unsupported issue action: deleted");
+  });
+
+  test("issue_comment on an issue requires a claude branch", () => {
+    const context = createMockContext({
+      eventName: "issue_comment",
+      isPR: false,
+      payload: {
+        comment: { id: 999, body: "@claude help", user: { login: "user1" } },
+      } as any,
+    });
+
+    expect(() => prepareContext(context, commentId)).toThrow(
+      "CLAUDE_BRANCH is required for issue_comment event",
+    );
   });
 });
