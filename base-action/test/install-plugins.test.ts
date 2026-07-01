@@ -17,14 +17,25 @@ describe("installPlugins", () => {
   function createMockSpawn(
     exitCode: number | null = 0,
     shouldError: boolean = false,
+    output: string = "",
   ) {
+    const mockStream = {
+      on: mock((event: string, handler: Function) => {
+        if (event === "data" && output) {
+          setTimeout(() => handler(Buffer.from(output)), 0);
+        }
+        return mockStream;
+      }),
+    };
+
     const mockProcess = {
+      stdout: mockStream,
+      stderr: mockStream,
       on: mock((event: string, handler: Function) => {
         if (event === "close" && !shouldError) {
-          // Simulate successful close
-          setTimeout(() => handler(exitCode), 0);
+          // Delay past any data events so output is captured before close fires.
+          setTimeout(() => handler(exitCode), 10);
         } else if (event === "error" && shouldError) {
-          // Simulate error
           setTimeout(() => handler(new Error("spawn error")), 0);
         }
         return mockProcess;
@@ -370,7 +381,7 @@ describe("installPlugins", () => {
         "add",
         "https://github.com/user/marketplace.git",
       ],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
     // Second call: install plugin
     expect(spy).toHaveBeenNthCalledWith(
@@ -394,13 +405,13 @@ describe("installPlugins", () => {
       1,
       "claude",
       ["plugin", "marketplace", "add", "https://github.com/user/m1.git"],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "claude",
       ["plugin", "marketplace", "add", "https://github.com/user/m2.git"],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
     // Third call: install plugin
     expect(spy).toHaveBeenNthCalledWith(
@@ -429,7 +440,7 @@ describe("installPlugins", () => {
         "add",
         "https://github.com/user/marketplace.git",
       ],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
     // Next calls: install plugins
     expect(spy).toHaveBeenNthCalledWith(
@@ -460,7 +471,7 @@ describe("installPlugins", () => {
         "add",
         "https://github.com/user/marketplace.git",
       ],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
   });
 
@@ -491,13 +502,13 @@ describe("installPlugins", () => {
         "add",
         "https://github.com/user/marketplace.git",
       ],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "claude",
       ["plugin", "marketplace", "add", "https://github.com/user/m2.git"],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
   });
 
@@ -587,7 +598,7 @@ describe("installPlugins", () => {
         "add",
         "https://github.com/user/marketplace.git",
       ],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
@@ -607,7 +618,7 @@ describe("installPlugins", () => {
       1,
       "claude",
       ["plugin", "marketplace", "add", "./my-local-marketplace"],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
@@ -626,7 +637,7 @@ describe("installPlugins", () => {
       1,
       "claude",
       ["plugin", "marketplace", "add", "/home/user/my-marketplace"],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
   });
 
@@ -639,7 +650,7 @@ describe("installPlugins", () => {
       1,
       "claude",
       ["plugin", "marketplace", "add", "C:\\Users\\user\\marketplace"],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
   });
 
@@ -655,13 +666,13 @@ describe("installPlugins", () => {
       1,
       "claude",
       ["plugin", "marketplace", "add", "./local-marketplace"],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
     expect(spy).toHaveBeenNthCalledWith(
       2,
       "claude",
       ["plugin", "marketplace", "add", "https://github.com/user/remote.git"],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
   });
 
@@ -674,7 +685,7 @@ describe("installPlugins", () => {
       1,
       "claude",
       ["plugin", "marketplace", "add", "../shared-plugins/marketplace"],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
   });
 
@@ -687,7 +698,7 @@ describe("installPlugins", () => {
       1,
       "claude",
       ["plugin", "marketplace", "add", "./plugins/my-org/my-marketplace"],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
     );
   });
 
@@ -700,7 +711,33 @@ describe("installPlugins", () => {
       1,
       "claude",
       ["plugin", "marketplace", "add", "./my.plugin.marketplace"],
-      { stdio: "inherit" },
+      { stdio: ["inherit", "pipe", "pipe"] },
+    );
+  });
+
+  test("should treat 'already installed' marketplace as success (idempotent on persistent runners)", async () => {
+    // Simulate the CLI exiting 1 with an "already installed" message —
+    // the output text is what matters, not which stream it arrives on.
+    const spy = createMockSpawn(
+      1,
+      false,
+      "Marketplace 'claude-code-plugins' is already installed.",
+    );
+    await expect(
+      installPlugins(
+        "https://github.com/anthropics/claude-code.git",
+        undefined,
+      ),
+    ).resolves.toBeUndefined();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  test("should still throw for non-'already-installed' marketplace failures", async () => {
+    createMockSpawn(1, false, "Network error: could not reach remote");
+    await expect(
+      installPlugins("https://github.com/user/marketplace.git", undefined),
+    ).rejects.toThrow(
+      "Failed to add marketplace 'https://github.com/user/marketplace.git' (exit code: 1)",
     );
   });
 });
