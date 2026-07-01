@@ -69,6 +69,9 @@ async function run() {
     if (result.structuredOutput) {
       core.setOutput("structured_output", result.structuredOutput);
     }
+    if (result.finalMessage) {
+      core.setOutput("final_message", result.finalMessage);
+    }
   } catch (error) {
     setExecutionFileOutputIfPresent();
     core.setFailed(`Action failed with error: ${error}`);
