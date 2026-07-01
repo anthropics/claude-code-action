@@ -30,6 +30,7 @@ const defaultInputs = {
   includeFixLinks: true,
   includeCommentsByActor: "",
   excludeCommentsByActor: "",
+  allowWorkflowModifications: false,
 };
 
 const defaultRepository = {
@@ -64,6 +65,7 @@ export const createMockContext = (
         ...overrides.inputs,
         includeCommentsByActor: overrides.inputs.includeCommentsByActor ?? "",
         excludeCommentsByActor: overrides.inputs.excludeCommentsByActor ?? "",
+        allowWorkflowModifications: overrides.inputs.allowWorkflowModifications ?? false,
       }
     : defaultInputs;
 
@@ -93,6 +95,7 @@ export const createMockAutomationContext = (
         ...overrides.inputs,
         includeCommentsByActor: overrides.inputs.includeCommentsByActor ?? "",
         excludeCommentsByActor: overrides.inputs.excludeCommentsByActor ?? "",
+        allowWorkflowModifications: overrides.inputs.allowWorkflowModifications ?? false,
       }
     : { ...defaultInputs };
 
