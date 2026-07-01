@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { execFileSync } from "child_process";
 import {
   existsSync,
+  lstatSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "fs";
 import { dirname, isAbsolute, join } from "path";
@@ -121,6 +123,48 @@ describe("restoreConfigFromBase", () => {
     }
   });
 
+  test("restores symlinked CLAUDE.md paths from the PR base branch", () => {
+    setupSymlinkedMainBranch();
+
+    git(["checkout", "pr"]);
+    writeRepoFile(
+      ".claude/settings.json",
+      `${JSON.stringify({ source: "pr-with-symlinks" })}\n`,
+    );
+    git(["add", ".claude/settings.json"]);
+    git(["commit", "-m", "pr updates settings"]);
+
+    restoreConfigFromBase("main");
+
+    expect(lstatRepoFile("CLAUDE.md").isSymbolicLink()).toBe(true);
+    expect(lstatRepoFile(".claude/CLAUDE.md").isSymbolicLink()).toBe(true);
+    expect(readRepoFile("CLAUDE.md").trim()).toBe("shared agent instructions");
+    expect(readRepoFile(".claude/CLAUDE.md").trim()).toBe(
+      "shared agent instructions",
+    );
+    expect(readRepoFile(".claude/settings.json")).toBe(
+      `${JSON.stringify({ source: "base" })}\n`,
+    );
+  });
+
+  test("snapshots symlinked sensitive paths even when the PR head target is missing", () => {
+    setupSymlinkedMainBranch();
+
+    git(["checkout", "pr"]);
+    rmSync(join(repoDir, "AGENTS.md"), { force: true });
+    git(["add", "-A"]);
+    git(["commit", "-m", "pr deletes agents file"]);
+
+    restoreConfigFromBase("main");
+
+    expect(lstatRepoFile(".claude-pr/.claude/CLAUDE.md").isSymbolicLink()).toBe(
+      true,
+    );
+    expect(readRepoFile(".claude/settings.json")).toBe(
+      `${JSON.stringify({ source: "base" })}\n`,
+    );
+  });
+
   test("does not modify an existing .gitignore", () => {
     writeRepoFile(".gitignore", "node_modules\n");
     git(["add", ".gitignore"]);
@@ -154,6 +198,29 @@ describe("restoreConfigFromBase", () => {
 
   function existsRepoFile(path: string): boolean {
     return existsSync(join(repoDir, path));
+  }
+
+  function symlinkRepoFile(path: string, target: string): void {
+    const fullPath = join(repoDir, path);
+    mkdirSync(dirname(fullPath), { recursive: true });
+    symlinkSync(target, fullPath);
+  }
+
+  function lstatRepoFile(path: string) {
+    return lstatSync(join(repoDir, path));
+  }
+
+  function setupSymlinkedMainBranch(): void {
+    git(["checkout", "main"]);
+    rmSync(join(repoDir, "CLAUDE.md"), { force: true });
+    writeRepoFile("AGENTS.md", "shared agent instructions\n");
+    symlinkRepoFile("CLAUDE.md", "AGENTS.md");
+    symlinkRepoFile(".claude/CLAUDE.md", "../AGENTS.md");
+    git(["add", "AGENTS.md", "CLAUDE.md", ".claude/CLAUDE.md"]);
+    git(["commit", "-m", "add symlinked claude files"]);
+    git(["push", "origin", "main"]);
+    git(["branch", "-D", "pr"]);
+    git(["checkout", "-b", "pr"]);
   }
 
   function countClaudePrExcludeEntries(): number {

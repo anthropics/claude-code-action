@@ -30,6 +30,25 @@ const SENSITIVE_PATHS = [
 
 const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
 
+function snapshotSensitivePath(src: string, dest: string): void {
+  try {
+    cpSync(src, dest, { recursive: true, dereference: true });
+  } catch (error) {
+    // Symlinks whose targets are absent on the PR head (e.g. `.claude/CLAUDE.md`
+    // -> `../AGENTS.md` when the PR deleted the target) make dereferenced
+    // copies throw ENOENT. Preserve the symlink for the review snapshot instead.
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      cpSync(src, dest, { recursive: true });
+      return;
+    }
+    throw error;
+  }
+}
+
 function ensureClaudePrExcludedFromGit(): void {
   const excludePath = execFileSync(
     "git",
@@ -86,7 +105,7 @@ export function restoreConfigFromBase(baseBranch: string): void {
   rmSync(".claude-pr", { recursive: true, force: true });
   for (const p of SENSITIVE_PATHS) {
     if (existsSync(p)) {
-      cpSync(p, `.claude-pr/${p}`, { recursive: true, dereference: true });
+      snapshotSensitivePath(p, `.claude-pr/${p}`);
     }
   }
   if (existsSync(".claude-pr")) {
