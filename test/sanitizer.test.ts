@@ -375,4 +375,8 @@ describe("stripHtmlComments (legacy)", () => {
       "Hello World",
     );
   });
+
+  it("should strip all HTML comments including bot headers", () => {
+    expect(stripHtmlComments("<!-- bot: claude-review -->Text")).toBe("Text");
+  });
 });
