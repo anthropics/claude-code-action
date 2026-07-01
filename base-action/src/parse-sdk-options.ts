@@ -53,6 +53,50 @@ function unescapeShellMeta(s: string): string {
   return s.replace(SHELL_META_UNESCAPE_RE, (c) => SHELL_META_UNESCAPE.get(c)!);
 }
 
+// Default model alias for the first-party Anthropic API when the caller
+// specifies no model anywhere. An alias (resolved server-side to the current
+// snapshot) is used instead of a dated model id so the action never inherits
+// the SDK/CLI's bundled default, which can point at a retired model and return
+// a 404 not_found_error. See issue #1416.
+const DEFAULT_FIRST_PARTY_MODEL = "sonnet";
+
+/**
+ * Whether a non-first-party provider is configured. Bedrock/Vertex/Foundry use
+ * provider-specific model id formats for which a first-party alias is invalid,
+ * so we must not inject a default for them.
+ */
+function isThirdPartyProvider(env: NodeJS.ProcessEnv): boolean {
+  return Boolean(
+    env.CLAUDE_CODE_USE_BEDROCK ||
+      env.CLAUDE_CODE_USE_VERTEX ||
+      env.CLAUDE_CODE_USE_FOUNDRY,
+  );
+}
+
+/**
+ * Resolve the model passed to the SDK.
+ * Precedence: explicit `options.model` > `--model` in claudeArgs (extraArgs) >
+ * first-party default alias. Returns undefined when a model is already supplied
+ * via claudeArgs (so the CLI flag wins) or when a third-party provider is in use
+ * (so the provider resolves its own default).
+ */
+function resolveModel(
+  optionModel: string | undefined,
+  extraArgs: Record<string, string | null>,
+  env: NodeJS.ProcessEnv,
+): string | undefined {
+  const explicit = optionModel?.trim();
+  if (explicit) return explicit;
+
+  // A --model in claudeArgs is preserved in extraArgs and passed to the CLI;
+  // don't also set sdkOptions.model or it would be specified twice.
+  if (extraArgs["model"]) return undefined;
+
+  if (isThirdPartyProvider(env)) return undefined;
+
+  return DEFAULT_FIRST_PARTY_MODEL;
+}
+
 type McpConfig = {
   mcpServers?: Record<string, unknown>;
 };
@@ -295,7 +339,7 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   // Build SDK options - use merged tools from both direct options and claudeArgs
   const sdkOptions: SdkOptions = {
     // Direct options from ClaudeOptions inputs
-    model: options.model,
+    model: resolveModel(options.model, extraArgs, process.env),
     maxTurns: options.maxTurns ? parseInt(options.maxTurns, 10) : undefined,
     allowedTools:
       mergedAllowedTools.length > 0 ? mergedAllowedTools : undefined,
