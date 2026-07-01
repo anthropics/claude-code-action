@@ -1,9 +1,47 @@
 import * as core from "@actions/core";
+import { existsSync, statSync } from "fs";
 import { GITHUB_API_URL, GITHUB_SERVER_URL } from "../github/api/config";
 import type { GitHubContext } from "../github/context";
 import { isEntityContext } from "../github/context";
 import { Octokit } from "@octokit/rest";
 import type { AutoDetectedMode } from "../modes/detector";
+
+/**
+ * Resolves a CA certificate bundle path for mounting into Docker containers.
+ *
+ * Checks (in priority order):
+ * 1. NODE_EXTRA_CA_CERTS env var (explicit user config)
+ * 2. SSL_CERT_FILE env var
+ * 3. /etc/ssl/certs/ca-certificates.crt (Debian/Ubuntu/Alpine)
+ * 4. /etc/pki/tls/certs/ca-bundle.crt (RHEL/CentOS/Fedora)
+ *
+ * Returns the first path that exists and is a regular file, or undefined.
+ */
+export function resolveHostCACertFile(): string | undefined {
+  const candidates: string[] = [];
+
+  if (process.env.NODE_EXTRA_CA_CERTS) {
+    candidates.push(process.env.NODE_EXTRA_CA_CERTS);
+  }
+  if (process.env.SSL_CERT_FILE) {
+    candidates.push(process.env.SSL_CERT_FILE);
+  }
+  candidates.push(
+    "/etc/ssl/certs/ca-certificates.crt",
+    "/etc/pki/tls/certs/ca-bundle.crt",
+  );
+
+  for (const candidate of candidates) {
+    try {
+      if (existsSync(candidate) && statSync(candidate).isFile()) {
+        return candidate;
+      }
+    } catch {
+      // Permission error or broken symlink — skip
+    }
+  }
+  return undefined;
+}
 
 type PrepareConfigParams = {
   githubToken: string;
@@ -204,22 +242,39 @@ export async function prepareMcpConfig(
     }
 
     if (hasGitHubMcpTools) {
+      const dockerArgs = [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e",
+        "GITHUB_HOST",
+      ];
+      const dockerEnv: Record<string, string> = {
+        GITHUB_PERSONAL_ACCESS_TOKEN: githubToken,
+        GITHUB_HOST: GITHUB_SERVER_URL,
+      };
+
+      // Mount the host's CA certificate bundle into the container so the Go
+      // binary can trust GHES instances using internal/corporate CAs.
+      // Mounted to /custom-ca/ to avoid overwriting the container's own certs.
+      const caCertFile = resolveHostCACertFile();
+      if (caCertFile) {
+        const containerCaPath = "/custom-ca/ca-bundle.crt";
+        dockerArgs.push("-v", `${caCertFile}:${containerCaPath}:ro`);
+        dockerArgs.push("-e", "SSL_CERT_FILE");
+        dockerEnv.SSL_CERT_FILE = containerCaPath;
+      }
+
+      dockerArgs.push(
+        "ghcr.io/github/github-mcp-server:sha-23fa0dd", // https://github.com/github/github-mcp-server/releases/tag/v0.17.1
+      );
+
       baseMcpConfig.mcpServers.github = {
         command: "docker",
-        args: [
-          "run",
-          "-i",
-          "--rm",
-          "-e",
-          "GITHUB_PERSONAL_ACCESS_TOKEN",
-          "-e",
-          "GITHUB_HOST",
-          "ghcr.io/github/github-mcp-server:sha-23fa0dd", // https://github.com/github/github-mcp-server/releases/tag/v0.17.1
-        ],
-        env: {
-          GITHUB_PERSONAL_ACCESS_TOKEN: githubToken,
-          GITHUB_HOST: GITHUB_SERVER_URL,
-        },
+        args: dockerArgs,
+        env: dockerEnv,
       };
     }
 
