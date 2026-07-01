@@ -44,6 +44,13 @@ import { runClaude } from "../../base-action/src/run-claude";
 import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
 import { setExecutionFileOutputIfPresent } from "../../base-action/src/execution-file";
 
+// Exported for unit testing. `set -o pipefail` makes curl's non-zero exit
+// propagate through the pipe so the install retry logic actually triggers
+// on 429/403 instead of silently succeeding (see #1136).
+export function buildInstallCommand(version: string): string {
+  return `set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash -s -- ${version}`;
+}
+
 /**
  * Install Claude Code CLI, handling retry logic and custom executable paths.
  * Returns the absolute path to the claude executable.
@@ -77,10 +84,7 @@ async function installClaudeCode(): Promise<string> {
       await new Promise<void>((resolve, reject) => {
         const child = spawn(
           "bash",
-          [
-            "-c",
-            `curl -fsSL https://claude.ai/install.sh | bash -s -- ${claudeCodeVersion}`,
-          ],
+          ["-c", buildInstallCommand(claudeCodeVersion)],
           { stdio: "inherit" },
         );
         child.on("close", (code) => {
