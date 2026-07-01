@@ -5,6 +5,7 @@ import {
   configureGitAuth,
   setupSshSigning,
 } from "../../github/operations/git-config";
+import { validateBranchName } from "../../github/operations/branch";
 import { checkHumanActor } from "../../github/validation/actor";
 import type { GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
@@ -84,8 +85,9 @@ export async function prepareAgentMode({
 
   // Check for branch info from environment variables (useful for auto-fix workflows)
   const claudeBranch = process.env.CLAUDE_BRANCH || undefined;
-  const defaultBranch = context.repository.default_branch || "main";
   const baseBranch = context.inputs.baseBranch || defaultBranch;
+  validateBranchName(baseBranch);
+  
 
   // Detect current branch from GitHub environment
   const currentBranch =
