@@ -205,7 +205,15 @@ server.tool(
 
       // Provide more helpful error messages for common issues
       let helpMessage = "";
-      if (errorMessage.includes("Validation Failed")) {
+      const status =
+        error && typeof error === "object" && "status" in error
+          ? (error as { status: number }).status
+          : undefined;
+      if (status === 403) {
+        helpMessage =
+          "\n\nPermission denied. Ensure your workflow has 'pull-requests: write' permission. " +
+          "The current permission level does not allow posting review comments.";
+      } else if (errorMessage.includes("Validation Failed")) {
         helpMessage =
           "\n\nThis usually means the line number doesn't exist in the diff or the file path is incorrect. Make sure you're commenting on lines that are part of the PR's changes.";
       } else if (errorMessage.includes("Not Found")) {
