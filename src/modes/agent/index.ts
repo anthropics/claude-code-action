@@ -6,6 +6,8 @@ import {
   setupSshSigning,
 } from "../../github/operations/git-config";
 import { checkHumanActor } from "../../github/validation/actor";
+import { createInitialComment } from "../../github/operations/comments/create-initial";
+import { isEntityContext } from "../../github/context";
 import type { GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
 
@@ -94,6 +96,15 @@ export async function prepareAgentMode({
     process.env.GITHUB_REF_NAME ||
     defaultBranch;
 
+  // Create initial comment for sticky comment support in agent mode
+  let claudeCommentId: string | undefined;
+  let commentId: number | undefined;
+  if (context.inputs.useStickyComment && isEntityContext(context)) {
+    const commentData = await createInitialComment(octokit.rest, context);
+    commentId = commentData.id;
+    claudeCommentId = commentId.toString();
+  }
+
   // Get our GitHub MCP servers config
   const ourMcpConfig = await prepareMcpConfig({
     githubToken,
@@ -101,7 +112,7 @@ export async function prepareAgentMode({
     repo: context.repository.repo,
     branch: currentBranch,
     baseBranch: baseBranch,
-    claudeCommentId: undefined, // No tracking comment in agent mode
+    claudeCommentId,
     allowedTools,
     mode: "agent",
     context,
@@ -121,7 +132,7 @@ export async function prepareAgentMode({
   claudeArgs = `${claudeArgs} ${userClaudeArgs}`.trim();
 
   return {
-    commentId: undefined,
+    commentId,
     branchInfo: {
       baseBranch: baseBranch,
       currentBranch: baseBranch, // Use base branch as current when creating new branch
