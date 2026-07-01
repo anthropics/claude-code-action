@@ -81,6 +81,23 @@ AWS Bedrock, GCP Vertex AI, and Microsoft Foundry all support OIDC authenticatio
     id-token: write # Required for OIDC
 ```
 
+### IRSA (IAM Roles for Service Accounts)
+
+If you run the action on self-hosted runners in Amazon EKS, you can use [IRSA](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) instead of a bearer token or static access keys. EKS injects `AWS_ROLE_ARN` and `AWS_WEB_IDENTITY_TOKEN_FILE` into the pod, and the AWS SDK resolves credentials from them automatically — no `aws-actions/configure-aws-credentials` step is required.
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    use_bedrock: "true"
+    claude_args: |
+      --model anthropic.claude-4-0-sonnet-20250805-v1:0
+    # ... other inputs
+  env:
+    AWS_REGION: us-west-2
+```
+
+`AWS_REGION` is still required. The action forwards the IRSA environment variables (`AWS_ROLE_ARN`, `AWS_WEB_IDENTITY_TOKEN_FILE`, and `AWS_ROLE_SESSION_NAME`) to Claude Code; ensure the service account's IAM role is granted `bedrock:InvokeModel` (and `bedrock:InvokeModelWithResponseStream`) on the Claude models you use.
+
 ```yaml
 # For GCP Vertex AI with OIDC
 - name: Authenticate to Google Cloud
