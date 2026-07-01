@@ -63,6 +63,35 @@ In its default configuration, **Claude does not create pull requests automatical
 
 This design ensures that users retain full control over what pull requests are created and can review the changes before initiating the PR workflow.
 
+## Auditing Final Output Claims
+
+Claude's final response is a summary of the run, not proof that every completion claim is supported. For safety-sensitive workflows, prompts should ask Claude to separate claims from evidence before a human or downstream automation treats the task as complete.
+
+This is especially useful when a workflow asks Claude to review a pull request, triage an issue, inspect CI failures, or prepare code changes. The final output should make clear:
+
+- What Claude claims was completed
+- What evidence supports each claim, such as changed files, command output, CI logs, or GitHub comments
+- Which claims are unsupported or need review
+- Who owns the next step
+- Whether human approval is required before merging, deploying, publishing, or changing repository settings
+
+For example, an automation prompt can ask Claude to include a compact receipt:
+
+```yaml
+verification_status: missing_evidence
+summary: "Claude identified a failing test but did not include the command output."
+claims:
+  - claim: "The CI failure is caused by a flaky test."
+    support_status: unverified
+    evidence:
+      - "GitHub Actions job: unit-tests"
+    required_fix: "Attach the relevant log excerpt or rerun output before retrying CI."
+next_owner: reviewer
+human_decision_required: false
+```
+
+If a workflow uses structured outputs, the same fields can be represented as JSON and validated by the configured schema. Keep receipts concise, avoid exposing secrets in evidence, and do not treat a receipt as a substitute for review, tests, branch protection, or required approvals.
+
 ## ⚠️ Prompt Injection Risks
 
 **Beware of potential hidden markdown when tagging Claude on untrusted content.** External contributors may include hidden instructions through HTML comments, invisible characters, hidden attributes, or other techniques. The action sanitizes content by stripping HTML comments, invisible characters, markdown image alt text, hidden HTML attributes, and HTML entities, but new bypass techniques may emerge. We recommend reviewing the raw content of all input coming from external contributors before allowing Claude to process it.
