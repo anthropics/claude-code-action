@@ -283,12 +283,14 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
       type: "preset",
       preset: "claude_code",
       append: options.appendSystemPrompt,
+      excludeDynamicSections: options.excludeDynamicSections,
     };
   } else {
     // Default to claude_code preset when no custom prompt is specified
     systemPrompt = {
       type: "preset",
       preset: "claude_code",
+      excludeDynamicSections: options.excludeDynamicSections,
     };
   }
 
