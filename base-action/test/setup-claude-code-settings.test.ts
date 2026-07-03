@@ -94,16 +94,35 @@ describe("setupClaudeCodeSettings", () => {
     expect(settings.model).toBe("test-model");
   });
 
-  test("should throw error for invalid JSON string", async () => {
+  test("should throw error with syntax details for invalid JSON string", async () => {
     expect(() =>
       setupClaudeCodeSettings("{ invalid json", testHomeDir),
-    ).toThrow();
+    ).toThrow(/Invalid JSON in settings input/);
   });
 
   test("should throw error for non-existent file path", async () => {
     expect(() =>
       setupClaudeCodeSettings("/non/existent/file.json", testHomeDir),
     ).toThrow();
+  });
+
+  test("should throw error with syntax details for invalid JSON in settings file", async () => {
+    await writeFile(testSettingsPath, "{ bad json }");
+
+    expect(() =>
+      setupClaudeCodeSettings(testSettingsPath, testHomeDir),
+    ).toThrow(/Failed to process settings input/);
+  });
+
+  test("should warn and continue when existing settings.json has invalid JSON", async () => {
+    await mkdir(join(testHomeDir, ".claude"), { recursive: true });
+    await writeFile(settingsPath, "{ not valid json }");
+
+    await setupClaudeCodeSettings(undefined, testHomeDir);
+
+    const settingsContent = await readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsContent);
+    expect(settings.enableAllProjectMcpServers).toBe(true);
   });
 
   test("should handle empty string input", async () => {
