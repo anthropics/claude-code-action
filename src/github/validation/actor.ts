@@ -8,6 +8,15 @@
 import type { Octokit } from "@octokit/rest";
 import type { GitHubContext } from "../context";
 
+export class SelfTriggeringBotSkipError extends Error {
+  constructor(actor: string) {
+    super(
+      `Workflow triggered by ${actor}'s own pull_request synchronize event; skipping to avoid a bot feedback loop.`,
+    );
+    this.name = "SelfTriggeringBotSkipError";
+  }
+}
+
 function isAllowedBot(actor: string, allowedBots: string): boolean {
   const trimmed = allowedBots.trim();
   if (trimmed === "*") return true;
@@ -25,6 +34,24 @@ function isAllowedBot(actor: string, allowedBots: string): boolean {
 
   const normalizedActor = actor.toLowerCase().replace(/\[bot\]$/, "");
   return allowedList.includes(normalizedActor);
+}
+
+function normalizeBotName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\[bot\]$/, "");
+}
+
+function isConfiguredBotPullRequestSync(
+  actor: string,
+  githubContext: GitHubContext,
+): boolean {
+  return (
+    githubContext.eventName === "pull_request" &&
+    githubContext.eventAction === "synchronize" &&
+    normalizeBotName(actor) === normalizeBotName(githubContext.inputs.botName)
+  );
 }
 
 export async function checkHumanActor(
@@ -57,6 +84,9 @@ export async function checkHumanActor(
         );
         return;
       }
+      if (isConfiguredBotPullRequestSync(actor, githubContext)) {
+        throw new SelfTriggeringBotSkipError(actor);
+      }
       const botName = actor.toLowerCase().replace(/\[bot\]$/, "");
       throw new Error(
         `Workflow initiated by non-human actor: ${botName} (actor not found on GitHub). Add bot to allowed_bots list or use '*' to allow all bots.`,
@@ -74,6 +104,9 @@ export async function checkHumanActor(
         `Actor ${actor} is in allowed_bots list, skipping human actor check`,
       );
       return;
+    }
+    if (isConfiguredBotPullRequestSync(actor, githubContext)) {
+      throw new SelfTriggeringBotSkipError(actor);
     }
     const botName = actor.toLowerCase().replace(/\[bot\]$/, "");
     throw new Error(
