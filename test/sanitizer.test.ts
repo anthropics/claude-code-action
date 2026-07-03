@@ -6,6 +6,7 @@ import {
   stripHiddenAttributes,
   normalizeHtmlEntities,
   sanitizeContent,
+  sanitizeOutgoingCommentContent,
   stripHtmlComments,
   redactGitHubTokens,
 } from "../src/github/utils/sanitizer";
@@ -255,6 +256,30 @@ describe("sanitizeContent", () => {
     expect(sanitized).toContain("Hidden message");
     expect(sanitized).not.toContain('title="');
     expect(sanitized).toContain("<div>Test</div>");
+  });
+});
+
+describe("sanitizeOutgoingCommentContent", () => {
+  it("preserves suggestion blocks with quoted attributes", () => {
+    const body = `**Drop the trailing full-stop.**
+
+\`\`\`suggestion
+          <Tooltip title="We'll do the thing" placement="top" class="inline-flex items-center">
+\`\`\`
+`;
+
+    expect(sanitizeOutgoingCommentContent(body)).toBe(body);
+  });
+
+  it("redacts tokens without stripping visible suggestion text", () => {
+    const token = "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";
+    const body = `\`\`\`suggestion
+<Tooltip title="We'll do the thing" data-token="${token}">
+\`\`\``;
+
+    expect(sanitizeOutgoingCommentContent(body)).toBe(`\`\`\`suggestion
+<Tooltip title="We'll do the thing" data-token="[REDACTED_GITHUB_TOKEN]">
+\`\`\``);
   });
 });
 
