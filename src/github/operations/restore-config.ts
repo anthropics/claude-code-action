@@ -37,11 +37,7 @@ function snapshotSensitivePath(src: string, dest: string): void {
     // Symlinks whose targets are absent on the PR head (e.g. `.claude/CLAUDE.md`
     // -> `../AGENTS.md` when the PR deleted the target) make dereferenced
     // copies throw ENOENT. Preserve the symlink for the review snapshot instead.
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       cpSync(src, dest, { recursive: true });
       return;
     }
