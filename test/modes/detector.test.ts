@@ -222,6 +222,17 @@ describe("detectMode with enhanced routing", () => {
 
       expect(detectMode(context)).toBe("agent");
     });
+
+    it("should use agent mode for push without track_progress", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "push",
+        payload: {} as any,
+        inputs: { ...baseContext.inputs, prompt: "Regenerate docs" },
+      };
+
+      expect(detectMode(context)).toBe("agent");
+    });
   });
 
   describe("Custom prompt injection in tag mode", () => {
