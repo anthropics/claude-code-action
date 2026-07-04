@@ -8,6 +8,7 @@ import {
   mock,
 } from "bun:test";
 import { prepareAgentMode } from "../../src/modes/agent";
+import { buildDisallowedToolsString } from "../../src/create-prompt";
 import { createMockAutomationContext } from "../mockContext";
 import * as core from "@actions/core";
 import * as gitConfig from "../../src/github/operations/git-config";
@@ -84,8 +85,11 @@ describe("Agent Mode", () => {
       githubToken: "test-token",
     });
 
-    // Verify claude_args includes user args (no MCP config in agent mode without allowed tools)
-    expect(result.claudeArgs).toBe("--model claude-sonnet-4 --max-turns 10");
+    const headlessDisallowed = buildDisallowedToolsString();
+    const expectedClaudeArgs = `--model claude-sonnet-4 --max-turns 10 --disallowedTools "${headlessDisallowed}"`;
+
+    // Verify claude_args includes user args and headless disallowed tools
+    expect(result.claudeArgs).toBe(expectedClaudeArgs);
     expect(result.claudeArgs).not.toContain("--mcp-config");
 
     // Verify return structure - should fall back to repository.default_branch when no env vars set
@@ -97,7 +101,7 @@ describe("Agent Mode", () => {
         claudeBranch: undefined,
       },
       mcpConfig: expect.any(String),
-      claudeArgs: "--model claude-sonnet-4 --max-turns 10",
+      claudeArgs: expectedClaudeArgs,
     });
 
     // Clean up

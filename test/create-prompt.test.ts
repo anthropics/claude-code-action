@@ -1203,6 +1203,10 @@ describe("buildDisallowedToolsString", () => {
     // The base disallowed tools should be in the result
     expect(result).toContain("WebSearch");
     expect(result).toContain("WebFetch");
+    expect(result).toContain("ScheduleWakeup");
+    expect(result).toContain("SendMessage");
+    expect(result).toContain("Monitor");
+    expect(result).toContain("TaskList");
   });
 
   test("should append custom disallowed tools when provided", async () => {
@@ -1243,12 +1247,24 @@ describe("buildDisallowedToolsString", () => {
   });
 
   test("should remove all hardcoded disallowed tools if they are all in allowed tools", async () => {
-    const allowedTools = ["WebSearch", "WebFetch", "SomeOtherTool"];
+    const allowedTools = [
+      "WebSearch",
+      "WebFetch",
+      "ScheduleWakeup",
+      "SendMessage",
+      "Monitor",
+      "TaskList",
+      "SomeOtherTool",
+    ];
     const result = buildDisallowedToolsString(undefined, allowedTools);
 
-    // Both hardcoded disallowed tools should be removed
+    // All hardcoded disallowed tools should be removed
     expect(result).not.toContain("WebSearch");
     expect(result).not.toContain("WebFetch");
+    expect(result).not.toContain("ScheduleWakeup");
+    expect(result).not.toContain("SendMessage");
+    expect(result).not.toContain("Monitor");
+    expect(result).not.toContain("TaskList");
 
     // Result should be empty since no custom disallowed tools provided
     expect(result).toBe("");
@@ -1256,7 +1272,14 @@ describe("buildDisallowedToolsString", () => {
 
   test("should handle custom disallowed tools when all hardcoded tools are overridden", async () => {
     const customDisallowedTools = ["BadTool1", "BadTool2"];
-    const allowedTools = ["WebSearch", "WebFetch"];
+    const allowedTools = [
+      "WebSearch",
+      "WebFetch",
+      "ScheduleWakeup",
+      "SendMessage",
+      "Monitor",
+      "TaskList",
+    ];
     const result = buildDisallowedToolsString(
       customDisallowedTools,
       allowedTools,
@@ -1265,6 +1288,10 @@ describe("buildDisallowedToolsString", () => {
     // Hardcoded tools should be removed
     expect(result).not.toContain("WebSearch");
     expect(result).not.toContain("WebFetch");
+    expect(result).not.toContain("ScheduleWakeup");
+    expect(result).not.toContain("SendMessage");
+    expect(result).not.toContain("Monitor");
+    expect(result).not.toContain("TaskList");
 
     // Only custom disallowed tools should remain
     expect(result).toBe("BadTool1,BadTool2");
