@@ -140,6 +140,56 @@ function execGit(args: string[]): void {
   execFileSync("git", args, { stdio: "inherit", env: process.env });
 }
 
+function readGitOutput(args: string[]): string {
+  return execFileSync("git", args, { encoding: "utf-8", env: process.env }).trim();
+}
+
+function getCurrentBranchName(): string | null {
+  try {
+    const currentBranch = readGitOutput(["branch", "--show-current"]);
+    return currentBranch.length > 0 ? currentBranch : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Remote ref used to fetch a fork PR head without colliding with a local
+ * branch that may already be checked out (e.g. `main` on tag-mode runs).
+ */
+export function forkPullRequestHeadRef(entityNumber: number): string {
+  return `refs/remotes/pull/${entityNumber}/head`;
+}
+
+export function forkPullRequestFetchArgs(
+  entityNumber: number,
+  fetchDepth: number,
+): string[] {
+  return [
+    "fetch",
+    "origin",
+    `--depth=${fetchDepth}`,
+    `+pull/${entityNumber}/head:${forkPullRequestHeadRef(entityNumber)}`,
+  ];
+}
+
+export function forkPullRequestCheckoutArgs(
+  entityNumber: number,
+  headRefName: string,
+  currentBranch: string | null,
+): string[] {
+  const pullHeadRef = forkPullRequestHeadRef(entityNumber);
+
+  // When the fork head shares the runner's checked-out branch name (common in
+  // tag-mode workflows on the default branch), avoid repointing that local
+  // branch and instead read the PR head from a detached checkout.
+  if (currentBranch === headRefName) {
+    return ["checkout", "--detach", pullHeadRef, "--"];
+  }
+
+  return ["checkout", "-B", headRefName, pullHeadRef, "--"];
+}
+
 export type BranchInfo = {
   baseBranch: string;
   claudeBranch?: string;
@@ -189,18 +239,20 @@ export async function setupBranch(
         console.log(
           `PR #${entityNumber} is from a fork, fetching via refs/pull/${entityNumber}/head...`,
         );
-        execGit([
-          "fetch",
-          "origin",
-          `--depth=${fetchDepth}`,
-          `pull/${entityNumber}/head:${branchName}`,
-        ]);
+        execGit(forkPullRequestFetchArgs(entityNumber, fetchDepth));
+        execGit(
+          forkPullRequestCheckoutArgs(
+            entityNumber,
+            branchName,
+            getCurrentBranchName(),
+          ),
+        );
       } else {
         // Execute git commands to checkout PR branch (dynamic depth based on PR size)
         // Using execFileSync instead of shell template literals for security
         execGit(["fetch", "origin", `--depth=${fetchDepth}`, branchName]);
+        execGit(["checkout", branchName, "--"]);
       }
-      execGit(["checkout", branchName, "--"]);
 
       console.log(`Successfully checked out PR branch for PR #${entityNumber}`);
 
