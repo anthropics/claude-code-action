@@ -1,7 +1,10 @@
 #!/usr/bin/env bun
 
 import { describe, test, expect, mock, spyOn, afterEach } from "bun:test";
-import { installPlugins } from "../src/install-plugins";
+import {
+  installPlugins,
+  getPluginSkillAllowRules,
+} from "../src/install-plugins";
 import * as childProcess from "child_process";
 
 describe("installPlugins", () => {
@@ -701,6 +704,63 @@ describe("installPlugins", () => {
       "claude",
       ["plugin", "marketplace", "add", "./my.plugin.marketplace"],
       { stdio: "inherit" },
+    );
+  });
+});
+
+describe("getPluginSkillAllowRules", () => {
+  test("returns empty array when plugins input is undefined", () => {
+    expect(getPluginSkillAllowRules(undefined)).toEqual([]);
+  });
+
+  test("returns empty array when plugins input is empty or whitespace", () => {
+    expect(getPluginSkillAllowRules("")).toEqual([]);
+    expect(getPluginSkillAllowRules("   \n  ")).toEqual([]);
+  });
+
+  test("derives a Skill rule from a plugin with marketplace suffix", () => {
+    // Regression test for #1458: plugin skills invoked via prompt were
+    // permission-denied in headless runs because no Skill allow rule existed.
+    expect(getPluginSkillAllowRules("code-review@claude-code-plugins")).toEqual(
+      ["Skill(code-review:*)"],
+    );
+  });
+
+  test("derives a Skill rule from a bare plugin name", () => {
+    expect(getPluginSkillAllowRules("my-plugin")).toEqual([
+      "Skill(my-plugin:*)",
+    ]);
+  });
+
+  test("derives rules for multiple newline-separated plugins", () => {
+    expect(
+      getPluginSkillAllowRules(
+        "code-review@claude-code-plugins\nfeature-dev@claude-code-plugins",
+      ),
+    ).toEqual(["Skill(code-review:*)", "Skill(feature-dev:*)"]);
+  });
+
+  test("deduplicates plugins that share a name across marketplaces", () => {
+    expect(
+      getPluginSkillAllowRules("tools@marketplace-a\ntools@marketplace-b"),
+    ).toEqual(["Skill(tools:*)"]);
+  });
+
+  test("trims whitespace and skips empty entries", () => {
+    expect(
+      getPluginSkillAllowRules("  code-review@claude-code-plugins  \n\n"),
+    ).toEqual(["Skill(code-review:*)"]);
+  });
+
+  test("preserves a leading @ in scoped plugin names", () => {
+    expect(getPluginSkillAllowRules("@scope/plugin@marketplace")).toEqual([
+      "Skill(@scope/plugin:*)",
+    ]);
+  });
+
+  test("throws on invalid plugin names", () => {
+    expect(() => getPluginSkillAllowRules("bad;name@marketplace")).toThrow(
+      "Invalid plugin name format",
     );
   });
 });
