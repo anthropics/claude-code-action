@@ -201,6 +201,9 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   // Detect if --json-schema is present (for hasJsonSchema flag)
   const hasJsonSchema = "json-schema" in extraArgs;
 
+  const modelFromClaudeArgs = extraArgs["model"] || undefined;
+  delete extraArgs["model"];
+
   const additionalDirectories = extraArgs["add-dir"]
     ? extraArgs["add-dir"]
         .split(ACCUMULATE_DELIMITER)
@@ -304,7 +307,7 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   // Build SDK options - use merged tools from both direct options and claudeArgs
   const sdkOptions: SdkOptions = {
     // Direct options from ClaudeOptions inputs
-    model: options.model,
+    model: options.model || modelFromClaudeArgs,
     maxTurns: options.maxTurns ? parseInt(options.maxTurns, 10) : undefined,
     allowedTools:
       mergedAllowedTools.length > 0 ? mergedAllowedTools : undefined,
