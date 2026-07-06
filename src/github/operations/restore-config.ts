@@ -128,7 +128,7 @@ export function restoreConfigFromBase(baseBranch: string): void {
   // fetch.recurseSubmodules config. Defense-in-depth alongside the delete above.
   execFileSync(
     "git",
-    ["fetch", "origin", baseBranch, "--depth=1", "--no-recurse-submodules"],
+    ["fetch", "origin", "--depth=1", "--no-recurse-submodules", "--", baseBranch],
     {
       stdio: "inherit",
       env: process.env,
