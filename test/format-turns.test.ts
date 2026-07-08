@@ -484,4 +484,34 @@ describe("system_other handling", () => {
     ]);
     expect(markdown).toContain("## ⚙️ System Message");
   });
+
+  test("filters out thinking_tokens system messages", () => {
+    const data: Turn[] = [
+      { type: "system", subtype: "init", tools: [{ name: "tool1" }] },
+      { type: "system", subtype: "thinking_tokens" },
+      { type: "system", subtype: "thinking_tokens" },
+      { type: "system", subtype: "other_subtype" },
+    ];
+
+    const grouped = groupTurnsNaturally(data);
+
+    // Should have init and other_subtype, but not thinking_tokens
+    expect(grouped).toHaveLength(2);
+    expect(grouped[0]?.type).toBe("system_init");
+    expect(grouped[1]?.type).toBe("system_other");
+    expect(grouped[1]?.data?.subtype).toBe("other_subtype");
+  });
+
+  test("thinking_tokens does not appear in formatted output", () => {
+    const data: Turn[] = [
+      { type: "system", subtype: "init", tools: [] },
+      { type: "system", subtype: "thinking_tokens" },
+      { type: "system", subtype: "thinking_tokens" },
+    ];
+
+    const result = formatTurnsFromData(data);
+
+    expect(result).not.toContain("thinking_tokens");
+    expect(result).toContain("## 🚀 System Initialization");
+  });
 });

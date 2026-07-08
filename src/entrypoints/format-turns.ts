@@ -268,7 +268,8 @@ export function groupTurnsNaturally(data: Turn[]): GroupedContent[] {
           type: "system_init",
           tools_count: tools.length,
         });
-      } else {
+      } else if (subtype !== "thinking_tokens") {
+        // Skip thinking_tokens - internal progress events not meant for summary
         groupedContent.push({
           type: "system_other",
           data: turn,
