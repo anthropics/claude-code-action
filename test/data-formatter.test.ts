@@ -872,3 +872,84 @@ describe("formatChangedFilesWithSHA", () => {
     expect(result).toBe("");
   });
 });
+
+describe("null author (deleted/ghost GitHub accounts)", () => {
+  // GitHub's GraphQL API returns `author: null` for issues, PRs, comments, and
+  // reviews written by deleted accounts (the "ghost" user). The formatter must
+  // render a fallback login instead of throwing (which would abort the whole
+  // action's prompt-generation path).
+  const ghostPR: GitHubPullRequest = {
+    title: "Ghost PR",
+    body: "body",
+    author: null,
+    baseRefName: "main",
+    headRefName: "feature/x",
+    headRefOid: "abc123",
+    isCrossRepository: false,
+    headRepository: { owner: { login: "o" }, name: "r" },
+    createdAt: "2024-01-15T10:00:00Z",
+    additions: 1,
+    deletions: 0,
+    state: "OPEN",
+    labels: { nodes: [] },
+    commits: { totalCount: 1, nodes: [] },
+    files: { nodes: [] },
+    comments: { nodes: [] },
+    reviews: { nodes: [] },
+  };
+
+  test("formatContext(PR) renders 'ghost' instead of throwing", () => {
+    expect(() => formatContext(ghostPR, true)).not.toThrow();
+    expect(formatContext(ghostPR, true)).toContain("PR Author: ghost");
+  });
+
+  test("formatContext(issue) renders 'ghost' instead of throwing", () => {
+    const ghostIssue: GitHubIssue = {
+      title: "Ghost issue",
+      body: "body",
+      author: null,
+      createdAt: "2024-01-15T10:00:00Z",
+      state: "OPEN",
+      labels: { nodes: [] },
+      comments: { nodes: [] },
+    };
+    expect(() => formatContext(ghostIssue, false)).not.toThrow();
+    expect(formatContext(ghostIssue, false)).toContain("Issue Author: ghost");
+  });
+
+  test("formatComments renders 'ghost' for a null-author comment", () => {
+    const comments: GitHubComment[] = [
+      {
+        id: "1",
+        databaseId: "1",
+        body: "hi",
+        author: null,
+        createdAt: "2024-01-15T10:00:00Z",
+      },
+    ];
+    expect(() => formatComments(comments)).not.toThrow();
+    expect(formatComments(comments)).toBe(
+      "[ghost at 2024-01-15T10:00:00Z]: hi",
+    );
+  });
+
+  test("formatReviewComments renders 'ghost' for a null-author review", () => {
+    const reviewData = {
+      nodes: [
+        {
+          id: "r1",
+          databaseId: "1",
+          author: null,
+          body: "",
+          state: "COMMENTED",
+          submittedAt: "2024-01-15T10:00:00Z",
+          comments: { nodes: [] },
+        },
+      ],
+    };
+    expect(() => formatReviewComments(reviewData)).not.toThrow();
+    expect(formatReviewComments(reviewData)).toContain(
+      "[Review by ghost at 2024-01-15T10:00:00Z]: COMMENTED",
+    );
+  });
+});

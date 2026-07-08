@@ -1,4 +1,9 @@
 // Types for GitHub GraphQL query responses
+
+// GitHub's GraphQL API types `author` as the nullable `Actor` interface and
+// returns `null` when the account that wrote the content has been deleted
+// (the "ghost" user). Fields below that hold an author are therefore
+// `GitHubAuthor | null`, so callers must handle the null case.
 export type GitHubAuthor = {
   login: string;
   name?: string;
@@ -8,7 +13,7 @@ export type GitHubComment = {
   id: string;
   databaseId: string;
   body: string;
-  author: GitHubAuthor;
+  author: GitHubAuthor | null;
   createdAt: string;
   updatedAt?: string;
   lastEditedAt?: string;
@@ -39,7 +44,7 @@ export type GitHubFile = {
 export type GitHubReview = {
   id: string;
   databaseId: string;
-  author: GitHubAuthor;
+  author: GitHubAuthor | null;
   body: string;
   state: string;
   submittedAt: string;
@@ -53,7 +58,7 @@ export type GitHubReview = {
 export type GitHubPullRequest = {
   title: string;
   body: string;
-  author: GitHubAuthor;
+  author: GitHubAuthor | null;
   baseRefName: string;
   headRefName: string;
   headRefOid: string;
@@ -95,7 +100,7 @@ export type GitHubPullRequest = {
 export type GitHubIssue = {
   title: string;
   body: string;
-  author: GitHubAuthor;
+  author: GitHubAuthor | null;
   createdAt: string;
   updatedAt?: string;
   lastEditedAt?: string;
