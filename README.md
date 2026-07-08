@@ -69,3 +69,12 @@ Having issues or questions? Check out our [Frequently Asked Questions](./docs/fa
 ## License
 
 This project is licensed under the MIT License—see the LICENSE file for details.
+
+
+## Known Issues and Workarounds
+
+The maintainers are aware of the following issues:
+
+- Issue mentioned in the bug tracker
+- Users should follow the recommended practices
+- See the documentation for more details
