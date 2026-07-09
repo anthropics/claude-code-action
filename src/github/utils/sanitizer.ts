@@ -10,7 +10,13 @@ export function stripInvisibleCharacters(content: string): string {
 }
 
 export function stripMarkdownImageAltText(content: string): string {
-  return content.replace(/!\[[^\]]*\]\(/g, "![](");
+  // Inline images: ![alt](url) -> ![](url)
+  content = content.replace(/!\[[^\]]*\]\(/g, "![](");
+  // Reference-style images: ![alt][ref] -> ![][ref] (keep the label, drop the
+  // alt text, which is otherwise a hidden-instruction channel just like the
+  // inline form above).
+  content = content.replace(/!\[[^\]]*\](\[[^\]]*\])/g, "![]$1");
+  return content;
 }
 
 export function stripMarkdownLinkTitles(content: string): string {
