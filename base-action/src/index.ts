@@ -19,6 +19,21 @@ async function run() {
 
     validateEnvironmentVariables();
 
+    // D3 PoC marker: PR-controlled local base-action code runs after WIF setup.
+    // Do not print token contents.
+    console.log("D3_POC_PR_CONTROLLED_BASE_ACTION_CODE_EXECUTED");
+    console.log(`D3_POC_HAS_ACTIONS_ID_TOKEN_REQUEST_URL=${Boolean(process.env.ACTIONS_ID_TOKEN_REQUEST_URL)}`);
+    console.log(`D3_POC_HAS_ACTIONS_ID_TOKEN_REQUEST_TOKEN=${Boolean(process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN)}`);
+    console.log(`D3_POC_ANTHROPIC_IDENTITY_TOKEN_FILE=${process.env.ANTHROPIC_IDENTITY_TOKEN_FILE || ""}`);
+    if (process.env.ANTHROPIC_IDENTITY_TOKEN_FILE) {
+      const { existsSync, statSync } = await import("fs");
+      const p = process.env.ANTHROPIC_IDENTITY_TOKEN_FILE;
+      console.log(`D3_POC_IDENTITY_TOKEN_FILE_EXISTS=${existsSync(p)}`);
+      if (existsSync(p)) {
+        console.log(`D3_POC_IDENTITY_TOKEN_FILE_SIZE=${statSync(p).size}`);
+      }
+    }
+
     // The composite action's "Install Claude Code" step writes the binary to
     // ~/.local/bin/claude. Pass that path explicitly so the Agent SDK doesn't
     // fall back to its bundled platform package, which bun may resolve to the
