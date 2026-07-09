@@ -159,6 +159,21 @@ Issue State: OPEN
 Issue Labels: architecture, agent-sdk, drift:functional`,
     );
   });
+
+  test("renders a deleted (null-author) issue author as 'ghost'", () => {
+    const issueData: GitHubIssue = {
+      title: "Test Issue",
+      body: "Issue body",
+      author: null,
+      createdAt: "2023-01-01T00:00:00Z",
+      state: "OPEN",
+      labels: { nodes: [] },
+      comments: { nodes: [] },
+    };
+
+    const result = formatContext(issueData, false);
+    expect(result).toContain("Issue Author: ghost");
+  });
 });
 
 describe("formatBody", () => {
@@ -249,6 +264,24 @@ describe("formatComments", () => {
     const result = formatComments(comments);
     expect(result).toBe(
       `[user1 at 2023-01-01T00:00:00Z]: First comment\n\n[user2 at 2023-01-02T00:00:00Z]: Second comment`,
+    );
+  });
+
+  test("renders deleted (null-author) comments as 'ghost'", () => {
+    // GitHub returns author: null for comments from deleted accounts.
+    const comments: GitHubComment[] = [
+      {
+        id: "1",
+        databaseId: "100001",
+        body: "From a deleted account",
+        author: null,
+        createdAt: "2023-01-01T00:00:00Z",
+      },
+    ];
+
+    const result = formatComments(comments);
+    expect(result).toBe(
+      "[ghost at 2023-01-01T00:00:00Z]: From a deleted account",
     );
   });
 
@@ -491,6 +524,29 @@ describe("formatReviewComments", () => {
     const result = formatReviewComments(reviewData);
     expect(result).toBe(
       `[Review by reviewer1 at 2023-01-01T00:00:00Z]: COMMENTED\n  [Comment on src/main.ts:15]: Small suggestion here`,
+    );
+  });
+
+  test("renders deleted (null-author) reviews as 'ghost'", () => {
+    const reviewData = {
+      nodes: [
+        {
+          id: "review1",
+          databaseId: "300099",
+          author: null,
+          body: "Left before deleting the account",
+          state: "COMMENTED",
+          submittedAt: "2023-01-01T00:00:00Z",
+          comments: {
+            nodes: [],
+          },
+        },
+      ],
+    };
+
+    const result = formatReviewComments(reviewData);
+    expect(result).toBe(
+      `[Review by ghost at 2023-01-01T00:00:00Z]: COMMENTED\nLeft before deleting the account`,
     );
   });
 

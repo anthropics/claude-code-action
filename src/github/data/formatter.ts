@@ -21,7 +21,7 @@ export function formatContext(
     const prData = contextData as GitHubPullRequest;
     const sanitizedTitle = sanitizeContent(prData.title);
     return `PR Title: ${sanitizedTitle}
-PR Author: ${prData.author.login}
+PR Author: ${prData.author?.login ?? "ghost"}
 PR Branch: ${prData.headRefName} -> ${prData.baseRefName}
 PR State: ${prData.state}
 PR Labels: ${formatLabels(prData.labels.nodes)}
@@ -33,7 +33,7 @@ Changed Files: ${prData.files.nodes.length} files`;
     const issueData = contextData as GitHubIssue;
     const sanitizedTitle = sanitizeContent(issueData.title);
     return `Issue Title: ${sanitizedTitle}
-Issue Author: ${issueData.author.login}
+Issue Author: ${issueData.author?.login ?? "ghost"}
 Issue State: ${issueData.state}
 Issue Labels: ${formatLabels(issueData.labels.nodes)}`;
   }
@@ -71,7 +71,7 @@ export function formatComments(
 
       body = sanitizeContent(body);
 
-      return `[${comment.author.login} at ${comment.createdAt}]: ${body}`;
+      return `[${comment.author?.login ?? "ghost"} at ${comment.createdAt}]: ${body}`;
     })
     .join("\n\n");
 }
@@ -85,7 +85,7 @@ export function formatReviewComments(
   }
 
   const formattedReviews = reviewData.nodes.map((review) => {
-    let reviewOutput = `[Review by ${review.author.login} at ${review.submittedAt}]: ${review.state}`;
+    let reviewOutput = `[Review by ${review.author?.login ?? "ghost"} at ${review.submittedAt}]: ${review.state}`;
 
     if (review.body && review.body.trim()) {
       let body = review.body;

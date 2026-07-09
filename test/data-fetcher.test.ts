@@ -1499,4 +1499,42 @@ describe("filterCommentsByActor", () => {
     const filtered = filterCommentsByActor(comments, "user1", "");
     expect(filtered).toHaveLength(0);
   });
+
+  test("does not crash on comments from deleted (null-author) accounts", () => {
+    // GitHub's GraphQL returns author: null for comments whose account was
+    // deleted. With an exclude filter set (the exact `*[bot]` config we
+    // recommend), the null author must not throw when dereferenced.
+    const comments = [
+      { author: { login: "user1" }, body: "comment1" },
+      { author: null, body: "from a deleted account" },
+      { author: { login: "bot[bot]" }, body: "comment3" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "", "*[bot]");
+    // ghost comment is retained (it matches no exclude pattern); the bot is dropped.
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((c: any) => c.body)).toEqual([
+      "comment1",
+      "from a deleted account",
+    ]);
+  });
+
+  test("treats null author as the 'ghost' login for include/exclude", () => {
+    const comments = [
+      { author: null, body: "from a deleted account" },
+      { author: { login: "user1" }, body: "comment2" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    // Excluding "ghost" removes the deleted-account comment.
+    expect(filterCommentsByActor(comments, "", "ghost")).toHaveLength(1);
+    expect(filterCommentsByActor(comments, "", "ghost")[0].body).toBe(
+      "comment2",
+    );
+    // Including only "ghost" keeps just the deleted-account comment.
+    const onlyGhost = filterCommentsByActor(comments, "ghost", "");
+    expect(onlyGhost).toHaveLength(1);
+    expect(onlyGhost[0].body).toBe("from a deleted account");
+  });
 });
