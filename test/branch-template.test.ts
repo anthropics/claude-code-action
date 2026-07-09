@@ -5,6 +5,7 @@ import {
   applyBranchTemplate,
   generateBranchName,
 } from "../src/utils/branch-template";
+import { validateBranchName } from "../src/github/operations/branch";
 
 describe("branch template utilities", () => {
   describe("applyBranchTemplate", () => {
@@ -142,6 +143,53 @@ describe("branch template utilities", () => {
       );
 
       expect(result).toBe("dev/enhancement-issue_789");
+    });
+
+    it("should sanitize scoped labels that contain invalid git characters", () => {
+      const template = "{{prefix}}{{label}}/{{entityNumber}}";
+      const result = generateBranchName(
+        template,
+        "claude/",
+        "issue",
+        123,
+        undefined,
+        "area:permissions",
+      );
+
+      expect(result).toBe("claude/area-permissions/123");
+      // Regression: an unsanitized ":" here previously failed validateBranchName
+      // and crashed the run via process.exit(1).
+      expect(() => validateBranchName(result)).not.toThrow();
+    });
+
+    it("should replace spaces in labels with hyphens", () => {
+      const template = "{{prefix}}{{label}}-{{entityNumber}}";
+      const result = generateBranchName(
+        template,
+        "fix/",
+        "issue",
+        456,
+        undefined,
+        "needs review",
+      );
+
+      expect(result).toBe("fix/needs-review-456");
+      expect(() => validateBranchName(result)).not.toThrow();
+    });
+
+    it("should fall back to entityType when a label sanitizes to empty", () => {
+      const template = "{{prefix}}{{label}}-{{entityNumber}}";
+      const result = generateBranchName(
+        template,
+        "fix/",
+        "pr",
+        789,
+        undefined,
+        "🎉",
+      );
+
+      expect(result).toBe("fix/pr-789");
+      expect(() => validateBranchName(result)).not.toThrow();
     });
 
     it("should use description in template when provided", () => {

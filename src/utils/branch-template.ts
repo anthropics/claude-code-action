@@ -28,6 +28,20 @@ function extractDescription(
     .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
 }
 
+/**
+ * Sanitizes a label into a git-safe branch segment. Labels are free-form and
+ * often scoped (e.g. "area:permissions"), so characters that are invalid in a
+ * branch name (":", "/", spaces, ...) are replaced with a hyphen rather than
+ * dropped, keeping the label readable. Returns "" if nothing usable remains.
+ */
+function sanitizeLabel(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-") // Replace runs of invalid chars with a hyphen
+    .replace(/-+/g, "-") // Collapse multiple hyphens
+    .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
+}
+
 export interface BranchTemplateVariables {
   prefix: string;
   entityType: string;
@@ -78,7 +92,7 @@ export function generateBranchName(
     entityNumber,
     timestamp: `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`,
     sha: sha?.substring(0, 8), // First 8 characters of SHA
-    label: label || entityType, // Fall back to entityType if no label
+    label: (label && sanitizeLabel(label)) || entityType, // Sanitize; fall back to entityType if empty/no label
     description: title ? extractDescription(title) : undefined,
   };
 
