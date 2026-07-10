@@ -99,7 +99,7 @@ These inputs are deprecated and will be removed in a future version:
 | `mode`                | **DEPRECATED**: Mode is now automatically detected based on workflow context                 | Remove this input; the action auto-detects the correct mode    |
 | `direct_prompt`       | **DEPRECATED**: Use `prompt` instead                                                         | Replace with `prompt`                                          |
 | `override_prompt`     | **DEPRECATED**: Use `prompt` with template variables or `claude_args` with `--system-prompt` | Use `prompt` for templates or `claude_args` for system prompts |
-| `custom_instructions` | **DEPRECATED**: Use `claude_args` with `--system-prompt` or include in `prompt`              | Move instructions to `prompt` or use `claude_args`             |
+| `custom_instructions` | **DEPRECATED**: Use `claude_args` with `--append-system-prompt` or include in `prompt`       | Move instructions to `prompt` or use `claude_args`             |
 | `max_turns`           | **DEPRECATED**: Use `claude_args` with `--max-turns` instead                                 | Use `claude_args: "--max-turns 5"`                             |
 | `model`               | **DEPRECATED**: Use `claude_args` with `--model` instead                                     | Use `claude_args: "--model claude-4-0-sonnet-20250805"`        |
 | `fallback_model`      | **DEPRECATED**: Use `claude_args` with fallback configuration                                | Configure fallback in `claude_args` or `settings`              |
@@ -139,7 +139,7 @@ For a comprehensive guide on migrating from v0.x to v1.0, including step-by-step
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     claude_args: |
       --max-turns 10
-      --system-prompt "Focus on security"
+      --append-system-prompt "Focus on security"
 ```
 
 #### Automation Workflows
