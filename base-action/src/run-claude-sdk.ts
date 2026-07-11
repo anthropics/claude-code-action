@@ -208,7 +208,10 @@ export async function runClaudeWithSdk(
     throw new Error("No result message received from Claude");
   }
 
-  const isSuccess = resultMessage.subtype === "success";
+  // subtype "success" with is_error:true means the run errored without producing
+  // a real result — treat it as failure so CI does not show a misleading green check.
+  const isSuccess =
+    resultMessage.subtype === "success" && !resultMessage.is_error;
   result.conclusion = isSuccess ? "success" : "failure";
 
   // Handle structured output
@@ -234,14 +237,21 @@ export async function runClaudeWithSdk(
   }
 
   if (!isSuccess) {
+    if (resultMessage.subtype === "success" && resultMessage.is_error) {
+      core.error(
+        "Claude result reported subtype success with is_error:true (run did not complete successfully)",
+      );
+    }
     if ("errors" in resultMessage && resultMessage.errors) {
       core.error(`Execution failed: ${resultMessage.errors.join(", ")}`);
     }
     throw new Error(
       `Claude execution failed: ${
-        "errors" in resultMessage && resultMessage.errors
-          ? resultMessage.errors.join(", ")
-          : "unknown error"
+        resultMessage.subtype === "success" && resultMessage.is_error
+          ? "result is_error:true"
+          : "errors" in resultMessage && resultMessage.errors
+            ? resultMessage.errors.join(", ")
+            : "unknown error"
       }`,
     );
   }
