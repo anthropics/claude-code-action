@@ -162,7 +162,7 @@ inputs:
     required: false
     default: ""
   plugin_marketplaces:
-    description: "Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., 'https://github.com/user/marketplace1.git\nhttps://github.com/user/marketplace2.git')"
+    description: "Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., 'https://github.com/user/marketplace1.git\nhttps://github.com/user/marketplace2.git'). Each URL may be pinned to a branch, tag, or commit SHA with a '#' suffix (e.g., 'https://github.com/user/marketplace1.git#v1.2.3'); unpinned URLs track the default branch"
     required: false
     default: ""
 
