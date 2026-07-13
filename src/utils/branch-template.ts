@@ -7,7 +7,27 @@
 const NUM_DESCRIPTION_WORDS = 5;
 
 /**
+ * Normalizes a string into a git-safe lowercase hyphenated segment.
+ */
+function sanitizeBranchSegment(value: string): string {
+  if (!value || value.trim() === "") {
+    return "";
+  }
+
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[:/\s]+/g, "-") // Scoped tokens (area:permissions) or path-like segments
+    .replace(/[^a-z0-9-]/g, "") // Remove non-alphanumeric except hyphens
+    .replace(/-+/g, "-") // Replace multiple hyphens with single
+    .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
+}
+
+/**
  * Extracts the first 5 words from a title and converts them to kebab-case
+ */
+/**
+ * Extracts the first 5 words from a title and converts them to kebab-case.
  */
 function extractDescription(
   title: string,
@@ -17,15 +37,20 @@ function extractDescription(
     return "";
   }
 
-  return title
-    .trim()
-    .split(/\s+/)
-    .slice(0, numWords) // Only first `numWords` words
-    .join("-")
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "") // Remove non-alphanumeric except hyphens
-    .replace(/-+/g, "-") // Replace multiple hyphens with single
-    .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
+  return sanitizeBranchSegment(
+    title
+      .trim()
+      .split(/\s+/)
+      .slice(0, numWords) // Only first `numWords` words
+      .join("-"),
+  );
+}
+
+/**
+ * Converts a GitHub label into a git-safe branch name segment.
+ */
+function sanitizeLabel(label: string): string {
+  return sanitizeBranchSegment(label);
 }
 
 export interface BranchTemplateVariables {
@@ -78,7 +103,9 @@ export function generateBranchName(
     entityNumber,
     timestamp: `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`,
     sha: sha?.substring(0, 8), // First 8 characters of SHA
-    label: label || entityType, // Fall back to entityType if no label
+    label: label
+      ? sanitizeLabel(label) || entityType
+      : entityType, // Fall back to entityType if no label
     description: title ? extractDescription(title) : undefined,
   };
 

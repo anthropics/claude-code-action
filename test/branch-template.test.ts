@@ -5,6 +5,7 @@ import {
   applyBranchTemplate,
   generateBranchName,
 } from "../src/utils/branch-template";
+import { validateBranchName } from "../src/github/operations/branch";
 
 describe("branch template utilities", () => {
   describe("applyBranchTemplate", () => {
@@ -121,6 +122,51 @@ describe("branch template utilities", () => {
       );
 
       expect(result).toBe("feature/bug/123");
+    });
+
+    it("should sanitize scoped labels for git-safe branch names", () => {
+      const template = "{{prefix}}{{label}}/{{entityNumber}}";
+      const result = generateBranchName(
+        template,
+        "claude/",
+        "issue",
+        123,
+        undefined,
+        "area:permissions",
+      );
+
+      expect(result).toBe("claude/area-permissions/123");
+      expect(() => validateBranchName(result)).not.toThrow();
+    });
+
+    it("should sanitize labels with colons for git-safe branch names", () => {
+      const template = "{{prefix}}{{label}}-{{entityNumber}}";
+      const result = generateBranchName(
+        template,
+        "claude/",
+        "issue",
+        456,
+        undefined,
+        "provider:bedrock",
+      );
+
+      expect(result).toBe("claude/provider-bedrock-456");
+      expect(() => validateBranchName(result)).not.toThrow();
+    });
+
+    it("should fallback to entityType when label sanitizes to empty", () => {
+      const template = "{{prefix}}{{label}}-{{entityNumber}}";
+      const result = generateBranchName(
+        template,
+        "fix/",
+        "issue",
+        123,
+        undefined,
+        ":::",
+      );
+
+      expect(result).toBe("fix/issue-123");
+      expect(() => validateBranchName(result)).not.toThrow();
     });
 
     it("should fallback to entityType when label template is used but no label provided", () => {
