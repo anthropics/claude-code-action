@@ -15,7 +15,8 @@
  */
 
 import * as core from "@actions/core";
-import { mkdirSync, writeFileSync } from "fs";
+import { createHash } from "crypto";
+import { mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { retryWithBackoff } from "./retry";
 
@@ -51,48 +52,57 @@ async function fetchIdentityToken(audience: string) {
 }
 
 /**
- * Writes a profile config that loads federation from the identity-token file.
- * Resolving federation through a profile (rather than bare env vars) enables
- * the SDK's on-disk credentials cache, so the several `claude` processes the
- * action spawns (plugin installs, main query) share one exchanged access token
- * instead of each re-exchanging the single-use GitHub OIDC token, which fails
- * with 401 (`jti_reused`).
+ * Writes a profile config that switches federation resolution to the
+ * file-backed path. Resolving federation through a profile (rather than bare
+ * env vars) enables the SDK's on-disk credentials cache, so the several
+ * `claude` processes the action spawns (plugin installs, main query) share
+ * one exchanged access token instead of each re-exchanging the single-use
+ * GitHub OIDC token, which fails with 401 (`jti_reused`).
+ *
+ * The profile is intentionally minimal: the SDK gap-fills the federation
+ * fields (rule, organization, identity-token file, service account, base URL)
+ * from the ANTHROPIC_* env vars the action already exports, so the file only
+ * needs to exist to turn the cache on.
+ *
+ * The config dir name embeds a fingerprint of the federation inputs. The
+ * SDK's cache reuses a token on `expires_at` alone, with no record of the
+ * config that minted it, and the token's scope is bound at mint time — so a
+ * later action step in the same job (RUNNER_TEMP is per-job) with different
+ * federation inputs must land in a different dir or it would silently reuse
+ * the first step's token.
+ *
+ * Sharing the cache is only safe while the action spawns its `claude`
+ * subprocesses sequentially: the SDK cache is not cross-process serialized,
+ * and concurrent cache misses would each re-exchange the same single-use
+ * identity token. Parallelizing the plugin installs would reintroduce the
+ * `jti_reused` failures.
  */
-function writeFederationProfile(tokenFile: string): string {
-  const configDir = join(
-    process.env.RUNNER_TEMP || "/tmp",
-    "claude-workload-identity",
-    "config",
-  );
-  const serviceAccountId = process.env.ANTHROPIC_SERVICE_ACCOUNT_ID?.trim();
-  const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
-  const baseUrl = process.env.ANTHROPIC_BASE_URL?.trim();
-
-  const authentication: Record<string, unknown> = {
-    type: "oidc_federation",
-    federation_rule_id: process.env.ANTHROPIC_FEDERATION_RULE_ID?.trim(),
-    identity_token: { source: "file", path: tokenFile },
-  };
-  if (serviceAccountId) {
-    authentication.service_account_id = serviceAccountId;
-  }
-
-  const profile: Record<string, unknown> = {
-    version: "1.0",
-    authentication,
-    organization_id: process.env.ANTHROPIC_ORGANIZATION_ID?.trim(),
-  };
-  if (workspaceId) {
-    profile.workspace_id = workspaceId;
-  }
-  if (baseUrl) {
-    profile.base_url = baseUrl;
-  }
+function writeFederationProfile(baseDir: string): string {
+  // Every input that changes which credential the exchange mints must be in
+  // here; service_account_id and scope are sent in the exchange request body.
+  const fingerprint = createHash("sha256")
+    .update(
+      JSON.stringify([
+        process.env.ANTHROPIC_FEDERATION_RULE_ID?.trim() ?? "",
+        process.env.ANTHROPIC_ORGANIZATION_ID?.trim() ?? "",
+        process.env.ANTHROPIC_SERVICE_ACCOUNT_ID?.trim() ?? "",
+        process.env.ANTHROPIC_WORKSPACE_ID?.trim() ?? "",
+        process.env.ANTHROPIC_BASE_URL?.trim() ?? "",
+        process.env.ANTHROPIC_SCOPE?.trim() ?? "",
+      ]),
+    )
+    .digest("hex")
+    .slice(0, 16);
+  const configDir = join(baseDir, `config-${fingerprint}`);
 
   mkdirSync(join(configDir, "configs"), { recursive: true, mode: 0o700 });
   writeFileSync(
     join(configDir, "configs", "default.json"),
-    JSON.stringify(profile, null, 2),
+    JSON.stringify(
+      { version: "1.0", authentication: { type: "oidc_federation" } },
+      null,
+      2,
+    ),
     { mode: 0o600 },
   );
   return configDir;
@@ -105,7 +115,8 @@ function writeFederationProfile(tokenFile: string): string {
  *
  * Returns undefined when federation is not configured or is shadowed by a
  * higher-precedence credential. Callers must invoke stop() when execution
- * finishes.
+ * finishes; it also deletes the identity token and any cached exchanged
+ * credential.
  */
 export async function setupWorkloadIdentity(): Promise<
   WorkloadIdentityHandle | undefined
@@ -149,8 +160,17 @@ export async function setupWorkloadIdentity(): Promise<
   }
 
   process.env.ANTHROPIC_IDENTITY_TOKEN_FILE = tokenFile;
-  process.env.ANTHROPIC_CONFIG_DIR = writeFederationProfile(tokenFile);
-  process.env.ANTHROPIC_PROFILE = "default";
+  if (
+    process.env.ANTHROPIC_CONFIG_DIR?.trim() ||
+    process.env.ANTHROPIC_PROFILE?.trim()
+  ) {
+    core.warning(
+      "ANTHROPIC_CONFIG_DIR or ANTHROPIC_PROFILE is already set, so the action will not write its own federation profile. Credential caching across the spawned Claude processes follows the existing profile configuration.",
+    );
+  } else {
+    process.env.ANTHROPIC_CONFIG_DIR = writeFederationProfile(tokenDir);
+    process.env.ANTHROPIC_PROFILE = "default";
+  }
   console.log(
     `Workload identity federation configured (rule: ${process.env.ANTHROPIC_FEDERATION_RULE_ID}, identity token file: ${tokenFile})`,
   );
@@ -165,6 +185,12 @@ export async function setupWorkloadIdentity(): Promise<
 
   return {
     tokenFile,
-    stop: () => clearInterval(refreshInterval),
+    stop: () => {
+      clearInterval(refreshInterval);
+      // RUNNER_TEMP is per-job, not per-step: remove the identity token, the
+      // profile, and the cached exchanged credential so they don't outlive
+      // this step.
+      rmSync(tokenDir, { recursive: true, force: true });
+    },
   };
 }
