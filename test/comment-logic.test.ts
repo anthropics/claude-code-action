@@ -254,7 +254,7 @@ describe("updateCommentBody", () => {
   });
 
   describe("execution details", () => {
-    it("includes duration in header for success", () => {
+    it("includes duration and cost in header for success", () => {
       const input = {
         ...baseInput,
         executionDetails: {
@@ -266,7 +266,9 @@ describe("updateCommentBody", () => {
       };
 
       const result = updateCommentBody(input);
-      expect(result).toContain("**Claude finished @testuser's task in 31s**");
+      expect(result).toContain(
+        "**Claude finished @testuser's task in 31s ($0.1338)**",
+      );
     });
 
     it("formats duration in minutes and seconds in header", () => {
@@ -284,20 +286,23 @@ describe("updateCommentBody", () => {
       );
     });
 
-    it("includes duration in error header", () => {
+    it("includes duration and cost in error header", () => {
       const input = {
         ...baseInput,
         actionFailed: true,
         executionDetails: {
+          total_cost_usd: 0.005,
           duration_ms: 45000, // 45 seconds
         },
       };
 
       const result = updateCommentBody(input);
-      expect(result).toContain("**Claude encountered an error after 45s**");
+      expect(result).toContain(
+        "**Claude encountered an error after 45s ($0.0050)**",
+      );
     });
 
-    it("handles missing duration gracefully", () => {
+    it("handles missing duration gracefully by showing cost only", () => {
       const input = {
         ...baseInput,
         executionDetails: {
@@ -307,8 +312,24 @@ describe("updateCommentBody", () => {
       };
 
       const result = updateCommentBody(input);
-      expect(result).toContain("**Claude finished @testuser's task**");
+      expect(result).toContain(
+        "**Claude finished @testuser's task ($0.2500)**",
+      );
       expect(result).not.toContain(" in ");
+    });
+
+    it("handles missing cost gracefully by showing duration only", () => {
+      const input = {
+        ...baseInput,
+        executionDetails: {
+          duration_ms: 31000,
+        },
+        triggerUsername: "testuser",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).toContain("**Claude finished @testuser's task in 31s**");
+      expect(result).not.toContain("$");
     });
   });
 
@@ -332,7 +353,7 @@ describe("updateCommentBody", () => {
 
       // Check the header structure
       expect(result).toContain(
-        "**Claude finished @trigger-user's task in 1m 5s**",
+        "**Claude finished @trigger-user's task in 1m 5s ($0.0100)**",
       );
       expect(result).toContain("—— [View job]");
       expect(result).toContain(
