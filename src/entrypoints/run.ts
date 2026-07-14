@@ -154,6 +154,7 @@ async function run() {
   let claudeSuccess = false;
   let prepareSuccess = true;
   let prepareError: string | undefined;
+  let executionError: string | undefined;
   let context: GitHubContext | undefined;
   let octokit: Octokits | undefined;
   let workloadIdentity: WorkloadIdentityHandle | undefined;
@@ -313,6 +314,8 @@ async function run() {
     if (!prepareCompleted) {
       prepareSuccess = false;
       prepareError = errorMessage;
+    } else {
+      executionError = errorMessage;
     }
     core.setFailed(`Action failed with error: ${errorMessage}`);
   } finally {
@@ -342,6 +345,7 @@ async function run() {
           outputFile: executionFile,
           prepareSuccess,
           prepareError,
+          executionError,
           useCommitSigning: context.inputs.useCommitSigning,
         });
       } catch (error) {

@@ -128,4 +128,66 @@ describe("runClaudeWithSdk", () => {
       coreErrorSpy.mockRestore();
     }
   });
+
+  test("fails with actionable auth guidance when api_error_status is 401", async () => {
+    const consoleErrorSpy = spyOn(console, "error").mockImplementation(
+      () => {},
+    );
+    const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+    const coreErrorSpy = spyOn(
+      await import("@actions/core"),
+      "error",
+    ).mockImplementation(() => {});
+
+    tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+    process.env.RUNNER_TEMP = tempDir;
+
+    const promptPath = join(tempDir, "prompt.txt");
+    await writeFile(promptPath, "test prompt");
+
+    const initMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "session-123",
+      model: "claude-sonnet-5",
+    };
+
+    const authErrorResultMessage = {
+      type: "result",
+      subtype: "success",
+      is_error: true,
+      api_error_status: 401,
+      duration_ms: 2013,
+      num_turns: 1,
+      total_cost_usd: 0,
+      permission_denials: [],
+    };
+
+    mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+      query: async function* () {
+        yield initMessage;
+        yield authErrorResultMessage;
+      },
+    }));
+
+    try {
+      const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+      await expect(
+        runClaudeWithSdk(promptPath, {
+          sdkOptions: {},
+          showFullOutput: false,
+          hasJsonSchema: false,
+        }),
+      ).rejects.toThrow("authentication failed (API returned 401)");
+
+      expect(coreErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("regenerate it with `claude setup-token`"),
+      );
+    } finally {
+      consoleErrorSpy.mockRestore();
+      consoleLogSpy.mockRestore();
+      coreErrorSpy.mockRestore();
+    }
+  });
 });
