@@ -276,6 +276,16 @@ describe("redactGitHubTokens", () => {
     );
   });
 
+  it("should redact user-to-server tokens (ghu_)", () => {
+    const token = "ghu_16C7e42F292c6912E7710c838347Ae178B4a";
+    expect(redactGitHubTokens(`User token: ${token}`)).toBe(
+      "User token: [REDACTED_GITHUB_TOKEN]",
+    );
+    expect(
+      redactGitHubTokens(`In a URL: x-access-token:${token}@github.com`),
+    ).toBe("In a URL: x-access-token:[REDACTED_GITHUB_TOKEN]@github.com");
+  });
+
   it("should redact installation tokens (ghs_)", () => {
     const token = "ghs_xz7yzju2SZjGPa0dUNMAx0SH4xDOCS31LXQW";
     expect(redactGitHubTokens(`Install token: ${token}`)).toBe(
