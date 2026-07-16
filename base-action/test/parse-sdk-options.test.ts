@@ -444,17 +444,50 @@ describe("parseSdkOptions", () => {
     });
   });
 
-  describe("other extraArgs passthrough", () => {
-    test("should pass through json-schema in extraArgs", () => {
+  describe("json-schema to outputFormat conversion", () => {
+    test("should convert json-schema to outputFormat instead of extraArgs", () => {
+      const schema = {
+        type: "object",
+        properties: { name: { type: "string" } },
+        required: ["name"],
+      };
+      const options: ClaudeOptions = {
+        claudeArgs: `--json-schema '${JSON.stringify(schema)}'`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.outputFormat).toEqual({
+        type: "json_schema",
+        schema,
+      });
+      expect(result.sdkOptions.extraArgs?.["json-schema"]).toBeUndefined();
+      expect(result.hasJsonSchema).toBe(true);
+    });
+
+    test("should set hasJsonSchema true even after converting to outputFormat", () => {
       const options: ClaudeOptions = {
         claudeArgs: `--json-schema '{"type":"object"}'`,
       };
 
       const result = parseSdkOptions(options);
 
-      expect(result.sdkOptions.extraArgs?.["json-schema"]).toBe(
-        '{"type":"object"}',
-      );
+      expect(result.hasJsonSchema).toBe(true);
+      expect(result.sdkOptions.outputFormat).toEqual({
+        type: "json_schema",
+        schema: { type: "object" },
+      });
+    });
+
+    test("should leave json-schema in extraArgs when JSON parsing fails", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: `--json-schema 'not-valid-json'`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.outputFormat).toBeUndefined();
+      expect(result.sdkOptions.extraArgs?.["json-schema"]).toBeUndefined();
       expect(result.hasJsonSchema).toBe(true);
     });
   });

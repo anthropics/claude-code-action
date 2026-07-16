@@ -333,6 +333,20 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
       : ["user", "project", "local"],
   };
 
+  // Convert --json-schema to native outputFormat (instead of CLI pass-through
+  // via extraArgs, which crashes on Vertex AI)
+  if (hasJsonSchema && extraArgs["json-schema"]) {
+    try {
+      sdkOptions.outputFormat = {
+        type: "json_schema" as const,
+        schema: JSON.parse(extraArgs["json-schema"]),
+      };
+    } catch (e) {
+      console.warn(`Failed to parse --json-schema value as JSON: ${e}`);
+    }
+    delete extraArgs["json-schema"];
+  }
+
   // Remove setting-sources from extraArgs to avoid passing it twice
   delete extraArgs["setting-sources"];
 
