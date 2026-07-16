@@ -206,12 +206,9 @@ export function isBodySafeToUse(
  * @returns Filtered array of comments
  */
 export function filterCommentsByActor<
-  T extends { author: { login: string; __typename?: string } | null },
->(
-  comments: T[],
-  includeActors: string = "",
-  excludeActors: string = "",
-): T[] {
+export function filterCommentsByActor<
+ T extends { author: { login: string; __typename?: string } | null },
+>(comments: T[], includeActors: string = "", excludeActors: string = ""): T[] {
   const includeParsed = parseActorFilter(includeActors);
   const excludeParsed = parseActorFilter(excludeActors);
 
