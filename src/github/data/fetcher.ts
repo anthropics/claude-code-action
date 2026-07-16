@@ -204,11 +204,9 @@ export function isBodySafeToUse(
  * @param excludeActors - Comma-separated actors to exclude
  * @returns Filtered array of comments
  */
-export function filterCommentsByActor<T extends { author: { login: string } }>(
-  comments: T[],
-  includeActors: string = "",
-  excludeActors: string = "",
-): T[] {
+export function filterCommentsByActor<
+  T extends { author: { login: string } | null },
+>(comments: T[], includeActors: string = "", excludeActors: string = ""): T[] {
   const includeParsed = parseActorFilter(includeActors);
   const excludeParsed = parseActorFilter(excludeActors);
 
@@ -219,7 +217,9 @@ export function filterCommentsByActor<T extends { author: { login: string } }>(
 
   return comments.filter((comment) =>
     shouldIncludeCommentByActor(
-      comment.author.login,
+      // author is null for comments from deleted ("ghost") accounts; treat them
+      // as the "ghost" login so filtering never dereferences null and crashes.
+      comment.author?.login ?? "ghost",
       includeParsed,
       excludeParsed,
     ),
