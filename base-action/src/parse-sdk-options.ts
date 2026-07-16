@@ -198,6 +198,18 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   // Parse claudeArgs into extraArgs for CLI pass-through
   const extraArgs = parseClaudeArgsToExtraArgs(options.claudeArgs);
 
+  // DEBUG: trace json-schema through shell-quote parsing
+  if ("json-schema" in extraArgs) {
+    const raw = options.claudeArgs ?? "";
+    const val = extraArgs["json-schema"] ?? "";
+    console.log(
+      `[json-schema debug] raw claudeArgs (last 80): ...${raw.slice(-80)}`,
+    );
+    console.log(
+      `[json-schema debug] parsed extraArgs["json-schema"] (first 80): ${val.slice(0, 80)}...`,
+    );
+  }
+
   // Detect if --json-schema is present (for hasJsonSchema flag)
   const hasJsonSchema = "json-schema" in extraArgs;
 
