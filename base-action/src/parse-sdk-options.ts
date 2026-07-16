@@ -206,7 +206,13 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
       `[json-schema debug] raw claudeArgs (last 80): ...${raw.slice(-80)}`,
     );
     console.log(
-      `[json-schema debug] parsed extraArgs["json-schema"] (first 80): ${val.slice(0, 80)}...`,
+      `[json-schema debug] parsed value length: ${val.length}`,
+    );
+    console.log(
+      `[json-schema debug] parsed value (first 80): ${val.slice(0, 80)}...`,
+    );
+    console.log(
+      `[json-schema debug] parsed value (last 80): ...${val.slice(-80)}`,
     );
   }
 
