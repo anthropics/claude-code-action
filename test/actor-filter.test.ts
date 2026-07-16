@@ -3,6 +3,7 @@ import {
   parseActorFilter,
   actorMatchesPattern,
   shouldIncludeCommentByActor,
+  normalizeActorLogin,
 } from "../src/github/utils/actor-filter";
 
 describe("parseActorFilter", () => {
@@ -36,6 +37,38 @@ describe("parseActorFilter", () => {
 
   test("handles wildcard bot pattern", () => {
     expect(parseActorFilter("*[bot]")).toEqual(["*[bot]"]);
+  });
+});
+
+describe("normalizeActorLogin", () => {
+  test("appends [bot] for GraphQL Bot authors without suffix", () => {
+    expect(normalizeActorLogin("github-actions", "Bot")).toBe(
+      "github-actions[bot]",
+    );
+    expect(normalizeActorLogin("claude", "Bot")).toBe("claude[bot]");
+    expect(normalizeActorLogin("dependabot", "Bot")).toBe("dependabot[bot]");
+  });
+
+  test("does not double-append [bot] when already present", () => {
+    expect(normalizeActorLogin("github-actions[bot]", "Bot")).toBe(
+      "github-actions[bot]",
+    );
+  });
+
+  test("leaves User and other typenames unchanged", () => {
+    expect(normalizeActorLogin("john-doe", "User")).toBe("john-doe");
+    expect(normalizeActorLogin("acme", "Organization")).toBe("acme");
+    expect(normalizeActorLogin("user-bot", "User")).toBe("user-bot");
+  });
+
+  test("leaves login unchanged when typename is missing", () => {
+    expect(normalizeActorLogin("github-actions[bot]")).toBe(
+      "github-actions[bot]",
+    );
+    expect(normalizeActorLogin("github-actions", null)).toBe("github-actions");
+    expect(normalizeActorLogin("github-actions", undefined)).toBe(
+      "github-actions",
+    );
   });
 });
 
@@ -73,6 +106,37 @@ describe("actorMatchesPattern", () => {
   test("is case sensitive", () => {
     expect(actorMatchesPattern("User1", "user1")).toBe(false);
     expect(actorMatchesPattern("user1", "User1")).toBe(false);
+  });
+
+  test("matches GraphQL-shaped bot logins after normalization", () => {
+    // GraphQL returns login without [bot] + __typename Bot
+    expect(
+      actorMatchesPattern(
+        normalizeActorLogin("github-actions", "Bot"),
+        "*[bot]",
+      ),
+    ).toBe(true);
+    expect(
+      actorMatchesPattern(normalizeActorLogin("claude", "Bot"), "*[bot]"),
+    ).toBe(true);
+    expect(
+      actorMatchesPattern(
+        normalizeActorLogin("dependabot", "Bot"),
+        "dependabot[bot]",
+      ),
+    ).toBe(true);
+  });
+
+  test("does not match GraphQL User login as bot even if name contains bot", () => {
+    expect(
+      actorMatchesPattern(normalizeActorLogin("user-bot", "User"), "*[bot]"),
+    ).toBe(false);
+  });
+
+  test("raw GraphQL bot login without normalization does not match *[bot]", () => {
+    // Documents the pre-fix bug: bare GraphQL login has no [bot] suffix
+    expect(actorMatchesPattern("github-actions", "*[bot]")).toBe(false);
+    expect(actorMatchesPattern("claude", "*[bot]")).toBe(false);
   });
 });
 
@@ -168,5 +232,23 @@ describe("shouldIncludeCommentByActor", () => {
     expect(
       shouldIncludeCommentByActor("user1", ["*[bot]"], ["dependabot[bot]"]),
     ).toBe(false);
+  });
+
+  test("excludes GraphQL-shaped bots when *[bot] is in exclude list", () => {
+    const graphqlBots = [
+      normalizeActorLogin("github-actions", "Bot"),
+      normalizeActorLogin("claude", "Bot"),
+      normalizeActorLogin("dependabot", "Bot"),
+    ];
+    for (const actor of graphqlBots) {
+      expect(shouldIncludeCommentByActor(actor, [], ["*[bot]"])).toBe(false);
+    }
+    expect(
+      shouldIncludeCommentByActor(
+        normalizeActorLogin("human-user", "User"),
+        [],
+        ["*[bot]"],
+      ),
+    ).toBe(true);
   });
 });
