@@ -27,7 +27,7 @@ function extractFirstLabel(githubData: FetchDataResult): string | undefined {
  * This prevents command injection by ensuring only safe characters are used.
  *
  * Valid branch names:
- * - Start with alphanumeric character or @ (not dash, to prevent option injection)
+ * - Start with alphanumeric character, underscore, or @ (not dash, to prevent option injection)
  * - Contain only alphanumeric, forward slash, hyphen, underscore, period, hash (#), plus (+), comma (,), or at sign (@)
  * - Do not start or end with a period
  * - Do not end with a slash
@@ -68,12 +68,15 @@ export function validateBranchName(branchName: string): void {
   // @ is valid per git-check-ref-format anywhere in a ref name, including the first character
   //   (e.g. ticket conventions like "TICKET-123@add-feature" or prefixes like "@hotfix/...");
   //   the bare name "@" (HEAD shorthand) and the "@{" sequence (reflog syntax) are rejected below.
+  // _ is valid per git-check-ref-format anywhere in a ref name, including the first character;
+  //   leading underscores are a common convention for release/internal branches (e.g.
+  //   "_release/v1.2.3"), which previously failed validation as a PR's base branch.
   // All git calls use execFileSync (not shell interpolation), so none of these characters carry injection risk.
-  const validPattern = /^[a-zA-Z0-9@][a-zA-Z0-9/_.#+,@-]*$/;
+  const validPattern = /^[a-zA-Z0-9@_][a-zA-Z0-9/_.#+,@-]*$/;
 
   if (!validPattern.test(branchName)) {
     throw new Error(
-      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric character or '@' and contain only alphanumeric characters, forward slashes, hyphens, underscores, periods, hashes (#), plus signs (+), commas (,), or at signs (@).`,
+      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric character, underscore, or '@' and contain only alphanumeric characters, forward slashes, hyphens, underscores, periods, hashes (#), plus signs (+), commas (,), or at signs (@).`,
     );
   }
 

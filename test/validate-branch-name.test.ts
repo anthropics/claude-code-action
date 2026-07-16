@@ -74,6 +74,16 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("@hotfix/login-timeout")).not.toThrow();
       expect(() => validateBranchName("agent/task@abc123")).not.toThrow();
     });
+
+    it("should accept branch names starting with underscore (git-valid, common for release branches)", () => {
+      // Leading underscores are valid per git check-ref-format and a common
+      // convention for release/internal branches. Rejecting them broke the
+      // action on any open PR whose base branch was e.g. "_release/v1.2.3",
+      // since setupBranch validates the PR's baseRefName after checkout.
+      expect(() => validateBranchName("_release/v1.2.3")).not.toThrow();
+      expect(() => validateBranchName("_internal")).not.toThrow();
+      expect(() => validateBranchName("_wip/feature-x")).not.toThrow();
+    });
   });
 
   describe("command injection attempts", () => {
