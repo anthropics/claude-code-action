@@ -337,17 +337,17 @@ For a complete list of available settings and their descriptions, see the [Claud
 
 Many individual input parameters have been consolidated into `claude_args` or `settings`. Here's how to migrate:
 
-| Old Input             | New Approach                                             |
-| --------------------- | -------------------------------------------------------- |
-| `allowed_tools`       | Use `claude_args: "--allowedTools Tool1,Tool2"`          |
-| `disallowed_tools`    | Use `claude_args: "--disallowedTools Tool1,Tool2"`       |
-| `max_turns`           | Use `claude_args: "--max-turns 10"`                      |
-| `model`               | Use `claude_args: "--model claude-4-0-sonnet-20250805"`  |
-| `claude_env`          | Use `settings` with `"env"` object                       |
-| `custom_instructions` | Use `claude_args: "--system-prompt 'Your instructions'"` |
-| `mcp_config`          | Use `claude_args: "--mcp-config '{...}'"`                |
-| `direct_prompt`       | Use `prompt` input instead                               |
-| `override_prompt`     | Use `prompt` with GitHub context variables               |
+| Old Input             | New Approach                                                    |
+| --------------------- | --------------------------------------------------------------- |
+| `allowed_tools`       | Use `claude_args: "--allowedTools Tool1,Tool2"`                 |
+| `disallowed_tools`    | Use `claude_args: "--disallowedTools Tool1,Tool2"`              |
+| `max_turns`           | Use `claude_args: "--max-turns 10"`                             |
+| `model`               | Use `claude_args: "--model claude-4-0-sonnet-20250805"`         |
+| `claude_env`          | Use `settings` with `"env"` object                              |
+| `custom_instructions` | Use `claude_args: "--append-system-prompt 'Your instructions'"` |
+| `mcp_config`          | Use `claude_args: "--mcp-config '{...}'"`                       |
+| `direct_prompt`       | Use `prompt` input instead                                      |
+| `override_prompt`     | Use `prompt` with GitHub context variables                      |
 
 ## Custom Executables for Specialized Environments
 
