@@ -59,6 +59,22 @@ describe("stripMarkdownImageAltText", () => {
   it("should handle empty alt text", () => {
     expect(stripMarkdownImageAltText("![](image.png)")).toBe("![](image.png)");
   });
+
+  it("should remove alt text from reference-style images", () => {
+    expect(stripMarkdownImageAltText("![example alt text][img1]")).toBe(
+      "![][img1]",
+    );
+    expect(
+      stripMarkdownImageAltText("Text ![description][ref] more text"),
+    ).toBe("Text ![][ref] more text");
+  });
+
+  it("should preserve the reference label of a reference-style image", () => {
+    // the [ref] label must survive so the image definition still resolves;
+    // only the alt text (the injection channel) is removed
+    expect(stripMarkdownImageAltText("![alt][my-ref]")).toBe("![][my-ref]");
+    expect(stripMarkdownImageAltText("![][keep]")).toBe("![][keep]");
+  });
 });
 
 describe("stripMarkdownLinkTitles", () => {
