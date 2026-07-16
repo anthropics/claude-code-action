@@ -11,6 +11,7 @@ describe("validateEnvironmentVariables", () => {
     originalEnv = { ...process.env };
     // Clear relevant environment variables
     delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_AUTH_TOKEN;
     delete process.env.ANTHROPIC_FEDERATION_RULE_ID;
     delete process.env.ANTHROPIC_ORGANIZATION_ID;
     delete process.env.CLAUDE_CODE_USE_BEDROCK;
@@ -42,9 +43,15 @@ describe("validateEnvironmentVariables", () => {
       expect(() => validateEnvironmentVariables()).not.toThrow();
     });
 
+    test("should pass when ANTHROPIC_AUTH_TOKEN is provided", () => {
+      process.env.ANTHROPIC_AUTH_TOKEN = "test-auth-token";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
     test("should fail when ANTHROPIC_API_KEY is missing", () => {
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Either ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, or workload identity federation (ANTHROPIC_FEDERATION_RULE_ID and ANTHROPIC_ORGANIZATION_ID) is required when using direct Anthropic API.",
+        "Either ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, CLAUDE_CODE_OAUTH_TOKEN, or workload identity federation (ANTHROPIC_FEDERATION_RULE_ID and ANTHROPIC_ORGANIZATION_ID) is required when using direct Anthropic API.",
       );
     });
 
