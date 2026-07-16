@@ -4,6 +4,7 @@ import { dirname, join } from "path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type {
   SDKMessage,
+  SDKRateLimitInfo,
   SDKResultMessage,
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -130,6 +131,24 @@ function sanitizeSdkOutput(
 }
 
 /**
+ * Publishes the latest subscription rate-limit snapshot per window as the
+ * `rate_limits` output. `rate_limit_event` messages are only emitted for
+ * claude.ai subscription authentication (OAuth); API key, Bedrock, and Vertex
+ * runs produce none, in which case the output is left unset. Set even when
+ * the run fails, since hitting a rate limit is itself a common failure cause.
+ */
+function setRateLimitsOutput(
+  rateLimitsByWindow: Record<string, SDKRateLimitInfo>,
+): void {
+  const windows = Object.keys(rateLimitsByWindow);
+  if (windows.length === 0) {
+    return;
+  }
+  core.setOutput("rate_limits", JSON.stringify(rateLimitsByWindow));
+  core.info(`Set rate_limits with window(s): ${windows.join(", ")}`);
+}
+
+/**
  * Run Claude using the Agent SDK
  */
 export async function runClaudeWithSdk(
@@ -155,10 +174,17 @@ export async function runClaudeWithSdk(
 
   const messages: SDKMessage[] = [];
   let resultMessage: SDKResultMessage | undefined;
+  const rateLimitsByWindow: Record<string, SDKRateLimitInfo> = {};
 
   try {
     for await (const message of query({ prompt, options: sdkOptions })) {
       messages.push(message);
+
+      if (message.type === "rate_limit_event") {
+        // Keep the latest snapshot per window type (five_hour, seven_day, ...)
+        rateLimitsByWindow[message.rate_limit_info.rateLimitType ?? "unknown"] =
+          message.rate_limit_info;
+      }
 
       const sanitized = sanitizeSdkOutput(message, showFullOutput);
       if (sanitized) {
@@ -181,9 +207,12 @@ export async function runClaudeWithSdk(
     }
   } catch (error) {
     console.error("SDK execution error:", error);
+    setRateLimitsOutput(rateLimitsByWindow);
     await writeExecutionFile(messages);
     throw new Error(`SDK execution error: ${error}`);
   }
+
+  setRateLimitsOutput(rateLimitsByWindow);
 
   const result: ClaudeRunResult = {
     conclusion: "failure",
