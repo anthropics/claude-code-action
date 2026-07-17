@@ -565,4 +565,72 @@ describe("parseSdkOptions", () => {
       }
     });
   });
+
+  describe("permission mode extraction", () => {
+    // Regression tests for #1512: --permission-mode passed via claude_args was
+    // forwarded through extraArgs onto the CLI argv, but the CLI silently
+    // downgrades bypassPermissions to "default" unless the session is launched
+    // with the --allow-dangerously-skip-permissions interlock, which only the
+    // SDK's first-class options emit.
+    test("should extract --permission-mode bypassPermissions into first-class SDK options with the safety companion", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--permission-mode bypassPermissions",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.permissionMode).toBe("bypassPermissions");
+      expect(result.sdkOptions.allowDangerouslySkipPermissions).toBe(true);
+      expect(result.sdkOptions.extraArgs?.["permission-mode"]).toBeUndefined();
+    });
+
+    test("should extract non-bypass modes without the safety companion", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--permission-mode acceptEdits",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.permissionMode).toBe("acceptEdits");
+      expect(result.sdkOptions.allowDangerouslySkipPermissions).toBeUndefined();
+      expect(result.sdkOptions.extraArgs?.["permission-mode"]).toBeUndefined();
+    });
+
+    test("should let a later user-provided mode override tag mode's built-in acceptEdits", () => {
+      // Tag mode prepends its own --permission-mode acceptEdits before the
+      // user's claude_args; the last occurrence must win.
+      const options: ClaudeOptions = {
+        claudeArgs:
+          "--permission-mode acceptEdits --allowedTools Edit --permission-mode bypassPermissions",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.permissionMode).toBe("bypassPermissions");
+      expect(result.sdkOptions.allowDangerouslySkipPermissions).toBe(true);
+    });
+
+    test("should leave permissionMode undefined when no --permission-mode is passed", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--max-turns 5",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.permissionMode).toBeUndefined();
+      expect(result.sdkOptions.allowDangerouslySkipPermissions).toBeUndefined();
+    });
+
+    test("should ignore a bare --permission-mode flag with no value", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--permission-mode",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.permissionMode).toBeUndefined();
+      expect(result.sdkOptions.allowDangerouslySkipPermissions).toBeUndefined();
+      expect(result.sdkOptions.extraArgs?.["permission-mode"]).toBeUndefined();
+    });
+  });
 });
