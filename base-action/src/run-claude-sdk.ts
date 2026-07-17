@@ -137,7 +137,7 @@ export async function runClaudeWithSdk(
   { sdkOptions, showFullOutput, hasJsonSchema }: ParsedSdkOptions,
 ): Promise<ClaudeRunResult> {
   // Create prompt configuration - may be a string or multi-block message
-  const prompt = await createPromptConfig(promptPath, showFullOutput);
+  const basePrompt = await createPromptConfig(promptPath, showFullOutput);
 
   if (!showFullOutput) {
     console.log(
@@ -155,9 +155,39 @@ export async function runClaudeWithSdk(
 
   const messages: SDKMessage[] = [];
   let resultMessage: SDKResultMessage | undefined;
+  let liveBackgroundTasks = 0;
+
+  // In print mode a background shell is terminated shortly after the final
+  // result once stdin closes. Stream the prompt and keep stdin open until a
+  // result reports no live background tasks (tracked via
+  // background_tasks_changed), so background work runs to completion instead of
+  // being cut off when a turn ends.
+  let releaseStdin!: () => void;
+  const stdinCanClose = new Promise<void>((resolve) => {
+    releaseStdin = resolve;
+  });
+
+  async function* heldOpenPrompt(): AsyncGenerator<SDKUserMessage> {
+    if (typeof basePrompt === "string") {
+      yield {
+        type: "user",
+        session_id: "",
+        message: { role: "user", content: basePrompt },
+        parent_tool_use_id: null,
+      };
+    } else {
+      for await (const message of basePrompt) {
+        yield message;
+      }
+    }
+    await stdinCanClose;
+  }
 
   try {
-    for await (const message of query({ prompt, options: sdkOptions })) {
+    for await (const message of query({
+      prompt: heldOpenPrompt(),
+      options: sdkOptions,
+    })) {
       messages.push(message);
 
       const sanitized = sanitizeSdkOutput(message, showFullOutput);
@@ -165,24 +195,35 @@ export async function runClaudeWithSdk(
         console.log(sanitized);
       }
 
+      if (
+        message.type === "system" &&
+        message.subtype === "background_tasks_changed"
+      ) {
+        liveBackgroundTasks =
+          "tasks" in message && Array.isArray(message.tasks)
+            ? message.tasks.length
+            : 0;
+      }
+
       if (message.type === "result") {
         resultMessage = message as SDKResultMessage;
-        // The SDK's query() iterator should close itself after the
-        // result message, but in some workflow contexts (notably
-        // pull_request-triggered runs) it stays open indefinitely and
-        // the for-await hangs until the workflow's timeout-minutes
-        // kills the job. This causes the action to "succeed" inside
-        // Claude (verdict posted, $cost recorded) but be reported as
-        // cancelled with no execution-output.json written. Break
-        // explicitly: by SDK contract no further messages follow a
-        // result, so the break is safe.
-        break;
+        // Break only when no background tasks remain live: breaking on the
+        // first result orphans still-running background work (#1499), while an
+        // unconditional break was originally needed to avoid a hung iterator
+        // (#1339). A run whose background work never settles is bounded by the
+        // job's timeout-minutes.
+        if (liveBackgroundTasks === 0) {
+          releaseStdin();
+          break;
+        }
       }
     }
   } catch (error) {
     console.error("SDK execution error:", error);
     await writeExecutionFile(messages);
     throw new Error(`SDK execution error: ${error}`);
+  } finally {
+    releaseStdin();
   }
 
   const result: ClaudeRunResult = {
