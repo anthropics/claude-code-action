@@ -47,6 +47,30 @@ export function extractTriggerTimestamp(
 }
 
 /**
+ * Extracts the numeric id of the entity that triggered the run (the comment or
+ * review from the webhook payload). It matches the GraphQL `databaseId` of the
+ * fetched comment/review, letting the trigger-time filters retain the entity
+ * that *is* the trigger — which is created/submitted exactly at the trigger
+ * time and would otherwise be dropped by the `>= triggerTime` comparison.
+ *
+ * @param context - Parsed GitHub context from webhook
+ * @returns The numeric entity id, or undefined if the event has no such entity
+ */
+export function extractTriggerEntityId(
+  context: ParsedGitHubContext,
+): number | undefined {
+  if (isIssueCommentEvent(context)) {
+    return context.payload.comment.id;
+  } else if (isPullRequestReviewEvent(context)) {
+    return context.payload.review.id;
+  } else if (isPullRequestReviewCommentEvent(context)) {
+    return context.payload.comment.id;
+  }
+
+  return undefined;
+}
+
+/**
  * Extracts the original title from the GitHub webhook payload.
  * This is the title as it existed when the trigger event occurred.
  *
@@ -107,13 +131,36 @@ export function extractOriginalBody(
  * @returns Filtered array of comments that were created and last edited before trigger time
  */
 export function filterCommentsToTriggerTime<
-  T extends { createdAt: string; updatedAt?: string; lastEditedAt?: string },
->(comments: T[], triggerTime: string | undefined): T[] {
+  T extends {
+    databaseId?: string | number;
+    createdAt: string;
+    updatedAt?: string;
+    lastEditedAt?: string;
+  },
+>(
+  comments: T[],
+  triggerTime: string | undefined,
+  triggerEntityId?: number,
+): T[] {
   if (!triggerTime) return comments;
 
   const triggerTimestamp = new Date(triggerTime).getTime();
 
   return comments.filter((comment) => {
+    // Always keep the entity that IS the trigger. It is created/submitted at the
+    // trigger time, so the comparisons below would otherwise drop it. This filter
+    // exists to exclude content injected at/after the trigger, and the trigger
+    // itself is not injected (an edit that bumps updatedAt to the submit time
+    // must not evict it either). databaseId is compared as a string because the
+    // GraphQL id is a string while the webhook payload id is a number.
+    if (
+      triggerEntityId !== undefined &&
+      comment.databaseId !== undefined &&
+      String(comment.databaseId) === String(triggerEntityId)
+    ) {
+      return true;
+    }
+
     // Comment must have been created before trigger (not at or after)
     const createdTimestamp = new Date(comment.createdAt).getTime();
     if (createdTimestamp >= triggerTimestamp) {
@@ -139,13 +186,36 @@ export function filterCommentsToTriggerTime<
  * Similar to filterCommentsToTriggerTime but for GitHubReview objects which use submittedAt instead of createdAt.
  */
 export function filterReviewsToTriggerTime<
-  T extends { submittedAt: string; updatedAt?: string; lastEditedAt?: string },
->(reviews: T[], triggerTime: string | undefined): T[] {
+  T extends {
+    databaseId?: string | number;
+    submittedAt: string;
+    updatedAt?: string;
+    lastEditedAt?: string;
+  },
+>(
+  reviews: T[],
+  triggerTime: string | undefined,
+  triggerEntityId?: number,
+): T[] {
   if (!triggerTime) return reviews;
 
   const triggerTimestamp = new Date(triggerTime).getTime();
 
   return reviews.filter((review) => {
+    // Always keep the review that IS the trigger (submitted exactly at the
+    // trigger time). Dropping it here also drops its inline comments downstream,
+    // which is the reported bug: a review with only inline comments and an empty
+    // body left the prompt with no review context at all. databaseId is compared
+    // as a string because the GraphQL id is a string while the webhook payload
+    // id is a number.
+    if (
+      triggerEntityId !== undefined &&
+      review.databaseId !== undefined &&
+      String(review.databaseId) === String(triggerEntityId)
+    ) {
+      return true;
+    }
+
     // Review must have been submitted before trigger (not at or after)
     const submittedTimestamp = new Date(review.submittedAt).getTime();
     if (submittedTimestamp >= triggerTimestamp) {
@@ -233,6 +303,7 @@ type FetchDataParams = {
   isPR: boolean;
   triggerUsername?: string;
   triggerTime?: string;
+  triggerEntityId?: number;
   originalTitle?: string;
   originalBody?: string | null;
   includeCommentsByActor?: string;
@@ -260,6 +331,7 @@ export async function fetchGitHubData({
   isPR,
   triggerUsername,
   triggerTime,
+  triggerEntityId,
   originalTitle,
   originalBody,
   includeCommentsByActor,
@@ -295,6 +367,7 @@ export async function fetchGitHubData({
           filterCommentsToTriggerTime(
             pullRequest.comments?.nodes || [],
             triggerTime,
+            triggerEntityId,
           ),
           includeCommentsByActor,
           excludeCommentsByActor,
@@ -322,6 +395,7 @@ export async function fetchGitHubData({
           filterCommentsToTriggerTime(
             contextData?.comments?.nodes || [],
             triggerTime,
+            triggerEntityId,
           ),
           includeCommentsByActor,
           excludeCommentsByActor,
@@ -388,7 +462,11 @@ export async function fetchGitHubData({
   if (reviewData && reviewData.nodes) {
     // Drop reviews submitted or edited after the trigger, then filter by actor.
     reviewData.nodes = filterCommentsByActor(
-      filterReviewsToTriggerTime(reviewData.nodes, triggerTime),
+      filterReviewsToTriggerTime(
+        reviewData.nodes,
+        triggerTime,
+        triggerEntityId,
+      ),
       includeCommentsByActor,
       excludeCommentsByActor,
     );
@@ -397,7 +475,11 @@ export async function fetchGitHubData({
     reviewData.nodes.forEach((review) => {
       if (review.comments?.nodes) {
         review.comments.nodes = filterCommentsByActor(
-          filterCommentsToTriggerTime(review.comments.nodes, triggerTime),
+          filterCommentsToTriggerTime(
+            review.comments.nodes,
+            triggerTime,
+            triggerEntityId,
+          ),
           includeCommentsByActor,
           excludeCommentsByActor,
         );
