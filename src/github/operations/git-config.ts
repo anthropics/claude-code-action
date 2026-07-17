@@ -42,14 +42,46 @@ export async function configureGitAuth(
   await $`git config user.email "${botId}+${botName}@${noreplyDomain}"`;
   console.log(`✓ Set git user as ${botName}`);
 
-  // Remove the authorization header that actions/checkout sets
+  // Remove the authorization header that actions/checkout persists.
+  //
+  // actions/checkout < v6 stored it directly in the repo-local config, where
+  // `git config --unset-all` removes it. Since v6.0.0 (backported to v5.0.1 and
+  // v4.3.1) the header is written to a separate file under RUNNER_TEMP that the
+  // repo config pulls in via `include.path`; `--unset-all` on the local config
+  // cannot touch an include-provided value, so the removal was a silent no-op and
+  // the checkout credential (typically the workflow GITHUB_TOKEN) stayed usable by
+  // git for the rest of the job. Clear the header from the local config AND from
+  // every included file so it can no longer authenticate while Claude runs.
   console.log("Removing existing git authentication headers...");
+  const extraheaderKey = `http.${GITHUB_SERVER_URL}/.extraheader`;
+  let removedHeader = false;
   try {
-    await $`git config --unset-all http.${GITHUB_SERVER_URL}/.extraheader`;
-    console.log("✓ Removed existing authentication headers");
-  } catch (e) {
-    console.log("No existing authentication headers to remove");
+    await $`git config --unset-all ${extraheaderKey}`;
+    removedHeader = true;
+  } catch {
+    // No extraheader in the local config (expected on the v6+ include layout).
   }
+  try {
+    const includePaths =
+      await $`git config --local --get-all include.path`.text();
+    for (const includePath of includePaths.split("\n")) {
+      const path = includePath.trim();
+      if (!path) continue;
+      try {
+        await $`git config --file ${path} --unset-all ${extraheaderKey}`;
+        removedHeader = true;
+      } catch {
+        // This include does not define the header; leave it untouched.
+      }
+    }
+  } catch {
+    // No include.path entries in the local config.
+  }
+  console.log(
+    removedHeader
+      ? "✓ Removed existing authentication headers"
+      : "No existing authentication headers to remove",
+  );
 
   if (process.env.ALLOWED_NON_WRITE_USERS) {
     // When processing content from non-write users, use a credential helper
