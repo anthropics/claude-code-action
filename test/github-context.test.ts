@@ -297,6 +297,28 @@ describe("parseGitHubContext", () => {
       expect(context.eventName).toBe("workflow_run");
       expect(isAutomationContext(context)).toBe(true);
     });
+
+    test("merge_group produces an automation context", () => {
+      setEvent("merge_group", {
+        action: "checks_requested",
+        merge_group: {
+          head_sha: "abc123",
+          head_ref: "refs/heads/gh-readonly-queue/main/pr-42-abc123",
+          base_sha: "def456",
+          base_ref: "refs/heads/main",
+        },
+        repository: repositoryPayload,
+        sender: { login: "test-actor" },
+      });
+
+      const context = parseGitHubContext();
+
+      expect(context.eventName).toBe("merge_group");
+      expect(context.eventAction).toBe("checks_requested");
+      expect(isAutomationContext(context)).toBe(true);
+      expect("entityNumber" in context).toBe(false);
+      expect("isPR" in context).toBe(false);
+    });
   });
 
   describe("invalid partition", () => {
@@ -498,7 +520,7 @@ describe("type guards", () => {
     expect(isEntityContext(workflowDispatchContext)).toBe(false);
   });
 
-  test("isAutomationContext accepts the four automation events", () => {
+  test("isAutomationContext accepts the five automation events", () => {
     expect(isAutomationContext(workflowDispatchContext)).toBe(true);
     expect(
       isAutomationContext(
@@ -513,6 +535,11 @@ describe("type guards", () => {
     expect(
       isAutomationContext(
         createMockAutomationContext({ eventName: "workflow_run" }),
+      ),
+    ).toBe(true);
+    expect(
+      isAutomationContext(
+        createMockAutomationContext({ eventName: "merge_group" }),
       ),
     ).toBe(true);
     expect(isAutomationContext(issuesContext)).toBe(false);
