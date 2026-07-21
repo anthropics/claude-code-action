@@ -146,13 +146,33 @@ available (Bedrock/Vertex), it falls back to posting everything (pre-buffering
 behavior). A comment posted live (`confirmed=true`) drops its buffered copy so
 it isn't double-posted.
 
-**Config restore from base (security).** On PR events, `.claude/` and `.mcp.json`
-in the checkout are attacker-controlled. `run.ts` calls `restoreConfigFromBase()`
-(`src/github/operations/restore-config.ts`) to restore those CLI-startup paths
-from the PR's **base** branch before the CLI reads them. It reads
-`pull_request.base.ref` from the payload directly (agent mode's `baseBranch`
-defaults to the repo default, not the PR target). `validateBranchName()` guards
-the ref.
+**Config restore from base (security).** On PR events the checked-out PR head is
+attacker-controlled, and the CLI trusts cwd at startup: it reads `.mcp.json` and
+`.claude/settings*.json` and acts on them (hooks incl. SessionStart; env vars
+like `NODE_OPTIONS`/`LD_PRELOAD`; `apiKeyHelper` shell commands; MCP
+auto-approval) _before_ any tool-permission gating. `run.ts` calls
+`restoreConfigFromBase()` (`src/github/operations/restore-config.ts`) to replace
+those paths with the PR's reviewed **base**-branch versions before the CLI reads
+them. It reads `pull_request.base.ref` from the payload directly (agent mode's
+`baseBranch` defaults to the repo default, not the PR target);
+`validateBranchName()` guards the ref. Details worth knowing before you touch it:
+
+- **It covers more than `.claude/` + `.mcp.json`.** The full `SENSITIVE_PATHS`
+  set is `.claude`, `.mcp.json`, `.claude.json`, `.gitmodules`, `.ripgreprc`,
+  `CLAUDE.md`, `CLAUDE.local.md`, `.husky` — every PR-controllable path read from
+  cwd at CLI startup. Paths absent on base are **deleted**, and a failed restore
+  leaves the path deleted (fail-safe: never attacker-controlled).
+- **`.claude-pr/` review snapshot.** Before the security delete, each PR-authored
+  sensitive path is copied into `.claude-pr/` (git-excluded via
+  `.git/info/exclude`) so review agents can see what the PR changed _without
+  those files ever executing_. A symlink whose target is absent on the PR head is
+  preserved as-is instead of dereferenced (the ENOENT `cpSync` fallback).
+- **Delete happens before `git fetch`** (plus `--no-recurse-submodules`): an
+  attacker-controlled `.gitmodules` present during the fetch would trigger
+  submodule fetching that blocks on credential prompts and hangs CI — deleting
+  first closes that DoS window. Order is snapshot → delete → fetch →
+  checkout-from-base → `git reset` (unstage, so the revert doesn't leak into
+  later CLI commits). Don't reorder.
 
 **MCP servers.** `src/mcp/install-mcp-server.ts` (`prepareMcpConfig()`) writes an
 `.mcp.json` listing in-process Bun MCP servers referenced by path under
@@ -178,6 +198,10 @@ run (names/URLs are strictly validated against path traversal).
   in a separate `always()` step; SSH-signing cleanup and buffered-inline-comment
   posting are also separate `always()` steps. Moving any of these into `run.ts`
   means they won't run if the process crashes.
+- **`restoreConfigFromBase()` ordering is load-bearing** — snapshot → delete →
+  fetch → checkout-from-base → unstage. The delete precedes `git fetch` so an
+  attacker-controlled `.gitmodules` can't hang CI on a submodule credential
+  prompt; don't reorder (see the security section).
 - **Error phase attribution**: `run.ts` uses `prepareCompleted` to distinguish
   prepare failures from execution failures; the tracking comment shows different
   messages for each.
