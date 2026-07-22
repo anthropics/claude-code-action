@@ -3,7 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { readFile, stat } from "fs/promises";
+import { readFile, lstat } from "fs/promises";
 import { resolve } from "path";
 import { constants } from "fs";
 import fetch from "node-fetch";
@@ -167,7 +167,7 @@ async function getOrCreateBranchRef(
 // Get the appropriate Git file mode for a file
 async function getFileMode(filePath: string): Promise<string> {
   try {
-    const fileStat = await stat(filePath);
+    const fileStat = await lstat(filePath);
     if (fileStat.isFile()) {
       // Check if execute bit is set for user
       if (fileStat.mode & constants.S_IXUSR) {
