@@ -297,6 +297,23 @@ describe("parseGitHubContext", () => {
       expect(context.eventName).toBe("workflow_run");
       expect(isAutomationContext(context)).toBe(true);
     });
+
+    test("push produces an automation context", () => {
+      setEvent("push", {
+        ref: "refs/heads/main",
+        before: "0000000000000000000000000000000000000000",
+        after: "1111111111111111111111111111111111111111",
+        repository: repositoryPayload,
+        pusher: { name: "test-actor", email: "test-actor@example.com" },
+      });
+
+      const context = parseGitHubContext();
+
+      expect(context.eventName).toBe("push");
+      expect(isAutomationContext(context)).toBe(true);
+      expect("entityNumber" in context).toBe(false);
+      expect("isPR" in context).toBe(false);
+    });
   });
 
   describe("invalid partition", () => {
@@ -442,6 +459,9 @@ describe("type guards", () => {
   const workflowDispatchContext = createMockAutomationContext({
     eventName: "workflow_dispatch",
   });
+  const pushContext = createMockAutomationContext({
+    eventName: "push",
+  });
 
   test("isIssuesEvent accepts only issues events", () => {
     expect(isIssuesEvent(issuesContext)).toBe(true);
@@ -496,9 +516,10 @@ describe("type guards", () => {
     expect(isEntityContext(reviewContext)).toBe(true);
     expect(isEntityContext(reviewCommentContext)).toBe(true);
     expect(isEntityContext(workflowDispatchContext)).toBe(false);
+    expect(isEntityContext(pushContext)).toBe(false);
   });
 
-  test("isAutomationContext accepts the four automation events", () => {
+  test("isAutomationContext accepts the five automation events", () => {
     expect(isAutomationContext(workflowDispatchContext)).toBe(true);
     expect(
       isAutomationContext(
@@ -515,6 +536,7 @@ describe("type guards", () => {
         createMockAutomationContext({ eventName: "workflow_run" }),
       ),
     ).toBe(true);
+    expect(isAutomationContext(pushContext)).toBe(true);
     expect(isAutomationContext(issuesContext)).toBe(false);
   });
 });
