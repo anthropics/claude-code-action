@@ -7,6 +7,7 @@ export function validateEnvironmentVariables() {
   const useVertex = process.env.CLAUDE_CODE_USE_VERTEX === "1";
   const useFoundry = process.env.CLAUDE_CODE_USE_FOUNDRY === "1";
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  const anthropicAuthToken = process.env.ANTHROPIC_AUTH_TOKEN;
   const claudeCodeOAuthToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
   const federationRuleId = process.env.ANTHROPIC_FEDERATION_RULE_ID;
   const federationOrganizationId = process.env.ANTHROPIC_ORGANIZATION_ID;
@@ -28,14 +29,14 @@ export function validateEnvironmentVariables() {
   }
 
   if (!useBedrock && !useVertex && !useFoundry) {
-    if (!anthropicApiKey && !claudeCodeOAuthToken && !hasWorkloadIdentity) {
+    if (!anthropicApiKey && !anthropicAuthToken && !claudeCodeOAuthToken && !hasWorkloadIdentity) {
       if (hasPartialWorkloadIdentity) {
         errors.push(
           "Workload identity federation requires both ANTHROPIC_FEDERATION_RULE_ID and ANTHROPIC_ORGANIZATION_ID to be set.",
         );
       } else {
         errors.push(
-          "Either ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, or workload identity federation (ANTHROPIC_FEDERATION_RULE_ID and ANTHROPIC_ORGANIZATION_ID) is required when using direct Anthropic API.",
+          "Either ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, CLAUDE_CODE_OAUTH_TOKEN, or workload identity federation (ANTHROPIC_FEDERATION_RULE_ID and ANTHROPIC_ORGANIZATION_ID) is required when using direct Anthropic API.",
         );
       }
     }
