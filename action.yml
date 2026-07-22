@@ -1,4 +1,4 @@
-name: "Claude Code Action v1.0"
+name: "Claude Code Action  v1.0"
 description: "Flexible GitHub automation platform with Claude. Auto-detects mode based on event type: PR reviews, @claude mentions, or custom automation."
 branding:
   icon: "at-sign"
