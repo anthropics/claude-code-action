@@ -305,6 +305,9 @@ async function run() {
     if (claudeResult.structuredOutput) {
       core.setOutput("structured_output", claudeResult.structuredOutput);
     }
+    if (claudeResult.finalMessage) {
+      core.setOutput("final_message", claudeResult.finalMessage);
+    }
     core.setOutput("conclusion", claudeResult.conclusion);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
