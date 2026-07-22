@@ -39,7 +39,7 @@ type IssueCommentEvent = {
   commentBody: string;
 };
 
-// Not actually a real github event, since issue comments and PR coments are both sent as issue_comment
+// Not actually a real github event, since issue comments and PR comments are both sent as issue_comment
 type PullRequestCommentEvent = {
   eventName: "issue_comment";
   commentId: string;
