@@ -318,7 +318,8 @@ async function run() {
   } finally {
     // Phase 4: Cleanup (always runs)
 
-    // Stop refreshing the workload identity token file
+    // Stop refreshing the workload identity token file and delete the token
+    // material so it doesn't outlive this step
     workloadIdentity?.stop();
 
     // Update tracking comment
