@@ -42,3 +42,9 @@ Single entrypoint: `src/entrypoints/run.ts` orchestrates everything — prepare 
 - `moduleResolution: "bundler"` — imports don't need `.js` extensions.
 - GitHub API calls should use retry logic (`src/utils/retry.ts`).
 - MCP servers are auto-installed at runtime to `~/.claude/mcp/github-{type}-server/`.
+
+
+## Security — recurring vuln patterns
+- All prompt/workspace content reflects trigger-time state: checkout `headRefOid`; `extractTriggerTimestamp` must return a timestamp for EVERY event type (undefined disables filtering); time-filter everything `fetchGitHubData` returns.
+- `SENSITIVE_PATHS` fails open: any startup-consumed file not listed is PR-controlled (bunfig.toml, package.json, settings, marketplaces) — list it, base-restore it, or hard-reject.
+- Every model/PR-driven file op goes through `validatePathWithinRepo` (lstat-rejects symlinks, excludes `.git/`); treat `.git/config` as a secret; git wrappers reject path-reading flags (`-F`, `-C/-c`, `--pathspec-from-file`).
