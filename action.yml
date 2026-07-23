@@ -182,6 +182,9 @@ outputs:
   session_id:
     description: "The Claude Code session ID that can be used with --resume to continue this conversation"
     value: ${{ steps.run.outputs.session_id }}
+  rate_limits:
+    description: "JSON string with the latest subscription rate-limit snapshot per window (keyed by window type, e.g. five_hour/seven_day), as reported by Claude Code during the run. Only set for claude.ai subscription (OAuth) authentication; unset for API key, Bedrock, and Vertex runs."
+    value: ${{ steps.run.outputs.rate_limits }}
 
 runs:
   using: "composite"
