@@ -156,8 +156,52 @@ export async function runClaudeWithSdk(
   const messages: SDKMessage[] = [];
   let resultMessage: SDKResultMessage | undefined;
 
+  // Bedrock hang fix: two problems can occur with AWS Bedrock + MCP servers/hooks:
+  //
+  // Problem A — iterator stalls BEFORE the result message is yielded:
+  //   MCP servers in pending/needs-auth state or SessionStart hooks keep the
+  //   CLI subprocess stdout open. query().next() never resolves → the for-await
+  //   hangs until Bedrock's internal ~180s timeout fires, then returns is_error:true.
+  //
+  // Problem B — iterator stays open AFTER the result message + break:
+  //   Even after `for await` exits via break, the underlying subprocess is still
+  //   running (kept alive by MCP/hook handles). Node.js won't exit until all
+  //   open handles close → the GitHub Actions runner waits and then kills it.
+  //
+  // Fix: obtain an explicit iterator handle so we can:
+  //   1. Race each .next() against a stall-guard timeout (catches Problem A)
+  //   2. Force-call .return() in a finally block (catches Problem B)
+  //
+  // 90 s timeout — well below Bedrock's ~180s internal timeout so we fail fast.
+  const STALL_TIMEOUT_MS = 90_000;
+
+  const queryIterator = query({
+    prompt,
+    options: sdkOptions,
+  })[Symbol.asyncIterator]();
+
   try {
-    for await (const message of query({ prompt, options: sdkOptions })) {
+    while (true) {
+      let stallTimer: ReturnType<typeof setTimeout> | undefined;
+
+      const next = await Promise.race([
+        queryIterator.next(),
+        new Promise<never>((_resolve, reject) => {
+          stallTimer = setTimeout(() => {
+            reject(
+              new Error(
+                `Claude SDK iterator stalled for ${STALL_TIMEOUT_MS / 1000}s with no message. ` +
+                  `This usually means MCP servers or SessionStart hooks are keeping the ` +
+                  `subprocess alive. Check your MCP server configuration.`,
+              ),
+            );
+          }, STALL_TIMEOUT_MS);
+        }),
+      ]).finally(() => clearTimeout(stallTimer));
+
+      if (next.done) break;
+
+      const message = next.value;
       messages.push(message);
 
       const sanitized = sanitizeSdkOutput(message, showFullOutput);
@@ -183,6 +227,14 @@ export async function runClaudeWithSdk(
     console.error("SDK execution error:", error);
     await writeExecutionFile(messages);
     throw new Error(`SDK execution error: ${error}`);
+  } finally {
+    // Force-close the iterator so the underlying CLI subprocess and any
+    // MCP server / hook child-processes receive an EOF / close signal.
+    // Without this, Node's event loop stays open after `break` and the
+    // GitHub Actions runner hangs until it forcibly kills the process.
+    await queryIterator.return?.().catch(() => {
+      // Ignore cleanup errors — the primary result is already captured above.
+    });
   }
 
   const result: ClaudeRunResult = {
