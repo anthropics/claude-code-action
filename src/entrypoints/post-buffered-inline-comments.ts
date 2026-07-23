@@ -42,7 +42,16 @@ For each numbered comment body below, respond with ONLY a JSON array of booleans
 Comments:
 `;
 
-async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
+export function getAnthropicMessagesUrl(
+  baseUrl = process.env.ANTHROPIC_BASE_URL,
+): string {
+  const resolvedBaseUrl = baseUrl?.trim() || "https://api.anthropic.com";
+  return `${resolvedBaseUrl.replace(/\/+$/, "")}/v1/messages`;
+}
+
+export async function classifyComments(
+  bodies: string[],
+): Promise<boolean[] | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.log(
@@ -56,7 +65,7 @@ async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
     bodies.map((b, i) => `${i + 1}. ${JSON.stringify(b)}`).join("\n");
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch(getAnthropicMessagesUrl(), {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -227,7 +236,9 @@ async function main() {
   console.log(`Posted ${posted}/${toPost.length}`);
 }
 
-main().catch((e) => {
-  console.error("post-buffered-inline-comments failed:", e);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((e) => {
+    console.error("post-buffered-inline-comments failed:", e);
+    process.exit(1);
+  });
+}
