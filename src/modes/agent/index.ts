@@ -1,6 +1,7 @@
 import { mkdir, rm, writeFile } from "fs/promises";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { parseAllowedTools } from "./parse-tools";
+import { buildDisallowedToolsString } from "../../create-prompt";
 import {
   configureGitAuth,
   setupSshSigning,
@@ -119,6 +120,11 @@ export async function prepareAgentMode({
 
   // Append user's claude_args (which may have more --mcp-config flags)
   claudeArgs = `${claudeArgs} ${userClaudeArgs}`.trim();
+
+  const disallowedTools = buildDisallowedToolsString(undefined, allowedTools);
+  if (disallowedTools) {
+    claudeArgs += ` --disallowedTools "${disallowedTools}"`;
+  }
 
   return {
     commentId: undefined,

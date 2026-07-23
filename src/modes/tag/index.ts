@@ -12,7 +12,7 @@ import {
   extractOriginalTitle,
   extractOriginalBody,
 } from "../../github/data/fetcher";
-import { createPrompt } from "../../create-prompt";
+import { createPrompt, buildDisallowedToolsString } from "../../create-prompt";
 import { isEntityContext } from "../../github/context";
 import type { GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
@@ -173,6 +173,11 @@ export async function prepareTagMode({
   // acceptEdits: file edits auto-allowed inside cwd ($GITHUB_WORKSPACE), denied outside.
   // Headless SDK has no prompt handler, so anything that falls through to "ask" is denied.
   claudeArgs += ` --permission-mode acceptEdits --allowedTools "${tagModeTools.join(",")}"`;
+
+  const disallowedTools = buildDisallowedToolsString(undefined, tagModeTools);
+  if (disallowedTools) {
+    claudeArgs += ` --disallowedTools "${disallowedTools}"`;
+  }
 
   // Append user's claude_args (which may have more --mcp-config flags)
   if (userClaudeArgs) {
