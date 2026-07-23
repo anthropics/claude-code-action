@@ -18,6 +18,57 @@ import type { GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
 import { parseAllowedTools } from "../agent/parse-tools";
 
+export function buildTagModeTools({
+  userAllowedMCPTools,
+  gitPushWrapper,
+  useApiCommitSigning,
+  readOnly,
+}: {
+  userAllowedMCPTools: string[];
+  gitPushWrapper: string;
+  useApiCommitSigning: boolean;
+  readOnly: boolean;
+}) {
+  // Build claude_args for tag mode with required tools.
+  // Edit/MultiEdit/Write are intentionally omitted: acceptEdits permission mode (set below)
+  // auto-allows file edits inside $GITHUB_WORKSPACE and denies writes outside (e.g. ~/.bashrc).
+  // Listing them here would grant blanket write access to the whole runner (Asana 1213310082312048).
+  const tagModeTools = [
+    "Glob",
+    "Grep",
+    "LS",
+    "Read",
+    "mcp__github_comment__update_claude_comment",
+    "mcp__github_ci__get_ci_status",
+    "mcp__github_ci__get_workflow_run_details",
+    "mcp__github_ci__download_job_log",
+    ...userAllowedMCPTools,
+  ];
+
+  if (readOnly) {
+    return tagModeTools;
+  }
+
+  // Add git commands when using git CLI (no API commit signing, or SSH signing)
+  // SSH signing still uses git CLI, just with signing enabled
+  if (!useApiCommitSigning) {
+    tagModeTools.push(
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      `Bash(${gitPushWrapper}:*)`,
+      "Bash(git rm:*)",
+    );
+  } else {
+    // When using API commit signing, use MCP file ops tools
+    tagModeTools.push(
+      "mcp__github_file_ops__commit_files",
+      "mcp__github_file_ops__delete_files",
+    );
+  }
+
+  return tagModeTools;
+}
+
 /**
  * Prepares the tag mode execution context.
  *
@@ -115,39 +166,12 @@ export async function prepareTagMode({
   );
 
   const gitPushWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-push.sh`;
-
-  // Build claude_args for tag mode with required tools.
-  // Edit/MultiEdit/Write are intentionally omitted: acceptEdits permission mode (set below)
-  // auto-allows file edits inside $GITHUB_WORKSPACE and denies writes outside (e.g. ~/.bashrc).
-  // Listing them here would grant blanket write access to the whole runner (Asana 1213310082312048).
-  const tagModeTools = [
-    "Glob",
-    "Grep",
-    "LS",
-    "Read",
-    "mcp__github_comment__update_claude_comment",
-    "mcp__github_ci__get_ci_status",
-    "mcp__github_ci__get_workflow_run_details",
-    "mcp__github_ci__download_job_log",
-    ...userAllowedMCPTools,
-  ];
-
-  // Add git commands when using git CLI (no API commit signing, or SSH signing)
-  // SSH signing still uses git CLI, just with signing enabled
-  if (!useApiCommitSigning) {
-    tagModeTools.push(
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      `Bash(${gitPushWrapper}:*)`,
-      "Bash(git rm:*)",
-    );
-  } else {
-    // When using API commit signing, use MCP file ops tools
-    tagModeTools.push(
-      "mcp__github_file_ops__commit_files",
-      "mcp__github_file_ops__delete_files",
-    );
-  }
+  const tagModeTools = buildTagModeTools({
+    userAllowedMCPTools,
+    gitPushWrapper,
+    useApiCommitSigning,
+    readOnly: context.inputs.readOnly,
+  });
 
   // Get our GitHub MCP servers configuration
   const ourMcpConfig = await prepareMcpConfig({
