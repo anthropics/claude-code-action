@@ -121,6 +121,10 @@ inputs:
     description: "Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands"
     required: false
     default: "false"
+  allow_pr_rebase:
+    description: "Allow Claude to fetch, pull, and rebase the current PR branch after a non-fast-forward push. Only enable for trusted repositories and actors."
+    required: false
+    default: "false"
   ssh_signing_key:
     description: "SSH private key for signing commits. When provided, git will be configured to use SSH signing. Takes precedence over use_commit_signing."
     required: false
@@ -296,6 +300,7 @@ runs:
         CLASSIFY_INLINE_COMMENTS: ${{ inputs.classify_inline_comments }}
         DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
         USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
+        ALLOW_PR_REBASE: ${{ inputs.allow_pr_rebase }}
         SSH_SIGNING_KEY: ${{ inputs.ssh_signing_key }}
         BOT_ID: ${{ inputs.bot_id }}
         BOT_NAME: ${{ inputs.bot_name }}
