@@ -42,6 +42,15 @@ function sanitizeLabel(label: string): string {
     .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
 }
 
+/**
+ * Drops empty branch path segments that can be produced by optional template
+ * variables (for example an emoji-only title causing {{description}} to be
+ * empty in "{{prefix}}{{description}}/{{entityNumber}}").
+ */
+function normalizeBranchTemplateResult(branchName: string): string {
+  return branchName.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
+}
+
 export interface BranchTemplateVariables {
   prefix: string;
   entityType: string;
@@ -97,9 +106,11 @@ export function generateBranchName(
   };
 
   if (template?.trim()) {
-    const branchName = applyBranchTemplate(template, variables);
+    const branchName = normalizeBranchTemplateResult(
+      applyBranchTemplate(template, variables),
+    );
 
-    // Some templates could produce empty results- validate
+    // Some templates could produce empty results or only empty path segments.
     if (branchName.trim().length > 0) return branchName;
 
     console.log(
