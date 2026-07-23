@@ -7,6 +7,9 @@ import {
   spyOn,
   mock,
 } from "bun:test";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
 import { prepareAgentMode } from "../../src/modes/agent";
 import { createMockAutomationContext } from "../mockContext";
 import * as core from "@actions/core";
@@ -16,6 +19,7 @@ describe("Agent Mode", () => {
   let exportVariableSpy: any;
   let setOutputSpy: any;
   let configureGitAuthSpy: any;
+  let tempDir: string | undefined;
 
   beforeEach(() => {
     exportVariableSpy = spyOn(core, "exportVariable").mockImplementation(
@@ -31,13 +35,18 @@ describe("Agent Mode", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     exportVariableSpy?.mockClear();
     setOutputSpy?.mockClear();
     configureGitAuthSpy?.mockClear();
     exportVariableSpy?.mockRestore();
     setOutputSpy?.mockRestore();
     configureGitAuthSpy?.mockRestore();
+    if (tempDir) {
+      await rm(tempDir, { recursive: true, force: true });
+      tempDir = undefined;
+    }
+    delete process.env.RUNNER_TEMP;
   });
 
   test("prepareAgentMode is exported as a function", () => {
@@ -256,5 +265,55 @@ describe("Agent Mode", () => {
     // should not include any MCP config
     // Should be empty or just whitespace when no MCP servers are included
     expect(result.claudeArgs).not.toContain("--mcp-config");
+  });
+
+  test("prepare writes user_request after clearing stale prompt files", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "agent-mode-"));
+    process.env.RUNNER_TEMP = tempDir;
+
+    const promptDir = join(tempDir, "claude-prompts");
+    await mkdir(promptDir, { recursive: true });
+    await writeFile(
+      join(promptDir, "claude-user-request.txt"),
+      "stale request",
+    );
+
+    const contextWithUserRequest = createMockAutomationContext({
+      eventName: "workflow_dispatch",
+      inputs: {
+        prompt: "Follow the user request.",
+        userRequest: "/kyosei https://github.com/test-owner/test-repo/pull/1",
+      },
+    });
+
+    const mockOctokit = {
+      rest: {
+        users: {
+          getAuthenticated: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+          getByUsername: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+        },
+      },
+    } as any;
+
+    await prepareAgentMode({
+      context: contextWithUserRequest,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+
+    await expect(
+      readFile(join(promptDir, "claude-prompt.txt"), "utf-8"),
+    ).resolves.toBe("Follow the user request.");
+    await expect(
+      readFile(join(promptDir, "claude-user-request.txt"), "utf-8"),
+    ).resolves.toBe("/kyosei https://github.com/test-owner/test-repo/pull/1");
   });
 });
