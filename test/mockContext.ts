@@ -21,6 +21,7 @@ const defaultInputs = {
   useStickyComment: false,
   classifyInlineComments: true,
   useCommitSigning: false,
+  allowPrRebase: false,
   sshSigningKey: "",
   botId: String(CLAUDE_APP_BOT_ID),
   botName: CLAUDE_BOT_LOGIN,

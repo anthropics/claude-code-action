@@ -141,6 +141,13 @@ export async function prepareTagMode({
       `Bash(${gitPushWrapper}:*)`,
       "Bash(git rm:*)",
     );
+    if (context.isPR && context.inputs.allowPrRebase) {
+      tagModeTools.push(
+        "Bash(git fetch:*)",
+        "Bash(git pull:*)",
+        "Bash(git rebase:*)",
+      );
+    }
   } else {
     // When using API commit signing, use MCP file ops tools
     tagModeTools.push(
