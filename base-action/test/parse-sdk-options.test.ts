@@ -596,4 +596,52 @@ describe("parseSdkOptions", () => {
       }
     });
   });
+
+  describe("--flag=value (inline value) form", () => {
+    test("--allowedTools=value parses the same as the space form", () => {
+      const equals = parseSdkOptions({
+        claudeArgs: "--allowedTools=Edit,Read",
+      });
+      const spaced = parseSdkOptions({
+        claudeArgs: "--allowedTools Edit,Read",
+      });
+
+      // identical result to the space-separated form
+      expect(equals.sdkOptions.allowedTools).toEqual(["Edit", "Read"]);
+      expect(spaced.sdkOptions.allowedTools).toEqual(["Edit", "Read"]);
+      // the raw "allowedTools=Edit,Read" token must not leak into extraArgs
+      expect(equals.sdkOptions.extraArgs?.["allowedTools"]).toBeUndefined();
+      expect(
+        equals.sdkOptions.extraArgs?.["allowedTools=Edit,Read"],
+      ).toBeUndefined();
+    });
+
+    test("--json-schema=... is detected (hasJsonSchema), not left as a bogus key", () => {
+      const result = parseSdkOptions({
+        claudeArgs: '--json-schema={"type":"object"}',
+      });
+      expect(result.hasJsonSchema).toBe(true);
+      expect(result.sdkOptions.extraArgs?.["json-schema"]).toBeDefined();
+    });
+
+    test("splits on the first '=' only, preserving '=' in the value", () => {
+      const result = parseSdkOptions({ claudeArgs: "--model=claude-3-5=beta" });
+      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-3-5=beta");
+    });
+
+    test("supports disallowedTools and add-dir in --flag=value form", () => {
+      const result = parseSdkOptions({
+        claudeArgs: "--disallowedTools=Bash --add-dir=/tmp/work",
+      });
+      expect(result.sdkOptions.disallowedTools).toEqual(["Bash"]);
+      expect(result.sdkOptions.additionalDirectories).toEqual(["/tmp/work"]);
+    });
+
+    test("accumulates repeated --allowedTools=... occurrences", () => {
+      const result = parseSdkOptions({
+        claudeArgs: "--allowedTools=Edit --allowedTools=Read,Write",
+      });
+      expect(result.sdkOptions.allowedTools).toEqual(["Edit", "Read", "Write"]);
+    });
+  });
 });
