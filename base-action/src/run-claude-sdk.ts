@@ -155,6 +155,11 @@ export async function runClaudeWithSdk(
 
   const messages: SDKMessage[] = [];
   let resultMessage: SDKResultMessage | undefined;
+  // Number of subagent tasks currently running in the background. Subagents
+  // launched via the Agent tool run in the background by default (Claude Code
+  // >= 2.1.198); each `background_tasks_changed` system message reports the
+  // full live set.
+  let liveBackgroundTasks = 0;
 
   try {
     for await (const message of query({ prompt, options: sdkOptions })) {
@@ -165,18 +170,35 @@ export async function runClaudeWithSdk(
         console.log(sanitized);
       }
 
+      if (
+        message.type === "system" &&
+        message.subtype === "background_tasks_changed"
+      ) {
+        liveBackgroundTasks =
+          "tasks" in message && Array.isArray(message.tasks)
+            ? message.tasks.length
+            : 0;
+      }
+
       if (message.type === "result") {
         resultMessage = message as SDKResultMessage;
-        // The SDK's query() iterator should close itself after the
-        // result message, but in some workflow contexts (notably
-        // pull_request-triggered runs) it stays open indefinitely and
-        // the for-await hangs until the workflow's timeout-minutes
-        // kills the job. This causes the action to "succeed" inside
-        // Claude (verdict posted, $cost recorded) but be reported as
-        // cancelled with no execution-output.json written. Break
-        // explicitly: by SDK contract no further messages follow a
-        // result, so the break is safe.
-        break;
+        // The SDK's query() iterator should close itself after the result
+        // message, but in some workflow contexts (notably pull_request-
+        // triggered runs) it stays open indefinitely and the for-await hangs
+        // until the workflow's timeout-minutes kills the job, so we break
+        // explicitly (#1339).
+        //
+        // However, subagents launched via the Agent tool run as background
+        // tasks by default (Claude Code >= 2.1.198). The parent agent's
+        // dispatch turn emits a `result` while those subagents are still
+        // running; breaking on it ends the run and orphans them, so the parent
+        // never gets the follow-up turn(s) to consume their output (#1499).
+        // Only break once no background tasks remain live; the SDK's
+        // async-agent stall watchdog bounds the wait if a subagent never
+        // completes.
+        if (liveBackgroundTasks === 0) {
+          break;
+        }
       }
     }
   } catch (error) {
