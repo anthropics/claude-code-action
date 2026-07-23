@@ -5,6 +5,7 @@ import type {
   PullRequestEvent,
   PullRequestReviewEvent,
   PullRequestReviewCommentEvent,
+  PushEvent,
   WorkflowRunEvent,
 } from "@octokit/webhooks-types";
 
@@ -297,6 +298,20 @@ describe("parseGitHubContext", () => {
       expect(context.eventName).toBe("workflow_run");
       expect(isAutomationContext(context)).toBe(true);
     });
+
+    test("push produces an automation context", () => {
+      setEvent("push", {
+        ref: "refs/heads/main",
+        repository: repositoryPayload,
+        pusher: { name: "test-user", email: "test@example.com" },
+        commits: [],
+      } as unknown as PushEvent);
+
+      const context = parseGitHubContext();
+
+      expect(context.eventName).toBe("push");
+      expect(isAutomationContext(context)).toBe(true);
+    });
   });
 
   describe("invalid partition", () => {
@@ -498,7 +513,7 @@ describe("type guards", () => {
     expect(isEntityContext(workflowDispatchContext)).toBe(false);
   });
 
-  test("isAutomationContext accepts the four automation events", () => {
+  test("isAutomationContext accepts the six automation events", () => {
     expect(isAutomationContext(workflowDispatchContext)).toBe(true);
     expect(
       isAutomationContext(
@@ -514,6 +529,9 @@ describe("type guards", () => {
       isAutomationContext(
         createMockAutomationContext({ eventName: "workflow_run" }),
       ),
+    ).toBe(true);
+    expect(
+      isAutomationContext(createMockAutomationContext({ eventName: "push" })),
     ).toBe(true);
     expect(isAutomationContext(issuesContext)).toBe(false);
   });
