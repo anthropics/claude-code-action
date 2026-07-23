@@ -7,6 +7,7 @@ import {
   spyOn,
   mock,
 } from "bun:test";
+import { mkdir, readFile, rm, writeFile } from "fs/promises";
 import { prepareAgentMode } from "../../src/modes/agent";
 import { createMockAutomationContext } from "../mockContext";
 import * as core from "@actions/core";
@@ -219,6 +220,45 @@ describe("Agent Mode", () => {
         githubToken: "test-token",
       }),
     ).resolves.toBeDefined();
+  });
+
+  test("prepare preserves pre-written claude-user-request.txt (#1427)", async () => {
+    const contextWithPrompts = createMockAutomationContext({
+      eventName: "workflow_dispatch",
+    });
+    contextWithPrompts.inputs.prompt = "Follow the user request.";
+
+    const promptDir = `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`;
+    await mkdir(promptDir, { recursive: true });
+    const userRequestPath = `${promptDir}/claude-user-request.txt`;
+    await writeFile(userRequestPath, "/kyosei https://example.com/pr/1");
+
+    const mockOctokit = {
+      rest: {
+        users: {
+          getAuthenticated: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+          getByUsername: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+        },
+      },
+    } as any;
+
+    await prepareAgentMode({
+      context: contextWithPrompts,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+
+    const preserved = await readFile(userRequestPath, "utf-8");
+    expect(preserved).toBe("/kyosei https://example.com/pr/1");
+    await rm(promptDir, { recursive: true, force: true });
   });
 
   test("prepare creates prompt file with correct content", async () => {
