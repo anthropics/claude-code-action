@@ -72,6 +72,11 @@ export function sanitizeContent(content: string): string {
   content = stripMarkdownLinkTitles(content);
   content = stripHiddenAttributes(content);
   content = normalizeHtmlEntities(content);
+  // Decoding HTML entities can re-introduce HTML comments that were entity-
+  // encoded (e.g. "&#60;!-- ... --&#62;") specifically to survive the initial
+  // strip above. Strip comments again after decoding so hidden instructions
+  // cannot slip through via entity encoding.
+  content = stripHtmlComments(content);
   content = redactGitHubTokens(content);
   return content;
 }
