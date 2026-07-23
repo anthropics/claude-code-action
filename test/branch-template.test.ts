@@ -291,5 +291,68 @@ describe("branch template utilities", () => {
       expect(result).toMatch(/^fix\/pr-456-\d{8}-\d{4}$/);
       expect(result.length).toBeLessThanOrEqual(50);
     });
+
+    // Regression: a title with no ASCII-alphanumeric content makes
+    // {{description}} sanitize to an empty string. Around a slash separator this
+    // previously produced "claude//123", which validateBranchName rejects
+    // ("cannot contain consecutive slashes"), aborting the entire run.
+    it("should collapse the double slash from an empty description (emoji-only title)", () => {
+      const template = "{{prefix}}{{description}}/{{entityNumber}}";
+      const result = generateBranchName(
+        template,
+        "claude/",
+        "issue",
+        123,
+        undefined,
+        undefined,
+        "🎉🎉🎉",
+      );
+
+      expect(result).toBe("claude/123");
+    });
+
+    it("should collapse the double slash for a CJK-only title", () => {
+      const template = "{{prefix}}{{description}}/{{entityNumber}}";
+      const result = generateBranchName(
+        template,
+        "claude/",
+        "issue",
+        123,
+        undefined,
+        undefined,
+        "日本語のタイトル",
+      );
+
+      expect(result).toBe("claude/123");
+    });
+
+    it("should drop a trailing slash left by an empty trailing segment", () => {
+      const template = "{{prefix}}{{entityNumber}}/{{description}}";
+      const result = generateBranchName(
+        template,
+        "claude/",
+        "issue",
+        123,
+        undefined,
+        undefined,
+        "!!! ???",
+      );
+
+      expect(result).toBe("claude/123");
+    });
+
+    it("should produce a name that passes validateBranchName when a segment is empty", () => {
+      const result = generateBranchName(
+        "{{prefix}}{{description}}/{{entityNumber}}",
+        "claude/",
+        "issue",
+        123,
+        undefined,
+        undefined,
+        "🎉",
+      );
+
+      expect(() => validateBranchName(result)).not.toThrow();
+    });
   });
 });
