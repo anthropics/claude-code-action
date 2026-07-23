@@ -5,7 +5,7 @@ import { preparePrompt } from "./prepare-prompt";
 import { runClaude } from "./run-claude";
 import { setupClaudeCodeSettings } from "./setup-claude-code-settings";
 import { validateEnvironmentVariables } from "./validate-env";
-import { installPlugins } from "./install-plugins";
+import { installPlugins, getPluginSkillAllowRules } from "./install-plugins";
 import { setExecutionFileOutputIfPresent } from "./execution-file";
 import { setupWorkloadIdentity } from "./workload-identity";
 import type { WorkloadIdentityHandle } from "./workload-identity";
@@ -44,9 +44,20 @@ async function run() {
       promptFile: process.env.INPUT_PROMPT_FILE || "",
     });
 
+    // Skills from explicitly installed plugins must be allowed up front:
+    // permission prompts cannot be answered in CI, so without these rules
+    // the model's Skill invocations are auto-denied.
+    const pluginSkillAllowRules = getPluginSkillAllowRules(
+      process.env.INPUT_PLUGINS,
+    );
+    const allowedTools =
+      [process.env.INPUT_ALLOWED_TOOLS, ...pluginSkillAllowRules]
+        .filter(Boolean)
+        .join(",") || undefined;
+
     const result = await runClaude(promptConfig.path, {
       claudeArgs: process.env.INPUT_CLAUDE_ARGS,
-      allowedTools: process.env.INPUT_ALLOWED_TOOLS,
+      allowedTools,
       disallowedTools: process.env.INPUT_DISALLOWED_TOOLS,
       maxTurns: process.env.INPUT_MAX_TURNS,
       mcpConfig: process.env.INPUT_MCP_CONFIG,

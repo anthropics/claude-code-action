@@ -38,7 +38,10 @@ import { setupWorkloadIdentity } from "../../base-action/src/workload-identity";
 import type { WorkloadIdentityHandle } from "../../base-action/src/workload-identity";
 import { validateEnvironmentVariables } from "../../base-action/src/validate-env";
 import { setupClaudeCodeSettings } from "../../base-action/src/setup-claude-code-settings";
-import { installPlugins } from "../../base-action/src/install-plugins";
+import {
+  installPlugins,
+  getPluginSkillAllowRules,
+} from "../../base-action/src/install-plugins";
 import { preparePrompt } from "../../base-action/src/prepare-prompt";
 import { runClaude } from "../../base-action/src/run-claude";
 import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
@@ -284,8 +287,16 @@ async function run() {
       promptFile,
     });
 
+    // Skills from explicitly installed plugins must be allowed up front:
+    // permission prompts cannot be answered in CI, so without these rules
+    // the model's Skill invocations are auto-denied.
+    const pluginSkillAllowRules = getPluginSkillAllowRules(
+      process.env.INPUT_PLUGINS,
+    );
+
     const claudeResult: ClaudeRunResult = await runClaude(promptConfig.path, {
       claudeArgs: prepareResult.claudeArgs,
+      allowedTools: pluginSkillAllowRules.join(",") || undefined,
       appendSystemPrompt: process.env.APPEND_SYSTEM_PROMPT,
       model: process.env.ANTHROPIC_MODEL,
       pathToClaudeCodeExecutable: claudeExecutable,
