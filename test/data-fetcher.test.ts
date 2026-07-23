@@ -463,6 +463,85 @@ describe("filterReviewsToTriggerTime", () => {
       expect(filtered).toEqual(reviews);
     });
   });
+
+  describe("trigger entity retention (by id)", () => {
+    it("keeps the review that IS the trigger even though it is submitted exactly at trigger time", () => {
+      const triggeringReview = {
+        ...createMockReview("2024-01-15T12:00:00Z"), // submittedAt === triggerTime
+        databaseId: "987654",
+      };
+
+      // Without the id, this review is dropped (submitted at trigger time)...
+      expect(
+        filterReviewsToTriggerTime([triggeringReview], triggerTime).length,
+      ).toBe(0);
+
+      // ...but passing the triggering entity's numeric webhook id retains it.
+      const filtered = filterReviewsToTriggerTime(
+        [triggeringReview],
+        triggerTime,
+        987654,
+      );
+      expect(filtered.length).toBe(1);
+      expect(filtered[0]).toBe(triggeringReview);
+    });
+
+    it("keeps the triggering review even when updatedAt is bumped to the submit time", () => {
+      const triggeringReview = {
+        ...createMockReview("2024-01-15T12:00:00Z", "2024-01-15T12:00:00Z"),
+        databaseId: "555",
+      };
+
+      const filtered = filterReviewsToTriggerTime(
+        [triggeringReview],
+        triggerTime,
+        555,
+      );
+      expect(filtered.length).toBe(1);
+    });
+
+    it("still drops a non-trigger review submitted at the trigger time when a trigger id is given", () => {
+      const triggeringReview = {
+        ...createMockReview("2024-01-15T12:00:00Z"),
+        databaseId: "111",
+      };
+      const otherReview = {
+        ...createMockReview("2024-01-15T12:00:00Z"),
+        databaseId: "222",
+      };
+
+      const filtered = filterReviewsToTriggerTime(
+        [triggeringReview, otherReview],
+        triggerTime,
+        111,
+      );
+      expect(filtered.length).toBe(1);
+      expect(filtered[0]?.databaseId).toBe("111");
+    });
+
+    it("keeps the triggering comment created exactly at trigger time", () => {
+      const triggeringComment = {
+        id: "c1",
+        databaseId: "42",
+        body: "inline note",
+        author: { login: "reviewer" },
+        createdAt: "2024-01-15T12:00:00Z", // createdAt === triggerTime
+        isMinimized: false,
+      };
+
+      // Dropped without the id; retained when the trigger comment id is passed.
+      expect(
+        filterCommentsToTriggerTime([triggeringComment], triggerTime).length,
+      ).toBe(0);
+      const filtered = filterCommentsToTriggerTime(
+        [triggeringComment],
+        triggerTime,
+        42,
+      );
+      expect(filtered.length).toBe(1);
+      expect(filtered[0]).toBe(triggeringComment);
+    });
+  });
 });
 
 describe("isBodySafeToUse", () => {
