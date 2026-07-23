@@ -15,6 +15,7 @@ permissions:
 jobs:
   test-settings-inline-allow:
     runs-on: ubuntu-latest
+    if: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -66,6 +67,7 @@ jobs:
 
   test-settings-inline-deny:
     runs-on: ubuntu-latest
+    if: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -100,6 +102,7 @@ jobs:
 
   test-settings-file-allow:
     runs-on: ubuntu-latest
+    if: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -156,6 +159,7 @@ jobs:
 
   test-settings-file-deny:
     runs-on: ubuntu-latest
+    if: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
