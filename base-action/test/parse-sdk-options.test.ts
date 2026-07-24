@@ -1,6 +1,9 @@
 #!/usr/bin/env bun
 
 import { describe, test, expect } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { parseSdkOptions } from "../src/parse-sdk-options";
 import type { ClaudeOptions } from "../src/run-claude";
 
@@ -338,21 +341,34 @@ describe("parseSdkOptions", () => {
       );
     });
 
-    test("should merge inline JSON configs when file path is also present", () => {
-      // When action provides inline JSON and user provides a file path,
-      // the inline JSON configs should be merged (file paths cannot be merged at parse time)
-      const options: ClaudeOptions = {
-        claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config '{"mcpServers":{"github_ci":{"command":"node"}}}' --mcp-config /tmp/user-config.json`,
-      };
+    test("should merge a file-path config with inline configs", () => {
+      const tempDir = mkdtempSync(join(tmpdir(), "mcp-config-test-"));
+      const configPath = join(tempDir, "user-config.json");
 
-      const result = parseSdkOptions(options);
+      try {
+        writeFileSync(
+          configPath,
+          JSON.stringify({
+            mcpServers: {
+              user_server: { command: "custom", args: ["run"] },
+            },
+          }),
+        );
+        const options: ClaudeOptions = {
+          claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config '${configPath}'`,
+        };
 
-      // The inline JSON configs should be merged
-      const mcpConfig = JSON.parse(
-        result.sdkOptions.extraArgs?.["mcp-config"] as string,
-      );
-      expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
-      expect(mcpConfig.mcpServers).toHaveProperty("github_ci");
+        const result = parseSdkOptions(options);
+        const mcpConfig = JSON.parse(
+          result.sdkOptions.extraArgs?.["mcp-config"] as string,
+        );
+
+        expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
+        expect(mcpConfig.mcpServers).toHaveProperty("user_server");
+        expect(mcpConfig.mcpServers.user_server.command).toBe("custom");
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
     });
 
     test("should handle mcp-config with other flags", () => {
