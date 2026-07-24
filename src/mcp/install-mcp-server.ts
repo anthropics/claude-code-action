@@ -152,6 +152,11 @@ export async function prepareMcpConfig(
           REPO_NAME: repo,
           PR_NUMBER: context.entityNumber?.toString() || "",
           GITHUB_API_URL: GITHUB_API_URL,
+          RUNNER_TEMP: process.env.RUNNER_TEMP || "/tmp",
+          GITHUB_REPOSITORY:
+            process.env.GITHUB_REPOSITORY || `${owner}/${repo}`,
+          GITHUB_RUN_ID: process.env.GITHUB_RUN_ID || "",
+          GITHUB_RUN_ATTEMPT: process.env.GITHUB_RUN_ATTEMPT || "",
           CLASSIFY_INLINE_COMMENTS: context.inputs.classifyInlineComments
             ? "true"
             : "false",
