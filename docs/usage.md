@@ -315,32 +315,6 @@ https://docs.claude.com/en/docs/agent-sdk/structured-outputs
     fi
 ```
 
-### Sending to a cost dashboard
-
-For teams tracking spend across many agent workflow runs, the token outputs can be
-forwarded to a cost tracking tool. [AgentMeter](https://agentmeter.app) is a
-GitHub-native cost dashboard built for this — it receives token counts from your
-workflow and shows per-run cost, per-repo spend trends, and budget alerts.
-
-```yaml
-- uses: anthropics/claude-code-action@v1
-  id: claude
-  with:
-    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    prompt: "..."
-
-- uses: AgentMeter/agentmeter-action@v1
-  with:
-    api_key: ${{ secrets.AGENTMETER_API_KEY }}
-    model: claude-sonnet-4-5
-    input_tokens: ${{ steps.claude.outputs.input_tokens }}
-    output_tokens: ${{ steps.claude.outputs.output_tokens }}
-    cache_read_tokens: ${{ steps.claude.outputs.cache_read_tokens }}
-    cache_write_tokens: ${{ steps.claude.outputs.cache_write_tokens }}
-    turns: ${{ steps.claude.outputs.turns }}
-    status: ${{ job.status }}
-```
-
 ## Ways to Tag @claude
 
 These examples show how to interact with Claude using comments in PRs and issues. By default, Claude will be triggered anytime you mention `@claude`, but you can customize the exact trigger phrase using the `trigger_phrase` input in the workflow.
