@@ -42,7 +42,9 @@ For each numbered comment body below, respond with ONLY a JSON array of booleans
 Comments:
 `;
 
-async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
+export async function classifyComments(
+  bodies: string[],
+): Promise<boolean[] | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.log(
@@ -108,7 +110,7 @@ async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
   }
 }
 
-async function postComment(
+export async function postComment(
   octokit: ReturnType<typeof createOctokit>["rest"],
   owner: string,
   repo: string,
@@ -227,7 +229,9 @@ async function main() {
   console.log(`Posted ${posted}/${toPost.length}`);
 }
 
-main().catch((e) => {
-  console.error("post-buffered-inline-comments failed:", e);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((e) => {
+    console.error("post-buffered-inline-comments failed:", e);
+    process.exit(1);
+  });
+}
