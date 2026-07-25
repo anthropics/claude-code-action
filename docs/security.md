@@ -53,6 +53,55 @@ This is general guidance for these event types — see [GitHub's documentation](
 
 `claude-code-base-action` is a lower-level building block that installs and runs Claude Code with the inputs you provide. It does not perform actor permission checks or restore project configuration from the base ref. If you need those behaviors, use this action (`claude-code-action`). See the [base-action README](../base-action/README.md#trust-model) for details.
 
+## Project-Level Configuration in PR Workflows
+
+Claude Code reads project-level configuration from the working directory at startup. This includes `.claude/settings.json` (which can define [hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) that run shell commands at lifecycle events like session start), `.mcp.json` (MCP server definitions), and `CLAUDE.md` files. In non-interactive mode (`-p` / `--print`), this configuration is loaded without a workspace trust prompt, because the caller that invokes Claude Code in a given directory is responsible for the contents of that directory.
+
+In PR workflows, this means that if the checkout contains code from a pull request, any project configuration in that PR is active when Claude runs. This includes hooks, which execute as shell commands in the runner environment before the model processes the prompt.
+
+### How this action handles it
+
+`claude-code-action` restores project configuration from the PR's **base branch** before Claude runs. The following paths are replaced with their base-branch versions (or removed if they don't exist on base):
+
+- `.claude/` (settings, hooks, local config)
+- `.mcp.json` / `.claude.json`
+- `CLAUDE.md` / `CLAUDE.local.md`
+- `.gitmodules` / `.husky` / `.ripgreprc`
+
+PR-authored versions of these files are preserved in `.claude-pr/` so that review prompts can inspect what the PR changes, but they are never executed. Workflows using `claude-code-action` are protected by default and no additional configuration is needed.
+
+### Using `claude-code-base-action` or `claude -p` directly
+
+`claude-code-base-action` does not perform this restoration. If your workflow uses the base action or invokes `claude -p` directly against checked-out PR code, you are responsible for ensuring the working directory's project configuration is trusted. Options include:
+
+- **Check out only the base branch** and pass PR files via `--add-dir`:
+
+  ```yaml
+  - uses: actions/checkout@v6  # base branch (default)
+  - uses: actions/checkout@v6
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+      path: pr-head
+  - run: claude -p "Review the changes in pr-head/" --add-dir pr-head
+  ```
+
+- **Restore project configuration from base** before running Claude:
+
+  ```yaml
+  - uses: actions/checkout@v6
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+  - run: |
+      git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
+      for p in .claude .mcp.json .claude.json CLAUDE.md CLAUDE.local.md .gitmodules .husky .ripgreprc; do
+        rm -rf "$p"
+        git checkout origin/${{ github.event.pull_request.base.ref }} -- "$p" 2>/dev/null || true
+      done
+  - run: claude -p "Review this PR"
+  ```
+
+- **Use `claude-code-action`**, which handles this automatically.
+
 ## Pull Request Creation
 
 In its default configuration, **Claude does not create pull requests automatically** when responding to `@claude` mentions. Instead:
