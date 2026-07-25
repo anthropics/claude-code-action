@@ -1,13 +1,18 @@
 import { execFileSync } from "child_process";
 import {
   appendFileSync,
-  cpSync,
+  copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
+  readlinkSync,
+  realpathSync,
   rmSync,
+  symlinkSync,
 } from "fs";
-import { dirname } from "path";
+import { dirname, join, resolve, sep } from "path";
 
 // Paths that are both PR-controllable and read from cwd at CLI startup.
 //
@@ -30,19 +35,59 @@ const SENSITIVE_PATHS = [
 
 const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
 
-function snapshotSensitivePath(src: string, dest: string): void {
-  try {
-    cpSync(src, dest, { recursive: true, dereference: true });
-  } catch (error) {
-    // Symlinks whose targets are absent on the PR head (e.g. `.claude/CLAUDE.md`
-    // -> `../AGENTS.md` when the PR deleted the target) make dereferenced
-    // copies throw ENOENT. Preserve the symlink for the review snapshot instead.
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-      cpSync(src, dest, { recursive: true });
+// Whether a fully-resolved real path stays inside the repo working tree
+// rooted at `repoRoot`. Used to decide whether a symlink is safe to
+// dereference for the review snapshot.
+function isWithinRepo(realPath: string, repoRoot: string): boolean {
+  const resolved = resolve(realPath);
+  return resolved === repoRoot || resolved.startsWith(repoRoot + sep);
+}
+
+// Copies a symlink itself (not its target) into the snapshot, preserving it
+// for review without ever reading whatever it points to.
+function copySymlinkAsIs(src: string, dest: string): void {
+  mkdirSync(dirname(dest), { recursive: true });
+  symlinkSync(readlinkSync(src), dest);
+}
+
+// Recursively copies `src` into `dest` for the review snapshot. Symlinks are
+// only followed when their fully-resolved target stays inside `repoRoot`;
+// a symlink that is broken (target absent, e.g. the PR deleted it) or that
+// escapes the repo (e.g. `.claude/x -> ../../.git/config` or an absolute
+// path into $HOME) is preserved as a symlink instead of dereferenced, so its
+// content is never read into the snapshot review agents can see.
+function copyEntry(src: string, dest: string, repoRoot: string): void {
+  const stat = lstatSync(src);
+
+  if (stat.isSymbolicLink()) {
+    let real: string | null;
+    try {
+      real = realpathSync(src);
+    } catch {
+      real = null;
+    }
+    if (real === null || !isWithinRepo(real, repoRoot)) {
+      copySymlinkAsIs(src, dest);
       return;
     }
-    throw error;
+    copyEntry(real, dest, repoRoot);
+    return;
   }
+
+  if (stat.isDirectory()) {
+    mkdirSync(dest, { recursive: true });
+    for (const entry of readdirSync(src)) {
+      copyEntry(join(src, entry), join(dest, entry), repoRoot);
+    }
+    return;
+  }
+
+  mkdirSync(dirname(dest), { recursive: true });
+  copyFileSync(src, dest);
+}
+
+function snapshotSensitivePath(src: string, dest: string): void {
+  copyEntry(src, dest, resolve(process.cwd()));
 }
 
 function ensureClaudePrExcludedFromGit(): void {

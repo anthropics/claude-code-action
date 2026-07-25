@@ -165,6 +165,26 @@ describe("restoreConfigFromBase", () => {
     );
   });
 
+  test("preserves (never dereferences) a symlink that escapes the repo into .claude-pr", () => {
+    setupSymlinkedMainBranch();
+
+    git(["checkout", "pr"]);
+    const secretPath = join(tempDir, "secret.txt");
+    writeFileSync(secretPath, "super-secret-token\n");
+    symlinkRepoFile(".claude/exfil", secretPath);
+    git(["add", "-A"]);
+    git(["commit", "-m", "pr adds a symlink escaping the repo"]);
+
+    restoreConfigFromBase("main");
+
+    expect(lstatRepoFile(".claude-pr/.claude/exfil").isSymbolicLink()).toBe(
+      true,
+    );
+    expect(readRepoFile(".claude/settings.json")).toBe(
+      `${JSON.stringify({ source: "base" })}\n`,
+    );
+  });
+
   test("does not modify an existing .gitignore", () => {
     writeRepoFile(".gitignore", "node_modules\n");
     git(["add", ".gitignore"]);

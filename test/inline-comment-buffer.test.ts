@@ -66,6 +66,7 @@ describe("removeBufferedComment", () => {
         line: 10,
         startLine: undefined,
         body: "Comment A",
+        side: "RIGHT" as const,
       },
       bufferPath,
     );
@@ -83,6 +84,7 @@ describe("removeBufferedComment", () => {
         line: 10,
         startLine: undefined,
         body: "Comment A",
+        side: "RIGHT" as const,
       },
       bufferPath,
     );
@@ -128,6 +130,7 @@ describe("removeBufferedComment", () => {
         line: 10,
         startLine: undefined,
         body: "Comment A",
+        side: "RIGHT" as const,
       },
       bufferPath,
     );

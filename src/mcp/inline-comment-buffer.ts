@@ -5,6 +5,8 @@ export type BufferedCommentMatch = {
   line?: number;
   startLine?: number;
   body: string;
+  side?: "LEFT" | "RIGHT";
+  commit_id?: string;
 };
 
 /**
@@ -17,8 +19,8 @@ export type BufferedCommentMatch = {
  * reply; previously the original buffered entry was left behind and replayed,
  * producing duplicate inline comments.
  *
- * Entries are matched on path, line, startLine and body. Lines that cannot be
- * parsed are kept untouched.
+ * Entries are matched on path, line, startLine, body, side and commit_id.
+ * Lines that cannot be parsed are kept untouched.
  */
 export function removeBufferedComment(
   match: BufferedCommentMatch,
@@ -43,7 +45,9 @@ export function removeBufferedComment(
         entry.path === match.path &&
         entry.line === match.line &&
         entry.startLine === match.startLine &&
-        entry.body === match.body;
+        entry.body === match.body &&
+        entry.side === match.side &&
+        entry.commit_id === match.commit_id;
       return !isSameComment;
     });
 
