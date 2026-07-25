@@ -1,4 +1,7 @@
 import { describe, expect, it, jest, test } from "bun:test";
+import { execFileSync } from "child_process";
+import { writeFile, rm } from "fs/promises";
+import { join } from "path";
 import {
   extractTriggerTimestamp,
   extractOriginalTitle,
@@ -1400,6 +1403,77 @@ describe("fetchGitHubData integration with time filtering", () => {
 
     // Webhook says no body at trigger time — attacker-added GraphQL body must not be used
     expect(result.contextData.body).toBe("");
+  });
+});
+
+describe("fetchGitHubData changed-file SHA computation", () => {
+  it("hashes a PR file whose attacker-chosen name starts with a dash instead of misparsing it as a git-hash-object flag", async () => {
+    // The PR's changed-file path comes straight from the GitHub API (the PR
+    // author names it) and is passed to `git hash-object`. Without a `--`
+    // separator before the path, a name like `-w` or `--stdin` is parsed as a
+    // flag instead of a filename — the same option-injection class the repo
+    // already guards against on its other git invocations (branch.ts,
+    // restore-config.ts). This proves the real file is hashed, not the flag
+    // silently misinterpreted.
+    const dashPrefixedName = "-fetcher-hash-object-fixture";
+    const fixturePath = join(process.cwd(), dashPrefixedName);
+    const content = `fixture ${Date.now()}\n`;
+    await writeFile(fixturePath, content);
+
+    try {
+      const expectedSha = execFileSync(
+        "git",
+        ["hash-object", "--", dashPrefixedName],
+        { encoding: "utf-8" },
+      ).trim();
+
+      const mockOctokits = {
+        graphql: jest.fn().mockResolvedValue({
+          repository: {
+            pullRequest: {
+              number: 789,
+              title: "Test PR",
+              body: "PR body",
+              author: { login: "author" },
+              comments: { nodes: [] },
+              files: {
+                nodes: [
+                  {
+                    path: dashPrefixedName,
+                    additions: 1,
+                    deletions: 0,
+                    changeType: "MODIFIED",
+                  },
+                ],
+              },
+              reviews: { nodes: [] },
+            },
+          },
+          user: { login: "trigger-user" },
+        }),
+        rest: {
+          pulls: {
+            listFiles: jest.fn().mockResolvedValue({ data: [] }),
+          },
+        },
+      };
+
+      const result = await fetchGitHubData({
+        octokits: mockOctokits as any,
+        repository: "test-owner/test-repo",
+        prNumber: "789",
+        isPR: true,
+        triggerUsername: "trigger-user",
+      });
+
+      expect(result.changedFilesWithSHA).toHaveLength(1);
+      expect(result.changedFilesWithSHA[0]?.path).toBe(dashPrefixedName);
+      // Must be the real blob SHA of the file's content, not "unknown"
+      // (which is what a misparsed flag falls back to on error).
+      expect(result.changedFilesWithSHA[0]?.sha).toBe(expectedSha);
+    } finally {
+      await rm(fixturePath, { force: true });
+    }
   });
 });
 

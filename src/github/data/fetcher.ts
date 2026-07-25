@@ -350,8 +350,14 @@ export async function fetchGitHubData({
       }
 
       try {
-        // Use git hash-object to compute the SHA for the current file content
-        const sha = execFileSync("git", ["hash-object", file.path], {
+        // Use git hash-object to compute the SHA for the current file content.
+        // `file.path` is the PR's changed-file path from the GitHub API — fully
+        // attacker-controlled (the PR author names it). Without the `--`
+        // separator, a path starting with `-` (e.g. `-w`, `--stdin`) would be
+        // parsed as a git-hash-object flag instead of a filename, the same
+        // option-injection class that branch.ts/restore-config.ts already
+        // guard against on their git invocations.
+        const sha = execFileSync("git", ["hash-object", "--", file.path], {
           encoding: "utf-8",
         }).trim();
         return {
