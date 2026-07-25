@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { GITHUB_API_URL } from "../github/api/config";
 import { Octokit } from "@octokit/rest";
+import { extractBotHeader } from "../github/operations/comments/common";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 import { sanitizeContent } from "../github/utils/sanitizer";
 
@@ -55,13 +56,31 @@ server.tool(
       const isPullRequestReviewComment =
         eventName === "pull_request_review_comment";
 
+      // Fetch current comment to preserve the bot header for sticky comment functionality
+      const currentComment = isPullRequestReviewComment
+        ? await octokit.rest.pulls.getReviewComment({
+            owner,
+            repo,
+            comment_id: commentId,
+          })
+        : await octokit.rest.issues.getComment({
+            owner,
+            repo,
+            comment_id: commentId,
+          });
+
+      // Extract bot header if present (e.g., "<!-- bot: claude-code-review -->")
+      const botHeader = extractBotHeader(currentComment.data.body || "");
+
+      // Prepend header to new body to preserve sticky comment identification
       const sanitizedBody = sanitizeContent(body);
+      const bodyWithHeader = botHeader + sanitizedBody;
 
       const result = await updateClaudeComment(octokit, {
         owner,
         repo,
         commentId,
-        body: sanitizedBody,
+        body: bodyWithHeader,
         isPullRequestReviewComment,
       });
 
