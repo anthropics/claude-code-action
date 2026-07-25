@@ -182,6 +182,9 @@ outputs:
   session_id:
     description: "The Claude Code session ID that can be used with --resume to continue this conversation"
     value: ${{ steps.run.outputs.session_id }}
+  final_message:
+    description: "Claude's final assistant text response, extracted from the last message in the stream. Useful for read-only review workflows that want to capture Claude's response in a sandboxed AI job and post it from a separate, more-privileged job (defense-in-depth). Empty when Claude's last action was a tool call rather than text."
+    value: ${{ steps.run.outputs.final_message }}
 
 runs:
   using: "composite"
