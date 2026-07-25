@@ -64,12 +64,11 @@ export async function prepareAgentMode({
     }
   }
 
-  // Create prompt directory. Clear any stale files from a prior invocation first —
-  // see src/create-prompt/index.ts for context (non-ephemeral self-hosted runners
-  // do not reliably honor the RUNNER_TEMP cleanup contract).
+  // Create prompt directory. Only remove the prompt file this mode writes — composite
+  // workflows may pre-write claude-user-request.txt in an earlier step (see #1427).
   const promptDir = `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`;
-  await rm(promptDir, { recursive: true, force: true });
   await mkdir(promptDir, { recursive: true });
+  await rm(`${promptDir}/claude-prompt.txt`, { force: true });
 
   // Write the prompt file - use the user's prompt directly
   const promptContent =
