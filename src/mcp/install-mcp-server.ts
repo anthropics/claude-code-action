@@ -1,9 +1,11 @@
 import * as core from "@actions/core";
+import { rmSync } from "fs";
 import { GITHUB_API_URL, GITHUB_SERVER_URL } from "../github/api/config";
 import type { GitHubContext } from "../github/context";
 import { isEntityContext } from "../github/context";
 import { Octokit } from "@octokit/rest";
 import type { AutoDetectedMode } from "../modes/detector";
+import { BUFFER_PATH } from "./inline-comment-buffer";
 
 type PrepareConfigParams = {
   githubToken: string;
@@ -140,6 +142,12 @@ export async function prepareMcpConfig(
       context.isPR &&
       (hasGitHubMcpTools || hasInlineCommentTools)
     ) {
+      // Clear any buffered comments left behind by a prior job on this host.
+      // On non-ephemeral self-hosted runners RUNNER_TEMP/tmp isn't reliably
+      // emptied between jobs, so a stale buffer here would otherwise leak a
+      // previous, unrelated PR's inline comments into this session's replay.
+      rmSync(BUFFER_PATH, { force: true });
+
       baseMcpConfig.mcpServers.github_inline_comment = {
         command: "bun",
         args: [

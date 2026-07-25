@@ -1,5 +1,13 @@
 import { existsSync, readFileSync, writeFileSync } from "fs";
 
+// RUNNER_TEMP is job-scoped on GitHub-hosted runners; on non-ephemeral
+// self-hosted runners it can persist between jobs, same as bare /tmp (see the
+// promptDir clear-before-use in src/create-prompt/index.ts for the same
+// concern). Callers that read/write this file are responsible for clearing
+// stale state before a session starts and removing it once fully consumed —
+// see prepareMcpConfig() and post-buffered-inline-comments.ts.
+export const BUFFER_PATH = `${process.env.RUNNER_TEMP || "/tmp"}/inline-comments-buffer.jsonl`;
+
 export type BufferedCommentMatch = {
   path: string;
   line?: number;

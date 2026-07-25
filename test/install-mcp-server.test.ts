@@ -1,5 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
+import { existsSync, writeFileSync, rmSync } from "fs";
 import { prepareMcpConfig } from "../src/mcp/install-mcp-server";
+import { BUFFER_PATH } from "../src/mcp/inline-comment-buffer";
 import * as core from "@actions/core";
 import type { ParsedGitHubContext } from "../src/github/context";
 import { CLAUDE_APP_BOT_ID, CLAUDE_BOT_LOGIN } from "../src/github/constants";
@@ -173,6 +175,34 @@ describe("prepareMcpConfig", () => {
       "test-token",
     );
     expect(parsed.mcpServers.github_inline_comment.env.PR_NUMBER).toBe("456");
+  });
+
+  test("clears a stale inline-comment buffer left over from a prior job before enabling the server", async () => {
+    // On non-ephemeral self-hosted runners, RUNNER_TEMP/tmp isn't reliably
+    // emptied between jobs. A buffer left behind by a crashed/earlier job
+    // must not be replayed onto this session's unrelated PR.
+    writeFileSync(
+      BUFFER_PATH,
+      JSON.stringify({ path: "stale.ts", line: 1, body: "leftover" }) + "\n",
+    );
+    expect(existsSync(BUFFER_PATH)).toBe(true);
+
+    try {
+      await prepareMcpConfig({
+        githubToken: "test-token",
+        owner: "test-owner",
+        repo: "test-repo",
+        branch: "test-branch",
+        baseBranch: "main",
+        allowedTools: ["mcp__github_inline_comment__create_inline_comment"],
+        mode: "tag",
+        context: mockPRContext,
+      });
+
+      expect(existsSync(BUFFER_PATH)).toBe(false);
+    } finally {
+      rmSync(BUFFER_PATH, { force: true });
+    }
   });
 
   test("should include comment server when no GitHub tools are allowed and signing disabled", async () => {

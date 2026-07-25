@@ -9,10 +9,9 @@
  * preserves backward compatibility — before this change, all unconfirmed
  * calls posted immediately.
  */
-import { readFileSync } from "fs";
+import { readFileSync, rmSync } from "fs";
 import { createOctokit } from "../github/api/client";
-
-const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
+import { BUFFER_PATH } from "../mcp/inline-comment-buffer";
 
 type BufferedComment = {
   ts: string;
@@ -151,6 +150,12 @@ async function main() {
     console.log("No buffered inline comments");
     return;
   }
+
+  // Remove the buffer as soon as its contents are captured in memory, not
+  // after posting. On non-ephemeral self-hosted runners RUNNER_TEMP/tmp can
+  // survive between jobs, so a file left behind here would be replayed onto
+  // a later, unrelated run's PR regardless of whether posting below succeeds.
+  rmSync(BUFFER_PATH, { force: true });
 
   const comments: BufferedComment[] = raw
     .split("\n")
