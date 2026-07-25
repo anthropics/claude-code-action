@@ -30,6 +30,7 @@ describe("detectMode with enhanced routing", () => {
       includeFixLinks: true,
       includeCommentsByActor: "",
       excludeCommentsByActor: "",
+      allowWorkflowModifications: false,
     },
   };
 
