@@ -479,21 +479,18 @@ server.tool(
         throw new Error("GITHUB_TOKEN environment variable is required");
       }
 
-      // Convert absolute paths to relative if they match CWD
-      const cwd = process.cwd();
-      const processedPaths = paths.map((filePath) => {
-        if (filePath.startsWith("/")) {
-          if (filePath.startsWith(cwd)) {
-            // Strip CWD from absolute path
-            return filePath.slice(cwd.length + 1);
-          } else {
-            throw new Error(
-              `Path '${filePath}' must be relative to repository root or within current working directory`,
-            );
-          }
-        }
-        return filePath;
-      });
+      // Validate all paths are within the repository root — mirrors
+      // the validation used in commit_files to prevent path-traversal
+      // attacks via ".." sequences or symlinks escaping the repo.
+      const resolvedRepoDir = resolve(REPO_DIR);
+      const processedPaths = await Promise.all(
+        paths.map(async (filePath) => {
+          await validatePathWithinRepo(filePath, REPO_DIR);
+          // Normalise to a relative path for the Git tree entry
+          const normalizedPath = resolve(resolvedRepoDir, filePath);
+          return normalizedPath.slice(resolvedRepoDir.length + 1);
+        }),
+      );
 
       // 1. Get the branch reference (create if doesn't exist)
       const baseSha = await getOrCreateBranchRef(
