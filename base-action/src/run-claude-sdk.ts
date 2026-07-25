@@ -156,8 +156,9 @@ export async function runClaudeWithSdk(
   const messages: SDKMessage[] = [];
   let resultMessage: SDKResultMessage | undefined;
 
+  const claudeQuery = query({ prompt, options: sdkOptions });
   try {
-    for await (const message of query({ prompt, options: sdkOptions })) {
+    for await (const message of claudeQuery) {
       messages.push(message);
 
       const sanitized = sanitizeSdkOutput(message, showFullOutput);
@@ -183,6 +184,11 @@ export async function runClaudeWithSdk(
     console.error("SDK execution error:", error);
     await writeExecutionFile(messages);
     throw new Error(`SDK execution error: ${error}`);
+  } finally {
+    // Terminate the CLI subprocess and all its child processes (e.g., MCP servers).
+    // Without this, spawned MCP server processes keep the event loop alive,
+    // causing the GitHub Actions workflow to hang indefinitely.
+    claudeQuery.close();
   }
 
   const result: ClaudeRunResult = {
