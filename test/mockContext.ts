@@ -14,6 +14,7 @@ import { CLAUDE_APP_BOT_ID, CLAUDE_BOT_LOGIN } from "../src/github/constants";
 
 const defaultInputs = {
   prompt: "",
+  userRequest: "",
   triggerPhrase: "/claude",
   assigneeTrigger: "",
   labelTrigger: "",

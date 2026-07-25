@@ -15,6 +15,7 @@ export function collectActionInputsPresence(): string {
     custom_instructions: "",
     direct_prompt: "",
     override_prompt: "",
+    user_request: "",
     additional_permissions: "",
     claude_env: "",
     settings: "",
