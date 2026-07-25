@@ -185,6 +185,13 @@ export async function setupBranch(
 
       // For cross-repository (fork) PRs, fetch via the pull ref since the
       // branch only exists on the fork's remote, not on origin.
+      //
+      // --no-recurse-submodules: the PR head is attacker-controlled, including
+      // its .gitmodules. Without this flag, fetch.recurseSubmodules=on-demand
+      // (the git default) can make this fetch try to update an already-
+      // registered submodule to an attacker-supplied URL and hang on a
+      // credential prompt in CI. Same mitigation as restore-config.ts, applied
+      // here because this checkout runs before restoreConfigFromBase().
       if (prData.isCrossRepository) {
         console.log(
           `PR #${entityNumber} is from a fork, fetching via refs/pull/${entityNumber}/head...`,
@@ -193,12 +200,19 @@ export async function setupBranch(
           "fetch",
           "origin",
           `--depth=${fetchDepth}`,
+          "--no-recurse-submodules",
           `pull/${entityNumber}/head:${branchName}`,
         ]);
       } else {
         // Execute git commands to checkout PR branch (dynamic depth based on PR size)
         // Using execFileSync instead of shell template literals for security
-        execGit(["fetch", "origin", `--depth=${fetchDepth}`, branchName]);
+        execGit([
+          "fetch",
+          "origin",
+          `--depth=${fetchDepth}`,
+          "--no-recurse-submodules",
+          branchName,
+        ]);
       }
       execGit(["checkout", branchName, "--"]);
 
