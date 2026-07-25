@@ -24,7 +24,7 @@ import {
 } from "../github/context";
 import type { GitHubContext } from "../github/context";
 import { detectMode } from "../modes/detector";
-import { prepareTagMode } from "../modes/tag";
+import { prepareTagMode, PrepareTagModeError } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
 import { checkContainsTrigger } from "../github/validation/trigger";
 import { restoreConfigFromBase } from "../github/operations/restore-config";
@@ -313,6 +313,16 @@ async function run() {
     if (!prepareCompleted) {
       prepareSuccess = false;
       prepareError = errorMessage;
+    }
+    // prepareTagMode() may fail after already creating the tracking comment;
+    // recover its id so the finally block below can still update it instead
+    // of leaving it stuck at "Claude is working…" forever.
+    if (
+      commentId === undefined &&
+      error instanceof PrepareTagModeError &&
+      error.commentId !== undefined
+    ) {
+      commentId = error.commentId;
     }
     core.setFailed(`Action failed with error: ${errorMessage}`);
   } finally {

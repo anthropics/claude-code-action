@@ -236,6 +236,6 @@ export async function prepareMcpConfig(
     return JSON.stringify(baseMcpConfig, null, 2);
   } catch (error) {
     core.setFailed(`Install MCP server failed with error: ${error}`);
-    process.exit(1);
+    throw error;
   }
 }

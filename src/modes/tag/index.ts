@@ -14,9 +14,28 @@ import {
 } from "../../github/data/fetcher";
 import { createPrompt } from "../../create-prompt";
 import { isEntityContext } from "../../github/context";
-import type { GitHubContext } from "../../github/context";
+import type { GitHubContext, ParsedGitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
 import { parseAllowedTools } from "../agent/parse-tools";
+
+/**
+ * Thrown when prepareTagMode() fails after already creating the tracking
+ * comment. Carries the comment id so run.ts's cleanup phase can still post
+ * the failure back onto that comment instead of leaving it stuck at
+ * "Claude is working…" forever.
+ */
+export class PrepareTagModeError extends Error {
+  commentId?: number;
+
+  constructor(
+    message: string,
+    options: { cause?: unknown; commentId?: number } = {},
+  ) {
+    super(message, { cause: options.cause });
+    this.name = "PrepareTagModeError";
+    this.commentId = options.commentId;
+  }
+}
 
 /**
  * Prepares the tag mode execution context.
@@ -45,6 +64,32 @@ export async function prepareTagMode({
   const commentData = await createInitialComment(octokit.rest, context);
   const commentId = commentData.id;
 
+  try {
+    return await prepareTagModeAfterComment({
+      context,
+      octokit,
+      githubToken,
+      commentId,
+    });
+  } catch (error) {
+    throw new PrepareTagModeError(
+      error instanceof Error ? error.message : String(error),
+      { cause: error, commentId },
+    );
+  }
+}
+
+async function prepareTagModeAfterComment({
+  context,
+  octokit,
+  githubToken,
+  commentId,
+}: {
+  context: ParsedGitHubContext;
+  octokit: Octokits;
+  githubToken: string;
+  commentId: number;
+}) {
   const triggerTime = extractTriggerTimestamp(context);
   const originalTitle = extractOriginalTitle(context);
   const originalBody = extractOriginalBody(context);

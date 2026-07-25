@@ -997,6 +997,6 @@ export async function createPrompt(
     core.exportVariable("DISALLOWED_TOOLS", allDisallowedTools);
   } catch (error) {
     core.setFailed(`Create prompt failed with error: ${error}`);
-    process.exit(1);
+    throw error;
   }
 }
