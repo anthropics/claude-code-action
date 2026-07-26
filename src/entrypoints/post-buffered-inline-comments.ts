@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 /**
  * Reads buffered inline-comment calls from /tmp/inline-comments-buffer.jsonl,
- * classifies each as "real review" vs "test/probe" using Haiku, and posts
- * only the real ones. Calls with confirmed=false are never posted.
+ * classifies each as "real review" vs "test/probe" using the configured model,
+ * and posts only the real ones. Calls with confirmed=false are never posted.
  *
  * If the Anthropic API is unavailable (Bedrock/Vertex users without a direct
  * key), falls back to posting everything with confirmed !== false. This
@@ -10,6 +10,7 @@
  * calls posted immediately.
  */
 import { readFileSync } from "fs";
+import { parse as parseShellArgs } from "shell-quote";
 import { createOctokit } from "../github/api/client";
 
 const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
@@ -42,7 +43,57 @@ For each numbered comment body below, respond with ONLY a JSON array of booleans
 Comments:
 `;
 
-async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
+export function getAnthropicMessagesUrl(
+  baseUrl = process.env.ANTHROPIC_BASE_URL,
+): string {
+  const resolvedBaseUrl = baseUrl?.trim() || "https://api.anthropic.com";
+  return `${resolvedBaseUrl.replace(/\/+$/, "")}/v1/messages`;
+}
+
+function stripShellComments(input: string): string {
+  return input
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("#"))
+    .join("\n");
+}
+
+export function getClassificationModel(): string {
+  const envModel = process.env.ANTHROPIC_MODEL?.trim();
+  if (envModel) {
+    return envModel;
+  }
+
+  const claudeArgs = process.env.CLAUDE_ARGS?.trim();
+  if (claudeArgs) {
+    const args = parseShellArgs(stripShellComments(claudeArgs))
+      .map((arg) => {
+        if (typeof arg === "string") return arg;
+        if (typeof arg === "object" && arg !== null && "pattern" in arg) {
+          return (arg as { pattern: string }).pattern;
+        }
+        return undefined;
+      })
+      .filter((arg): arg is string => typeof arg === "string");
+
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === "--model" && i + 1 < args.length) {
+        const model = args[i + 1];
+        if (model && !model.startsWith("--")) {
+          return model;
+        }
+      }
+      if (args[i]?.startsWith("--model=")) {
+        return args[i]!.slice("--model=".length);
+      }
+    }
+  }
+
+  return "claude-haiku-4-5";
+}
+
+export async function classifyComments(
+  bodies: string[],
+): Promise<boolean[] | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.log(
@@ -56,7 +107,7 @@ async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
     bodies.map((b, i) => `${i + 1}. ${JSON.stringify(b)}`).join("\n");
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch(getAnthropicMessagesUrl(), {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -64,7 +115,7 @@ async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5",
+        model: getClassificationModel(),
         max_tokens: 1024,
         messages: [{ role: "user", content: prompt }],
       }),
