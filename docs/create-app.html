@@ -687,7 +687,7 @@
           return;
         }
         const form = document.getElementById("org-form");
-        form.action = `https://github.com/organizations/${orgName}/settings/apps/new`;
+        form.action = `https://github.com/organizations/${encodeURIComponent(orgName)}/settings/apps/new`;
         form.submit();
       }
 
