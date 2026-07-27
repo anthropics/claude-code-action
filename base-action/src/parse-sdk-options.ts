@@ -117,9 +117,26 @@ function mergeMcpConfigs(configValues: string[]): string {
  *
  * src/modes/agent/parse-tools.ts reads the same input to decide which MCP
  * servers to install, so it shares this tokenizer (#1357).
+ *
+ * A malformed value is reported rather than tokenized on a best effort basis:
+ * an unterminated quote silently swallows every following flag, which would
+ * otherwise grant a tool nobody asked for and drop the flags after it.
  */
 export function splitClaudeArgs(claudeArgs: string): string[] {
   const script = parseShell(escapeShellMeta(claudeArgs));
+
+  const error = script.errors?.[0];
+  if (error) {
+    // escapeShellMeta substitutes one character for one character, so the
+    // reported position still points into the original claude_args.
+    const excerpt = claudeArgs.slice(error.pos, error.pos + 40).split("\n")[0];
+    throw new Error(
+      `Could not parse claude_args: ${error.message} at position ${error.pos}` +
+        (excerpt ? ` near \`${excerpt}\`` : "") +
+        ". Values containing spaces or shell characters need quoting.",
+    );
+  }
+
   const words: string[] = [];
 
   for (const statement of script.commands) {

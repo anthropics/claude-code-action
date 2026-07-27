@@ -69,6 +69,17 @@ describe("splitClaudeArgs", () => {
     ]);
   });
 
+  test("should report an unterminated quote instead of swallowing later flags", () => {
+    // Without this the quote runs to the end of the input, so allowedTools
+    // becomes `Read\n--max-turns 5` and --max-turns is silently dropped.
+    expect(() =>
+      splitClaudeArgs(`--allowedTools "Read\n--max-turns 5`),
+    ).toThrow(/unterminated double quote at position 15/);
+    expect(() => splitClaudeArgs(`--allowedTools 'Read`)).toThrow(
+      /unterminated single quote/,
+    );
+  });
+
   test("should keep a # that is inside a quoted value", () => {
     const input = `--append-system-prompt "rules:\n# 1. never force push\n"`;
     expect(splitClaudeArgs(input)).toEqual([
