@@ -1,4 +1,4 @@
-import { parse as parseShellArgs } from "shell-quote";
+import { parse as parseShell } from "unbash";
 import type { ClaudeOptions } from "./run-claude";
 import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
 
@@ -25,13 +25,12 @@ const ACCUMULATING_FLAGS = new Set([
 // Delimiter used to join accumulated flag values
 const ACCUMULATE_DELIMITER = "\x00";
 
-// shell-quote treats ()|&;<> as control operators and splits adjacent text
-// around them into separate tokens (returned as `{op}` objects, which we then
-// dropped). For CLI args these must be literal characters — e.g. unquoted
-// `--allowedTools Bash(gh:*)` was being mangled into bare `Bash`, silently
-// widening a scoped permission rule to Bash(*). We escape each metachar to a
-// Unicode private-use codepoint before parsing and restore it afterward,
-// keeping shell-quote's quote/whitespace handling intact.
+// ()|&;<> are control operators in shell grammar, so a parser splits adjacent
+// text around them. For CLI args these must be literal characters — e.g.
+// unquoted `--allowedTools Bash(gh:*)` was being mangled into bare `Bash`,
+// silently widening a scoped permission rule to Bash(*). We escape each
+// metachar to a Unicode private-use codepoint before parsing and restore it
+// afterward, keeping quote and whitespace handling intact.
 const SHELL_META_PAIRS: [string, string][] = [
   ["(", ""],
   [")", ""],
@@ -110,17 +109,30 @@ function mergeMcpConfigs(configValues: string[]): string {
 }
 
 /**
- * Strip comment lines from a shell argument string.
- * Lines whose first non-whitespace character is `#` are removed entirely.
- * Inline `#` within a line (e.g. inside a quoted value) is left untouched
- * because shell-quote handles quoting — we only need to remove full comment lines
- * before shell-quote sees them.
+ * Split a claude_args string into words the way a shell would.
+ *
+ * Quoting, comments and line continuations are all resolved by the grammar, so
+ * a `#` inside a quoted value stays part of that value, and a trailing `\`
+ * joins the following line instead of producing an empty argument.
+ *
+ * src/modes/agent/parse-tools.ts reads the same input to decide which MCP
+ * servers to install, so it shares this tokenizer (#1357).
  */
-function stripShellComments(input: string): string {
-  return input
-    .split("\n")
-    .filter((line) => !line.trim().startsWith("#"))
-    .join("\n");
+export function splitClaudeArgs(claudeArgs: string): string[] {
+  const script = parseShell(escapeShellMeta(claudeArgs));
+  const words: string[] = [];
+
+  for (const statement of script.commands) {
+    const command = statement.command;
+    if (command.type !== "Command") continue;
+
+    // A leading `FOO=bar` parses as an assignment prefix rather than a word.
+    for (const assignment of command.prefix) words.push(assignment.text);
+    if (command.name) words.push(command.name.value);
+    for (const word of command.suffix) words.push(word.value);
+  }
+
+  return words.map(unescapeShellMeta);
 }
 
 /**
@@ -136,19 +148,7 @@ function parseClaudeArgsToExtraArgs(
   if (!claudeArgs?.trim()) return {};
 
   const result: Record<string, string | null> = {};
-  const args = parseShellArgs(escapeShellMeta(stripShellComments(claudeArgs)))
-    .map((arg) => {
-      if (typeof arg === "string") return unescapeShellMeta(arg);
-      // With control metachars escaped above, the only non-string shell-quote
-      // can still emit is a glob op (bareword containing *, ?, or [). Its
-      // `pattern` field is the verbatim token text — use it as-is so values
-      // like `Bash(cmd:*)` and `Read(path/**)` round-trip intact.
-      if (typeof arg === "object" && arg !== null && "pattern" in arg) {
-        return unescapeShellMeta((arg as { pattern: string }).pattern);
-      }
-      return undefined;
-    })
-    .filter((arg): arg is string => typeof arg === "string");
+  const args = splitClaudeArgs(claudeArgs);
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
