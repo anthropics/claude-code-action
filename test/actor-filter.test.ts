@@ -3,6 +3,7 @@ import {
   parseActorFilter,
   actorMatchesPattern,
   shouldIncludeCommentByActor,
+  normalizeActorLogin,
 } from "../src/github/utils/actor-filter";
 
 describe("parseActorFilter", () => {
@@ -36,6 +37,40 @@ describe("parseActorFilter", () => {
 
   test("handles wildcard bot pattern", () => {
     expect(parseActorFilter("*[bot]")).toEqual(["*[bot]"]);
+  });
+});
+
+describe("normalizeActorLogin", () => {
+  test("appends [bot] for GraphQL Bot authors without suffix", () => {
+    expect(normalizeActorLogin("github-actions", "Bot")).toBe(
+      "github-actions[bot]",
+    );
+    expect(normalizeActorLogin("claude", "Bot")).toBe("claude[bot]");
+    expect(normalizeActorLogin("dependabot", "Bot")).toBe("dependabot[bot]");
+  });
+
+  test("does not double-append [bot] suffix", () => {
+    expect(normalizeActorLogin("dependabot[bot]", "Bot")).toBe(
+      "dependabot[bot]",
+    );
+    expect(normalizeActorLogin("github-actions[bot]", "Bot")).toBe(
+      "github-actions[bot]",
+    );
+  });
+
+  test("leaves User typename logins unchanged", () => {
+    expect(normalizeActorLogin("human-user", "User")).toBe("human-user");
+    expect(normalizeActorLogin("user-bot", "User")).toBe("user-bot");
+  });
+
+  test("leaves logins unchanged without typename", () => {
+    expect(normalizeActorLogin("github-actions")).toBe("github-actions");
+    expect(normalizeActorLogin("dependabot[bot]")).toBe("dependabot[bot]");
+  });
+
+  test("handles ghost login", () => {
+    expect(normalizeActorLogin("ghost", "Bot")).toBe("ghost[bot]");
+    expect(normalizeActorLogin("ghost")).toBe("ghost");
   });
 });
 
@@ -168,5 +203,23 @@ describe("shouldIncludeCommentByActor", () => {
     expect(
       shouldIncludeCommentByActor("user1", ["*[bot]"], ["dependabot[bot]"]),
     ).toBe(false);
+  });
+
+  test("excludes GraphQL-shaped bots when *[bot] is in exclude list", () => {
+    const graphqlBots = [
+      normalizeActorLogin("github-actions", "Bot"),
+      normalizeActorLogin("claude", "Bot"),
+      normalizeActorLogin("dependabot", "Bot"),
+    ];
+    for (const actor of graphqlBots) {
+      expect(shouldIncludeCommentByActor(actor, [], ["*[bot]"])).toBe(false);
+    }
+    expect(
+      shouldIncludeCommentByActor(
+        normalizeActorLogin("human-user", "User"),
+        [],
+        ["*[bot]"],
+      ),
+    ).toBe(true);
   });
 });

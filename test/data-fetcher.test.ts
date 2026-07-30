@@ -1511,12 +1511,48 @@ describe("filterCommentsByActor", () => {
     ];
 
     const { filterCommentsByActor } = require("../src/github/data/fetcher");
-    const filtered = filterCommentsByActor(comments, "", "*[bot]");
-    // ghost comment is retained (it matches no exclude pattern); the bot is dropped.
-    expect(filtered).toHaveLength(2);
-    expect(filtered.map((c: any) => c.body)).toEqual([
+    expect(filterCommentsByActor(comments, "", "*[bot]")).toHaveLength(2);
+    expect(filterCommentsByActor(comments, "", "*[bot]").map((c: any) => c.body)).toEqual([
       "comment1",
       "from a deleted account",
+    ]);
+  });
+
+  test("excludes GraphQL-shaped bot authors with *[bot] wildcard", () => {
+    // GraphQL returns bot logins WITHOUT the [bot] suffix and with __typename Bot
+    // (REST/UI use "github-actions[bot]"). This is the shape PR/issue comments
+    // actually have after PR_QUERY / ISSUE_QUERY.
+    const comments = [
+      {
+        author: { login: "human-user", __typename: "User" },
+        body: "human comment",
+      },
+      {
+        author: { login: "github-actions", __typename: "Bot" },
+        body: "actions bot",
+      },
+      {
+        author: { login: "claude", __typename: "Bot" },
+        body: "claude app bot",
+      },
+      {
+        author: { login: "dependabot", __typename: "Bot" },
+        body: "dependabot",
+      },
+      // Username containing "bot" but not a Bot typename must stay
+      {
+        author: { login: "user-bot", __typename: "User" },
+        body: "human named user-bot",
+      },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "", "*[bot]");
+    // Only human users remain; all Bot-typenamed authors are excluded.
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((c: any) => c.body)).toEqual([
+      "human comment",
+      "human named user-bot",
     ]);
   });
 
@@ -1536,5 +1572,69 @@ describe("filterCommentsByActor", () => {
     const onlyGhost = filterCommentsByActor(comments, "ghost", "");
     expect(onlyGhost).toHaveLength(1);
     expect(onlyGhost[0].body).toBe("from a deleted account");
+  });
+
+  test("includes only GraphQL-shaped bots with *[bot] include filter", () => {
+    const comments = [
+      {
+        author: { login: "human-user", __typename: "User" },
+        body: "human",
+      },
+      {
+        author: { login: "github-actions", __typename: "Bot" },
+        body: "bot",
+      },
+      {
+        author: { login: "claude", __typename: "Bot" },
+        body: "claude",
+      },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "*[bot]", "");
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((c: any) => c.author.login)).toEqual([
+      "github-actions",
+      "claude",
+    ]);
+  });
+
+  test("matches specific REST-style bot pattern against GraphQL Bot login", () => {
+    const comments = [
+      {
+        author: { login: "dependabot", __typename: "Bot" },
+        body: "dependabot",
+      },
+      {
+        author: { login: "renovate", __typename: "Bot" },
+        body: "renovate",
+      },
+      {
+        author: { login: "human-user", __typename: "User" },
+        body: "human",
+      },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "", "dependabot[bot]");
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((c: any) => c.author.login)).toEqual([
+      "renovate",
+      "human-user",
+    ]);
+  });
+
+  test("still supports REST-style logins without __typename", () => {
+    // Fixtures / older shapes that already use the [bot] suffix
+    const comments = [
+      { author: { login: "user1" }, body: "comment1" },
+      { author: { login: "github-actions[bot]" }, body: "comment2" },
+      { author: { login: "claude[bot]" }, body: "comment3" },
+    ];
+
+    const { filterCommentsByActor } = require("../src/github/data/fetcher");
+    const filtered = filterCommentsByActor(comments, "", "*[bot]");
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].author.login).toBe("user1");
   });
 });
