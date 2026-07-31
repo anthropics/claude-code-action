@@ -73,6 +73,12 @@ function validatePluginName(pluginName: string): void {
   if (PATH_TRAVERSAL_REGEX.test(normalized)) {
     throw new Error(`Invalid plugin name format: ${pluginName}`);
   }
+
+  // A leading "-" would let the name be parsed as a CLI flag instead of a
+  // positional argument by the `claude` subprocess (e.g. "--help", "-h").
+  if (normalized.startsWith("-")) {
+    throw new Error(`Invalid plugin name format: ${pluginName}`);
+  }
 }
 
 /**

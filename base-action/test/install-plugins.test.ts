@@ -351,6 +351,26 @@ describe("installPlugins", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  test("should reject plugin names starting with a dash (CLI flag injection)", async () => {
+    const spy = createMockSpawn();
+
+    await expect(installPlugins(undefined, "--help")).rejects.toThrow(
+      "Invalid plugin name format",
+    );
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test("should reject a single-dash plugin name", async () => {
+    const spy = createMockSpawn();
+
+    await expect(installPlugins(undefined, "-h")).rejects.toThrow(
+      "Invalid plugin name format",
+    );
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   // Marketplace functionality tests
   test("should add a single marketplace before installing plugins", async () => {
     const spy = createMockSpawn();
