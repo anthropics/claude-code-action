@@ -159,12 +159,15 @@ export function formatResultContent(content: any): string {
 
     if (
       Array.isArray(parsedContent) &&
-      parsedContent.length > 0 &&
-      typeof parsedContent[0] === "object" &&
-      parsedContent[0]?.type === "text"
+      parsedContent.some(
+        (item) => typeof item === "object" && item?.type === "text",
+      )
     ) {
-      // Extract the text field from the first item
-      contentStr = parsedContent[0]?.text || "";
+      // Concatenate all text blocks from structured tool results
+      contentStr = parsedContent
+        .filter((item) => typeof item === "object" && item?.type === "text")
+        .map((item) => item?.text || "")
+        .join("\n\n");
     } else {
       contentStr = String(content).trim();
     }
