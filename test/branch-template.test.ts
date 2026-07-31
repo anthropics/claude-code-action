@@ -192,6 +192,14 @@ describe("branch template utilities", () => {
       expect(() => validateBranchName(result)).not.toThrow();
     });
 
+    it("should reject raw colon in template output so use_commit_signing fails early (#1573)", () => {
+      const template = "{{prefix}}release:{{entityNumber}}";
+      const result = generateBranchName(template, "claude/", "issue", 123);
+
+      expect(result).toBe("claude/release:123");
+      expect(() => validateBranchName(result)).toThrow();
+    });
+
     it("should use description in template when provided", () => {
       const template = "{{prefix}}{{description}}/{{entityNumber}}";
       const result = generateBranchName(

@@ -297,6 +297,7 @@ export async function setupBranch(
       // Ensure we're on the source branch
       console.log(`Fetching and checking out source branch: ${sourceBranch}`);
       validateBranchName(sourceBranch);
+      validateBranchName(newBranch);
       execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
       execGit(["checkout", sourceBranch, "--"]);
 
