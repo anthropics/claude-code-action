@@ -23,14 +23,27 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
+    env:
+      # Without the federation variables the action exits with "Environment
+      # variable validation failed". Someone who wrote @claude then sees a red
+      # X and has to open the log to learn why. A notice says it directly.
+      # The `vars` context is unavailable in a job-level `if`, but works here.
+      HAS_CLAUDE_AUTH: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' }}
     steps:
+      - name: Note — Claude API credentials not configured
+        if: env.HAS_CLAUDE_AUTH != 'true'
+        run: |
+          echo "::notice title=Claude is not configured::ANTHROPIC_FEDERATION_RULE_ID and ANTHROPIC_ORGANIZATION_ID are not set as repository variables, so there is no way to reach the Claude API. Set them under Settings > Secrets and variables > Actions and @claude starts responding."
+
       - name: Checkout repository
+        if: env.HAS_CLAUDE_AUTH == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
 
       - name: Run Claude Code
         id: claude
+        if: env.HAS_CLAUDE_AUTH == 'true'
         # This fork's own action, SHA-pinned: the repo rejects tag/branch
         # refs, and a fork should dogfood its own code rather than upstream's.
         # Bump this SHA after merging changes to the action itself.

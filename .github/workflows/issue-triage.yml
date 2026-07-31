@@ -15,13 +15,27 @@ jobs:
       # access token (Workload Identity Federation).
       id-token: write
 
+    env:
+      # Same guard as claude.yml: without the federation variables the action
+      # fails on validation, which shows up as an unexplained red X on every
+      # new issue. A notice says why. The `vars` context is unavailable in a
+      # job-level `if`, but works here.
+      HAS_CLAUDE_AUTH: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' }}
+
     steps:
+      - name: Note — Claude API credentials not configured
+        if: env.HAS_CLAUDE_AUTH != 'true'
+        run: |
+          echo "::notice title=Issue triage skipped::ANTHROPIC_FEDERATION_RULE_ID and ANTHROPIC_ORGANIZATION_ID are not set as repository variables. Set them under Settings > Secrets and variables > Actions and new issues get triaged automatically."
+
       - name: Checkout repository
+        if: env.HAS_CLAUDE_AUTH == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Run Claude Code for Issue Triage
+        if: env.HAS_CLAUDE_AUTH == 'true'
         # This fork's own action, SHA-pinned — see claude.yml.
         uses: Yanisleomoser/claude-code-action@7827a6bdc7c599a2c05460346c6f17dd75799752
         env:
