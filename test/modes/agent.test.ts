@@ -258,3 +258,114 @@ describe("Agent Mode", () => {
     expect(result.claudeArgs).not.toContain("--mcp-config");
   });
 });
+
+/**
+ * Commit-signing precedence.
+ *
+ * SSH signing (`ssh_signing_key`) wins over API commit signing
+ * (`use_commit_signing`), because SSH signing pushes via the git CLI and so
+ * still needs git auth configured. These assertions exercise the real branching
+ * in prepareAgentMode rather than restating it.
+ */
+describe("Agent Mode commit signing precedence", () => {
+  const SSH_KEY =
+    "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEA\n-----END OPENSSH PRIVATE KEY-----";
+
+  let exportVariableSpy: any;
+  let setOutputSpy: any;
+  let configureGitAuthSpy: any;
+  let setupSshSigningSpy: any;
+  let consoleErrorSpy: any;
+
+  const mockOctokit = {
+    rest: {
+      users: {
+        getAuthenticated: mock(() =>
+          Promise.resolve({
+            data: { login: "test-user", id: 12345, type: "User" },
+          }),
+        ),
+        getByUsername: mock(() =>
+          Promise.resolve({
+            data: { login: "test-user", id: 12345, type: "User" },
+          }),
+        ),
+      },
+    },
+  } as any;
+
+  const run = (inputs: {
+    sshSigningKey?: string;
+    useCommitSigning?: boolean;
+  }) =>
+    prepareAgentMode({
+      context: createMockAutomationContext({ inputs }),
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+
+  beforeEach(() => {
+    exportVariableSpy = spyOn(core, "exportVariable").mockImplementation(
+      () => {},
+    );
+    setOutputSpy = spyOn(core, "setOutput").mockImplementation(() => {});
+    configureGitAuthSpy = spyOn(
+      gitConfig,
+      "configureGitAuth",
+    ).mockImplementation(async () => {});
+    setupSshSigningSpy = spyOn(gitConfig, "setupSshSigning").mockImplementation(
+      async () => {},
+    );
+    consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    exportVariableSpy?.mockRestore();
+    setOutputSpy?.mockRestore();
+    configureGitAuthSpy?.mockRestore();
+    setupSshSigningSpy?.mockRestore();
+    consoleErrorSpy?.mockRestore();
+  });
+
+  test("sets up SSH signing and still configures git auth for pushes", async () => {
+    await run({ sshSigningKey: SSH_KEY, useCommitSigning: false });
+
+    expect(setupSshSigningSpy).toHaveBeenCalledTimes(1);
+    expect(setupSshSigningSpy).toHaveBeenCalledWith(SSH_KEY);
+    expect(configureGitAuthSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("SSH signing takes precedence when both signing modes are enabled", async () => {
+    await run({ sshSigningKey: SSH_KEY, useCommitSigning: true });
+
+    expect(setupSshSigningSpy).toHaveBeenCalledWith(SSH_KEY);
+    // use_commit_signing must not suppress git auth here: SSH signing pushes
+    // over the git CLI, which needs credentials on the remote.
+    expect(configureGitAuthSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("configures git auth without SSH signing when no key is provided", async () => {
+    await run({ sshSigningKey: "", useCommitSigning: false });
+
+    expect(setupSshSigningSpy).not.toHaveBeenCalled();
+    expect(configureGitAuthSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("skips git auth entirely when API commit signing is used", async () => {
+    await run({ sshSigningKey: "", useCommitSigning: true });
+
+    expect(setupSshSigningSpy).not.toHaveBeenCalled();
+    expect(configureGitAuthSpy).not.toHaveBeenCalled();
+  });
+
+  test("does not fail the run when git auth configuration throws", async () => {
+    configureGitAuthSpy.mockImplementation(async () => {
+      throw new Error("git config failed");
+    });
+
+    await expect(
+      run({ sshSigningKey: SSH_KEY, useCommitSigning: false }),
+    ).resolves.toBeDefined();
+    expect(setupSshSigningSpy).toHaveBeenCalledTimes(1);
+  });
+});
