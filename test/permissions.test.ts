@@ -131,10 +131,38 @@ describe("checkWritePermissions", () => {
     );
   });
 
-  test("should return true for bot user", async () => {
+  test("should return false for [bot] actor not in allowed_bots", async () => {
     const mockOctokit = createMockOctokit("none");
     const context = createContext();
     context.actor = "test-bot[bot]";
+
+    const result = await checkWritePermissions(mockOctokit, context);
+
+    expect(result).toBe(false);
+    expect(coreWarningSpy).toHaveBeenCalledWith(
+      "Actor test-bot[bot] is not in allowed_bots list. Add it to allowed_bots or use '*' to allow all bots.",
+    );
+  });
+
+  test("should return true for [bot] actor in allowed_bots", async () => {
+    const mockOctokit = createMockOctokit("none");
+    const context = createContext();
+    context.actor = "test-bot[bot]";
+    context.inputs.allowedBots = "test-bot";
+
+    const result = await checkWritePermissions(mockOctokit, context);
+
+    expect(result).toBe(true);
+    expect(coreInfoSpy).toHaveBeenCalledWith(
+      "Actor test-bot[bot] is in allowed_bots list, granting access",
+    );
+  });
+
+  test("should return true for [bot] actor when allowed_bots is '*'", async () => {
+    const mockOctokit = createMockOctokit("none");
+    const context = createContext();
+    context.actor = "test-bot[bot]";
+    context.inputs.allowedBots = "*";
 
     const result = await checkWritePermissions(mockOctokit, context);
 
@@ -285,7 +313,7 @@ describe("checkWritePermissions", () => {
       );
     });
 
-    test("should bypass for bot users even when allowed_non_write_users is set", async () => {
+    test("should still require allowed_bots for bot users when allowed_non_write_users doesn't match", async () => {
       const mockOctokit = createMockOctokit("none");
       const context = createContext();
       context.actor = "test-bot[bot]";
@@ -297,9 +325,25 @@ describe("checkWritePermissions", () => {
         true,
       );
 
+      expect(result).toBe(false);
+    });
+
+    test("should bypass write-permission check for bot users when both allowed_non_write_users and allowed_bots match", async () => {
+      const mockOctokit = createMockOctokit("none");
+      const context = createContext();
+      context.actor = "test-bot[bot]";
+      context.inputs.allowedBots = "test-bot";
+
+      const result = await checkWritePermissions(
+        mockOctokit,
+        context,
+        "some-user",
+        true,
+      );
+
       expect(result).toBe(true);
       expect(coreInfoSpy).toHaveBeenCalledWith(
-        "Actor is a GitHub App: test-bot[bot]",
+        "Actor test-bot[bot] is in allowed_bots list, granting access",
       );
     });
   });

@@ -481,7 +481,7 @@ server.tool(
 
       // Convert absolute paths to relative if they match CWD
       const cwd = process.cwd();
-      const processedPaths = paths.map((filePath) => {
+      const rawPaths = paths.map((filePath) => {
         if (filePath.startsWith("/")) {
           if (filePath.startsWith(cwd)) {
             // Strip CWD from absolute path
@@ -494,6 +494,18 @@ server.tool(
         }
         return filePath;
       });
+
+      // Validate all paths stay within the repository root (mirrors
+      // commit_files' use of validatePathWithinRepo) before they reach the
+      // git tree entries below.
+      const resolvedRepoDir = resolve(REPO_DIR);
+      const processedPaths = await Promise.all(
+        rawPaths.map(async (filePath) => {
+          await validatePathWithinRepo(filePath, REPO_DIR);
+          const normalizedPath = resolve(resolvedRepoDir, filePath);
+          return normalizedPath.slice(resolvedRepoDir.length + 1);
+        }),
+      );
 
       // 1. Get the branch reference (create if doesn't exist)
       const baseSha = await getOrCreateBranchRef(

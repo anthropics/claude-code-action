@@ -68,10 +68,19 @@ export async function checkWritePermissions(
 
     // Check if the actor is a GitHub App (bot user with [bot] suffix).
     // Usernames cannot contain "[" or "]", so the suffix is a reliable
-    // bot signal that doesn't require an API lookup.
+    // bot signal that doesn't require an API lookup. Same allow_bots
+    // enforcement as the non-[bot] bot path in the catch block below and
+    // as checkHumanActor — a bot is only trusted if it's explicitly
+    // allow-listed, matching the documented default-deny behavior.
     if (actor.endsWith("[bot]")) {
-      core.info(`Actor is a GitHub App: ${actor}`);
-      return true;
+      if (isAllowedBot(actor, allowedBots)) {
+        core.info(`Actor ${actor} is in allowed_bots list, granting access`);
+        return true;
+      }
+      core.warning(
+        `Actor ${actor} is not in allowed_bots list. Add it to allowed_bots or use '*' to allow all bots.`,
+      );
+      return false;
     }
 
     // For all other actors, resolve the account via the collaborator

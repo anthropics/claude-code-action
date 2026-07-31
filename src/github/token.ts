@@ -161,6 +161,7 @@ export async function setupGitHubToken(): Promise<string> {
 
   if (providedToken) {
     console.log("Using provided GITHUB_TOKEN for authentication");
+    core.setSecret(providedToken);
     return providedToken;
   }
 
