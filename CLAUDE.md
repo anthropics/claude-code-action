@@ -1,17 +1,33 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Commands
 
 ```bash
-bun test                # Run tests (Bun's test runner, not jest)
+bun install             # Install dependencies
+bun test                # Run all tests (Bun's test runner, not jest)
 bun run typecheck       # TypeScript type checking (tsc --noEmit)
 bun run format          # Format with prettier
 bun run format:check    # Check formatting
-bun run install-hooks   # Install the repo's git hooks (pre-push)
+bun run install-hooks   # Install the repo's pre-commit hook (format:check → typecheck → test)
 ```
 
-Runtime is **Bun**, not Node. `bun test` runs everything under `test/`;
-`base-action/` has its own suite under `base-action/test/`.
+Running a subset:
+
+```bash
+bun test test/restore-config.test.ts        # one file
+bun test -t "validateBranchName"            # by test name, across all files
+bun test test/modes/                        # one directory
+```
+
+Runtime is **Bun**, not Node. Bun's runner discovers `*.test.ts` recursively
+from cwd, so a root `bun test` covers **both** `test/` and `base-action/test/`
+(45 files at the time of writing) — that is exactly what CI runs. `base-action/`
+also has its own `package.json` with the same script names for standalone use.
+
+CI (`.github/workflows/ci.yml`) is three jobs: `bun test`, `bun run
+format:check`, `bun run typecheck` — the same three the pre-commit hook runs.
 
 ## What This Is
 
@@ -99,8 +115,12 @@ src/entrypoints/           # run.ts (live) + cleanup-ssh-signing, post-buffered-
 src/modes/                 # detector.ts + tag/ + agent/ (each mode's prepare*() )
 src/github/                # token, context (discriminated-union GitHubContext), api/, data/ (fetch+format the prompt),
                            #   operations/ (branch, comments, git-config, restore-config), validation/, utils/
-src/mcp/                   # in-process MCP servers + install-mcp-server.ts (writes .mcp.json) + inline-comment-buffer
+src/mcp/                   # in-process MCP servers + install-mcp-server.ts (writes .mcp.json) +
+                           #   inline-comment-buffer + path-validation (repo-root containment for file ops)
+src/create-prompt/         # writes the assembled prompt to a temp file for the CLI
 src/utils/                 # retry, branch-template, extract-user-request
+scripts/                   # pre-commit hook + install-hooks.sh; gh.sh / git-push.sh / edit-issue-labels.sh
+                           #   (allow-listed wrappers this repo's own claude.yml + issue-triage.yml hand to Claude)
 base-action/               # standalone @anthropic-ai/claude-code-base-action (mirrored)
 agent-approval-check/      # separate composite action (Python) — require N human approvals on agent-authored PRs
 docs/                      # user docs (setup, usage, configuration, security, cloud-providers, faq, migration, …)
@@ -144,7 +164,13 @@ of posting live. After the session, the `post-buffered-inline-comments.ts`
 "test/probe" using Haiku and posts only the real ones. If no Anthropic key is
 available (Bedrock/Vertex), it falls back to posting everything (pre-buffering
 behavior). A comment posted live (`confirmed=true`) drops its buffered copy so
-it isn't double-posted.
+it isn't double-posted. The buffer file is **cleared by `prepareMcpConfig()`
+before** a session enables the server and **deleted as soon as
+`post-buffered-inline-comments.ts` reads it into memory** (not after posting, so
+a failure can't leave it behind). Self-hosted runners are not ephemeral — a
+leftover buffer would replay a previous PR's review comments onto the current
+one. Same clear-before-use reasoning as the `RUNNER_TEMP` handling in
+`src/create-prompt/index.ts`.
 
 **Config restore from base (security).** On PR events the checked-out PR head is
 attacker-controlled, and the CLI trusts cwd at startup: it reads `.mcp.json` and
@@ -181,6 +207,9 @@ them. It reads `pull_request.base.ref` from the payload directly (agent mode's
 `github_inline_comment` (inline-comment-server), and `github_ci`
 (github-actions-server, CI/logs) — plus the official `github` MCP server via
 its pinned Docker image. Which servers are enabled depends on mode/permissions.
+File paths reaching `github_file_ops` go through `validatePathWithinRepo()`
+(`src/mcp/path-validation.ts`), which `realpath`s both sides so neither `../`
+nor a symlink can write outside the repo root.
 
 **Plugins.** `plugins` / `plugin_marketplaces` inputs →
 `base-action/src/install-plugins.ts` installs Claude Code plugins before the
@@ -205,6 +234,27 @@ run (names/URLs are strictly validated against path traversal).
 - **Error phase attribution**: `run.ts` uses `prepareCompleted` to distinguish
   prepare failures from execution failures; the tracking comment shows different
   messages for each.
+- **Never `process.exit()` from code `run.ts` imports.** `setupBranch()`,
+  `prepareMcpConfig()`, and `createPrompt()` used to exit(1) on error — a
+  leftover from when each was its own action.yml step. In-process that kills
+  `run.ts`'s `finally`: the GitHub App token is never revoked and the tracking
+  comment stays stuck at "Claude is working…". **Throw** instead. `process.exit()`
+  is fine only in the `src/mcp/*-server.ts` entrypoints, which really are their
+  own processes.
+- **`PrepareTagModeError` carries the comment id.** `run.ts` normally learns the
+  tracking-comment id from `prepareTagMode()`'s return value, so anything that
+  throws after the comment is created (data fetch, git auth, `createPrompt()`,
+  MCP config) would leave the comment stale. Throw `PrepareTagModeError` from
+  that window so the catch block can still update it.
+- **Two tokenizers must stay in agreement**: `src/modes/agent/parse-tools.ts`
+  and `base-action/src/parse-sdk-options.ts` both parse `claude_args`/allowed
+  tools, including the same escape-and-restore of `()|&;<>` through private-use
+  codepoints before `shell-quote`'s `parse()`. Fix one, fix the other — a drift
+  grants a tool whose MCP server was never installed, or vice versa.
+- **Pass `--` before any path in a git subprocess.** Changed-file paths come
+  straight from the PR author, so a file named `-w` or `--stdin` is otherwise
+  parsed as a flag (this silently produced wrong hashes in `fetcher.ts`).
+  `branch.ts`, `restore-config.ts`, and `fetcher.ts` all guard this way.
 - **`action.yml` outputs reference the `run` step id**: `execution_file`,
   `branch_name`, `github_token`, `structured_output`, `session_id` all read
   `steps.run.outputs.*`. Rename the step id → update the outputs section too.
@@ -215,8 +265,11 @@ run (names/URLs are strictly validated against path traversal).
   `run.ts`.
 - **Some `entrypoints/` files are modules, not steps** — `collect-inputs`,
   `update-comment-link`, `format-turns` are imported by `run.ts`.
-- **Integration testing** happens in a separate repo (`install-test`), not
-  here. Tests in this repo (and `base-action/test/`) are unit tests.
+- **`test/` and `base-action/test/` are unit tests only.** Integration coverage
+  lives in `.github/workflows/test-*.yml` (base-action, custom executables, MCP
+  servers, settings, structured output), orchestrated by `ci-all.yml`, which
+  invoke the action for real and need `id-token: write` plus the federation
+  vars. They can't be run locally with `bun test`.
 
 ## Code Conventions
 
