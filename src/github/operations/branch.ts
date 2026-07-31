@@ -299,6 +299,13 @@ export async function setupBranch(
       // Branch doesn't exist (non-zero exit code), continue with generated name
     }
 
+    // Validate before use in either path below: the signing path hands newBranch
+    // to the file ops server as BRANCH_NAME, which interpolates it unescaped into
+    // GitHub REST API URLs (e.g. git/refs/heads/${branch}) — an unvalidated value
+    // (possible when branchNameTemplate's {{label}} pulls an attacker-controlled
+    // issue/PR label) could alter the request path.
+    validateBranchName(newBranch);
+
     // For commit signing, defer branch creation to the file ops server
     if (context.inputs.useCommitSigning) {
       console.log(
@@ -326,7 +333,6 @@ export async function setupBranch(
     // Fetch and checkout the source branch first to ensure we branch from the correct base
     console.log(`Fetching and checking out source branch: ${sourceBranch}`);
     validateBranchName(sourceBranch);
-    validateBranchName(newBranch);
     execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
     execGit(["checkout", sourceBranch, "--"]);
 
