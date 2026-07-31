@@ -25,13 +25,16 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@main
+        # This fork's own action, SHA-pinned: the repo rejects tag/branch
+        # refs, and a fork should dogfood its own code rather than upstream's.
+        # Bump this SHA after merging changes to the action itself.
+        uses: Yanisleomoser/claude-code-action@7827a6bdc7c599a2c05460346c6f17dd75799752
         with:
           # Authenticate to the Claude API via Workload Identity Federation
           # (the workflow's OIDC token is exchanged for a short-lived access

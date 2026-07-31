@@ -17,12 +17,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Run Claude Code for Issue Triage
-        uses: anthropics/claude-code-action@main
+        # This fork's own action, SHA-pinned — see claude.yml.
+        uses: Yanisleomoser/claude-code-action@7827a6bdc7c599a2c05460346c6f17dd75799752
         env:
           CLAUDE_CODE_SCRIPT_CAPS: '{"edit-issue-labels.sh":2}'
         with:
