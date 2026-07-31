@@ -267,9 +267,15 @@ run (names/URLs are strictly validated against path traversal).
   `update-comment-link`, `format-turns` are imported by `run.ts`.
 - **`test/` and `base-action/test/` are unit tests only.** Integration coverage
   lives in `.github/workflows/test-*.yml` (base-action, custom executables, MCP
-  servers, settings, structured output), orchestrated by `ci-all.yml`, which
-  invoke the action for real and need `id-token: write` plus the federation
-  vars. They can't be run locally with `bun test`.
+  servers, settings, structured output), which invoke the action for real and
+  need `id-token: write` plus `ANTHROPIC_FEDERATION_RULE_ID` /
+  `ANTHROPIC_ORGANIZATION_ID` / `ANTHROPIC_SERVICE_ACCOUNT_ID`. They can't be run
+  locally with `bun test`. **In this fork they are disabled** — none of those
+  variables are set, so all five failed on every PR (~20 permanently red checks,
+  which is how a real failure goes unnoticed). Their `pull_request` triggers are
+  removed and the jobs in `ci-all.yml` are commented out; `workflow_dispatch` and
+  `workflow_call` still work. `ci-all.yml` carries the note on how to restore
+  them.
 
 ## Code Conventions
 

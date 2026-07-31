@@ -19,17 +19,38 @@ jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
-  test-base-action:
-    uses: ./.github/workflows/test-base-action.yml
-
-  test-custom-executables:
-    uses: ./.github/workflows/test-custom-executables.yml
-
-  test-mcp-servers:
-    uses: ./.github/workflows/test-mcp-servers.yml
-
-  test-settings:
-    uses: ./.github/workflows/test-settings.yml
-
-  test-structured-output:
-    uses: ./.github/workflows/test-structured-output.yml
+  # The five test-* workflows below are disabled in this fork.
+  #
+  # They invoke the action against the real Claude API and need
+  # ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID and
+  # ANTHROPIC_SERVICE_ACCOUNT_ID as repository variables. This fork has none of
+  # them, so every job failed on every pull request:
+  #
+  #   Error: Environment variable validation failed:
+  #     - Either ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, or workload identity
+  #       federation (...) is required when using direct Anthropic API.
+  #
+  # That is roughly twenty permanently red checks per PR. Checks that are always
+  # red stop being read, and a genuine failure disappears among them — so they
+  # are switched off rather than left failing. The workflows themselves are
+  # untouched and still carry `workflow_dispatch` + `workflow_call`; run one from
+  # the Actions tab any time.
+  #
+  # To restore: set the three variables under Settings → Secrets and variables →
+  # Actions, uncomment the jobs here, and re-add `pull_request:` to each
+  # workflow's `on:` block.
+  #
+  # test-base-action:
+  #   uses: ./.github/workflows/test-base-action.yml
+  #
+  # test-custom-executables:
+  #   uses: ./.github/workflows/test-custom-executables.yml
+  #
+  # test-mcp-servers:
+  #   uses: ./.github/workflows/test-mcp-servers.yml
+  #
+  # test-settings:
+  #   uses: ./.github/workflows/test-settings.yml
+  #
+  # test-structured-output:
+  #   uses: ./.github/workflows/test-structured-output.yml

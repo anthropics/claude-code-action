@@ -1,7 +1,9 @@
 name: Test Custom Executables
 
 on:
-  pull_request:
+  # No pull_request trigger — see the note in ci-all.yml. Run it by hand from
+  # the Actions tab, or re-add the trigger once this fork has Claude API
+  # credentials.
   workflow_dispatch:
   workflow_call:
 

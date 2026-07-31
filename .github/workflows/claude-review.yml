@@ -11,13 +11,25 @@ jobs:
       contents: read
       pull-requests: write
       id-token: write
+    env:
+      # Without the federation variables this job fails on every PR with
+      # "Environment variable validation failed" — the same reason the test-*
+      # workflows are disabled (see ci-all.yml). A permanently red check is
+      # worse than no check: it hides the real ones. So the job no-ops with a
+      # notice instead, and starts working the moment the variables are set.
+      #
+      # The `vars` context is not available in a job-level `if`, but it is in
+      # `env` — hence the indirection.
+      HAS_CLAUDE_AUTH: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' }}
     steps:
       - name: Checkout repository
+        if: env.HAS_CLAUDE_AUTH == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
 
       - name: PR Review with Progress Tracking
+        if: env.HAS_CLAUDE_AUTH == 'true'
         # This fork's own action, SHA-pinned — see claude.yml. Was @v1.
         uses: Yanisleomoser/claude-code-action@7827a6bdc7c599a2c05460346c6f17dd75799752
         with:
@@ -32,3 +44,8 @@ jobs:
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment"
             --model "claude-opus-4-7"
+
+      - name: Note — Claude API credentials not configured
+        if: env.HAS_CLAUDE_AUTH != 'true'
+        run: |
+          echo "::notice title=PR review skipped::ANTHROPIC_FEDERATION_RULE_ID and ANTHROPIC_ORGANIZATION_ID are not set as repository variables, so there is no way to reach the Claude API. Set them under Settings > Secrets and variables > Actions and this job starts reviewing pull requests automatically."
