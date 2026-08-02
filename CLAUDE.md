@@ -28,6 +28,9 @@ also has its own `package.json` with the same script names for standalone use.
 
 CI (`.github/workflows/ci.yml`) is three jobs: `bun test`, `bun run
 format:check`, `bun run typecheck` — the same three the pre-commit hook runs.
+`ci-all.yml` is the orchestrator that calls it on every PR and push to `main`;
+the integration `test-*.yml` jobs it used to call are commented out in this fork
+(see Things That Will Bite You).
 
 ## What This Is
 
@@ -121,6 +124,10 @@ src/create-prompt/         # writes the assembled prompt to a temp file for the 
 src/utils/                 # retry, branch-template, extract-user-request
 scripts/                   # pre-commit hook + install-hooks.sh; gh.sh / git-push.sh / edit-issue-labels.sh
                            #   (allow-listed wrappers this repo's own claude.yml + issue-triage.yml hand to Claude)
+.github/workflows/         # ci.yml + ci-all.yml (the unit CI that actually gates PRs);
+                           #   test-*.yml (integration, disabled in this fork); claude.yml + issue-triage.yml
+                           #   (this repo dogfooding its own action, SHA-pinned); release, sync-base-action,
+                           #   non-write-users-check
 base-action/               # standalone @anthropic-ai/claude-code-base-action (mirrored)
 agent-approval-check/      # separate composite action (Python) — require N human approvals on agent-authored PRs
 docs/                      # user docs (setup, usage, configuration, security, cloud-providers, faq, migration, …)
@@ -276,6 +283,25 @@ run (names/URLs are strictly validated against path traversal).
   removed and the jobs in `ci-all.yml` are commented out; `workflow_dispatch` and
   `workflow_call` still work. `ci-all.yml` carries the note on how to restore
   them.
+- **No workflow in this fork goes red merely for missing Claude credentials.**
+  `claude.yml` and `issue-triage.yml` invoke the action against the Claude API,
+  so without the federation variables they died in
+  `validateEnvironmentVariables()` — an unexplained red X on every `@claude`
+  mention and every new issue, with the reason only in the log. Both now compute
+  a job-level `HAS_CLAUDE_AUTH` env — non-empty
+  `vars.ANTHROPIC_FEDERATION_RULE_ID` **and** `vars.ANTHROPIC_ORGANIZATION_ID`;
+  the `vars` context is unavailable in a job-level `if`, hence the env
+  indirection — gate every real step on it, and otherwise emit a `::notice`
+  naming the variables to set. Keep that shape when adding a workflow that
+  reaches the Claude API. With the variables present nothing changes.
+- **`claude-review.yml` was removed, not disabled.** The automatic
+  review-on-PR-open workflow is gone from `.github/workflows/`. Guarding it was
+  not enough: dormant, it would have woken up and commented on every PR the
+  moment the federation variables were set — which is the recommended next step
+  for this fork — and its one real run finished in two seconds with "I'll
+  analyze this and get back to you" and never produced a review. `claude.yml`
+  stays because there a person asks with `@claude` and gets an answer. Re-add
+  from `examples/` if the review quality changes.
 
 ## Code Conventions
 
