@@ -44,14 +44,27 @@ const SHELL_META_PAIRS: [string, string][] = [
 const SHELL_META_ESCAPE = new Map(SHELL_META_PAIRS);
 const SHELL_META_UNESCAPE = new Map(SHELL_META_PAIRS.map(([k, v]) => [v, k]));
 const SHELL_META_ESCAPE_RE = /[()|&;<>]/g;
+
+// shell-quote starts a comment at an unquoted `#` anywhere in a token, but a
+// POSIX shell only does so at the start of a word: `fix/#123` is literal in
+// bash, while shell-quote truncates the token to `fix/`. Escape `#` only when
+// it follows a non-space character, so mid-word hashes survive and a `#` that
+// begins a word still starts a comment.
+const HASH_PLACEHOLDER = "\uE007";
+const MIDWORD_HASH_ESCAPE_RE = /(?<=\S)#/g;
+const HASH_PLACEHOLDER_RE = /\uE007/g;
 const SHELL_META_UNESCAPE_RE = /[-]/g;
 
 function escapeShellMeta(s: string): string {
-  return s.replace(SHELL_META_ESCAPE_RE, (c) => SHELL_META_ESCAPE.get(c)!);
+  return s
+    .replace(SHELL_META_ESCAPE_RE, (c) => SHELL_META_ESCAPE.get(c)!)
+    .replace(MIDWORD_HASH_ESCAPE_RE, HASH_PLACEHOLDER);
 }
 
 function unescapeShellMeta(s: string): string {
-  return s.replace(SHELL_META_UNESCAPE_RE, (c) => SHELL_META_UNESCAPE.get(c)!);
+  return s
+    .replace(SHELL_META_UNESCAPE_RE, (c) => SHELL_META_UNESCAPE.get(c)!)
+    .replace(HASH_PLACEHOLDER_RE, "#");
 }
 
 type McpConfig = {

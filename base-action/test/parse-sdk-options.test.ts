@@ -596,4 +596,43 @@ describe("parseSdkOptions", () => {
       }
     });
   });
+
+  describe("literal # in claude_args values", () => {
+    // shell-quote starts a comment at an unquoted `#` anywhere in a token,
+    // but a POSIX shell only does so at the start of a word.
+    test("keeps a mid-word # instead of truncating the value", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--branch-name fix/#123-description",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["branch-name"]).toBe(
+        "fix/#123-description",
+      );
+    });
+
+    test("keeps a quoted value containing #", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--append-system-prompt "# Use best practices"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["append-system-prompt"]).toBe(
+        "# Use best practices",
+      );
+    });
+
+    test("still drops whole-line comments", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--max-turns 5\n# commented out\n--verbose",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["max-turns"]).toBe("5");
+      expect(result.sdkOptions.extraArgs?.["commented"]).toBeUndefined();
+    });
+  });
 });
