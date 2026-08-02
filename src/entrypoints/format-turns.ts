@@ -163,8 +163,11 @@ export function formatResultContent(content: any): string {
       typeof parsedContent[0] === "object" &&
       parsedContent[0]?.type === "text"
     ) {
-      // Extract the text field from the first item
-      contentStr = parsedContent[0]?.text || "";
+      // Join every text block; a tool result may carry more than one.
+      contentStr = parsedContent
+        .filter((block: any) => block?.type === "text")
+        .map((block: any) => block?.text || "")
+        .join("\n");
     } else {
       contentStr = String(content).trim();
     }
