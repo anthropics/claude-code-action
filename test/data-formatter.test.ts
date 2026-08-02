@@ -540,6 +540,43 @@ describe("formatReviewComments", () => {
     expect(result).not.toContain("Diff context:");
   });
 
+  // GitHub returns line: null and diffHunk: "" for outdated comments whose
+  // line no longer exists in the diff (observed on anthropics/claude-code-action#1025).
+  test("omits the diff context for an outdated comment with an empty diff hunk", () => {
+    const reviewData = {
+      nodes: [
+        {
+          id: "review1",
+          databaseId: "300001",
+          author: { login: "reviewer1" },
+          body: "",
+          state: "COMMENTED",
+          submittedAt: "2023-01-01T00:00:00Z",
+          comments: {
+            nodes: [
+              {
+                id: "comment1",
+                databaseId: "200001",
+                body: "Outdated comment",
+                author: { login: "reviewer1" },
+                createdAt: "2023-01-01T00:00:00Z",
+                path: "src/index.ts",
+                line: null,
+                diffHunk: "",
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const result = formatReviewComments(reviewData);
+
+    expect(result).toContain("[Comment on src/index.ts:?]: Outdated comment");
+    expect(result).not.toContain("Diff context:");
+    expect(result).not.toContain("```diff");
+  });
+
   test("formats review with only body (no comments) correctly", () => {
     const reviewData = {
       nodes: [
