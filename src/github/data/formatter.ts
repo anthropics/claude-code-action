@@ -118,7 +118,16 @@ export function formatReviewComments(
 
           body = sanitizeContent(body);
 
-          return `  [Comment on ${comment.path}:${comment.line || "?"}]: ${body}`;
+          let formatted = `  [Comment on ${comment.path}:${comment.line || "?"}]: ${body}`;
+
+          // The diff hunk is the code the comment was left on. Without it the
+          // comment arrives without the context it was written against.
+          if (comment.diffHunk) {
+            const diffHunk = sanitizeContent(comment.diffHunk);
+            formatted += `\n  Diff context:\n\`\`\`diff\n${diffHunk}\n\`\`\``;
+          }
+
+          return formatted;
         })
         .join("\n");
       if (comments) {
