@@ -288,6 +288,11 @@ export async function setupBranch(
       // Branch doesn't exist (non-zero exit code), continue with generated name
     }
 
+    // Validate before either path uses the name. The signing path hands it to
+    // the file ops server rather than to git, so without this an invalid
+    // template only surfaces as a 422 on the first commit.
+    validateBranchName(newBranch);
+
     // For commit signing, defer branch creation to the file ops server
     if (context.inputs.useCommitSigning) {
       console.log(
@@ -315,7 +320,6 @@ export async function setupBranch(
     // Fetch and checkout the source branch first to ensure we branch from the correct base
     console.log(`Fetching and checking out source branch: ${sourceBranch}`);
     validateBranchName(sourceBranch);
-    validateBranchName(newBranch);
     execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
     execGit(["checkout", sourceBranch, "--"]);
 
