@@ -230,7 +230,7 @@ describe("resolveTriggerTimestamp", () => {
       {
         event: "assigned",
         assignee: { login: "claude-bot" },
-        created_at: "2024-01-15T10:55:00Z",
+        created_at: "2024-01-15T11:05:00Z",
       },
     ]);
 
@@ -239,7 +239,26 @@ describe("resolveTriggerTimestamp", () => {
       octokits,
     );
 
-    expect(timestamp).toBe("2024-01-15T10:55:00Z");
+    expect(timestamp).toBe("2024-01-15T11:05:00Z");
+  });
+
+  it("should ignore a matching event that predates the issue's updated_at", async () => {
+    // A match older than the payload's updated_at is a previous
+    // labeling, not the one that fired this webhook.
+    const { octokits } = createEventsOctokits([
+      {
+        event: "labeled",
+        label: { name: "claude-task" },
+        created_at: "2024-01-15T10:50:00Z",
+      },
+    ]);
+
+    const timestamp = await resolveTriggerTimestamp(
+      mockIssueLabeledContext,
+      octokits,
+    );
+
+    expect(timestamp).toBe("2024-01-15T11:30:00Z");
   });
 
   it("should fall back to updated_at when no matching labeled event exists", async () => {

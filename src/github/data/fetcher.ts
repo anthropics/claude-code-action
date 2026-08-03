@@ -153,6 +153,23 @@ async function findIssueEventTime(
       }
     }
 
+    // Labeling/assignment does not bump the issue's updated_at, so the event
+    // that fired this webhook cannot predate the payload snapshot's
+    // updated_at. An older match means the current event is not visible in
+    // the events API yet; ignore it rather than adopt a stale boundary.
+    const snapshotUpdatedAt = payload.issue?.updated_at;
+    if (
+      latest &&
+      snapshotUpdatedAt &&
+      new Date(latest.created_at).getTime() <
+        new Date(snapshotUpdatedAt).getTime()
+    ) {
+      console.warn(
+        `Latest matching ${payload.action} event on issue #${context.entityNumber} predates the issue's updated_at; treating it as stale`,
+      );
+      return undefined;
+    }
+
     return latest?.created_at || undefined;
   } catch (error) {
     console.warn(
