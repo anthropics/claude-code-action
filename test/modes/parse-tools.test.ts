@@ -150,4 +150,19 @@ describe("parseAllowedTools", () => {
       "mcp__github_comment__*",
     ]);
   });
+
+  test("keeps an unquoted parenthesised tool intact", () => {
+    // Regression for #1357: this parser did not escape shell metacharacters,
+    // so it read `Bash` and `gh:*` while the SDK was granted `Bash(gh:*)`.
+    expect(parseAllowedTools("--allowedTools Bash(gh:*)")).toEqual([
+      "Bash(gh:*)",
+    ]);
+  });
+
+  test("reads tools across a line continuation", () => {
+    expect(parseAllowedTools('--allowedTools \\\n  "Read" "Grep"')).toEqual([
+      "Read",
+      "Grep",
+    ]);
+  });
 });

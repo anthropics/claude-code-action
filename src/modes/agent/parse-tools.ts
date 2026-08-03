@@ -1,39 +1,8 @@
-import { parse as parseShellArgs } from "shell-quote";
+import { splitClaudeArgs } from "../../../base-action/src/parse-sdk-options";
 
 // Flags whose values make up the allowed-tools list.
 // Include both camelCase and hyphenated variants for CLI compatibility.
 const ALLOWED_TOOLS_FLAGS = new Set(["allowedTools", "allowed-tools"]);
-
-/**
- * Strip comment lines from a shell argument string.
- * Lines whose first non-whitespace character is `#` are removed entirely.
- * Mirrors stripShellComments in base-action/src/parse-sdk-options.ts.
- */
-function stripShellComments(input: string): string {
-  return input
-    .split("\n")
-    .filter((line) => !line.trim().startsWith("#"))
-    .join("\n");
-}
-
-/**
- * Tokenize a claude_args string the same way base-action/src/parse-sdk-options.ts
- * does: strip full comment lines, then run shell-quote. shell-quote returns
- * unquoted glob patterns (e.g. `mcp__github__*`) as `{ op: "glob", pattern }`
- * objects rather than strings, so recover their literal text; drop operator
- * tokens (`|`, `>`, `;`, ...) which carry no value.
- */
-function tokenize(claudeArgs: string): string[] {
-  return parseShellArgs(stripShellComments(claudeArgs))
-    .map((token) => {
-      if (typeof token === "string") return token;
-      if (token && typeof token === "object" && "pattern" in token) {
-        return (token as { pattern: string }).pattern;
-      }
-      return null;
-    })
-    .filter((token): token is string => token !== null);
-}
 
 /**
  * Parse the list of allowed tool names from a user-provided claude_args string.
@@ -44,15 +13,15 @@ function tokenize(claudeArgs: string): string[] {
  * tool can be granted to Claude without its MCP server being installed, or a
  * server can be installed for a tool that was never granted (#1357).
  *
- * To stay in agreement it uses the same shell-quote tokenizer and the same
- * "an accumulating flag consumes all consecutive non-flag values" semantics,
- * so `--allowedTools "Read" "Grep" "mcp__github__get_commit"` captures all
- * three values, and commented-out lines are ignored.
+ * To stay in agreement it uses that file's tokenizer (`splitClaudeArgs`) and
+ * the same "an accumulating flag consumes all consecutive non-flag values"
+ * semantics, so `--allowedTools "Read" "Grep" "mcp__github__get_commit"`
+ * captures all three values, and commented-out lines are ignored.
  */
 export function parseAllowedTools(claudeArgs: string): string[] {
   if (!claudeArgs?.trim()) return [];
 
-  const args = tokenize(claudeArgs);
+  const args = splitClaudeArgs(claudeArgs);
   const tools: string[] = [];
   const seen = new Set<string>();
 
