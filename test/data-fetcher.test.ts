@@ -1,6 +1,7 @@
 import { describe, expect, it, jest, test } from "bun:test";
 import {
   extractTriggerTimestamp,
+  resolveTriggerTimestamp,
   extractOriginalTitle,
   extractOriginalBody,
   fetchGitHubData,
@@ -8,6 +9,7 @@ import {
   filterReviewsToTriggerTime,
   isBodySafeToUse,
 } from "../src/github/data/fetcher";
+import type { ParsedGitHubContext } from "../src/github/context";
 import {
   createMockContext,
   mockIssueCommentContext,
@@ -16,6 +18,8 @@ import {
   mockPullRequestReviewCommentContext,
   mockPullRequestOpenedContext,
   mockIssueOpenedContext,
+  mockIssueAssignedContext,
+  mockIssueLabeledContext,
 } from "./mockContext";
 import type { GitHubComment, GitHubReview } from "../src/github/types";
 
@@ -38,14 +42,111 @@ describe("extractTriggerTimestamp", () => {
     expect(timestamp).toBe("2024-01-15T16:45:00Z");
   });
 
-  it("should return undefined for pull_request event", () => {
+  it("should extract created_at timestamp from pull_request opened event", () => {
     const context = mockPullRequestOpenedContext;
     const timestamp = extractTriggerTimestamp(context);
-    expect(timestamp).toBeUndefined();
+    expect(timestamp).toBe("2024-01-15T14:00:00Z");
   });
 
-  it("should return undefined for issues event", () => {
+  it("should extract updated_at timestamp from pull_request synchronize event", () => {
+    const context: ParsedGitHubContext = {
+      ...mockPullRequestOpenedContext,
+      eventAction: "synchronize",
+      payload: {
+        ...(mockPullRequestOpenedContext.payload as any),
+        action: "synchronize",
+      },
+    };
+    const timestamp = extractTriggerTimestamp(context);
+    expect(timestamp).toBe("2024-01-15T14:05:00Z");
+  });
+
+  it("should extract updated_at timestamp from pull_request edited event", () => {
+    const context: ParsedGitHubContext = {
+      ...mockPullRequestOpenedContext,
+      eventAction: "edited",
+      payload: {
+        ...(mockPullRequestOpenedContext.payload as any),
+        action: "edited",
+      },
+    };
+    const timestamp = extractTriggerTimestamp(context);
+    expect(timestamp).toBe("2024-01-15T14:05:00Z");
+  });
+
+  it("should extract created_at timestamp from issues opened event", () => {
     const context = mockIssueOpenedContext;
+    const timestamp = extractTriggerTimestamp(context);
+    expect(timestamp).toBe("2024-01-15T10:30:00Z");
+  });
+
+  it("should fall back to updated_at for issues labeled event", () => {
+    const context = mockIssueLabeledContext;
+    const timestamp = extractTriggerTimestamp(context);
+    expect(timestamp).toBe("2024-01-15T11:30:00Z");
+  });
+
+  it("should fall back to updated_at for issues assigned event", () => {
+    const context = mockIssueAssignedContext;
+    const timestamp = extractTriggerTimestamp(context);
+    expect(timestamp).toBe("2024-01-15T11:00:00Z");
+  });
+
+  it("should fall back to created_at for issues labeled event without updated_at", () => {
+    const context = createMockContext({
+      eventName: "issues",
+      eventAction: "labeled",
+      payload: {
+        action: "labeled",
+        issue: {
+          number: 1,
+          title: "test",
+          body: "test",
+          created_at: "2024-01-15T08:00:00Z",
+        },
+      } as any,
+      entityNumber: 1,
+      isPR: false,
+    });
+    const timestamp = extractTriggerTimestamp(context);
+    expect(timestamp).toBe("2024-01-15T08:00:00Z");
+  });
+
+  it("should fall back to created_at for pull_request synchronize event without updated_at", () => {
+    const context = createMockContext({
+      eventName: "pull_request",
+      eventAction: "synchronize",
+      payload: {
+        action: "synchronize",
+        pull_request: {
+          number: 1,
+          title: "test",
+          body: "test",
+          created_at: "2024-01-15T08:30:00Z",
+        },
+      } as any,
+      entityNumber: 1,
+      isPR: true,
+    });
+    const timestamp = extractTriggerTimestamp(context);
+    expect(timestamp).toBe("2024-01-15T08:30:00Z");
+  });
+
+  it("should return undefined for issues event without timestamps", () => {
+    const context = createMockContext({
+      eventName: "issues",
+      eventAction: "labeled",
+      payload: {
+        action: "labeled",
+        issue: {
+          number: 1,
+          title: "test",
+          body: "test",
+        },
+      } as any,
+      entityNumber: 1,
+      isPR: false,
+    });
     const timestamp = extractTriggerTimestamp(context);
     expect(timestamp).toBeUndefined();
   });
@@ -63,6 +164,176 @@ describe("extractTriggerTimestamp", () => {
     });
     const timestamp = extractTriggerTimestamp(context);
     expect(timestamp).toBeUndefined();
+  });
+});
+
+describe("resolveTriggerTimestamp", () => {
+  const createEventsOctokits = (events: any[]) => {
+    const paginate = jest.fn().mockResolvedValue(events);
+    return {
+      octokits: {
+        rest: {
+          paginate,
+          issues: { listEvents: jest.fn() },
+        },
+        graphql: jest.fn(),
+      } as any,
+      paginate,
+    };
+  };
+
+  it("should use the labeled event time for issues labeled event", async () => {
+    const { octokits, paginate } = createEventsOctokits([
+      {
+        event: "labeled",
+        label: { name: "other-label" },
+        created_at: "2024-01-15T10:45:00Z",
+      },
+      {
+        event: "labeled",
+        label: { name: "claude-task" },
+        created_at: "2024-01-15T10:50:00Z",
+      },
+      {
+        event: "labeled",
+        label: { name: "claude-task" },
+        created_at: "2024-01-15T11:45:00Z",
+      },
+      {
+        event: "assigned",
+        assignee: { login: "claude-bot" },
+        created_at: "2024-01-15T11:50:00Z",
+      },
+    ]);
+
+    const timestamp = await resolveTriggerTimestamp(
+      mockIssueLabeledContext,
+      octokits,
+    );
+
+    expect(timestamp).toBe("2024-01-15T11:45:00Z");
+    expect(paginate).toHaveBeenCalledWith(octokits.rest.issues.listEvents, {
+      owner: "test-owner",
+      repo: "test-repo",
+      issue_number: 1234,
+      per_page: 100,
+    });
+  });
+
+  it("should use the assigned event time for issues assigned event", async () => {
+    const { octokits } = createEventsOctokits([
+      {
+        event: "assigned",
+        assignee: { login: "someone-else" },
+        created_at: "2024-01-15T10:40:00Z",
+      },
+      {
+        event: "assigned",
+        assignee: { login: "claude-bot" },
+        created_at: "2024-01-15T10:55:00Z",
+      },
+    ]);
+
+    const timestamp = await resolveTriggerTimestamp(
+      mockIssueAssignedContext,
+      octokits,
+    );
+
+    expect(timestamp).toBe("2024-01-15T10:55:00Z");
+  });
+
+  it("should fall back to updated_at when no matching labeled event exists", async () => {
+    const { octokits } = createEventsOctokits([
+      {
+        event: "labeled",
+        label: { name: "unrelated" },
+        created_at: "2024-01-15T10:45:00Z",
+      },
+    ]);
+
+    const timestamp = await resolveTriggerTimestamp(
+      mockIssueLabeledContext,
+      octokits,
+    );
+
+    expect(timestamp).toBe("2024-01-15T11:30:00Z");
+  });
+
+  it("should fall back to updated_at when the events lookup fails", async () => {
+    const octokits = {
+      rest: {
+        paginate: jest.fn().mockRejectedValue(new Error("API failure")),
+        issues: { listEvents: jest.fn() },
+      },
+      graphql: jest.fn(),
+    } as any;
+
+    const timestamp = await resolveTriggerTimestamp(
+      mockIssueAssignedContext,
+      octokits,
+    );
+
+    expect(timestamp).toBe("2024-01-15T11:00:00Z");
+  });
+
+  it("should fall back to created_at when updated_at is also missing", async () => {
+    const context = createMockContext({
+      eventName: "issues",
+      eventAction: "labeled",
+      payload: {
+        action: "labeled",
+        label: { name: "claude-task" },
+        issue: {
+          number: 1,
+          title: "test",
+          body: "test",
+          created_at: "2024-01-15T08:00:00Z",
+        },
+      } as any,
+      entityNumber: 1,
+      isPR: false,
+    });
+    const { octokits } = createEventsOctokits([]);
+
+    const timestamp = await resolveTriggerTimestamp(context, octokits);
+
+    expect(timestamp).toBe("2024-01-15T08:00:00Z");
+  });
+
+  it("should use created_at for issues opened event without an API call", async () => {
+    const { octokits, paginate } = createEventsOctokits([]);
+
+    const timestamp = await resolveTriggerTimestamp(
+      mockIssueOpenedContext,
+      octokits,
+    );
+
+    expect(timestamp).toBe("2024-01-15T10:30:00Z");
+    expect(paginate).not.toHaveBeenCalled();
+  });
+
+  it("should use created_at for pull_request opened event without an API call", async () => {
+    const { octokits, paginate } = createEventsOctokits([]);
+
+    const timestamp = await resolveTriggerTimestamp(
+      mockPullRequestOpenedContext,
+      octokits,
+    );
+
+    expect(timestamp).toBe("2024-01-15T14:00:00Z");
+    expect(paginate).not.toHaveBeenCalled();
+  });
+
+  it("should use the existing comment timestamp for issue_comment events", async () => {
+    const { octokits, paginate } = createEventsOctokits([]);
+
+    const timestamp = await resolveTriggerTimestamp(
+      mockIssueCommentContext,
+      octokits,
+    );
+
+    expect(timestamp).toBe("2024-01-15T12:30:00Z");
+    expect(paginate).not.toHaveBeenCalled();
   });
 });
 
@@ -657,6 +928,90 @@ describe("fetchGitHubData integration with time filtering", () => {
     expect(result.comments.length).toBe(1);
     expect(result.comments[0]?.id).toBe("1");
     expect(result.comments[0]?.body).toBe("Comment before trigger");
+  });
+
+  it("should filter comments using the resolved issues labeled event time", async () => {
+    const mockOctokits = {
+      graphql: jest.fn().mockResolvedValue({
+        repository: {
+          issue: {
+            number: 1234,
+            title: "Test Issue",
+            body: "Issue body",
+            author: { login: "author" },
+            comments: {
+              nodes: [
+                {
+                  id: "1",
+                  databaseId: "1",
+                  body: "Comment before label",
+                  author: { login: "user1" },
+                  createdAt: "2024-01-15T10:00:00Z",
+                  updatedAt: "2024-01-15T10:00:00Z",
+                },
+                {
+                  id: "2",
+                  databaseId: "2",
+                  body: "Comment created after label",
+                  author: { login: "user2" },
+                  createdAt: "2024-01-15T12:00:00Z",
+                  updatedAt: "2024-01-15T12:00:00Z",
+                },
+                {
+                  id: "3",
+                  databaseId: "3",
+                  body: "Comment edited after label",
+                  author: { login: "user3" },
+                  createdAt: "2024-01-15T10:00:00Z",
+                  updatedAt: "2024-01-15T12:00:00Z",
+                  lastEditedAt: "2024-01-15T12:00:00Z",
+                },
+                {
+                  id: "4",
+                  databaseId: "4",
+                  body: "Latest comment before label",
+                  author: { login: "user4" },
+                  createdAt: "2024-01-15T11:30:00Z",
+                  updatedAt: "2024-01-15T11:30:00Z",
+                },
+              ],
+            },
+          },
+        },
+        user: { login: "trigger-user" },
+      }),
+      rest: {
+        paginate: jest.fn().mockResolvedValue([
+          {
+            event: "labeled",
+            label: { name: "claude-task" },
+            created_at: "2024-01-15T11:45:00Z",
+          },
+        ]),
+        issues: { listEvents: jest.fn() },
+      },
+    };
+
+    // The issues (labeled) webhook has no trigger comment; the boundary is
+    // the labeled event's own timestamp from the issue event history.
+    const triggerTime = await resolveTriggerTimestamp(
+      mockIssueLabeledContext,
+      mockOctokits as any,
+    );
+    expect(triggerTime).toBe("2024-01-15T11:45:00Z");
+
+    const result = await fetchGitHubData({
+      octokits: mockOctokits as any,
+      repository: "test-owner/test-repo",
+      prNumber: "1234",
+      isPR: false,
+      triggerUsername: "trigger-user",
+      triggerTime,
+    });
+
+    // Comments created before the label are kept (including the most
+    // recent one); comments created or edited after it are excluded.
+    expect(result.comments.map((c) => c.id)).toEqual(["1", "4"]);
   });
 
   it("should filter PR reviews based on trigger time", async () => {
