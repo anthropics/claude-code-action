@@ -88,6 +88,13 @@ describe("splitClaudeArgs", () => {
     ]);
   });
 
+  test("should keep a # within an unquoted word", () => {
+    expect(splitClaudeArgs("--branch-name fix/#123-description")).toEqual([
+      "--branch-name",
+      "fix/#123-description",
+    ]);
+  });
+
   test("should drop a comment line and a trailing comment", () => {
     expect(
       splitClaudeArgs("--model sonnet\n# a comment\n--max-turns 5"),
