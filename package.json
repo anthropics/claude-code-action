@@ -18,7 +18,7 @@
     "@octokit/rest": "^21.1.1",
     "@octokit/webhooks-types": "^7.6.1",
     "node-fetch": "^3.3.2",
-    "unbash": "^4.0.3",
+    "unbash": "^4.0.5",
     "zod": "^3.24.4"
   },
   "devDependencies": {
