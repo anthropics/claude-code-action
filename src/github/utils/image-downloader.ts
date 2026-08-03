@@ -26,6 +26,27 @@ function extractAssetGuid(url: string): string | undefined {
   return url.match(ASSET_GUID_REGEX)?.[0]?.toLowerCase();
 }
 
+const SIGNED_URL_HOST = "private-user-images.githubusercontent.com";
+
+// Signed download URLs have the shape /<owner-id>/<asset-id>-<guid>.<ext>.
+// The GUID must come from the resolved filename, not from anywhere in the raw
+// string, so text that merely embeds a GUID cannot claim another asset.
+const SIGNED_URL_PATH_REGEX =
+  /^\/[^/]+\/[^/]*-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\.[a-z0-9]+)?$/i;
+
+function extractSignedUrlAssetGuid(signedUrl: string): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(signedUrl);
+  } catch {
+    return undefined;
+  }
+  if (parsed.host !== SIGNED_URL_HOST) {
+    return undefined;
+  }
+  return parsed.pathname.match(SIGNED_URL_PATH_REGEX)?.[1]?.toLowerCase();
+}
+
 type IssueComment = {
   type: "issue_comment";
   id: string;
@@ -195,7 +216,7 @@ export async function downloadCommentImages(
       // URL it actually belongs to.
       const signedUrlByGuid = new Map<string, string>();
       for (const signedUrl of signedUrls) {
-        const guid = extractAssetGuid(signedUrl);
+        const guid = extractSignedUrlAssetGuid(signedUrl);
         if (guid && !signedUrlByGuid.has(guid)) {
           signedUrlByGuid.set(guid, signedUrl);
         }

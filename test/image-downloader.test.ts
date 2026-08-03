@@ -569,6 +569,47 @@ describe("downloadCommentImages", () => {
     );
   });
 
+  test("should not pair a signed URL that only names the asset in a leading path segment", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl = assetUrl(GUID_1);
+    // The path segment mentions the requested asset, but the URL resolves to a
+    // different asset's filename once ".." is applied.
+    const signedUrl = `https://private-user-images.githubusercontent.com/${GUID_1}/../12345/98765432-${GUID_2}.png?jwt=token`;
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<a href="${signedUrl}">${signedUrl}</a>`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "1005",
+        body: `Original image: ![test](${imageUrl})`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(result.size).toBe(0);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      `No matching signed URL found for ${imageUrl}, skipping`,
+    );
+  });
+
   test("should skip an image URL without an asset identifier", async () => {
     const mockOctokit = createMockOctokit();
     const imageUrl =
