@@ -14,6 +14,39 @@ const HTML_IMG_REGEX = new RegExp(
   "gi",
 );
 
+const SIGNED_URL_REGEX =
+  /https:\/\/private-user-images\.githubusercontent\.com\/[^"]+\?jwt=[^"]+/g;
+
+// GitHub identifies an uploaded asset by a GUID that appears both in the
+// user-attachment URL and in the signed download URL rendered in body_html.
+const ASSET_GUID_REGEX =
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+function extractAssetGuid(url: string): string | undefined {
+  return url.match(ASSET_GUID_REGEX)?.[0]?.toLowerCase();
+}
+
+const SIGNED_URL_HOST = "private-user-images.githubusercontent.com";
+
+// Signed download URLs have the shape /<owner-id>/<asset-id>-<guid>.<ext>.
+// The GUID must come from the resolved filename, not from anywhere in the raw
+// string, so text that merely embeds a GUID cannot claim another asset.
+const SIGNED_URL_PATH_REGEX =
+  /^\/[^/]+\/[^/]*-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\.[a-z0-9]+)?$/i;
+
+function extractSignedUrlAssetGuid(signedUrl: string): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(signedUrl);
+  } catch {
+    return undefined;
+  }
+  if (parsed.host !== SIGNED_URL_HOST) {
+    return undefined;
+  }
+  return parsed.pathname.match(SIGNED_URL_PATH_REGEX)?.[1]?.toLowerCase();
+}
+
 type IssueComment = {
   type: "issue_comment";
   id: string;
@@ -174,21 +207,34 @@ export async function downloadCommentImages(
       }
 
       // Extract signed URLs from HTML
-      const signedUrlRegex =
-        /https:\/\/private-user-images\.githubusercontent\.com\/[^"]+\?jwt=[^"]+/g;
-      const signedUrls = bodyHtml.match(signedUrlRegex) || [];
+      const signedUrls = bodyHtml.match(SIGNED_URL_REGEX) || [];
+
+      // Index the signed URLs by the asset GUID they reference. The signed
+      // URLs come from a separate render of the body, so their order and
+      // count are not guaranteed to line up with the URLs extracted from the
+      // markdown; pairing by asset identifier keeps each download tied to the
+      // URL it actually belongs to.
+      const signedUrlByGuid = new Map<string, string>();
+      for (const signedUrl of signedUrls) {
+        const guid = extractSignedUrlAssetGuid(signedUrl);
+        if (guid && !signedUrlByGuid.has(guid)) {
+          signedUrlByGuid.set(guid, signedUrl);
+        }
+      }
 
       // Download each image
-      for (let i = 0; i < Math.min(signedUrls.length, urls.length); i++) {
-        const signedUrl = signedUrls[i];
-        const originalUrl = urls[i];
-
-        if (!signedUrl || !originalUrl) {
+      for (const [i, originalUrl] of urls.entries()) {
+        // Check if we've already downloaded this URL
+        if (urlToPathMap.has(originalUrl)) {
           continue;
         }
 
-        // Check if we've already downloaded this URL
-        if (urlToPathMap.has(originalUrl)) {
+        const guid = extractAssetGuid(originalUrl);
+        const signedUrl = guid ? signedUrlByGuid.get(guid) : undefined;
+        if (!signedUrl) {
+          console.warn(
+            `No matching signed URL found for ${originalUrl}, skipping`,
+          );
           continue;
         }
 
