@@ -21,6 +21,7 @@ describe("detectMode with enhanced routing", () => {
       useStickyComment: false,
       classifyInlineComments: true,
       useCommitSigning: false,
+      readOnly: false,
       sshSigningKey: "",
       botId: "123456",
       botName: "claude-bot",
