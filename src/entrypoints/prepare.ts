@@ -9,7 +9,11 @@ import * as core from "@actions/core";
 import { setupGitHubToken } from "../github/token";
 import { checkWritePermissions } from "../github/validation/permissions";
 import { createOctokit } from "../github/api/client";
-import { parseGitHubContext, isEntityContext } from "../github/context";
+import {
+  parseGitHubContext,
+  isEntityContext,
+  isWorkflowRunEvent,
+} from "../github/context";
 import { detectMode } from "../modes/detector";
 import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
@@ -33,8 +37,8 @@ async function run() {
     const githubToken = await setupGitHubToken();
     const octokit = createOctokit(githubToken);
 
-    // Step 3: Check write permissions (only for entity contexts)
-    if (isEntityContext(context)) {
+    // Step 3: Check write permissions (entity contexts and workflow_run)
+    if (isEntityContext(context) || isWorkflowRunEvent(context)) {
       // Check if github_token was provided as input (not from app)
       const githubTokenProvided = !!process.env.OVERRIDE_GITHUB_TOKEN;
       const hasWritePermissions = await checkWritePermissions(

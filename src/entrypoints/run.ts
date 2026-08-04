@@ -21,6 +21,7 @@ import {
   isPullRequestEvent,
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
+  isWorkflowRunEvent,
 } from "../github/context";
 import type { GitHubContext } from "../github/context";
 import { detectMode } from "../modes/detector";
@@ -185,8 +186,10 @@ async function run() {
     process.env.GITHUB_TOKEN = githubToken;
     process.env.GH_TOKEN = githubToken;
 
-    // Check write permissions (only for entity contexts)
-    if (isEntityContext(context)) {
+    // Check write permissions for entity contexts, and for workflow_run
+    // events, whose upstream run may have been started by an actor without
+    // write access (e.g. the author of a fork pull request)
+    if (isEntityContext(context) || isWorkflowRunEvent(context)) {
       const hasWritePermissions = await checkWritePermissions(
         octokit.rest,
         context,

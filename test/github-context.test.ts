@@ -33,6 +33,7 @@ import {
   isIssuesAssignedEvent,
   isEntityContext,
   isAutomationContext,
+  isWorkflowRunEvent,
 } from "../src/github/context";
 import { CLAUDE_APP_BOT_ID, CLAUDE_BOT_LOGIN } from "../src/github/constants";
 import { createMockContext, createMockAutomationContext } from "./mockContext";
@@ -516,5 +517,15 @@ describe("type guards", () => {
       ),
     ).toBe(true);
     expect(isAutomationContext(issuesContext)).toBe(false);
+  });
+
+  test("isWorkflowRunEvent accepts only workflow_run", () => {
+    expect(
+      isWorkflowRunEvent(
+        createMockAutomationContext({ eventName: "workflow_run" }),
+      ),
+    ).toBe(true);
+    expect(isWorkflowRunEvent(workflowDispatchContext)).toBe(false);
+    expect(isWorkflowRunEvent(issuesContext)).toBe(false);
   });
 });
