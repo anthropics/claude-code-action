@@ -5,9 +5,10 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
 } from "fs";
-import { dirname } from "path";
+import { dirname, join, sep } from "path";
 
 // Paths that are both PR-controllable and read from cwd at CLI startup.
 //
@@ -30,18 +31,86 @@ const SENSITIVE_PATHS = [
 
 const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
 
-function snapshotSensitivePath(src: string, dest: string): void {
+function isSameOrInside(child: string, parent: string): boolean {
+  return child === parent || child.startsWith(`${parent}${sep}`);
+}
+
+// The snapshot is scoped to repository content. An entry is copied with its
+// content only when its real target (through any symlinks) lies inside the
+// working tree, is not git metadata or the snapshot itself, and does not lead
+// back into a directory already on the entry's own path (which would recurse).
+// Anything else — targets outside the working tree, dangling or looping links —
+// is recorded as a link only, so the target is never followed.
+function shouldSnapshotContent(
+  entryPath: string,
+  workTreeRealPath: string,
+): boolean {
   try {
-    cpSync(src, dest, { recursive: true, dereference: true });
+    const targetRealPath = realpathSync(entryPath);
+    if (!isSameOrInside(targetRealPath, workTreeRealPath)) {
+      return false;
+    }
+    for (const excluded of [".git", ".claude-pr"]) {
+      if (isSameOrInside(targetRealPath, join(workTreeRealPath, excluded))) {
+        return false;
+      }
+    }
+    for (let dir = dirname(entryPath); ; dir = dirname(dir)) {
+      if (isSameOrInside(realpathSync(dir), targetRealPath)) {
+        return false;
+      }
+      if (dir === dirname(dir)) {
+        return true;
+      }
+    }
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Copies a sensitive path into the review snapshot. Entries whose targets
+ * pass the confinement check above are copied dereferenced (reviewers see
+ * the effective content); all other symlinks are preserved as link nodes and
+ * their targets are never copied. Applies per entry, including symlinks nested
+ * inside a real directory.
+ */
+function snapshotSensitivePath(
+  src: string,
+  dest: string,
+  workTreeRealPath: string,
+): void {
+  const linksToPreserve: Array<{ src: string; dest: string }> = [];
+  try {
+    cpSync(src, dest, {
+      recursive: true,
+      dereference: true,
+      filter: (entrySrc, entryDest) => {
+        if (shouldSnapshotContent(entrySrc, workTreeRealPath)) {
+          return true;
+        }
+        linksToPreserve.push({ src: entrySrc, dest: entryDest });
+        return false;
+      },
+    });
   } catch (error) {
-    // Symlinks whose targets are absent on the PR head (e.g. `.claude/CLAUDE.md`
-    // -> `../AGENTS.md` when the PR deleted the target) make dereferenced
-    // copies throw ENOENT. Preserve the symlink for the review snapshot instead.
+    // Dangling symlinks are normally caught by the filter above and recorded
+    // as links. If a target disappears between that check and the copy, the
+    // dereferenced copy throws ENOENT; preserve the symlinks for the review
+    // snapshot instead of failing the restore.
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       cpSync(src, dest, { recursive: true });
       return;
     }
     throw error;
+  }
+
+  for (const link of linksToPreserve) {
+    console.warn(
+      `Snapshot: ${link.src} points outside the snapshot scope; recording the link only`,
+    );
+    mkdirSync(dirname(link.dest), { recursive: true });
+    cpSync(link.src, link.dest, { recursive: true, verbatimSymlinks: true });
   }
 }
 
@@ -97,11 +166,13 @@ export function restoreConfigFromBase(baseBranch: string): void {
   // Snapshot every PR-authored sensitive path into .claude-pr/ before deletion
   // so review agents can inspect what the PR changes without those files ever
   // being executed. Captured before the security delete so it reflects the
-  // PR-authored version.
+  // PR-authored version. Symlink targets outside the working tree are recorded
+  // as links only, keeping the snapshot scoped to repository content.
   rmSync(".claude-pr", { recursive: true, force: true });
+  const workTreeRealPath = realpathSync(process.cwd());
   for (const p of SENSITIVE_PATHS) {
     if (existsSync(p)) {
-      snapshotSensitivePath(p, `.claude-pr/${p}`);
+      snapshotSensitivePath(p, `.claude-pr/${p}`, workTreeRealPath);
     }
   }
   if (existsSync(".claude-pr")) {

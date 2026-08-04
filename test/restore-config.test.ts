@@ -5,7 +5,9 @@ import {
   lstatSync,
   mkdtempSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
+  readlinkSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -165,6 +167,104 @@ describe("restoreConfigFromBase", () => {
     );
   });
 
+  test("snapshots in-tree symlink targets as dereferenced content", () => {
+    setupSymlinkedMainBranch();
+
+    git(["checkout", "pr"]);
+
+    restoreConfigFromBase("main");
+
+    expect(lstatRepoFile(".claude-pr/CLAUDE.md").isFile()).toBe(true);
+    expect(lstatRepoFile(".claude-pr/.claude/CLAUDE.md").isFile()).toBe(true);
+    expect(readRepoFile(".claude-pr/CLAUDE.md")).toBe(
+      "shared agent instructions\n",
+    );
+    expect(readRepoFile(".claude-pr/.claude/CLAUDE.md")).toBe(
+      "shared agent instructions\n",
+    );
+  });
+
+  test("records CLAUDE.md links to targets outside the working tree as links only", () => {
+    const outsideFile = writeOutsideFile("notes.md", "outside notes\n");
+
+    rmSync(join(repoDir, "CLAUDE.md"), { force: true });
+    symlinkRepoFile("CLAUDE.md", outsideFile);
+    git(["add", "-A"]);
+    git(["commit", "-m", "pr links CLAUDE.md outside the repo"]);
+
+    restoreConfigFromBase("main");
+
+    expect(lstatRepoFile(".claude-pr/CLAUDE.md").isSymbolicLink()).toBe(true);
+    expect(readlinkSync(join(repoDir, ".claude-pr/CLAUDE.md"))).toBe(
+      outsideFile,
+    );
+    expect(snapshotRegularFileContents()).not.toContain("outside notes\n");
+    expect(readRepoFile("CLAUDE.md")).toBe("base claude instructions\n");
+  });
+
+  test("records nested links to targets outside the working tree as links only", () => {
+    const outsideFile = writeOutsideFile(
+      "secret.txt",
+      "outside file content\n",
+    );
+    writeOutsideFile("dir/inner.txt", "outside dir content\n");
+    const outsideDir = join(tempDir, "outside", "dir");
+
+    symlinkRepoFile(".claude/linked-file.md", outsideFile);
+    symlinkRepoFile(".claude/linked-dir", outsideDir);
+    git(["add", "-A"]);
+    git(["commit", "-m", "pr adds nested links outside the repo"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile(".claude-pr/.claude/settings.json")).toBe(
+      `${JSON.stringify({ source: "pr" })}\n`,
+    );
+    expect(
+      lstatRepoFile(".claude-pr/.claude/linked-file.md").isSymbolicLink(),
+    ).toBe(true);
+    expect(
+      lstatRepoFile(".claude-pr/.claude/linked-dir").isSymbolicLink(),
+    ).toBe(true);
+    const contents = snapshotRegularFileContents();
+    expect(contents).not.toContain("outside file content\n");
+    expect(contents).not.toContain("outside dir content\n");
+    expect(readRepoFile(".claude/settings.json")).toBe(
+      `${JSON.stringify({ source: "base" })}\n`,
+    );
+  });
+
+  test("records links into git metadata as links only", () => {
+    symlinkRepoFile(".claude/git-config", "../.git/config");
+    git(["add", "-A"]);
+    git(["commit", "-m", "pr links into git metadata"]);
+
+    restoreConfigFromBase("main");
+
+    expect(
+      lstatRepoFile(".claude-pr/.claude/git-config").isSymbolicLink(),
+    ).toBe(true);
+    expect(snapshotRegularFileContents()).not.toContain(
+      readRepoFile(".git/config"),
+    );
+  });
+
+  test("records links back into a parent directory as links only", () => {
+    symlinkRepoFile(".claude/parent-dir", "..");
+    git(["add", "-A"]);
+    git(["commit", "-m", "pr adds a link back to the repo root"]);
+
+    restoreConfigFromBase("main");
+
+    expect(
+      lstatRepoFile(".claude-pr/.claude/parent-dir").isSymbolicLink(),
+    ).toBe(true);
+    expect(existsRepoFile(".claude-pr/.claude/parent-dir/src")).toBe(false);
+    expect(readRepoFile(".claude-pr/.claude/settings.json")).toBe(
+      `${JSON.stringify({ source: "pr" })}\n`,
+    );
+  });
+
   test("does not modify an existing .gitignore", () => {
     writeRepoFile(".gitignore", "node_modules\n");
     git(["add", ".gitignore"]);
@@ -194,6 +294,32 @@ describe("restoreConfigFromBase", () => {
 
   function readRepoFile(path: string): string {
     return readFileSync(join(repoDir, path), "utf8");
+  }
+
+  function writeOutsideFile(path: string, contents: string): string {
+    const fullPath = join(tempDir, "outside", path);
+    mkdirSync(dirname(fullPath), { recursive: true });
+    writeFileSync(fullPath, contents);
+    return fullPath;
+  }
+
+  // Contents of every regular file recorded in the snapshot, without following
+  // links, so tests can assert what actually got copied into the repository.
+  function snapshotRegularFileContents(): string[] {
+    const contents: string[] = [];
+    const visit = (dir: string) => {
+      for (const entry of readdirSync(dir)) {
+        const entryPath = join(dir, entry);
+        const stats = lstatSync(entryPath);
+        if (stats.isDirectory()) {
+          visit(entryPath);
+        } else if (stats.isFile()) {
+          contents.push(readFileSync(entryPath, "utf8"));
+        }
+      }
+    };
+    visit(join(repoDir, ".claude-pr"));
+    return contents;
   }
 
   function existsRepoFile(path: string): boolean {
