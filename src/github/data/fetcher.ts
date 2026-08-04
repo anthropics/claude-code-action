@@ -424,7 +424,12 @@ export async function fetchGitHubData({
       if (prResult.repository.pullRequest) {
         const pullRequest = prResult.repository.pullRequest;
         contextData = pullRequest;
-        changedFiles = pullRequest.files.nodes || [];
+        if (pullRequest.files === null) {
+          console.warn(
+            `GitHub did not return the file list for PR #${prNumber} (diff likely too large); proceeding without file-level context`,
+          );
+        }
+        changedFiles = pullRequest.files?.nodes ?? [];
         comments = filterCommentsByActor(
           filterCommentsToTriggerTime(
             pullRequest.comments?.nodes || [],

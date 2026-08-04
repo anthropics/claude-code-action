@@ -108,6 +108,43 @@ Changed Files: 2 files`,
     );
   });
 
+  test("renders an unknown file count when GraphQL returns null files (very large PR)", () => {
+    // GitHub declines to compute the diff for very large PRs and returns
+    // `files: null`. `changedFiles` is misreported as 0 in that case, so the
+    // count must render as unavailable rather than "0 files".
+    const prData: GitHubPullRequest = {
+      title: "Very large PR",
+      body: "PR body",
+      author: { login: "test-user" },
+      baseRefName: "main",
+      headRefName: "feature/test",
+      headRefOid: "abc123",
+      isCrossRepository: false,
+      headRepository: { owner: { login: "testowner" }, name: "testrepo" },
+      createdAt: "2023-01-01T00:00:00Z",
+      additions: 50,
+      deletions: 30,
+      state: "OPEN",
+      labels: {
+        nodes: [],
+      },
+      commits: {
+        totalCount: 3,
+        nodes: [],
+      },
+      files: null,
+      comments: {
+        nodes: [],
+      },
+      reviews: {
+        nodes: [],
+      },
+    };
+
+    const result = formatContext(prData, true);
+    expect(result).toContain("Changed Files: unknown (file list unavailable)");
+  });
+
   test("formats Issue context correctly", () => {
     const issueData: GitHubIssue = {
       title: "Test Issue",
