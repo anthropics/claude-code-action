@@ -515,3 +515,70 @@ describe("system_other handling", () => {
     expect(result).toContain("## 🚀 System Initialization");
   });
 });
+
+describe("credential redaction", () => {
+  test("redacts credentials embedded in tool results", () => {
+    const data: Turn[] = [
+      {
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_1",
+              name: "Bash",
+              input: { command: "cat .env" },
+            },
+          ],
+        },
+      },
+      {
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_1",
+              content:
+                "GITHUB_TOKEN=ghs_xz7yzju2SZjGPa0dUNMAx0SH4xDOCS31LXQW\nAWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE",
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = formatTurnsFromData(data);
+
+    expect(result).toContain("[REDACTED_GITHUB_TOKEN]");
+    expect(result).toContain("[REDACTED_AWS_KEY_ID]");
+    expect(result).not.toContain("ghs_xz7yzju2SZjGPa0dUNMAx0SH4xDOCS31LXQW");
+    expect(result).not.toContain("AKIAIOSFODNN7EXAMPLE");
+  });
+
+  test("redacts credentials embedded in multi-line tool inputs", () => {
+    const data: Turn[] = [
+      {
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_2",
+              name: "Write",
+              input: {
+                file_path: ".env",
+                content:
+                  "AWS_ACCESS_KEY_ID=x\nGITHUB_TOKEN=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\n",
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = formatTurnsFromData(data);
+
+    expect(result).toContain("[REDACTED_GITHUB_TOKEN]");
+    expect(result).not.toContain("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");
+  });
+});

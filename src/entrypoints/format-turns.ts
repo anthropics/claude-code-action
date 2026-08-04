@@ -2,6 +2,7 @@
 
 import { readFileSync, existsSync } from "fs";
 import { exit } from "process";
+import { redactSecrets } from "../github/utils/sanitizer";
 
 export type ToolUse = {
   type: string;
@@ -171,6 +172,10 @@ export function formatResultContent(content: any): string {
   } catch {
     contentStr = String(content).trim();
   }
+
+  // Redact before truncating so a credential cannot be split at the cut and
+  // slip past the final redaction pass.
+  contentStr = redactSecrets(contentStr);
 
   // Truncate very long results
   if (contentStr.length > 3000) {
@@ -420,7 +425,9 @@ export function formatTurnsFromData(data: Turn[]): string {
   // Generate markdown
   const markdown = formatGroupedContent(groupedContent);
 
-  return markdown;
+  // Runtime output may contain credentials that are not registered as
+  // workflow secrets, so redact known formats before this gets published.
+  return redactSecrets(markdown);
 }
 
 function main(): void {
@@ -447,14 +454,8 @@ function main(): void {
     const fileContent = readFileSync(jsonFile, "utf-8");
     const data: Turn[] = JSON.parse(fileContent);
 
-    // Group turns naturally
-    const groupedContent = groupTurnsNaturally(data);
-
-    // Generate markdown
-    const markdown = formatGroupedContent(groupedContent);
-
     // Print to stdout (so it can be captured by shell)
-    console.log(markdown);
+    console.log(formatTurnsFromData(data));
   } catch (error) {
     console.error(`Error processing file: ${error}`);
     exit(1);

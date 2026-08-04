@@ -72,44 +72,90 @@ export function sanitizeContent(content: string): string {
   content = stripMarkdownLinkTitles(content);
   content = stripHiddenAttributes(content);
   content = normalizeHtmlEntities(content);
+  content = redactSecrets(content);
+  return content;
+}
+
+// A credential either starts at a word boundary or right after a JSON escape
+// (\n, \r, \t), since JSON-serialized output puts the escape's trailing letter
+// directly against the value.
+const TOKEN_START = String.raw`(?:\b|(?<=\\[nrt]))`;
+
+function tokenPattern(body: string): RegExp {
+  return new RegExp(`${TOKEN_START}${body}`, "g");
+}
+
+/**
+ * Redact well-known credential formats (GitHub, Anthropic, AWS, Slack, JWTs)
+ * from arbitrary text. Callers don't need to know which vendor a value belongs to.
+ */
+export function redactSecrets(content: string): string {
   content = redactGitHubTokens(content);
+
+  // Anthropic API keys: sk-ant-...
+  content = content.replace(
+    tokenPattern(String.raw`sk-ant-[A-Za-z0-9_-]{20,}`),
+    "[REDACTED_ANTHROPIC_KEY]",
+  );
+
+  // AWS access key ids: AKIA/ASIA followed by 16 uppercase alphanumerics
+  content = content.replace(
+    tokenPattern(String.raw`(?:AKIA|ASIA)[A-Z0-9]{16}\b`),
+    "[REDACTED_AWS_KEY_ID]",
+  );
+
+  // Slack tokens: xoxb-, xoxp-, xoxa-, xoxs-, xoxr-
+  content = content.replace(
+    tokenPattern(String.raw`xox[abpsr]-[A-Za-z0-9-]{10,}`),
+    "[REDACTED_SLACK_TOKEN]",
+  );
+
+  // JWT-shaped strings: three base64url segments, the first two starting
+  // with eyJ (base64 of `{"`).
+  content = content.replace(
+    tokenPattern(
+      String.raw`eyJ[A-Za-z0-9_-]{10,2000}\.eyJ[A-Za-z0-9_-]{10,4000}\.[A-Za-z0-9_-]{10,2000}\b`,
+    ),
+    "[REDACTED_JWT]",
+  );
+
   return content;
 }
 
 export function redactGitHubTokens(content: string): string {
   // GitHub Personal Access Tokens (classic): ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (40 chars)
   content = content.replace(
-    /\bghp_[A-Za-z0-9]{36}\b/g,
+    tokenPattern(String.raw`ghp_[A-Za-z0-9]{36}\b`),
     "[REDACTED_GITHUB_TOKEN]",
   );
 
   // GitHub OAuth tokens: gho_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (40 chars)
   content = content.replace(
-    /\bgho_[A-Za-z0-9]{36}\b/g,
+    tokenPattern(String.raw`gho_[A-Za-z0-9]{36}\b`),
     "[REDACTED_GITHUB_TOKEN]",
   );
 
   // GitHub user-to-server tokens: ghu_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (40 chars)
   content = content.replace(
-    /\bghu_[A-Za-z0-9]{36}\b/g,
+    tokenPattern(String.raw`ghu_[A-Za-z0-9]{36}\b`),
     "[REDACTED_GITHUB_TOKEN]",
   );
 
   // GitHub installation tokens: ghs_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (40 chars)
   content = content.replace(
-    /\bghs_[A-Za-z0-9]{36}\b/g,
+    tokenPattern(String.raw`ghs_[A-Za-z0-9]{36}\b`),
     "[REDACTED_GITHUB_TOKEN]",
   );
 
   // GitHub refresh tokens: ghr_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (40 chars)
   content = content.replace(
-    /\bghr_[A-Za-z0-9]{36}\b/g,
+    tokenPattern(String.raw`ghr_[A-Za-z0-9]{36}\b`),
     "[REDACTED_GITHUB_TOKEN]",
   );
 
   // GitHub fine-grained personal access tokens: github_pat_XXXXXXXXXX (up to 255 chars)
   content = content.replace(
-    /\bgithub_pat_[A-Za-z0-9_]{11,221}\b/g,
+    tokenPattern(String.raw`github_pat_[A-Za-z0-9_]{11,221}\b`),
     "[REDACTED_GITHUB_TOKEN]",
   );
 
