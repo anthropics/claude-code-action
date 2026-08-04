@@ -86,6 +86,15 @@ function ensureClaudePrExcludedFromGit(): void {
  * commits with `git add -A`, the revert will be included in that commit. This
  * is a narrow UX tradeoff for closing the RCE surface.
  *
+ * Only the paths listed in SENSITIVE_PATHS come from the base branch; the rest
+ * of the working tree stays at the PR head. A base-branch hook or setting that
+ * calls out through files a PR can change — package-manager scripts
+ * (`bun run`, `npm run`, `yarn`, `pnpm run`), Makefile or task-runner targets,
+ * repo-relative script paths, or tools that load executable project config —
+ * therefore runs whatever the PR head provides. Keep restored hooks
+ * self-contained: invoke the tool binary directly, pin its version, and pass
+ * config on the command line rather than reading it from the checkout.
+ *
  * @param baseBranch - PR base branch name. Must be pre-validated (branch.ts
  *   calls validateBranchName on it before returning).
  */
