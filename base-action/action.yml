@@ -24,6 +24,10 @@ inputs:
     description: "Additional arguments to pass directly to Claude CLI (e.g., '--max-turns 3 --mcp-config /path/to/config.json')"
     required: false
     default: ""
+  task_budget:
+    description: "API-side token budget (total tokens). When set, the model is made aware of its remaining budget and can pace its tool use accordingly. Maps to the SDK taskBudget.total option (@alpha)."
+    required: false
+    default: ""
 
   # Authentication settings
   anthropic_api_key:
@@ -187,6 +191,7 @@ runs:
         INPUT_PROMPT_FILE: ${{ inputs.prompt_file }}
         INPUT_SETTINGS: ${{ inputs.settings }}
         INPUT_CLAUDE_ARGS: ${{ inputs.claude_args }}
+        INPUT_TASK_BUDGET: ${{ inputs.task_budget }}
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
         INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}

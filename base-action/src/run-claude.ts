@@ -9,6 +9,7 @@ export type ClaudeOptions = {
   allowedTools?: string;
   disallowedTools?: string;
   maxTurns?: string;
+  taskBudget?: string;
   mcpConfig?: string;
   systemPrompt?: string;
   appendSystemPrompt?: string;
