@@ -93,7 +93,11 @@ function ensureClaudePrExcludedFromGit(): void {
  * repo-relative script paths, or tools that load executable project config —
  * therefore runs whatever the PR head provides. Keep restored hooks
  * self-contained: invoke the tool binary directly, pin its version, and pass
- * config on the command line rather than reading it from the checkout.
+ * config on the command line rather than reading it from the checkout. This
+ * extends to the runtime itself: `bunx <tool>` runs the tool under `node` when
+ * `node` is on PATH, but on a Bun-only runner Bun executes the script and reads
+ * `bunfig.toml` (e.g. `preload`) from the checkout, so `bunfig.toml` and
+ * `.npmrc` there are PR-controlled runtime config too.
  *
  * @param baseBranch - PR base branch name. Must be pre-validated (branch.ts
  *   calls validateBranchName on it before returning).
