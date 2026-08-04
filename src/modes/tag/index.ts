@@ -3,6 +3,7 @@ import { createInitialComment } from "../../github/operations/comments/create-in
 import { setupBranch } from "../../github/operations/branch";
 import {
   configureGitAuth,
+  replaceCheckoutCredentials,
   setupSshSigning,
 } from "../../github/operations/git-config";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
@@ -96,6 +97,16 @@ export async function prepareTagMode({
       await configureGitAuth(githubToken, context, user);
     } catch (error) {
       console.error("Failed to configure git authentication:", error);
+      throw error;
+    }
+  } else {
+    // Commits go through the GitHub API, so no git user setup is needed, but
+    // the credential actions/checkout left in git config should still be
+    // replaced with the action's own.
+    try {
+      await replaceCheckoutCredentials(githubToken, context);
+    } catch (error) {
+      console.error("Failed to configure git credentials:", error);
       throw error;
     }
   }
