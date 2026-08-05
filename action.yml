@@ -110,9 +110,9 @@ inputs:
     required: false
     default: ""
   use_sticky_comment:
-    description: "Use just one comment to deliver issue/PR comments"
+    description: "Reuse an existing comment instead of creating a new one on every run. When enabled, the action looks for a hidden marker in previous comments and updates the first match."
     required: false
-    default: "false"
+    default: "true"
   classify_inline_comments:
     description: "Buffer inline comments without confirmed=true and classify them (real review vs test/probe) before posting after the session ends. Set to 'false' to post all inline comments immediately (pre-buffering behavior)."
     required: false

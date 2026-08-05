@@ -6,15 +6,41 @@
  */
 
 import { appendFileSync } from "fs";
-import { createJobRunLink, createCommentBody } from "./common";
+import {
+  createJobRunLink,
+  createCommentBody,
+  hasCommentMarker,
+} from "./common";
 import {
   isPullRequestReviewCommentEvent,
-  isPullRequestEvent,
   type ParsedGitHubContext,
 } from "../../context";
 import type { Octokit } from "@octokit/rest";
 
-const CLAUDE_APP_BOT_ID = 209825114;
+/**
+ * Search for an existing comment that was created by this action.
+ * Uses the hidden HTML marker (`<!-- claude-code-action -->`) embedded
+ * in every comment body, so detection is independent of which token
+ * or bot account the action happens to run under.
+ */
+async function findExistingComment(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+): Promise<number | undefined> {
+  const comments = await octokit.rest.issues.listComments({
+    owner,
+    repo,
+    issue_number: issueNumber,
+  });
+
+  const existing = comments.data.find((comment) =>
+    hasCommentMarker(comment.body),
+  );
+
+  return existing?.id;
+}
 
 export async function createInitialComment(
   octokit: Octokit,
@@ -28,30 +54,19 @@ export async function createInitialComment(
   try {
     let response;
 
-    if (
-      context.inputs.useStickyComment &&
-      context.isPR &&
-      isPullRequestEvent(context)
-    ) {
-      const comments = await octokit.rest.issues.listComments({
+    if (context.inputs.useStickyComment) {
+      const existingCommentId = await findExistingComment(
+        octokit,
         owner,
         repo,
-        issue_number: context.entityNumber,
-      });
-      const existingComment = comments.data.find((comment) => {
-        const idMatch = comment.user?.id === CLAUDE_APP_BOT_ID;
-        const botNameMatch =
-          comment.user?.type === "Bot" &&
-          comment.user?.login.toLowerCase().includes("claude");
-        const bodyMatch = comment.body === initialBody;
+        context.entityNumber,
+      );
 
-        return idMatch || botNameMatch || bodyMatch;
-      });
-      if (existingComment) {
+      if (existingCommentId) {
         response = await octokit.rest.issues.updateComment({
           owner,
           repo,
-          comment_id: existingComment.id,
+          comment_id: existingCommentId,
           body: initialBody,
         });
       } else {
