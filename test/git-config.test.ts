@@ -7,9 +7,17 @@ import {
   configureGitAuth,
   replaceCheckoutCredentials,
 } from "../src/github/operations/git-config";
+import { GITHUB_SERVER_URL } from "../src/github/api/config";
 import { createMockAutomationContext } from "./mockContext";
 
-const EXTRAHEADER_KEY = "http.https://github.com/.extraheader";
+// Derive host-specific expectations from GITHUB_SERVER_URL so the suite passes
+// on GHES runners (where Actions exports that variable) as well as github.com.
+const SERVER = new URL(GITHUB_SERVER_URL);
+const NOREPLY_DOMAIN =
+  SERVER.hostname === "github.com"
+    ? "users.noreply.github.com"
+    : `users.noreply.${SERVER.hostname}`;
+const EXTRAHEADER_KEY = `http.${GITHUB_SERVER_URL}/.extraheader`;
 
 // git exports these into hooks (e.g. a pre-commit hook running the test
 // suite); if inherited they would point every git command below at the
@@ -74,7 +82,7 @@ describe("git-config", () => {
     process.env.GITHUB_ACTION_PATH = tempDir;
     process.chdir(repoDir);
 
-    git(["remote", "add", "origin", "https://github.com/test/repo.git"]);
+    git(["remote", "add", "origin", `https://${SERVER.host}/test/repo.git`]);
     // Mimic the credential actions/checkout persists in the local config
     git([
       "config",
@@ -118,7 +126,7 @@ describe("git-config", () => {
 
       expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe("");
       expect(remoteUrl()).toBe(
-        "https://x-access-token:test-token@github.com/test-owner/test-repo.git",
+        `https://x-access-token:test-token@${SERVER.host}/test-owner/test-repo.git`,
       );
       // Only the credential is touched — the git identity is left alone
       expect(gitConfigGetAll("user.name")).toBe("pre-existing");
@@ -133,7 +141,9 @@ describe("git-config", () => {
       );
 
       expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe("");
-      expect(remoteUrl()).toBe("https://github.com/test-owner/test-repo.git");
+      expect(remoteUrl()).toBe(
+        `https://${SERVER.host}/test-owner/test-repo.git`,
+      );
       const helperPath = join(tempDir, ".git-credential-gh-token");
       expect(gitConfigGetAll("credential.helper")).toBe(helperPath);
       expect(statSync(helperPath).mode & 0o777).toBe(0o700);
@@ -160,11 +170,11 @@ describe("git-config", () => {
 
       expect(gitConfigGetAll("user.name")).toBe("claude[bot]");
       expect(gitConfigGetAll("user.email")).toBe(
-        "42+claude[bot]@users.noreply.github.com",
+        `42+claude[bot]@${NOREPLY_DOMAIN}`,
       );
       expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe("");
       expect(remoteUrl()).toBe(
-        "https://x-access-token:test-token@github.com/test-owner/test-repo.git",
+        `https://x-access-token:test-token@${SERVER.host}/test-owner/test-repo.git`,
       );
     });
   });
