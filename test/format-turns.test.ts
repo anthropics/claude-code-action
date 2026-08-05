@@ -581,4 +581,40 @@ describe("credential redaction", () => {
     expect(result).toContain("[REDACTED_GITHUB_TOKEN]");
     expect(result).not.toContain("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");
   });
+
+  test("redacts credentials wrapped in ANSI color codes", () => {
+    const key = "sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcdefgh";
+    const data: Turn[] = [
+      {
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_3",
+              name: "Bash",
+              input: { command: "node print-config.js" },
+            },
+          ],
+        },
+      },
+      {
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_3",
+              content: `apiKey: \x1b[32m${key}\x1b[39m\nregion: us-east-1`,
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = formatTurnsFromData(data);
+
+    expect(result).toContain("[REDACTED_ANTHROPIC_KEY]");
+    expect(result).not.toContain(key);
+  });
 });

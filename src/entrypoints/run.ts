@@ -315,7 +315,7 @@ async function run() {
       prepareSuccess = false;
       prepareError = errorMessage;
     }
-    core.setFailed(`Action failed with error: ${errorMessage}`);
+    core.setFailed(`Action failed with error: ${redactSecrets(errorMessage)}`);
   } finally {
     // Phase 4: Cleanup (always runs)
 
