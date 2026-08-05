@@ -467,6 +467,15 @@ describe("formatResultContent non-string input", () => {
     expect(typeof result).toBe("string");
     expect(result.length).toBeGreaterThan(0);
   });
+
+  test("handles a text content block whose text field is not a string", () => {
+    expect(() =>
+      formatResultContent('[{"type":"text","text":{"foo":"bar"}}]'),
+    ).not.toThrow();
+    expect(formatResultContent('[{"type":"text","text":123}]')).toContain(
+      "123",
+    );
+  });
 });
 
 describe("system_other handling", () => {

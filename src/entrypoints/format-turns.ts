@@ -164,8 +164,9 @@ export function formatResultContent(content: any): string {
       typeof parsedContent[0] === "object" &&
       parsedContent[0]?.type === "text"
     ) {
-      // Extract the text field from the first item
-      contentStr = parsedContent[0]?.text || "";
+      // Extract the text field from the first item. Tool output is arbitrary,
+      // so `text` is not guaranteed to be a string.
+      contentStr = String(parsedContent[0]?.text || "");
     } else {
       contentStr = String(content).trim();
     }
