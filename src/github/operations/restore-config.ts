@@ -3,12 +3,16 @@ import {
   appendFileSync,
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
+  readlinkSync,
   realpathSync,
   rmSync,
+  statSync,
+  writeFileSync,
 } from "fs";
-import { dirname, join, sep } from "path";
+import { dirname, join, relative, sep } from "path";
 
 // Paths that are both PR-controllable and read from cwd at CLI startup.
 //
@@ -35,82 +39,124 @@ function isSameOrInside(child: string, parent: string): boolean {
   return child === parent || child.startsWith(`${parent}${sep}`);
 }
 
-// The snapshot is scoped to repository content. An entry is copied with its
-// content only when its real target (through any symlinks) lies inside the
-// working tree, is not git metadata or the snapshot itself, and does not lead
-// back into a directory already on the entry's own path (which would recurse).
-// Anything else — targets outside the working tree, dangling or looping links —
-// is recorded as a link only, so the target is never followed.
+// The snapshot is scoped to tracked repository content and never contains
+// links. An entry is copied with its content only when all of these hold:
+//   1. its real target (through any links) lies inside the working tree;
+//   2. no component of the target's path inside the tree is `.git`, and the
+//      target is not inside the snapshot directory itself;
+//   3. the target does not contain a directory already on the entry's own
+//      path (which would recurse);
+//   4. if the entry is reached through a link (it is one, or a directory above
+//      it inside the sensitive path is), a file target must be tracked in the
+//      checkout. Directory targets reached through a link are descended into
+//      and their children are checked individually.
+// Files and directories at their literal, non-linked location are unaffected
+// by rule 4 and are copied as-is. Every other entry — targets outside the
+// tree, dangling or looping links, git metadata, untracked files reached
+// through a link — is recorded as a placeholder file (see recordPlaceholder),
+// so nothing in the snapshot resolves anywhere else.
 function shouldSnapshotContent(
   entryPath: string,
   workTreeRealPath: string,
+  trackedFiles: Set<string>,
 ): boolean {
   try {
     const targetRealPath = realpathSync(entryPath);
     if (!isSameOrInside(targetRealPath, workTreeRealPath)) {
       return false;
     }
-    for (const excluded of [".git", ".claude-pr"]) {
-      if (isSameOrInside(targetRealPath, join(workTreeRealPath, excluded))) {
-        return false;
-      }
+    const targetParts = relative(workTreeRealPath, targetRealPath).split(sep);
+    if (targetParts.includes(".git") || targetParts[0] === ".claude-pr") {
+      return false;
     }
     for (let dir = dirname(entryPath); ; dir = dirname(dir)) {
       if (isSameOrInside(realpathSync(dir), targetRealPath)) {
         return false;
       }
       if (dir === dirname(dir)) {
-        return true;
+        break;
       }
     }
+    const literalPath = join(
+      workTreeRealPath,
+      relative(process.cwd(), entryPath),
+    );
+    return (
+      targetRealPath === literalPath ||
+      statSync(targetRealPath).isDirectory() ||
+      trackedFiles.has(targetParts.join("/"))
+    );
   } catch {
     return false;
   }
 }
 
+// Writes a short regular file at `dest` describing the entry that was left
+// out, so the snapshot records that something was there without linking to it.
+function recordPlaceholder(src: string, dest: string): void {
+  console.warn(
+    `Snapshot: ${src} not included in snapshot; recording a placeholder`,
+  );
+  let description = "is not included in this snapshot";
+  try {
+    description = `was a symbolic link to ${JSON.stringify(readlinkSync(src))}; the link target is not included in this snapshot`;
+  } catch {
+    // Not a link (or no longer present).
+  }
+  mkdirSync(dirname(dest), { recursive: true });
+  writeFileSync(dest, `Snapshot placeholder: ${src} ${description}.\n`);
+}
+
 /**
- * Copies a sensitive path into the review snapshot. Entries whose targets
- * pass the confinement check above are copied dereferenced (reviewers see
- * the effective content); all other symlinks are preserved as link nodes and
- * their targets are never copied. Applies per entry, including symlinks nested
- * inside a real directory.
+ * Copies a sensitive path into the review snapshot. Entries that pass the
+ * check above are copied dereferenced (reviewers see the effective content);
+ * every other entry is recorded as a placeholder file, never as a link.
+ * Applies per entry, including links nested inside a real directory.
  */
 function snapshotSensitivePath(
   src: string,
   dest: string,
   workTreeRealPath: string,
+  trackedFiles: Set<string>,
 ): void {
-  const linksToPreserve: Array<{ src: string; dest: string }> = [];
+  const excluded: Array<{ src: string; dest: string }> = [];
+  const keepOrExclude =
+    (keep: (entry: string) => boolean) =>
+    (entrySrc: string, entryDest: string) => {
+      if (keep(entrySrc)) {
+        return true;
+      }
+      excluded.push({ src: entrySrc, dest: entryDest });
+      return false;
+    };
   try {
     cpSync(src, dest, {
       recursive: true,
       dereference: true,
-      filter: (entrySrc, entryDest) => {
-        if (shouldSnapshotContent(entrySrc, workTreeRealPath)) {
-          return true;
-        }
-        linksToPreserve.push({ src: entrySrc, dest: entryDest });
-        return false;
-      },
+      filter: keepOrExclude((entry) =>
+        shouldSnapshotContent(entry, workTreeRealPath, trackedFiles),
+      ),
     });
   } catch (error) {
-    // Dangling symlinks are normally caught by the filter above and recorded
-    // as links. If a target disappears between that check and the copy, the
-    // dereferenced copy throws ENOENT; preserve the symlinks for the review
-    // snapshot instead of failing the restore.
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-      cpSync(src, dest, { recursive: true });
-      return;
+    // Dangling links are normally caught by the filter above. If a target
+    // disappears between that check and the copy, the dereferencing copy
+    // throws ENOENT; start over without following links, recording every link
+    // as a placeholder, instead of failing the restore.
+    if (
+      !(error instanceof Error && "code" in error && error.code === "ENOENT")
+    ) {
+      throw error;
     }
-    throw error;
+    rmSync(dest, { recursive: true, force: true });
+    excluded.length = 0;
+    cpSync(src, dest, {
+      recursive: true,
+      filter: keepOrExclude((entry) => !lstatSync(entry).isSymbolicLink()),
+    });
   }
 
-  for (const link of linksToPreserve) {
-    console.warn(
-      `Snapshot: ${link.src} points outside the snapshot scope; recording the link only`,
-    );
-    mkdirSync(dirname(link.dest), { recursive: true });
-    cpSync(link.src, link.dest, { recursive: true, verbatimSymlinks: true });
+  for (const entry of excluded) {
+    recordPlaceholder(entry.src, entry.dest);
   }
 }
 
@@ -166,13 +212,25 @@ export function restoreConfigFromBase(baseBranch: string): void {
   // Snapshot every PR-authored sensitive path into .claude-pr/ before deletion
   // so review agents can inspect what the PR changes without those files ever
   // being executed. Captured before the security delete so it reflects the
-  // PR-authored version. Symlink targets outside the working tree are recorded
-  // as links only, keeping the snapshot scoped to repository content.
+  // PR-authored version. Links are followed only to tracked content inside the
+  // working tree; anything else is recorded as a placeholder file, so the
+  // snapshot itself never contains links.
   rmSync(".claude-pr", { recursive: true, force: true });
   const workTreeRealPath = realpathSync(process.cwd());
+  const trackedFiles = new Set(
+    execFileSync("git", ["ls-files", "-z"], {
+      encoding: "utf8",
+      maxBuffer: Infinity,
+    }).split("\0"),
+  );
   for (const p of SENSITIVE_PATHS) {
-    if (existsSync(p)) {
-      snapshotSensitivePath(p, `.claude-pr/${p}`, workTreeRealPath);
+    if (lstatSync(p, { throwIfNoEntry: false })) {
+      snapshotSensitivePath(
+        p,
+        `.claude-pr/${p}`,
+        workTreeRealPath,
+        trackedFiles,
+      );
     }
   }
   if (existsSync(".claude-pr")) {
