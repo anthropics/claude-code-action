@@ -12,7 +12,7 @@ import {
   statSync,
   writeFileSync,
 } from "fs";
-import { dirname, join, relative, sep } from "path";
+import { dirname, join, posix, relative, sep } from "path";
 
 // Paths that are both PR-controllable and read from cwd at CLI startup.
 //
@@ -39,6 +39,46 @@ function isSameOrInside(child: string, parent: string): boolean {
   return child === parent || child.startsWith(`${parent}${sep}`);
 }
 
+// Repository paths (relative to cwd, `/`-separated) that a link may resolve
+// to: `files` are tracked files whose working-tree content is unchanged from
+// HEAD, `dirs` are directories that contain at least one tracked file.
+type TrackedPaths = { files: Set<string>; dirs: Set<string> };
+
+// Built from the superproject only: `git ls-files` reports a submodule as a
+// single entry, so paths inside a checked-out submodule are in neither set and
+// links into one are recorded as placeholders.
+function listTrackedPaths(): TrackedPaths {
+  const gitPathList = (args: string[]) =>
+    execFileSync("git", args, { encoding: "utf8", maxBuffer: Infinity })
+      .split("\0")
+      .filter(Boolean);
+  const modified = new Set(
+    gitPathList([
+      "diff",
+      "--name-only",
+      "-z",
+      "--relative",
+      "--ignore-submodules",
+      "HEAD",
+      "--",
+    ]),
+  );
+  const tracked: TrackedPaths = { files: new Set(), dirs: new Set() };
+  for (const file of gitPathList(["ls-files", "-z"])) {
+    if (!modified.has(file)) {
+      tracked.files.add(file);
+    }
+    for (
+      let dir = posix.dirname(file);
+      dir !== "." && !tracked.dirs.has(dir);
+      dir = posix.dirname(dir)
+    ) {
+      tracked.dirs.add(dir);
+    }
+  }
+  return tracked;
+}
+
 // The snapshot is scoped to tracked repository content and never contains
 // links. An entry is copied with its content only when all of these hold:
 //   1. its real target (through any links) lies inside the working tree;
@@ -48,17 +88,20 @@ function isSameOrInside(child: string, parent: string): boolean {
 //      path (which would recurse);
 //   4. if the entry is reached through a link (it is one, or a directory above
 //      it inside the sensitive path is), a file target must be tracked in the
-//      checkout. Directory targets reached through a link are descended into
-//      and their children are checked individually.
+//      checkout with its content unchanged from HEAD, and a directory target
+//      must contain at least one tracked file (see listTrackedPaths). Directory
+//      targets that pass are descended into and their children are checked
+//      individually.
 // Files and directories at their literal, non-linked location are unaffected
 // by rule 4 and are copied as-is. Every other entry — targets outside the
-// tree, dangling or looping links, git metadata, untracked files reached
-// through a link — is recorded as a placeholder file (see recordPlaceholder),
-// so nothing in the snapshot resolves anywhere else.
+// tree, dangling or looping links, git metadata, submodule contents, untracked
+// or locally modified files reached through a link — is recorded as a
+// placeholder file (see recordPlaceholder), so nothing in the snapshot
+// resolves anywhere else.
 function shouldSnapshotContent(
   entryPath: string,
   workTreeRealPath: string,
-  trackedFiles: Set<string>,
+  tracked: TrackedPaths,
 ): boolean {
   try {
     const targetRealPath = realpathSync(entryPath);
@@ -81,11 +124,13 @@ function shouldSnapshotContent(
       workTreeRealPath,
       relative(process.cwd(), entryPath),
     );
-    return (
-      targetRealPath === literalPath ||
-      statSync(targetRealPath).isDirectory() ||
-      trackedFiles.has(targetParts.join("/"))
-    );
+    if (targetRealPath === literalPath) {
+      return true;
+    }
+    const targetRepoPath = targetParts.join("/");
+    return statSync(targetRealPath).isDirectory()
+      ? tracked.dirs.has(targetRepoPath)
+      : tracked.files.has(targetRepoPath);
   } catch {
     return false;
   }
@@ -117,7 +162,7 @@ function snapshotSensitivePath(
   src: string,
   dest: string,
   workTreeRealPath: string,
-  trackedFiles: Set<string>,
+  tracked: TrackedPaths,
 ): void {
   const excluded: Array<{ src: string; dest: string }> = [];
   const keepOrExclude =
@@ -134,7 +179,7 @@ function snapshotSensitivePath(
       recursive: true,
       dereference: true,
       filter: keepOrExclude((entry) =>
-        shouldSnapshotContent(entry, workTreeRealPath, trackedFiles),
+        shouldSnapshotContent(entry, workTreeRealPath, tracked),
       ),
     });
   } catch (error) {
@@ -212,25 +257,15 @@ export function restoreConfigFromBase(baseBranch: string): void {
   // Snapshot every PR-authored sensitive path into .claude-pr/ before deletion
   // so review agents can inspect what the PR changes without those files ever
   // being executed. Captured before the security delete so it reflects the
-  // PR-authored version. Links are followed only to tracked content inside the
-  // working tree; anything else is recorded as a placeholder file, so the
-  // snapshot itself never contains links.
+  // PR-authored version. Links are followed only to tracked, unmodified content
+  // inside the working tree; anything else is recorded as a placeholder file,
+  // so the snapshot itself never contains links.
   rmSync(".claude-pr", { recursive: true, force: true });
   const workTreeRealPath = realpathSync(process.cwd());
-  const trackedFiles = new Set(
-    execFileSync("git", ["ls-files", "-z"], {
-      encoding: "utf8",
-      maxBuffer: Infinity,
-    }).split("\0"),
-  );
+  const tracked = listTrackedPaths();
   for (const p of SENSITIVE_PATHS) {
     if (lstatSync(p, { throwIfNoEntry: false })) {
-      snapshotSensitivePath(
-        p,
-        `.claude-pr/${p}`,
-        workTreeRealPath,
-        trackedFiles,
-      );
+      snapshotSensitivePath(p, `.claude-pr/${p}`, workTreeRealPath, tracked);
     }
   }
   if (existsSync(".claude-pr")) {
