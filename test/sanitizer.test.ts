@@ -8,6 +8,7 @@ import {
   sanitizeContent,
   stripHtmlComments,
   redactGitHubTokens,
+  redactSecrets,
 } from "../src/github/utils/sanitizer";
 
 describe("stripInvisibleCharacters", () => {
@@ -368,7 +369,122 @@ export GITHUB_TOKEN=[REDACTED_GITHUB_TOKEN]
   });
 });
 
+describe("redactSecrets", () => {
+  it("should still redact GitHub tokens", () => {
+    expect(
+      redactSecrets("Token: ghs_xz7yzju2SZjGPa0dUNMAx0SH4xDOCS31LXQW"),
+    ).toBe("Token: [REDACTED_GITHUB_TOKEN]");
+  });
+
+  it("should redact Anthropic API keys (sk-ant-)", () => {
+    const key = "sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcdefgh";
+    expect(redactSecrets(`ANTHROPIC_API_KEY=${key}`)).toBe(
+      "ANTHROPIC_API_KEY=[REDACTED_ANTHROPIC_KEY]",
+    );
+  });
+
+  it("should not redact sk- strings that are not sk-ant-", () => {
+    const content =
+      "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789 and sk-ant-short";
+    expect(redactSecrets(content)).toBe(content);
+  });
+
+  it("should redact AWS access key ids", () => {
+    expect(redactSecrets("aws_access_key_id = AKIAIOSFODNN7EXAMPLE")).toBe(
+      "aws_access_key_id = [REDACTED_AWS_KEY_ID]",
+    );
+    expect(redactSecrets("temp creds ASIAIOSFODNN7EXAMPLE end")).toBe(
+      "temp creds [REDACTED_AWS_KEY_ID] end",
+    );
+  });
+
+  it("should not redact AWS-like strings that do not fit the format", () => {
+    const content =
+      "AKIAtest AKIA123 AKIAIOSFODNN7EXAMPLEXYZ akiaiosfodnn7example";
+    expect(redactSecrets(content)).toBe(content);
+  });
+
+  it("should redact Slack tokens", () => {
+    expect(redactSecrets("token=xoxb-1234567890-abcdefghijkl")).toBe(
+      "token=[REDACTED_SLACK_TOKEN]",
+    );
+    expect(redactSecrets("xoxp-1234567890-1234567890-abc")).toBe(
+      "[REDACTED_SLACK_TOKEN]",
+    );
+  });
+
+  it("should not redact xox strings that do not fit the format", () => {
+    const content = "xoxo-1234567890abc xoxz-1234567890abc xoxb-short";
+    expect(redactSecrets(content)).toBe(content);
+  });
+
+  it("should redact JWT-shaped strings", () => {
+    const jwt =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+    expect(redactSecrets(`Authorization: Bearer ${jwt}`)).toBe(
+      "Authorization: Bearer [REDACTED_JWT]",
+    );
+  });
+
+  it("should redact tokens that follow a JSON escape sequence", () => {
+    const serialized = JSON.stringify({
+      content:
+        "line one\nGITHUB_TOKEN=ghs_xz7yzju2SZjGPa0dUNMAx0SH4xDOCS31LXQW\tsk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWx",
+    });
+    const redacted = redactSecrets(serialized);
+    expect(redacted).toContain("[REDACTED_GITHUB_TOKEN]");
+    expect(redacted).toContain("[REDACTED_ANTHROPIC_KEY]");
+    expect(redacted).not.toContain("ghs_xz7yzju2SZjGPa0dUNMAx0SH4xDOCS31LXQW");
+  });
+
+  it("should redact tokens preceded by ANSI color codes", () => {
+    const ghp = "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";
+    const anthropic =
+      "sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcdefgh";
+    expect(redactSecrets(`\x1b[31m${ghp}\x1b[0m`)).toBe(
+      "\x1b[31m[REDACTED_GITHUB_TOKEN]\x1b[0m",
+    );
+    expect(redactSecrets(`key=\x1b[32m${anthropic}\x1b[39m`)).toBe(
+      "key=\x1b[32m[REDACTED_ANTHROPIC_KEY]\x1b[39m",
+    );
+    expect(redactSecrets(`\x1b[1mAKIAIOSFODNN7EXAMPLE\x1b[0m`)).toBe(
+      "\x1b[1m[REDACTED_AWS_KEY_ID]\x1b[0m",
+    );
+  });
+
+  it("should redact tokens that follow other JSON escapes", () => {
+    const ghp = "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";
+    const serialized = JSON.stringify({
+      colored: `\x1b[31m${ghp}`,
+      formfeed: `\f${ghp}`,
+      quoted: `"AKIAIOSFODNN7EXAMPLE"`,
+    });
+    const redacted = redactSecrets(serialized);
+    expect(redacted).not.toContain(ghp);
+    expect(redacted).not.toContain("AKIAIOSFODNN7EXAMPLE");
+    expect(redacted).toContain("[REDACTED_GITHUB_TOKEN]");
+    expect(redacted).toContain("[REDACTED_AWS_KEY_ID]");
+  });
+
+  it("should not redact base64 blobs that are not JWTs", () => {
+    // Long base64 without dots, and two-segment strings, are left alone
+    const content =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9eyJzdWIiOiIxMjM0NTY3ODkw " +
+      "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0 " +
+      "aGVsbG8gd29ybGQgdGhpcyBpcyBub3QgYSBqd3Q=";
+    expect(redactSecrets(content)).toBe(content);
+  });
+});
+
 describe("sanitizeContent with token redaction", () => {
+  it("should only redact GitHub tokens from inbound content", () => {
+    const content =
+      "docs example key AKIAIOSFODNN7EXAMPLE and token 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";
+    expect(sanitizeContent(content)).toBe(
+      "docs example key AKIAIOSFODNN7EXAMPLE and token [REDACTED_GITHUB_TOKEN]",
+    );
+  });
+
   it("should redact tokens as part of full sanitization", () => {
     const content = `
       <!-- Hidden comment with token: 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 -->
