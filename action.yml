@@ -434,6 +434,20 @@ runs:
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
           run ${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts
 
+    - name: Restore git authentication
+      # Same guard as the revoke step below: the credentials configured for the
+      # run are about to stop working, so they must not be left behind for
+      # later steps (or a second invocation of this action) to pick up.
+      if: always() && inputs.github_token == '' && steps.run.outputs.github_token != '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
+      shell: bash
+      run: |
+        BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
+        [ -x "$BUN_BIN" ] || BUN_BIN="bun"
+        # No --tsconfig-override: see the "Run Claude Code Action" step above.
+        "$BUN_BIN" --no-env-file \
+          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
+          run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-git-config.ts || true
+
     - name: Revoke app token
       if: always() && inputs.github_token == '' && steps.run.outputs.github_token != '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
       shell: bash
