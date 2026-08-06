@@ -26,6 +26,12 @@ from cwd, so a root `bun test` covers **both** `test/` and `base-action/test/`
 (45 files at the time of writing) — that is exactly what CI runs. `base-action/`
 also has its own `package.json` with the same script names for standalone use.
 
+In a Claude Code session `bun run format` also runs automatically after every
+file edit (the `PostToolUse` hook in `.claude/settings.json`), so `format:check`
+usually passes without you doing anything. Edits made any other way — the GitHub
+web UI, a plain `git commit` — bypass it, and the pre-commit hook or CI is where
+that surfaces.
+
 CI (`.github/workflows/ci.yml`) is three jobs: `bun test`, `bun run
 format:check`, `bun run typecheck` — the same three the pre-commit hook runs.
 `ci-all.yml` is the orchestrator that calls it on every PR and push to `main`;
@@ -74,9 +80,15 @@ try/catch/finally:
    `installPlugins()`, `preparePrompt()`, then `runClaude()`.
 4. **Cleanup (`finally`, always runs)** — stops the workload-identity token
    refresher, updates the tracking comment via `updateCommentLink()`, writes
-   the GitHub step summary via `formatTurnsFromData()`, and sets the action
+   the GitHub step summary via `formatTurnsFromData()`, and sets the step
    outputs (`branch_name`, `github_token`, `execution_file`, `session_id`,
-   `structured_output`, `conclusion`).
+   `structured_output`, `conclusion`, plus
+   `skipped_due_to_workflow_validation_mismatch` from the prepare phase).
+   **Only the first five are re-exported as composite-action outputs** —
+   `conclusion` and `skipped_due_to_workflow_validation_mismatch` are consumed
+   inside `action.yml` (the latter gates token revocation) and are invisible to
+   callers. Adding a `core.setOutput()` in `run.ts` does not make it reachable
+   from a workflow; add it to `action.yml`'s `outputs:` block too.
 
 **Sibling files in `src/entrypoints/` are NOT all standalone steps.**
 `collect-inputs.ts`, `update-comment-link.ts`, and `format-turns.ts` are
@@ -128,12 +140,36 @@ scripts/                   # pre-commit hook + install-hooks.sh; gh.sh / git-pus
                            #   test-*.yml (integration, disabled in this fork); claude.yml + issue-triage.yml
                            #   (this repo dogfooding its own action, SHA-pinned); release, sync-base-action,
                            #   non-write-users-check
+.claude/                   # this repo's OWN Claude Code config, not action code — see below
 base-action/               # standalone @anthropic-ai/claude-code-base-action (mirrored)
 agent-approval-check/      # separate composite action (Python) — require N human approvals on agent-authored PRs
 docs/                      # user docs (setup, usage, configuration, security, cloud-providers, faq, migration, …)
 examples/                  # ready-to-copy workflow YAMLs (claude.yml, pr-review-*, issue-triage, claude-wif, …)
 test/                      # unit tests for this action (Bun)
+bunfig.toml                # deliberately empty; action.yml pins `--config` to it (see Things That Will Bite You)
+github-app-manifest.json   # manifest for creating the GitHub App the action authenticates as
 ```
+
+Inside `src/github/` the less obvious modules are `utils/sanitizer.ts` (strips
+zero-width/bidi/control characters, markdown image alt text, link titles and
+hidden HTML `alt`/`title` attributes out of fetched GitHub content — the
+prompt-injection hardening on everything an untrusted commenter can write),
+`utils/image-downloader.ts` (pulls `user-attachments/assets` images referenced in
+bodies/comments down to disk so Claude can read them), `utils/actor-filter.ts`
+(the `include_/exclude_comments_by_actor` lists), `operations/branch-cleanup.ts`
+(deletes the working branch again when Claude ended up committing nothing) and
+`operations/comment-logic.ts` (what the tracking comment says in each terminal
+state).
+
+**`.claude/` is this repo's own tooling** — it configures Claude Code when
+working _in_ this repo and ships nothing to action users. `.claude/settings.json`
+registers a `PostToolUse` hook that runs `bun run format` after every
+Edit/Write/MultiEdit, so formatting is normally already correct by the time you
+commit. `.claude/agents/` holds five reviewer subagents (code-quality, security,
+performance, test-coverage, documentation-accuracy), `.claude/commands/` three
+slash commands (`commit-and-pr`, `review-pr`, `label-issue`), and
+`.claude/workflows/pr-stamp-sweep.js` a multi-agent workflow that reviews
+candidate PRs and adversarially verifies the security of each stamp candidate.
 
 ## Key Concepts
 
@@ -146,6 +182,41 @@ OIDC token (default, auto-minted and auto-revoked). `claude_code_oauth_token` /
 `base-action/src/workload-identity.ts` mints a GitHub OIDC JWT, writes it to a
 file, and points the CLI at it via `ANTHROPIC_IDENTITY_TOKEN_FILE`, refreshing
 it in the background.
+
+**Who is allowed to trigger a run.** `checkWritePermissions()`
+(`src/github/validation/permissions.ts`) resolves the actor through the
+collaborator-permission endpoint and requires `admin` or `write`. Two documented
+escapes exist, both **default-deny**:
+
+- `allowed_bots` — a `[bot]`-suffixed actor is trusted only if explicitly
+  allow-listed (`*` allows all). The suffix is a reliable signal because GitHub
+  usernames cannot contain `[` or `]`. Apps whose `GITHUB_ACTOR` is _not_
+  `[bot]`-suffixed (Copilot) fall through to the API and are handled in the
+  `catch` block, which consults the same list.
+- `allowed_non_write_users` — a comma-separated user list, or `*`. Either way it
+  logs a loud `SECURITY WARNING`.
+
+**`allowed_non_write_users` only takes effect when `github_token` was supplied by
+the caller** (the `githubTokenProvided` argument). Under the default GitHub App
+token the bypass is ignored — the intent is that you hand such a workflow a
+deliberately narrow token, so a low-privilege user cannot borrow the action's
+broad default permissions. Setting the input is therefore not sufficient on its
+own, which is easy to misread as the feature being broken.
+
+Setting it also changes `action.yml`'s step wiring: three extra **best-effort**
+steps run (`continue-on-error`, so a self-hosted runner without `sudo`/`apt` just
+skips them). They install `bubblewrap` + `socat` for subprocess isolation and
+relax `kernel.apparmor_restrict_unprivileged_userns` (Ubuntu 24.04+ blocks
+unprivileged user namespaces); copy the resolved bun binary to
+`$GITHUB_ACTION_PATH/bin/bun` so `always()` post-steps use the same version the
+action ran with; and prepend `/usr/bin` and `/bin` to `PATH` (re-applied after
+the run step). `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=0` opts out of the isolation
+install. Because none of this is load-bearing on the happy path, a broken
+sandbox degrades silently — check the step log, not the exit code.
+
+`.github/workflows/non-write-users-check.yml` watches for the input being added
+to any `.github/**` YAML in a PR and posts a one-time review comment (deduped by
+an HTML marker). It is a nudge, not a gate.
 
 **Mode lifecycle.** `detectMode()` returns `"tag"` or `"agent"`. Trigger
 checking and prepare dispatch are inlined in `run.ts`: tag mode calls
@@ -160,7 +231,13 @@ formats it as markdown (`src/github/data/formatter.ts` — issue/PR body,
 comments, diff, changed files, review comments, CI status, labels), and writes
 it to a temp file via `createPrompt()` (`src/create-prompt/`). Agent mode writes
 the user's `prompt` directly. Comment/review data is filtered to the trigger
-timestamp and by the `include_/exclude_comments_by_actor` allow/deny lists.
+timestamp and by the `include_/exclude_comments_by_actor` allow/deny lists, and
+every untrusted body passes through `src/github/utils/sanitizer.ts` first —
+anything a commenter writes reaches the model only after zero-width, bidi-
+override and control characters, image alt text, link titles and hidden
+`alt`/`title` attributes have been stripped. New fields added to the formatter
+need the same treatment; that is the layer where a hidden-instruction injection
+would otherwise land.
 
 **Inline comment buffering + classification** (`classify_inline_comments`,
 default `true`). During a PR review, inline comments made without
@@ -265,9 +342,23 @@ run (names/URLs are strictly validated against path traversal).
 - **`action.yml` outputs reference the `run` step id**: `execution_file`,
   `branch_name`, `github_token`, `structured_output`, `session_id` all read
   `steps.run.outputs.*`. Rename the step id → update the outputs section too.
+  Note the asymmetry: `run.ts` also sets `conclusion` and
+  `skipped_due_to_workflow_validation_mismatch`, which are **not** in the
+  `outputs:` block and so never reach a caller — a `core.setOutput()` alone
+  publishes nothing.
 - **Don't pass `--tsconfig-override` to Bun**: it triggers a Bun runtime crash
   (see the comment in `action.yml`'s run step and `cleanup-ssh-signing`). Bun
   auto-discovers the action's `tsconfig.json`.
+- **`bunfig.toml` is empty on purpose, and must keep existing.** All three bun
+  invocations in `action.yml` (the run step, `cleanup-ssh-signing`,
+  `post-buffered-inline-comments`) pass
+  `--config="${GITHUB_ACTION_PATH}/bunfig.toml"` so Bun takes its runtime config
+  from the action directory instead of discovering the _checked-out repo's_
+  `bunfig.toml`. Worth knowing: `bunfig.toml` is **not** in `SENSITIVE_PATHS`, so
+  unlike `.mcp.json` and `.claude/` it is never reverted to the base branch — on
+  a PR event the pin is the only thing standing between a PR-authored
+  `bunfig.toml` and the runtime. Deleting the file as "unused", or adding a bun
+  invocation without the flag, drops that. Add new bun calls with the flag.
 - **`prepare.ts` is dead code** — the prepare phase lives in `run.ts`. Edit
   `run.ts`.
 - **Some `entrypoints/` files are modules, not steps** — `collect-inputs`,
