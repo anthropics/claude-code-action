@@ -302,8 +302,16 @@ describe("redactGitHubTokens", () => {
     ).toBe("In a URL: x-access-token:[REDACTED_GITHUB_TOKEN]@github.com");
   });
 
-  it("should redact installation tokens (ghs_)", () => {
+  it("should redact stateful installation tokens (ghs_)", () => {
     const token = "ghs_xz7yzju2SZjGPa0dUNMAx0SH4xDOCS31LXQW";
+    expect(redactGitHubTokens(`Install token: ${token}`)).toBe(
+      "Install token: [REDACTED_GITHUB_TOKEN]",
+    );
+  });
+
+  it("should redact stateless installation tokens (ghs_)", () => {
+    const token =
+      "ghs_12345_eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NDU1NjgwMDAsImV4cCI6MTc0NTU2ODM2MCwiaXNzIjoiMTIzNDUifQ.bm90LWEtcmVhbC1zaWduYXR1cmUtanVzdC1mb3ItdW5pdC10ZXN0cy14eHh4eHh4eHh4eHg";
     expect(redactGitHubTokens(`Install token: ${token}`)).toBe(
       "Install token: [REDACTED_GITHUB_TOKEN]",
     );

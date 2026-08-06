@@ -95,9 +95,10 @@ export function redactGitHubTokens(content: string): string {
     "[REDACTED_GITHUB_TOKEN]",
   );
 
-  // GitHub installation tokens: ghs_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (40 chars)
+  // GitHub installation tokens: ghs_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (40 chars, stateful)
+  // or ghs_<AppID>_<JWT> (~520+ chars, stateless)
   content = content.replace(
-    /\bghs_[A-Za-z0-9]{36}\b/g,
+    /\bghs_[A-Za-z0-9._-]{36,}/g,
     "[REDACTED_GITHUB_TOKEN]",
   );
 
