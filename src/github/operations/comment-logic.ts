@@ -1,4 +1,5 @@
 import { GITHUB_SERVER_URL } from "../api/config";
+import { COMMENT_MARKER } from "./comments/common";
 
 export type ExecutionDetails = {
   total_cost_usd?: number;
@@ -79,10 +80,14 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     errorDetails,
   } = input;
 
+  // Check whether the original comment had our marker so we can preserve it
+  const hadMarker = originalBody.includes(COMMENT_MARKER);
+
   // Extract content from the original comment body
-  // First, remove the "Claude Code is working…" or "Claude Code is working..." message
+  // First, remove the marker and "Claude Code is working…" message
+  let bodyContent = originalBody.replace(COMMENT_MARKER, "");
   const workingPattern = /Claude Code is working[…\.]{1,3}(?:\s*<img[^>]*>)?/i;
-  let bodyContent = originalBody.replace(workingPattern, "").trim();
+  bodyContent = bodyContent.replace(workingPattern, "").trim();
 
   // Check if there's a PR link in the content
   let prLinkFromContent = "";
@@ -178,8 +183,8 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     links += ` • [Create PR ➔](${prUrl})`;
   }
 
-  // Build the new body with blank line between header and separator
-  let newBody = `${header}${links}`;
+  // Build the new body, preserving the marker if the original had one
+  let newBody = hadMarker ? `${COMMENT_MARKER}\n${header}${links}` : `${header}${links}`;
 
   // Add error details if available
   if (actionFailed && errorDetails) {

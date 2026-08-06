@@ -1,6 +1,8 @@
 import { describe, test, expect } from "bun:test";
 import {
+  COMMENT_MARKER,
   SPINNER_HTML,
+  hasCommentMarker,
   createJobRunLink,
   createBranchLink,
   createCommentBody,
@@ -41,7 +43,34 @@ describe("comments/common", () => {
     });
   });
 
+  describe("hasCommentMarker", () => {
+    test("returns true when the body contains the marker", () => {
+      expect(hasCommentMarker(`${COMMENT_MARKER}\nSome content`)).toBe(true);
+    });
+
+    test("returns true when the marker is embedded in longer content", () => {
+      expect(
+        hasCommentMarker(`Header\n${COMMENT_MARKER}\nMore content`),
+      ).toBe(true);
+    });
+
+    test("returns false for a body without the marker", () => {
+      expect(hasCommentMarker("Just a regular comment")).toBe(false);
+    });
+
+    test("returns false for null/undefined/empty bodies", () => {
+      expect(hasCommentMarker(null)).toBe(false);
+      expect(hasCommentMarker(undefined)).toBe(false);
+      expect(hasCommentMarker("")).toBe(false);
+    });
+  });
+
   describe("createCommentBody", () => {
+    test("starts with the comment marker", () => {
+      const body = createCommentBody(createJobRunLink("o", "r", "7"));
+      expect(body.startsWith(COMMENT_MARKER)).toBe(true);
+    });
+
     test("includes the spinner, the working message, and the job run link", () => {
       const jobRunLink = createJobRunLink("o", "r", "7");
       const body = createCommentBody(jobRunLink);
@@ -69,6 +98,11 @@ describe("comments/common", () => {
       expect(body.indexOf(branchLink)).toBeGreaterThan(
         body.indexOf(jobRunLink),
       );
+    });
+
+    test("marker is detectable via hasCommentMarker", () => {
+      const body = createCommentBody(createJobRunLink("o", "r", "7"));
+      expect(hasCommentMarker(body)).toBe(true);
     });
   });
 });

@@ -3,6 +3,7 @@ import {
   updateCommentBody,
   type CommentUpdateInput,
 } from "../src/github/operations/comment-logic";
+import { COMMENT_MARKER } from "../src/github/operations/comments/common";
 
 describe("updateCommentBody", () => {
   const baseInput = {
@@ -441,6 +442,59 @@ describe("updateCommentBody", () => {
       );
       expect(result).not.toContain("claude/issue-123");
       expect(result).not.toContain("tree/claude/issue-123");
+    });
+  });
+
+  describe("comment marker preservation", () => {
+    it("preserves the marker when the original body had one", () => {
+      const input = {
+        ...baseInput,
+        currentBody: `${COMMENT_MARKER}\nClaude Code is working…`,
+        triggerUsername: "alice",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result.startsWith(COMMENT_MARKER)).toBe(true);
+      expect(result).toContain("**Claude finished @alice's task**");
+    });
+
+    it("does not add a marker when the original body had none", () => {
+      const input = {
+        ...baseInput,
+        currentBody: "Claude Code is working…",
+        triggerUsername: "alice",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).not.toContain(COMMENT_MARKER);
+    });
+
+    it("does not duplicate the marker", () => {
+      const input = {
+        ...baseInput,
+        currentBody: `${COMMENT_MARKER}\nClaude Code is working…`,
+        triggerUsername: "alice",
+      };
+
+      const result = updateCommentBody(input);
+      const markerCount = result.split(COMMENT_MARKER).length - 1;
+      expect(markerCount).toBe(1);
+    });
+
+    it("preserves the marker alongside all other content", () => {
+      const input = {
+        ...baseInput,
+        currentBody: `${COMMENT_MARKER}\nClaude Code is working…\n\n### Todo List:\n- [x] Fix bug`,
+        branchName: "claude/fix-123",
+        executionDetails: { duration_ms: 60000 },
+        triggerUsername: "bob",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result.startsWith(COMMENT_MARKER)).toBe(true);
+      expect(result).toContain("**Claude finished @bob's task in 1m 0s**");
+      expect(result).toContain("### Todo List:");
+      expect(result).toContain("- [x] Fix bug");
     });
   });
 });
