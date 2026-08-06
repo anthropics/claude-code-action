@@ -157,6 +157,10 @@ inputs:
     description: "Show full JSON output from Claude Code. WARNING: This outputs ALL Claude messages including tool execution results which may contain secrets, API keys, or other sensitive information. These logs are publicly visible in GitHub Actions. Only enable for debugging in non-sensitive environments."
     required: false
     default: "false"
+  exclude_dynamic_sections:
+    description: "When true, strips per-user dynamic content (working directory, git status, auto-memory path) from the system prompt so it stays cacheable across sessions and users. The stripped content is re-injected as the first user message so the model still has full context. Enables cross-run prompt cache hits in CI fleets. Has no effect when a custom system_prompt is set."
+    required: false
+    default: "false"
   plugins:
     description: "Newline-separated list of Claude Code plugin names to install (e.g., 'code-review@claude-code-plugins\nfeature-dev@claude-code-plugins')"
     required: false
@@ -312,6 +316,7 @@ runs:
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
         INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}
+        EXCLUDE_DYNAMIC_SECTIONS: ${{ inputs.exclude_dynamic_sections }}
         DISPLAY_REPORT: ${{ inputs.display_report }}
         INPUT_PLUGINS: ${{ inputs.plugins }}
         INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
