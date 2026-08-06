@@ -111,6 +111,17 @@ describe("formatResultContent", () => {
     const result = formatResultContent(JSON.stringify(structuredContent));
     expect(result).toBe("**→** Hello world\n\n");
   });
+
+  test("concatenates multiple type:text blocks", () => {
+    const structuredContent = [
+      { type: "text", text: "First finding" },
+      { type: "text", text: "Second finding" },
+    ];
+    const result = formatResultContent(JSON.stringify(structuredContent));
+    expect(result).toContain("```text");
+    expect(result).toContain("First finding");
+    expect(result).toContain("Second finding");
+  });
 });
 
 describe("formatToolWithResult", () => {
