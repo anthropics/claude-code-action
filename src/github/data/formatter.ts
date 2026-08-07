@@ -28,7 +28,7 @@ PR Labels: ${formatLabels(prData.labels.nodes)}
 PR Additions: ${prData.additions}
 PR Deletions: ${prData.deletions}
 Total Commits: ${prData.commits.totalCount}
-Changed Files: ${prData.files.nodes.length} files`;
+Changed Files: ${prData.files ? `${prData.files.nodes.length} files` : "unknown (file list unavailable)"}`;
   } else {
     const issueData = contextData as GitHubIssue;
     const sanitizedTitle = sanitizeContent(issueData.title);
