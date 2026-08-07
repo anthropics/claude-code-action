@@ -64,6 +64,95 @@ describe("runClaudeWithSdk", () => {
     }
   });
 
+  test("logs resolved model limits without exposing token usage", async () => {
+    const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+    process.env.RUNNER_TEMP = tempDir;
+
+    const promptPath = join(tempDir, "prompt.txt");
+    await writeFile(promptPath, "test prompt");
+
+    const initMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "session-123",
+      model: "claude-opus-5",
+    };
+
+    const resultMessage = {
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      duration_ms: 434,
+      num_turns: 1,
+      total_cost_usd: 1.23,
+      permission_denials: [],
+      modelUsage: {
+        "claude-opus-5": {
+          inputTokens: 96209,
+          outputTokens: 55324,
+          cacheReadInputTokens: 1135701,
+          cacheCreationInputTokens: 149043,
+          webSearchRequests: 0,
+          costUSD: 1.23,
+          contextWindow: 200000,
+          maxOutputTokens: 64000,
+        },
+      },
+    };
+
+    mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+      query: async function* () {
+        yield initMessage;
+        yield resultMessage;
+      },
+    }));
+
+    try {
+      const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+      await expect(
+        runClaudeWithSdk(promptPath, {
+          sdkOptions: {},
+          showFullOutput: false,
+          hasJsonSchema: false,
+        }),
+      ).resolves.toMatchObject({ conclusion: "success" });
+
+      const sanitizedResult = consoleLogSpy.mock.calls
+        .map(([message]) => message)
+        .find(
+          (message) =>
+            typeof message === "string" && message.includes('"type": "result"'),
+        );
+
+      expect(sanitizedResult).toBeDefined();
+      if (typeof sanitizedResult !== "string") {
+        throw new Error("Sanitized result output was not logged");
+      }
+      expect(JSON.parse(sanitizedResult)).toEqual({
+        type: "result",
+        subtype: "success",
+        is_error: false,
+        duration_ms: 434,
+        num_turns: 1,
+        total_cost_usd: 1.23,
+        permission_denials_count: 0,
+        modelUsage: {
+          "claude-opus-5": {
+            contextWindow: 200000,
+            maxOutputTokens: 64000,
+          },
+        },
+      });
+      expect(sanitizedResult).not.toContain("inputTokens");
+      expect(sanitizedResult).not.toContain("costUSD");
+    } finally {
+      consoleLogSpy.mockRestore();
+    }
+  });
+
   test("fails when result subtype is success but is_error is true", async () => {
     const consoleErrorSpy = spyOn(console, "error").mockImplementation(
       () => {},

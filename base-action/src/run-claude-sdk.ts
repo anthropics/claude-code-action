@@ -82,6 +82,35 @@ async function createPromptConfig(
   return createMultiBlockMessage();
 }
 
+type ModelUsageSummary = Record<
+  string,
+  {
+    contextWindow: number;
+    maxOutputTokens: number;
+  }
+>;
+
+/**
+ * Keep resolved model limits visible without exposing token usage or cost details.
+ */
+function sanitizeModelUsage(
+  modelUsage: SDKResultMessage["modelUsage"] | undefined,
+): ModelUsageSummary | undefined {
+  if (!modelUsage) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    Object.entries(modelUsage).map(([model, usage]) => [
+      model,
+      {
+        contextWindow: usage.contextWindow,
+        maxOutputTokens: usage.maxOutputTokens,
+      },
+    ]),
+  );
+}
+
 /**
  * Sanitizes SDK output to match CLI sanitization behavior
  */
@@ -119,6 +148,7 @@ function sanitizeSdkOutput(
         num_turns: resultMsg.num_turns,
         total_cost_usd: resultMsg.total_cost_usd,
         permission_denials_count: resultMsg.permission_denials?.length ?? 0,
+        modelUsage: sanitizeModelUsage(resultMsg.modelUsage),
       },
       null,
       2,
