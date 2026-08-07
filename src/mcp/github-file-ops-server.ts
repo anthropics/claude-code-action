@@ -8,8 +8,8 @@ import { resolve } from "path";
 import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
-import { retryWithBackoff } from "../utils/retry";
 import { validatePathWithinRepo } from "./path-validation";
+import { updateGitReference } from "./update-git-reference";
 
 type GitHubRef = {
   object: {
@@ -365,57 +365,13 @@ server.tool(
       const newCommitData = (await newCommitResponse.json()) as GitHubNewCommit;
 
       // 6. Update the reference to point to the new commit
-      const updateRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${branch}`;
-
-      // We're seeing intermittent 403 "Resource not accessible by integration" errors
-      // on certain repos when updating git references. These appear to be transient
-      // GitHub API issues that succeed on retry.
-      await retryWithBackoff(
-        async () => {
-          const updateRefResponse = await fetch(updateRefUrl, {
-            method: "PATCH",
-            headers: {
-              Accept: "application/vnd.github+json",
-              Authorization: `Bearer ${githubToken}`,
-              "X-GitHub-Api-Version": "2022-11-28",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              sha: newCommitData.sha,
-              force: false,
-            }),
-          });
-
-          if (!updateRefResponse.ok) {
-            const errorText = await updateRefResponse.text();
-
-            // Provide a more helpful error message for 403 permission errors
-            if (updateRefResponse.status === 403) {
-              const permissionError = new Error(
-                `Permission denied: Unable to push commits to branch '${branch}'. ` +
-                  `Please rebase your branch from the main/master branch to allow Claude to commit.\n\n` +
-                  `Original error: ${errorText}`,
-              );
-              throw permissionError;
-            }
-
-            // For other errors, use the original message
-            const error = new Error(
-              `Failed to update reference: ${updateRefResponse.status} - ${errorText}`,
-            );
-
-            // For non-403 errors, fail immediately without retry
-            console.error("Non-retryable error:", updateRefResponse.status);
-            throw error;
-          }
-        },
-        {
-          maxAttempts: 3,
-          initialDelayMs: 1000, // Start with 1 second delay
-          maxDelayMs: 5000, // Max 5 seconds delay
-          backoffFactor: 2, // Double the delay each time
-        },
-      );
+      await updateGitReference({
+        owner,
+        repo,
+        branch,
+        sha: newCommitData.sha,
+        githubToken,
+      });
 
       const simplifiedResult = {
         commit: {
@@ -580,58 +536,13 @@ server.tool(
       const newCommitData = (await newCommitResponse.json()) as GitHubNewCommit;
 
       // 6. Update the reference to point to the new commit
-      const updateRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${branch}`;
-
-      // We're seeing intermittent 403 "Resource not accessible by integration" errors
-      // on certain repos when updating git references. These appear to be transient
-      // GitHub API issues that succeed on retry.
-      await retryWithBackoff(
-        async () => {
-          const updateRefResponse = await fetch(updateRefUrl, {
-            method: "PATCH",
-            headers: {
-              Accept: "application/vnd.github+json",
-              Authorization: `Bearer ${githubToken}`,
-              "X-GitHub-Api-Version": "2022-11-28",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              sha: newCommitData.sha,
-              force: false,
-            }),
-          });
-
-          if (!updateRefResponse.ok) {
-            const errorText = await updateRefResponse.text();
-
-            // Provide a more helpful error message for 403 permission errors
-            if (updateRefResponse.status === 403) {
-              console.log("Received 403 error, will retry...");
-              const permissionError = new Error(
-                `Permission denied: Unable to push commits to branch '${branch}'. ` +
-                  `Please rebase your branch from the main/master branch to allow Claude to commit.\n\n` +
-                  `Original error: ${errorText}`,
-              );
-              throw permissionError;
-            }
-
-            // For other errors, use the original message
-            const error = new Error(
-              `Failed to update reference: ${updateRefResponse.status} - ${errorText}`,
-            );
-
-            // For non-403 errors, fail immediately without retry
-            console.error("Non-retryable error:", updateRefResponse.status);
-            throw error;
-          }
-        },
-        {
-          maxAttempts: 3,
-          initialDelayMs: 1000, // Start with 1 second delay
-          maxDelayMs: 5000, // Max 5 seconds delay
-          backoffFactor: 2, // Double the delay each time
-        },
-      );
+      await updateGitReference({
+        owner,
+        repo,
+        branch,
+        sha: newCommitData.sha,
+        githubToken,
+      });
 
       const simplifiedResult = {
         commit: {
