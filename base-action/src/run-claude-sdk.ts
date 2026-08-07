@@ -237,7 +237,19 @@ export async function runClaudeWithSdk(
   }
 
   if (!isSuccess) {
-    if (resultMessage.subtype === "success" && resultMessage.is_error) {
+    // 401/403 means the API rejected the run's credentials, typically an
+    // expired or revoked OAuth token / API key.
+    const apiErrorStatus =
+      "api_error_status" in resultMessage
+        ? resultMessage.api_error_status
+        : null;
+    const authFailureReason =
+      apiErrorStatus === 401 || apiErrorStatus === 403
+        ? `authentication failed (API returned ${apiErrorStatus}). If you use \`claude_code_oauth_token\`, regenerate it with \`claude setup-token\`; if you use \`anthropic_api_key\`, verify the key is valid`
+        : null;
+    if (authFailureReason) {
+      core.error(`Execution failed: ${authFailureReason}`);
+    } else if (resultMessage.subtype === "success" && resultMessage.is_error) {
       core.error(
         "Claude result reported subtype success with is_error:true (run did not complete successfully)",
       );
@@ -247,11 +259,12 @@ export async function runClaudeWithSdk(
     }
     throw new Error(
       `Claude execution failed: ${
-        resultMessage.subtype === "success" && resultMessage.is_error
+        authFailureReason ??
+        (resultMessage.subtype === "success" && resultMessage.is_error
           ? "result is_error:true"
           : "errors" in resultMessage && resultMessage.errors
             ? resultMessage.errors.join(", ")
-            : "unknown error"
+            : "unknown error")
       }`,
     );
   }

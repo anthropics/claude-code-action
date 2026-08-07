@@ -29,6 +29,7 @@ export type UpdateCommentLinkParams = {
   outputFile?: string;
   prepareSuccess: boolean;
   prepareError?: string;
+  executionError?: string;
   useCommitSigning: boolean;
 };
 
@@ -201,6 +202,9 @@ export async function updateCommentLink(
     } catch (error) {
       console.error("Error reading output file:", error);
       actionFailed = !params.claudeSuccess;
+    }
+    if (actionFailed && params.executionError) {
+      errorDetails = params.executionError;
     }
   }
 
