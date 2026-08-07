@@ -42,6 +42,27 @@ export async function configureGitAuth(
   await $`git config user.email "${botId}+${botName}@${noreplyDomain}"`;
   console.log(`✓ Set git user as ${botName}`);
 
+  await replaceCheckoutCredentials(githubToken, context);
+
+  console.log("Git authentication configured successfully");
+}
+
+/**
+ * Replace the credential that actions/checkout persisted in the working tree.
+ *
+ * actions/checkout stores its token as an `http.<server>/.extraheader` entry
+ * in .git/config for the duration of the job. Claude and the tools it invokes
+ * run inside this working tree, so remove that entry and back git with the
+ * action's own token instead (a credential helper when non-write users are
+ * allowed, otherwise the origin URL). This applies to every mode, including API
+ * commit signing where no other git configuration is needed.
+ */
+export async function replaceCheckoutCredentials(
+  githubToken: string,
+  context: GitHubContext,
+) {
+  const serverUrl = new URL(GITHUB_SERVER_URL);
+
   // Remove the authorization header that actions/checkout sets
   console.log("Removing existing git authentication headers...");
   try {
@@ -79,8 +100,6 @@ export async function configureGitAuth(
     await $`git remote set-url origin ${remoteUrl}`;
     console.log("✓ Updated remote URL with authentication token");
   }
-
-  console.log("Git authentication configured successfully");
 }
 
 /**

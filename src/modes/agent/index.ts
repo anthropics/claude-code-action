@@ -3,6 +3,7 @@ import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { parseAllowedTools } from "./parse-tools";
 import {
   configureGitAuth,
+  replaceCheckoutCredentials,
   setupSshSigning,
 } from "../../github/operations/git-config";
 import { checkHumanActor } from "../../github/validation/actor";
@@ -60,6 +61,16 @@ export async function prepareAgentMode({
       await configureGitAuth(githubToken, context, user);
     } catch (error) {
       console.error("Failed to configure git authentication:", error);
+      // Continue anyway - git operations may still work with default config
+    }
+  } else {
+    // Commits go through the GitHub API, so no git user setup is needed, but
+    // the credential actions/checkout left in git config should still be
+    // replaced with the action's own.
+    try {
+      await replaceCheckoutCredentials(githubToken, context);
+    } catch (error) {
+      console.error("Failed to configure git credentials:", error);
       // Continue anyway - git operations may still work with default config
     }
   }

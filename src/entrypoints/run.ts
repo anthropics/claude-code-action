@@ -34,6 +34,7 @@ import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
 import { formatTurnsFromData } from "./format-turns";
 import type { Turn } from "./format-turns";
+import { redactSecrets } from "../github/utils/sanitizer";
 // Base-action imports (used directly instead of subprocess)
 import { setupWorkloadIdentity } from "../../base-action/src/workload-identity";
 import type { WorkloadIdentityHandle } from "../../base-action/src/workload-identity";
@@ -76,7 +77,7 @@ async function installClaudeCode(): Promise<string> {
     return customExecutable;
   }
 
-  const claudeCodeVersion = "2.1.223";
+  const claudeCodeVersion = "2.1.224";
   console.log(`Installing Claude Code v${claudeCodeVersion}...`);
 
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -137,7 +138,7 @@ async function writeStepSummary(executionFile: string): Promise<void> {
       fallback +=
         "Failed to format output (please report). Here's the raw JSON:\n\n";
       fallback += "```json\n";
-      fallback += readFileSync(executionFile, "utf-8");
+      fallback += redactSecrets(readFileSync(executionFile, "utf-8"));
       fallback += "\n```\n";
       await appendFile(summaryFile, fallback);
     } catch {
@@ -317,7 +318,7 @@ async function run() {
       prepareSuccess = false;
       prepareError = errorMessage;
     }
-    core.setFailed(`Action failed with error: ${errorMessage}`);
+    core.setFailed(`Action failed with error: ${redactSecrets(errorMessage)}`);
   } finally {
     // Phase 4: Cleanup (always runs)
 
