@@ -1,4 +1,8 @@
 // GraphQL queries for GitHub data
+//
+// Author selections include `__typename` so bot actors can be detected.
+// GraphQL `login` for bots omits the REST/UI `[bot]` suffix (e.g. "github-actions"
+// with __typename "Bot"); actor filters rely on that typename for `*[bot]`.
 
 export const PR_QUERY = `
   query($owner: String!, $repo: String!, $number: Int!) {
@@ -7,6 +11,7 @@ export const PR_QUERY = `
         title
         body
         author {
+          __typename
           login
         }
         baseRefName
@@ -57,6 +62,7 @@ export const PR_QUERY = `
             databaseId
             body
             author {
+              __typename
               login
             }
             createdAt
@@ -70,6 +76,7 @@ export const PR_QUERY = `
             id
             databaseId
             author {
+              __typename
               login
             }
             body
@@ -85,6 +92,7 @@ export const PR_QUERY = `
                 path
                 line
                 author {
+                  __typename
                   login
                 }
                 createdAt
@@ -107,6 +115,7 @@ export const ISSUE_QUERY = `
         title
         body
         author {
+          __typename
           login
         }
         createdAt
@@ -124,6 +133,7 @@ export const ISSUE_QUERY = `
             databaseId
             body
             author {
+              __typename
               login
             }
             createdAt

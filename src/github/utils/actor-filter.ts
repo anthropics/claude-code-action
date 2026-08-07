@@ -12,17 +12,41 @@ export function parseActorFilter(filterString: string): string[] {
 }
 
 /**
+ * Normalizes an actor login for filter matching.
+ *
+ * GitHub GraphQL returns bot `author.login` values without the `[bot]` suffix
+ * (e.g. `"github-actions"` / `"claude"` with `__typename: "Bot"`), while REST
+ * and the UI use `"github-actions[bot]"`. The documented `*[bot]` wildcard and
+ * specific bot patterns like `dependabot[bot]` expect the REST form, so append
+ * `[bot]` when GraphQL identifies the author as a Bot.
+ *
+ * @param login - Actor username (GraphQL or REST form)
+ * @param typename - Optional GraphQL `__typename` (`"Bot"`, `"User"`, …)
+ * @returns Login suitable for matching against actor filter patterns
+ */
+export function normalizeActorLogin(
+  login: string,
+  typename?: string | null,
+): string {
+  if (typename === "Bot" && login && !login.endsWith("[bot]")) {
+    return `${login}[bot]`;
+  }
+  return login;
+}
+
+/**
  * Checks if an actor matches a pattern
  * Supports wildcards: "*[bot]" matches all bots, "dependabot[bot]" matches specific
- * @param actor - Actor username to check
+ * @param actor - Actor username to check (prefer normalizeActorLogin first for GraphQL bots)
  * @param pattern - Pattern to match against
  * @returns true if actor matches pattern
  */
 export function actorMatchesPattern(actor: string, pattern: string): boolean {
-  // Exact match
+  // Exact match (REST-style login, GraphQL login, or already-normalized bot login)
   if (actor === pattern) return true;
 
   // Wildcard bot pattern: "*[bot]" matches any username ending with [bot]
+  // (including GraphQL bots after normalizeActorLogin appends the suffix)
   if (pattern === "*[bot]" && actor.endsWith("[bot]")) return true;
 
   // No match
@@ -31,7 +55,7 @@ export function actorMatchesPattern(actor: string, pattern: string): boolean {
 
 /**
  * Determines if a comment should be included based on actor filters
- * @param actor - Comment author username
+ * @param actor - Comment author username (prefer normalizeActorLogin for GraphQL bots)
  * @param includeActors - Array of actors to include (empty = include all)
  * @param excludeActors - Array of actors to exclude (empty = exclude none)
  * @returns true if comment should be included
