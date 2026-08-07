@@ -167,6 +167,9 @@ inputs:
     default: ""
 
 outputs:
+  conclusion:
+    description: "Execution status of Claude Code ('success' or 'failure')"
+    value: ${{ steps.run.outputs.conclusion }}
   execution_file:
     description: "Path to the Claude Code execution output file"
     value: ${{ steps.run.outputs.execution_file }}
