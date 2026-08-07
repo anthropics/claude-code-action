@@ -204,6 +204,9 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   const modelFromClaudeArgs = extraArgs["model"] || undefined;
   delete extraArgs["model"];
 
+  const maxTurnsFromClaudeArgs = extraArgs["max-turns"] || undefined;
+  delete extraArgs["max-turns"];
+
   const additionalDirectories = extraArgs["add-dir"]
     ? extraArgs["add-dir"]
         .split(ACCUMULATE_DELIMITER)
@@ -308,7 +311,11 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   const sdkOptions: SdkOptions = {
     // Direct options from ClaudeOptions inputs
     model: options.model || modelFromClaudeArgs,
-    maxTurns: options.maxTurns ? parseInt(options.maxTurns, 10) : undefined,
+    maxTurns: options.maxTurns
+      ? parseInt(options.maxTurns, 10)
+      : maxTurnsFromClaudeArgs
+        ? parseInt(maxTurnsFromClaudeArgs, 10)
+        : undefined,
     allowedTools:
       mergedAllowedTools.length > 0 ? mergedAllowedTools : undefined,
     disallowedTools:
