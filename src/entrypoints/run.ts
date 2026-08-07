@@ -21,6 +21,7 @@ import {
   isPullRequestEvent,
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
+  isWorkflowRunEvent,
 } from "../github/context";
 import type { GitHubContext } from "../github/context";
 import { detectMode } from "../modes/detector";
@@ -33,6 +34,7 @@ import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
 import { formatTurnsFromData } from "./format-turns";
 import type { Turn } from "./format-turns";
+import { redactSecrets } from "../github/utils/sanitizer";
 // Base-action imports (used directly instead of subprocess)
 import { setupWorkloadIdentity } from "../../base-action/src/workload-identity";
 import type { WorkloadIdentityHandle } from "../../base-action/src/workload-identity";
@@ -75,7 +77,7 @@ async function installClaudeCode(): Promise<string> {
     return customExecutable;
   }
 
-  const claudeCodeVersion = "2.1.215";
+  const claudeCodeVersion = "2.1.224";
   console.log(`Installing Claude Code v${claudeCodeVersion}...`);
 
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -136,7 +138,7 @@ async function writeStepSummary(executionFile: string): Promise<void> {
       fallback +=
         "Failed to format output (please report). Here's the raw JSON:\n\n";
       fallback += "```json\n";
-      fallback += readFileSync(executionFile, "utf-8");
+      fallback += redactSecrets(readFileSync(executionFile, "utf-8"));
       fallback += "\n```\n";
       await appendFile(summaryFile, fallback);
     } catch {
@@ -185,8 +187,10 @@ async function run() {
     process.env.GITHUB_TOKEN = githubToken;
     process.env.GH_TOKEN = githubToken;
 
-    // Check write permissions (only for entity contexts)
-    if (isEntityContext(context)) {
+    // Check write permissions for entity contexts, and for workflow_run
+    // events, whose upstream run may have been started by an actor without
+    // write access (e.g. the author of a fork pull request)
+    if (isEntityContext(context) || isWorkflowRunEvent(context)) {
       const hasWritePermissions = await checkWritePermissions(
         octokit.rest,
         context,
@@ -314,11 +318,12 @@ async function run() {
       prepareSuccess = false;
       prepareError = errorMessage;
     }
-    core.setFailed(`Action failed with error: ${errorMessage}`);
+    core.setFailed(`Action failed with error: ${redactSecrets(errorMessage)}`);
   } finally {
     // Phase 4: Cleanup (always runs)
 
-    // Stop refreshing the workload identity token file
+    // Stop refreshing the workload identity token file and delete the token
+    // material so it doesn't outlive this step
     workloadIdentity?.stop();
 
     // Update tracking comment

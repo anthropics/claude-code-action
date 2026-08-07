@@ -214,6 +214,46 @@ describe("prepareMcpConfig", () => {
     );
   });
 
+  test("should pin bun config flags before run for every bun server", async () => {
+    process.env.GITHUB_ACTION_PATH = "/test/action/path";
+    process.env.DEFAULT_WORKFLOW_TOKEN = "workflow-token";
+
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: ["mcp__github_inline_comment__create_inline_comment"],
+      mode: "tag",
+      context: {
+        ...mockPRContext,
+        inputs: { ...mockPRContext.inputs, useCommitSigning: true },
+      },
+    });
+
+    const parsed = JSON.parse(result);
+    const servers: Record<string, string> = {
+      github_comment: "src/mcp/github-comment-server.ts",
+      github_file_ops: "src/mcp/github-file-ops-server.ts",
+      github_inline_comment: "src/mcp/github-inline-comment-server.ts",
+      github_ci: "src/mcp/github-actions-server.ts",
+    };
+
+    for (const [name, script] of Object.entries(servers)) {
+      expect(parsed.mcpServers[name]).toBeDefined();
+      expect(parsed.mcpServers[name].command).toBe("bun");
+      expect(parsed.mcpServers[name].args).toEqual([
+        "--no-env-file",
+        "--config=/test/action/path/bunfig.toml",
+        "run",
+        `/test/action/path/${script}`,
+      ]);
+    }
+
+    delete process.env.DEFAULT_WORKFLOW_TOKEN;
+  });
+
   test("should use current working directory when GITHUB_WORKSPACE is not set", async () => {
     delete process.env.GITHUB_WORKSPACE;
 

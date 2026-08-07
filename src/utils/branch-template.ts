@@ -42,15 +42,6 @@ function sanitizeLabel(label: string): string {
     .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
 }
 
-/**
- * Drops empty branch path segments that can be produced by optional template
- * variables (for example an emoji-only title causing {{description}} to be
- * empty in "{{prefix}}{{description}}/{{entityNumber}}").
- */
-function normalizeBranchTemplateResult(branchName: string): string {
-  return branchName.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
-}
-
 export interface BranchTemplateVariables {
   prefix: string;
   entityType: string;
@@ -82,6 +73,21 @@ export function applyBranchTemplate(
 }
 
 /**
+ * Collapses empty path segments produced when a template variable resolves to
+ * an empty string. For example, an issue title with no alphanumeric characters
+ * (emoji-only, CJK-only, or punctuation-only) makes `{{description}}` empty, so
+ * a template like `{{prefix}}{{description}}/{{entityNumber}}` yields
+ * `claude//123`. Consecutive slashes — and a leading or trailing slash — are
+ * rejected by `validateBranchName`, which aborts the whole run, so normalize
+ * them into a valid branch name instead of crashing.
+ */
+function collapseEmptyPathSegments(branchName: string): string {
+  return branchName
+    .replace(/\/{2,}/g, "/") // collapse runs of slashes left by empty segments
+    .replace(/^\/+|\/+$/g, ""); // drop leading/trailing slashes
+}
+
+/**
  * Generates a branch name from the provided `template` and set of `variables`. Uses a default format if the template is empty or produces an empty result.
  */
 export function generateBranchName(
@@ -106,7 +112,7 @@ export function generateBranchName(
   };
 
   if (template?.trim()) {
-    const branchName = normalizeBranchTemplateResult(
+    const branchName = collapseEmptyPathSegments(
       applyBranchTemplate(template, variables),
     );
 

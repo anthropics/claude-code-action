@@ -17,6 +17,20 @@ type PrepareConfigParams = {
   context: GitHubContext;
 };
 
+// Build the bun invocation for one of the action's own MCP servers. The
+// flags mirror the entrypoint invocation in action.yml so the server process
+// reads its runtime config from the action directory rather than from the
+// process working directory.
+function bunServerArgs(scriptPath: string): string[] {
+  const actionPath = process.env.GITHUB_ACTION_PATH;
+  return [
+    "--no-env-file",
+    `--config=${actionPath}/bunfig.toml`,
+    "run",
+    `${actionPath}/${scriptPath}`,
+  ];
+}
+
 async function checkActionsReadPermission(
   token: string,
   owner: string,
@@ -97,10 +111,7 @@ export async function prepareMcpConfig(
     if (shouldIncludeCommentServer) {
       baseMcpConfig.mcpServers.github_comment = {
         command: "bun",
-        args: [
-          "run",
-          `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-comment-server.ts`,
-        ],
+        args: bunServerArgs("src/mcp/github-comment-server.ts"),
         env: {
           GITHUB_TOKEN: githubToken,
           REPO_OWNER: owner,
@@ -116,10 +127,7 @@ export async function prepareMcpConfig(
     if (context.inputs.useCommitSigning) {
       baseMcpConfig.mcpServers.github_file_ops = {
         command: "bun",
-        args: [
-          "run",
-          `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-file-ops-server.ts`,
-        ],
+        args: bunServerArgs("src/mcp/github-file-ops-server.ts"),
         env: {
           GITHUB_TOKEN: githubToken,
           REPO_OWNER: owner,
@@ -142,10 +150,7 @@ export async function prepareMcpConfig(
     ) {
       baseMcpConfig.mcpServers.github_inline_comment = {
         command: "bun",
-        args: [
-          "run",
-          `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-inline-comment-server.ts`,
-        ],
+        args: bunServerArgs("src/mcp/github-inline-comment-server.ts"),
         env: {
           GITHUB_TOKEN: githubToken,
           REPO_OWNER: owner,
@@ -187,10 +192,7 @@ export async function prepareMcpConfig(
       } else {
         baseMcpConfig.mcpServers.github_ci = {
           command: "bun",
-          args: [
-            "run",
-            `${process.env.GITHUB_ACTION_PATH}/src/mcp/github-actions-server.ts`,
-          ],
+          args: bunServerArgs("src/mcp/github-actions-server.ts"),
           env: {
             // Use workflow github token, not app token
             GITHUB_TOKEN: process.env.DEFAULT_WORKFLOW_TOKEN,

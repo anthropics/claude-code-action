@@ -75,7 +75,8 @@ async function run() {
     core.setOutput("conclusion", "failure");
     process.exit(1);
   } finally {
-    // Stop refreshing the workload identity token file so the process can exit
+    // Stop refreshing the workload identity token file (so the process can
+    // exit) and delete the token material so it doesn't outlive this step
     workloadIdentity?.stop();
   }
 }

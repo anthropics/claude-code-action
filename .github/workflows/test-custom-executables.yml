@@ -59,7 +59,7 @@ jobs:
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           path_to_claude_code_executable: /home/runner/.local/bin/claude
           path_to_bun_executable: /home/runner/.bun/bin/bun
-          allowed_tools: "LS,Read"
+          claude_args: '--allowedTools "LS,Read"'
 
       - name: Verify custom executables worked
         run: |
