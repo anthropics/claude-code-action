@@ -153,7 +153,26 @@ function parseClaudeArgsToExtraArgs(
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg?.startsWith("--")) {
-      const flag = arg.slice(2);
+      let flag = arg.slice(2);
+
+      // Support the inline `--flag=value` form (accepted by the CLI) in
+      // addition to the space-separated `--flag value` form. Split on the first
+      // `=` only, so values that themselves contain `=` (e.g. inline JSON) are
+      // preserved. Without this, `--allowedTools=Edit,Read` becomes the bogus
+      // key "allowedTools=Edit,Read" and bypasses the tool-merge and
+      // --json-schema detection that parseSdkOptions performs on these keys.
+      const eqIndex = flag.indexOf("=");
+      if (eqIndex !== -1) {
+        const inlineValue = flag.slice(eqIndex + 1);
+        flag = flag.slice(0, eqIndex);
+        if (ACCUMULATING_FLAGS.has(flag) && result[flag]) {
+          result[flag] = `${result[flag]}${ACCUMULATE_DELIMITER}${inlineValue}`;
+        } else {
+          result[flag] = inlineValue;
+        }
+        continue; // inline value consumes no further tokens
+      }
+
       const nextArg = args[i + 1];
 
       // Check if next arg is a value (not another flag)
