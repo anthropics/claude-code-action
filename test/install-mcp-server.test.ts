@@ -155,6 +155,11 @@ describe("prepareMcpConfig", () => {
   });
 
   test("should include inline comment server for PRs when tools are allowed", async () => {
+    process.env.RUNNER_TEMP = "/runner/temp";
+    process.env.GITHUB_REPOSITORY = "test-owner/test-repo";
+    process.env.GITHUB_RUN_ID = "12345";
+    process.env.GITHUB_RUN_ATTEMPT = "2";
+
     const result = await prepareMcpConfig({
       githubToken: "test-token",
       owner: "test-owner",
@@ -173,6 +178,23 @@ describe("prepareMcpConfig", () => {
       "test-token",
     );
     expect(parsed.mcpServers.github_inline_comment.env.PR_NUMBER).toBe("456");
+    expect(parsed.mcpServers.github_inline_comment.env.RUNNER_TEMP).toBe(
+      "/runner/temp",
+    );
+    expect(parsed.mcpServers.github_inline_comment.env.GITHUB_REPOSITORY).toBe(
+      "test-owner/test-repo",
+    );
+    expect(parsed.mcpServers.github_inline_comment.env.GITHUB_RUN_ID).toBe(
+      "12345",
+    );
+    expect(parsed.mcpServers.github_inline_comment.env.GITHUB_RUN_ATTEMPT).toBe(
+      "2",
+    );
+
+    delete process.env.RUNNER_TEMP;
+    delete process.env.GITHUB_REPOSITORY;
+    delete process.env.GITHUB_RUN_ID;
+    delete process.env.GITHUB_RUN_ATTEMPT;
   });
 
   test("should include comment server when no GitHub tools are allowed and signing disabled", async () => {

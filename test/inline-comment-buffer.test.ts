@@ -8,7 +8,63 @@ import {
 } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { removeBufferedComment } from "../src/mcp/inline-comment-buffer";
+import {
+  consumeInlineCommentBuffer,
+  getInlineCommentBufferPath,
+  removeBufferedComment,
+} from "../src/mcp/inline-comment-buffer";
+
+describe("getInlineCommentBufferPath", () => {
+  it("scopes the path by repository, workflow run, and attempt", () => {
+    expect(
+      getInlineCommentBufferPath({
+        RUNNER_TEMP: "/runner/temp",
+        GITHUB_REPOSITORY: "owner/repo",
+        GITHUB_RUN_ID: "12345",
+        GITHUB_RUN_ATTEMPT: "2",
+      }),
+    ).toBe(
+      join("/runner/temp", "inline-comments-buffer-owner_repo-12345-2.jsonl"),
+    );
+  });
+
+  it("uses the MCP repository environment when GITHUB_REPOSITORY is absent", () => {
+    const path = getInlineCommentBufferPath({
+      RUNNER_TEMP: "/runner/temp",
+      REPO_OWNER: "other-owner",
+      REPO_NAME: "other-repo",
+      GITHUB_RUN_ID: "12345",
+      GITHUB_RUN_ATTEMPT: "1",
+    });
+
+    expect(path).toContain("inline-comments-buffer-other-owner_other-repo-");
+  });
+});
+
+describe("consumeInlineCommentBuffer", () => {
+  let dir: string;
+  let bufferPath: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "inline-buffer-consume-"));
+    bufferPath = join(dir, "buffer.jsonl");
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("returns the contents and removes the buffer", () => {
+    writeFileSync(bufferPath, '{"body":"Comment"}\n');
+
+    expect(consumeInlineCommentBuffer(bufferPath)).toBe('{"body":"Comment"}\n');
+    expect(existsSync(bufferPath)).toBe(false);
+  });
+
+  it("returns undefined when the buffer does not exist", () => {
+    expect(consumeInlineCommentBuffer(bufferPath)).toBeUndefined();
+  });
+});
 
 describe("removeBufferedComment", () => {
   let dir: string;
