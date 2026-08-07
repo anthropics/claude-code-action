@@ -222,6 +222,20 @@ describe("detectMode with enhanced routing", () => {
 
       expect(detectMode(context)).toBe("agent");
     });
+
+    it("should use agent mode for merge_group with a prompt", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "merge_group",
+        payload: {} as any,
+        inputs: {
+          ...baseContext.inputs,
+          prompt: "Investigate the merge group CI failures",
+        },
+      };
+
+      expect(detectMode(context)).toBe("agent");
+    });
   });
 
   describe("Custom prompt injection in tag mode", () => {
