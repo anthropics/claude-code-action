@@ -262,6 +262,24 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   delete extraArgs["disallowedTools"];
   delete extraArgs["disallowed-tools"];
 
+  // Extract --permission-mode into the SDK's first-class permissionMode option.
+  // Left in extraArgs, the flag still reaches the CLI argv, but the CLI
+  // silently downgrades bypassPermissions to "default" unless the session is
+  // launched with the --allow-dangerously-skip-permissions interlock — which
+  // only the SDK's allowDangerouslySkipPermissions option emits. Passing the
+  // mode as a first-class option (with the companion option for
+  // bypassPermissions, mirroring how the CLI itself delegates sessions) makes
+  // the documented flag actually take effect in headless runs. Note this grants
+  // no new capability: --allow-dangerously-skip-permissions was already
+  // reachable via claude_args pass-through; the bug was that the natural
+  // spelling silently no-opped.
+  const permissionModeValue = extraArgs["permission-mode"];
+  const permissionMode =
+    typeof permissionModeValue === "string" && permissionModeValue.length > 0
+      ? (permissionModeValue as SdkOptions["permissionMode"])
+      : undefined;
+  delete extraArgs["permission-mode"];
+
   // Merge multiple --mcp-config values by combining their mcpServers objects
   // The action prepends its config (github_comment, github_ci, etc.) as inline JSON,
   // and users may provide their own config as inline JSON or file path
@@ -314,6 +332,10 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     disallowedTools:
       mergedDisallowedTools.length > 0 ? mergedDisallowedTools : undefined,
     systemPrompt,
+    permissionMode,
+    ...(permissionMode === "bypassPermissions" && {
+      allowDangerouslySkipPermissions: true,
+    }),
     fallbackModel: options.fallbackModel,
     pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
     additionalDirectories:
