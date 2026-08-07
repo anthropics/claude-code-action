@@ -3,6 +3,7 @@ import { readFile, access } from "fs/promises";
 import { dirname, join } from "path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type {
+  SDKAssistantMessage,
   SDKMessage,
   SDKResultMessage,
   SDKUserMessage,
@@ -15,6 +16,11 @@ export type ClaudeRunResult = {
   sessionId?: string;
   conclusion: "success" | "failure";
   structuredOutput?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  numTurns?: number;
 };
 
 /** Filename for the user request file, written by prompt generation */
@@ -155,6 +161,10 @@ export async function runClaudeWithSdk(
 
   const messages: SDKMessage[] = [];
   let resultMessage: SDKResultMessage | undefined;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalCacheReadTokens = 0;
+  let totalCacheWriteTokens = 0;
 
   try {
     for await (const message of query({ prompt, options: sdkOptions })) {
@@ -177,6 +187,14 @@ export async function runClaudeWithSdk(
         // explicitly: by SDK contract no further messages follow a
         // result, so the break is safe.
         break;
+      }
+
+      if (message.type === "assistant") {
+        const usage = (message as SDKAssistantMessage).message.usage;
+        totalInputTokens += usage.input_tokens ?? 0;
+        totalOutputTokens += usage.output_tokens ?? 0;
+        totalCacheReadTokens += usage.cache_read_input_tokens ?? 0;
+        totalCacheWriteTokens += usage.cache_creation_input_tokens ?? 0;
       }
     }
   } catch (error) {
@@ -213,6 +231,12 @@ export async function runClaudeWithSdk(
   const isSuccess =
     resultMessage.subtype === "success" && !resultMessage.is_error;
   result.conclusion = isSuccess ? "success" : "failure";
+
+  result.inputTokens = totalInputTokens;
+  result.outputTokens = totalOutputTokens;
+  result.cacheReadTokens = totalCacheReadTokens;
+  result.cacheWriteTokens = totalCacheWriteTokens;
+  result.numTurns = resultMessage.num_turns;
 
   // Handle structured output
   if (hasJsonSchema) {
