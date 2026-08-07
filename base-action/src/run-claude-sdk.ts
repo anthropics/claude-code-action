@@ -208,6 +208,17 @@ export async function runClaudeWithSdk(
     throw new Error("No result message received from Claude");
   }
 
+  if (
+    resultMessage.subtype === "success" &&
+    !resultMessage.is_error &&
+    sdkOptions.maxTurns !== undefined &&
+    resultMessage.num_turns > sdkOptions.maxTurns
+  ) {
+    const message = `Claude reported a successful result after ${resultMessage.num_turns} turns, exceeding the configured maximum of ${sdkOptions.maxTurns}`;
+    core.error(message);
+    throw new Error(message);
+  }
+
   // subtype "success" with is_error:true means the run errored without producing
   // a real result — treat it as failure so CI does not show a misleading green check.
   const isSuccess =
