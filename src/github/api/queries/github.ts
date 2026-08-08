@@ -84,6 +84,7 @@ export const PR_QUERY = `
                 body
                 path
                 line
+                diffHunk
                 author {
                   login
                 }
