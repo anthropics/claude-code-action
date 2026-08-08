@@ -143,6 +143,71 @@ async function postComment(
   }
 }
 
+/**
+ * Submit all comments as a single GitHub Pull Request Review. This produces
+ * one notification instead of N separate notifications for each comment.
+ * Falls back to posting individual comments if the batch review fails (e.g.
+ * when a comment targets an invalid path or line).
+ */
+async function postCommentsAsReview(
+  octokit: ReturnType<typeof createOctokit>["rest"],
+  owner: string,
+  repo: string,
+  pull_number: number,
+  headSha: string,
+  comments: BufferedComment[],
+): Promise<number> {
+  const reviewComments = comments.map((c) => {
+    const comment: {
+      path: string;
+      body: string;
+      side?: "LEFT" | "RIGHT";
+      line?: number;
+      start_line?: number;
+      start_side?: "LEFT" | "RIGHT";
+    } = {
+      path: c.path,
+      body: c.body,
+      side: c.side || "RIGHT",
+    };
+    if (c.startLine) {
+      comment.start_line = c.startLine;
+      comment.start_side = c.side || "RIGHT";
+      comment.line = c.line;
+    } else {
+      comment.line = c.line;
+    }
+    return comment;
+  });
+
+  try {
+    await octokit.rest.pulls.createReview({
+      owner,
+      repo,
+      pull_number,
+      commit_id: headSha,
+      event: "COMMENT",
+      comments: reviewComments,
+    });
+    console.log(
+      `  submitted ${comments.length} comment(s) as a single PR review`,
+    );
+    return comments.length;
+  } catch (e) {
+    console.log(
+      `  batch review failed (${e instanceof Error ? e.message : String(e)}), falling back to individual comments`,
+    );
+    let posted = 0;
+    for (const c of comments) {
+      if (await postComment(octokit, owner, repo, pull_number, headSha, c)) {
+        console.log(`  posted ${c.path}:${c.line}`);
+        posted++;
+      }
+    }
+    return posted;
+  }
+}
+
 async function main() {
   let raw: string;
   try {
@@ -217,13 +282,18 @@ async function main() {
   const headSha = pr.data.head.sha;
 
   console.log(`Posting ${toPost.length} classified-as-real comment(s)`);
-  let posted = 0;
-  for (const c of toPost) {
-    if (await postComment(octokit, owner, repo, pull_number, headSha, c)) {
-      console.log(`  posted ${c.path}:${c.line}`);
-      posted++;
-    }
-  }
+
+  // Batch all comments into a single PR review submission. This produces
+  // one notification and a cohesive review in GitHub's timeline instead of
+  // separate per-comment notifications.
+  const posted = await postCommentsAsReview(
+    octokit,
+    owner,
+    repo,
+    pull_number,
+    headSha,
+    toPost,
+  );
   console.log(`Posted ${posted}/${toPost.length}`);
 }
 
