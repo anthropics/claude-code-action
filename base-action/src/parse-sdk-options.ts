@@ -1,3 +1,4 @@
+import * as core from "@actions/core";
 import { parse as parseShellArgs } from "shell-quote";
 import type { ClaudeOptions } from "./run-claude";
 import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
@@ -152,7 +153,8 @@ function parseClaudeArgsToExtraArgs(
  */
 export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   // Determine output verbosity
-  const isDebugMode = process.env.ACTIONS_STEP_DEBUG === "true";
+  const isDebugMode =
+    process.env.ACTIONS_STEP_DEBUG === "true" || core.isDebug();
   const showFullOutput = options.showFullOutput === "true" || isDebugMode;
 
   // Parse claudeArgs into extraArgs for CLI pass-through
