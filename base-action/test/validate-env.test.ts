@@ -21,6 +21,9 @@ describe("validateEnvironmentVariables", () => {
     delete process.env.AWS_SECRET_ACCESS_KEY;
     delete process.env.AWS_SESSION_TOKEN;
     delete process.env.AWS_BEARER_TOKEN_BEDROCK;
+    delete process.env.AWS_ROLE_ARN;
+    delete process.env.AWS_WEB_IDENTITY_TOKEN_FILE;
+    delete process.env.AWS_ROLE_SESSION_NAME;
     delete process.env.ANTHROPIC_BEDROCK_BASE_URL;
     delete process.env.ANTHROPIC_VERTEX_PROJECT_ID;
     delete process.env.CLOUD_ML_REGION;
@@ -129,7 +132,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.AWS_SECRET_ACCESS_KEY = "test-secret-key";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+        "AWS Bedrock requires one of: AWS_BEARER_TOKEN_BEDROCK, both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or IRSA credentials (AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE).",
       );
     });
 
@@ -139,7 +142,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.AWS_ACCESS_KEY_ID = "test-access-key";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+        "AWS Bedrock requires one of: AWS_BEARER_TOKEN_BEDROCK, both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or IRSA credentials (AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE).",
       );
     });
 
@@ -166,7 +169,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.AWS_REGION = "us-east-1";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+        "AWS Bedrock requires one of: AWS_BEARER_TOKEN_BEDROCK, both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or IRSA credentials (AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE).",
       );
     });
 
@@ -174,7 +177,38 @@ describe("validateEnvironmentVariables", () => {
       process.env.CLAUDE_CODE_USE_BEDROCK = "1";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        /AWS_REGION is required when using AWS Bedrock.*Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock/s,
+        /AWS_REGION is required when using AWS Bedrock.*AWS Bedrock requires one of: AWS_BEARER_TOKEN_BEDROCK, both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or IRSA credentials \(AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE\)/s,
+      );
+    });
+
+    test("should pass with IRSA credentials instead of access keys", () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.AWS_REGION = "us-east-1";
+      process.env.AWS_ROLE_ARN = "arn:aws:iam::123456789012:role/bedrock-role";
+      process.env.AWS_WEB_IDENTITY_TOKEN_FILE =
+        "/var/run/secrets/eks.amazonaws.com/serviceaccount/token";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should fail when only AWS_ROLE_ARN is provided without web identity token file", () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.AWS_REGION = "us-east-1";
+      process.env.AWS_ROLE_ARN = "arn:aws:iam::123456789012:role/bedrock-role";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "AWS Bedrock requires one of: AWS_BEARER_TOKEN_BEDROCK, both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or IRSA credentials (AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE).",
+      );
+    });
+
+    test("should fail when only AWS_WEB_IDENTITY_TOKEN_FILE is provided without role ARN", () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.AWS_REGION = "us-east-1";
+      process.env.AWS_WEB_IDENTITY_TOKEN_FILE =
+        "/var/run/secrets/eks.amazonaws.com/serviceaccount/token";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "AWS Bedrock requires one of: AWS_BEARER_TOKEN_BEDROCK, both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or IRSA credentials (AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE).",
       );
     });
   });
@@ -356,7 +390,7 @@ describe("validateEnvironmentVariables", () => {
         "  - AWS_REGION is required when using AWS Bedrock.",
       );
       expect(error!.message).toContain(
-        "  - Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+        "  - AWS Bedrock requires one of: AWS_BEARER_TOKEN_BEDROCK, both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or IRSA credentials (AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE).",
       );
     });
   });
