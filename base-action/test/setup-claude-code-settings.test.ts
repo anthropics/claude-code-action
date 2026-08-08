@@ -147,4 +147,107 @@ describe("setupClaudeCodeSettings", () => {
     expect(settings.newKey).toBe("newValue");
     expect(settings.model).toBe("claude-opus-4-1-20250805");
   });
+
+  describe("model-alias env var forwarding (issue #1258)", () => {
+    const MODEL_ENV_VARS = [
+      "ANTHROPIC_DEFAULT_SONNET_MODEL",
+      "ANTHROPIC_DEFAULT_OPUS_MODEL",
+      "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    ] as const;
+
+    let originalEnv: Record<string, string | undefined>;
+
+    beforeEach(() => {
+      originalEnv = {};
+      for (const key of MODEL_ENV_VARS) {
+        originalEnv[key] = process.env[key];
+        delete process.env[key];
+      }
+    });
+
+    afterEach(() => {
+      for (const key of MODEL_ENV_VARS) {
+        if (originalEnv[key] === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = originalEnv[key];
+        }
+      }
+    });
+
+    test("should mirror ANTHROPIC_DEFAULT_*_MODEL env vars into settings.env", async () => {
+      process.env.ANTHROPIC_DEFAULT_SONNET_MODEL =
+        "@preset/minimax-minimax-m2-7-no-thinking";
+      process.env.ANTHROPIC_DEFAULT_OPUS_MODEL = "@preset/some-opus-preset";
+      process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "@preset/some-haiku-preset";
+
+      await setupClaudeCodeSettings(undefined, testHomeDir);
+
+      const settingsContent = await readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(settingsContent);
+
+      expect(settings.env).toEqual({
+        ANTHROPIC_DEFAULT_SONNET_MODEL:
+          "@preset/minimax-minimax-m2-7-no-thinking",
+        ANTHROPIC_DEFAULT_OPUS_MODEL: "@preset/some-opus-preset",
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "@preset/some-haiku-preset",
+      });
+    });
+
+    test("should forward only the env vars that are set", async () => {
+      process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = "sonnet-preset";
+
+      await setupClaudeCodeSettings(undefined, testHomeDir);
+
+      const settingsContent = await readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(settingsContent);
+
+      expect(settings.env).toEqual({
+        ANTHROPIC_DEFAULT_SONNET_MODEL: "sonnet-preset",
+      });
+    });
+
+    test("should not create settings.env when no model-alias env vars are set", async () => {
+      await setupClaudeCodeSettings(undefined, testHomeDir);
+
+      const settingsContent = await readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(settingsContent);
+
+      expect(settings.env).toBeUndefined();
+    });
+
+    test("should preserve user-provided settings.env keys (user wins on conflict)", async () => {
+      process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = "sonnet-from-env";
+      process.env.ANTHROPIC_DEFAULT_OPUS_MODEL = "opus-from-env";
+
+      const userSettings = JSON.stringify({
+        env: {
+          ANTHROPIC_DEFAULT_SONNET_MODEL: "sonnet-from-user-settings",
+          CUSTOM_VAR: "custom-value",
+        },
+      });
+
+      await setupClaudeCodeSettings(userSettings, testHomeDir);
+
+      const settingsContent = await readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(settingsContent);
+
+      expect(settings.env).toEqual({
+        ANTHROPIC_DEFAULT_SONNET_MODEL: "sonnet-from-user-settings",
+        ANTHROPIC_DEFAULT_OPUS_MODEL: "opus-from-env",
+        CUSTOM_VAR: "custom-value",
+      });
+    });
+
+    test("should ignore empty env var values", async () => {
+      process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = "";
+
+      await setupClaudeCodeSettings(undefined, testHomeDir);
+
+      const settingsContent = await readFile(settingsPath, "utf-8");
+      const settings = JSON.parse(settingsContent);
+
+      expect(settings.env).toBeUndefined();
+    });
+  });
 });
