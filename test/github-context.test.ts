@@ -50,6 +50,7 @@ const ENV_KEYS = [
   "USE_STICKY_COMMENT",
   "CLASSIFY_INLINE_COMMENTS",
   "USE_COMMIT_SIGNING",
+  "ALLOW_PR_REBASE",
   "SSH_SIGNING_KEY",
   "BOT_ID",
   "BOT_NAME",
@@ -348,6 +349,7 @@ describe("parseGitHubContext", () => {
       expect(inputs.useStickyComment).toBe(false);
       expect(inputs.classifyInlineComments).toBe(true);
       expect(inputs.useCommitSigning).toBe(false);
+      expect(inputs.allowPrRebase).toBe(false);
       expect(inputs.sshSigningKey).toBe("");
       expect(inputs.botId).toBe(String(CLAUDE_APP_BOT_ID));
       expect(inputs.botName).toBe(CLAUDE_BOT_LOGIN);
@@ -371,6 +373,7 @@ describe("parseGitHubContext", () => {
       process.env.USE_STICKY_COMMENT = "true";
       process.env.CLASSIFY_INLINE_COMMENTS = "false";
       process.env.USE_COMMIT_SIGNING = "true";
+      process.env.ALLOW_PR_REBASE = "true";
       process.env.SSH_SIGNING_KEY = "ssh-key-material";
       process.env.BOT_ID = "111";
       process.env.BOT_NAME = "custom-bot";
@@ -399,6 +402,7 @@ describe("parseGitHubContext", () => {
       expect(inputs.useStickyComment).toBe(true);
       expect(inputs.classifyInlineComments).toBe(false);
       expect(inputs.useCommitSigning).toBe(true);
+      expect(inputs.allowPrRebase).toBe(true);
       expect(inputs.sshSigningKey).toBe("ssh-key-material");
       expect(inputs.botId).toBe("111");
       expect(inputs.botName).toBe("custom-bot");
@@ -413,6 +417,7 @@ describe("parseGitHubContext", () => {
     test("boolean inputs only accept the lowercase string true", () => {
       process.env.USE_STICKY_COMMENT = "TRUE";
       process.env.USE_COMMIT_SIGNING = "1";
+      process.env.ALLOW_PR_REBASE = "TRUE";
 
       setEvent("issues", {
         action: "opened",
@@ -424,6 +429,7 @@ describe("parseGitHubContext", () => {
 
       expect(inputs.useStickyComment).toBe(false);
       expect(inputs.useCommitSigning).toBe(false);
+      expect(inputs.allowPrRebase).toBe(false);
     });
   });
 });

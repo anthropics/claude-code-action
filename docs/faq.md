@@ -68,9 +68,11 @@ Claude only creates and pushes commits. It does not merge branches, rebase, forc
 - Never push to branches other than where it was invoked (either its own branch or the PR branch)
 - Never force push or perform destructive operations
 
-This restriction is enforced in Claude's system prompt, so it applies even if you grant the underlying git tools (for example `--allowedTools "Bash(git rebase:*)"`). In that case Claude will still decline rebase requests and explain the limitation rather than running the command.
+Unless explicitly enabled, this restriction is enforced in Claude's system prompt, so granting the underlying git tools alone (for example `--allowedTools "Bash(git rebase:*)"`) is not enough.
 
 If you need to rebase, do it yourself locally — or with the Claude Code CLI outside of this action — and push the result.
+
+For trusted repositories and actors, set `allow_pr_rebase: true` to let Claude rebase the current PR branch after a non-fast-forward push. This grants access to `git fetch`, `git pull`, and `git rebase`; force pushes and rebasing other branches remain prohibited.
 
 ### Why won't Claude create a pull request?
 

@@ -30,6 +30,7 @@ export function collectActionInputsPresence(): string {
     use_sticky_comment: "false",
     classify_inline_comments: "true",
     use_commit_signing: "false",
+    allow_pr_rebase: "false",
     ssh_signing_key: "",
   };
 

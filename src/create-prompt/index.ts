@@ -37,6 +37,7 @@ export function buildAllowedToolsString(
   customAllowedTools?: string[],
   includeActionsTools: boolean = false,
   useCommitSigning: boolean = false,
+  allowPrRebase: boolean = false,
 ): string {
   // Tag mode needs these tools to function properly
   let baseTools = [...BASE_ALLOWED_TOOLS];
@@ -58,6 +59,13 @@ export function buildAllowedToolsString(
       `Bash(${GIT_PUSH_WRAPPER}:*)`,
       "Bash(git rm:*)",
     );
+    if (allowPrRebase) {
+      baseTools.push(
+        "Bash(git fetch:*)",
+        "Bash(git pull:*)",
+        "Bash(git rebase:*)",
+      );
+    }
   }
 
   // Add GitHub Actions MCP tools if enabled
@@ -400,6 +408,10 @@ function getCommitInstructions(
   context: PreparedContext,
   useCommitSigning: boolean,
 ): string {
+  const allowPrRebase =
+    eventData.isPR &&
+    !useCommitSigning &&
+    context.githubContext?.inputs.allowPrRebase;
   const triggerName = githubData.triggerDisplayName ?? context.triggerUsername;
   const triggerEmail =
     context.triggerUserId && context.triggerUsername
@@ -440,7 +452,12 @@ function getCommitInstructions(
           Bash(git commit -m "<message>\\n\\n${coAuthorLine}")`
             : ""
         }
-        - Push to the remote: Bash(${GIT_PUSH_WRAPPER} origin HEAD)`;
+        - Push to the remote: Bash(${GIT_PUSH_WRAPPER} origin HEAD)${
+          allowPrRebase
+            ? `
+        - If the push is rejected as non-fast-forward, run Bash(git pull --rebase origin ${eventData.baseBranch || "<current-branch>"}), resolve conflicts, stage resolved files with git add, and run Bash(git rebase --continue) until complete. Then retry the push. Never force-push.`
+            : ""
+        }`;
     } else {
       const branchName = eventData.claudeBranch || eventData.baseBranch;
       return `
@@ -454,7 +471,12 @@ function getCommitInstructions(
           Bash(git commit -m "<message>\\n\\n${coAuthorLine}")`
             : ""
         }
-        - Push to the remote: Bash(${GIT_PUSH_WRAPPER} origin ${branchName})`;
+        - Push to the remote: Bash(${GIT_PUSH_WRAPPER} origin ${branchName})${
+          allowPrRebase
+            ? `
+        - If the push is rejected as non-fast-forward, run Bash(git pull --rebase origin ${branchName}), resolve conflicts, stage resolved files with git add, and run Bash(git rebase --continue) until complete. Then retry the push. Never force-push.`
+            : ""
+        }`;
     }
   }
 }
@@ -635,6 +657,10 @@ export function generateDefaultPrompt(
     imageUrlMap,
   } = githubData;
   const { eventData } = context;
+  const allowPrRebase =
+    eventData.isPR &&
+    !useCommitSigning &&
+    context.githubContext?.inputs.allowPrRebase;
 
   const { eventType, triggerContext } = getEventTypeAndContext(context);
 
@@ -857,7 +883,7 @@ What You CANNOT Do:
 - Approve pull requests (for security reasons)
 - Post multiple comments (you only update your initial comment)
 - Execute commands outside the repository context${useCommitSigning ? "\n- Run arbitrary Bash commands (unless explicitly allowed via allowed_tools configuration)" : ""}
-- Perform branch operations (cannot merge branches, rebase, or perform other git operations beyond creating and pushing commits)
+- Perform branch operations (${allowPrRebase ? "cannot merge, force-push, switch branches, or rebase any branch other than the current PR branch" : "cannot merge branches, rebase, or perform other git operations beyond creating and pushing commits"})
 - Modify files in the .github/workflows directory (GitHub App permissions do not allow workflow modifications)
 
 When users ask you to perform actions you cannot do, politely explain the limitation and, when applicable, direct them to the FAQ for more information and workarounds:
@@ -990,6 +1016,7 @@ export async function createPrompt(
       [],
       hasActionsReadPermission,
       context.inputs.useCommitSigning,
+      context.isPR && !!context.inputs.allowPrRebase,
     );
     const allDisallowedTools = buildDisallowedToolsString([], []);
 
