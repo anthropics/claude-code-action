@@ -45,6 +45,7 @@ import { preparePrompt } from "../../base-action/src/prepare-prompt";
 import { runClaude } from "../../base-action/src/run-claude";
 import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
 import { setExecutionFileOutputIfPresent } from "../../base-action/src/execution-file";
+import { validateAndAnnotateConfig } from "../utils/config-validation";
 
 // Exported for unit testing. `set -o pipefail` makes curl's non-zero exit
 // propagate through the pipe so the install retry logic actually triggers
@@ -270,6 +271,17 @@ async function run() {
       if (restoreBase) {
         restoreConfigFromBase(restoreBase);
       }
+    }
+
+    // Validate configuration files early so users see clear error messages
+    const configValid = await validateAndAnnotateConfig({
+      settingsInput: process.env.INPUT_SETTINGS,
+      claudeArgs: process.env.CLAUDE_ARGS,
+    });
+    if (!configValid) {
+      throw new Error(
+        "Configuration validation failed. Check the annotations above for details.",
+      );
     }
 
     await setupClaudeCodeSettings(process.env.INPUT_SETTINGS);
