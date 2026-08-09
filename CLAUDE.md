@@ -23,7 +23,7 @@ bun test test/modes/                        # one directory
 
 Runtime is **Bun**, not Node. Bun's runner discovers `*.test.ts` recursively
 from cwd, so a root `bun test` covers **both** `test/` and `base-action/test/`
-(45 files at the time of writing) — that is exactly what CI runs. `base-action/`
+(52 files at the time of writing) — that is exactly what CI runs. `base-action/`
 also has its own `package.json` with the same script names for standalone use.
 
 In a Claude Code session `bun run format` also runs automatically after every
@@ -130,7 +130,8 @@ src/entrypoints/           # run.ts (live) + cleanup-ssh-signing, post-buffered-
 src/modes/                 # detector.ts + tag/ + agent/ (each mode's prepare*() )
 src/github/                # token, context (discriminated-union GitHubContext), api/, data/ (fetch+format the prompt),
                            #   operations/ (branch, comments, git-config, restore-config), validation/, utils/
-src/mcp/                   # in-process MCP servers + install-mcp-server.ts (writes .mcp.json) +
+src/mcp/                   # in-process MCP servers (exported handlers + import.meta.main bootstrap) +
+                           #   install-mcp-server.ts (writes .mcp.json) + tool-result (shared result envelope) +
                            #   inline-comment-buffer + path-validation (repo-root containment for file ops)
 src/create-prompt/         # writes the assembled prompt to a temp file for the CLI
 src/utils/                 # retry, branch-template, extract-user-request
@@ -295,6 +296,32 @@ File paths reaching `github_file_ops` go through `validatePathWithinRepo()`
 (`src/mcp/path-validation.ts`), which `realpath`s both sides so neither `../`
 nor a symlink can write outside the repo root.
 
+**All four follow the same shape, and a new one should too.** Each server file
+exports its tool handlers as named functions that **throw** on failure, reads
+its environment through an exported `read*Context(env)` that a test can hand a
+fixture instead of mutating `process.env`, registers the tools as thin bindings
+inside a `create*Server()` factory, and puts the stdio bootstrap behind
+`if (import.meta.main)`. The last parameter of each handler is an optional
+Octokit (or, for file-ops, a mockable `node-fetch`), which is how the tests
+inject a stub — `mock.module` is process-wide in Bun, so mocking a first-party
+module leaks into every other test file in the run.
+
+That shape is not cosmetic: before it, these were 1,104 lines at **zero**
+coverage and could not be tested at all. Env validation ran at module scope and
+called `process.exit(1)`, the tool bodies were anonymous callbacks inside
+top-level `server.tool()` calls, and `runServer()` fired on import — so merely
+importing one started a stdio server. The startup fail-fast still exists; it
+moved inside `runServer()` so the exit only happens when the file really is the
+entrypoint.
+
+Registering a tool is not the same as it working. `test/mcp-servers-smoke.test.ts`
+spawns each server the way `action.yml` does (`bun run <path>`) and drives a
+real MCP handshake plus one `tools/call`, because a handler unit test stays
+green for a server that no longer starts or has stopped advertising a tool —
+which is precisely the failure the `import.meta.main` guard makes possible. The
+shared result envelope lives in `src/mcp/tool-result.ts` so the four cannot
+drift apart on what an error looks like to the model.
+
 **Plugins.** `plugins` / `plugin_marketplaces` inputs →
 `base-action/src/install-plugins.ts` installs Claude Code plugins before the
 run (names/URLs are strictly validated against path traversal).
@@ -315,6 +342,11 @@ run (names/URLs are strictly validated against path traversal).
   fetch → checkout-from-base → unstage. The delete precedes `git fetch` so an
   attacker-controlled `.gitmodules` can't hang CI on a submodule credential
   prompt; don't reorder (see the security section).
+  `test/restore-config-ordering.test.ts` asserts the sequence, and asserts that
+  the sensitive paths are already gone when `git fetch` runs. It exists because
+  `restore-config.ts` was at 100% line coverage and the reordering still passed:
+  every statement runs either way. Measured — with the delete moved below the
+  fetch, all six tests in `test/restore-config.test.ts` stayed green.
 - **Error phase attribution**: `run.ts` uses `prepareCompleted` to distinguish
   prepare failures from execution failures; the tracking comment shows different
   messages for each.
@@ -324,7 +356,23 @@ run (names/URLs are strictly validated against path traversal).
   `run.ts`'s `finally`: the GitHub App token is never revoked and the tracking
   comment stays stuck at "Claude is working…". **Throw** instead. `process.exit()`
   is fine only in the `src/mcp/*-server.ts` entrypoints, which really are their
-  own processes.
+  own processes. `test/no-process-exit-in-run-graph.test.ts` walks `run.ts`'s
+  transitive local imports and fails on a new one.
+  `src/entrypoints/update-comment-link.ts` is the single allow-listed exception:
+  its exits sit behind an `import.meta.main` guard, which the same test requires
+  it to keep.
+- **The file-ops ref update retries _everything_, not just the 403.** The 403
+  retry in `github-file-ops-server.ts` exists for a real transient GitHub
+  failure ("Resource not accessible by integration"), but no `shouldRetry`
+  predicate is passed to `retryWithBackoff`, so a permanent error — a bad ref, a
+  revoked token — also costs the full three attempts and ~3s before surfacing.
+  The old comment on that branch claimed non-403s "fail immediately without
+  retry"; the code has never done that. Actual behaviour is pinned by
+  `test/mcp-file-ops-server.test.ts`, so narrowing the retry is a deliberate
+  behaviour change and will turn that test red — which is the point. Note also
+  that `commit_files` and `delete_files` share this path but differ by one
+  console line on 403, preserved behind `logRetryOn403` rather than normalised
+  away.
 - **`PrepareTagModeError` carries the comment id.** `run.ts` normally learns the
   tracking-comment id from `prepareTagMode()`'s return value, so anything that
   throws after the comment is created (data fetch, git auth, `createPrompt()`,
@@ -335,6 +383,16 @@ run (names/URLs are strictly validated against path traversal).
   tools, including the same escape-and-restore of `()|&;<>` through private-use
   codepoints before `shell-quote`'s `parse()`. Fix one, fix the other — a drift
   grants a tool whose MCP server was never installed, or vice versa.
+  `test/tokenizer-agreement.test.ts` runs a shared table of `claude_args`
+  through both and compares the resulting tool **sets**. Order is deliberately
+  not part of the contract: when one string mixes `--allowedTools` and
+  `--allowed-tools`, parse-sdk-options groups all values of the first spelling
+  ahead of the second while parse-tools keeps encounter order. Permission lists
+  are sets, so that difference is benign — it is pinned explicitly rather than
+  left to be rediscovered. Watch the escape tables in particular:
+  `parse-sdk-options.ts` embeds the literal U+E000–U+E006 characters, which are
+  invisible in most editors and diffs, while `parse-tools.ts` builds them with
+  `String.fromCodePoint`.
 - **Pass `--` before any path in a git subprocess.** Changed-file paths come
   straight from the PR author, so a file named `-w` or `--stdin` is otherwise
   parsed as a flag (this silently produced wrong hashes in `fetcher.ts`).
@@ -345,7 +403,11 @@ run (names/URLs are strictly validated against path traversal).
   Note the asymmetry: `run.ts` also sets `conclusion` and
   `skipped_due_to_workflow_validation_mismatch`, which are **not** in the
   `outputs:` block and so never reach a caller — a `core.setOutput()` alone
-  publishes nothing.
+  publishes nothing. `test/action-yml-wiring.test.ts` checks that every declared
+  output points at a step id that exists and at a name `run.ts` actually sets,
+  and that the two internal-only outputs stay exactly that — so adding a
+  `setOutput()` without exporting it fails loudly instead of silently
+  publishing nothing.
 - **Don't pass `--tsconfig-override` to Bun**: it triggers a Bun runtime crash
   (see the comment in `action.yml`'s run step and `cleanup-ssh-signing`). Bun
   auto-discovers the action's `tsconfig.json`.
@@ -358,14 +420,24 @@ run (names/URLs are strictly validated against path traversal).
   unlike `.mcp.json` and `.claude/` it is never reverted to the base branch — on
   a PR event the pin is the only thing standing between a PR-authored
   `bunfig.toml` and the runtime. Deleting the file as "unused", or adding a bun
-  invocation without the flag, drops that. Add new bun calls with the flag.
+  invocation without the flag, drops that. Add new bun calls with the flag —
+  `test/action-yml-wiring.test.ts` fails on one that runs a `src/entrypoints/`
+  file without it, and also pins the set of entrypoints that are their own
+  steps. `bun install` is the one deliberate exemption: that step `cd`s into
+  `GITHUB_ACTION_PATH` first, so Bun's config discovery already starts in the
+  action's own checkout.
 - **`prepare.ts` is dead code** — the prepare phase lives in `run.ts`. Edit
   `run.ts`.
 - **Some `entrypoints/` files are modules, not steps** — `collect-inputs`,
   `update-comment-link`, `format-turns` are imported by `run.ts`.
-- **`test/` and `base-action/test/` are unit tests only.** Integration coverage
-  lives in `.github/workflows/test-*.yml` (base-action, custom executables, MCP
-  servers, settings, structured output), which invoke the action for real and
+- **`test/` and `base-action/test/` are almost entirely unit tests.** Three
+  exceptions run real subprocesses and are worth knowing about before you assume
+  a test is pure: `restore-config*.test.ts` drive actual `git` against throwaway
+  repositories, `ssh-signing.test.ts` does the same, and
+  `mcp-servers-smoke.test.ts` spawns each MCP server with `bun run` and speaks
+  MCP to it over stdio. None of them touch the network. Integration coverage
+  proper lives in `.github/workflows/test-*.yml` (base-action, custom
+  executables, MCP servers, settings, structured output), which invoke the action for real and
   need `id-token: write` plus `ANTHROPIC_FEDERATION_RULE_ID` /
   `ANTHROPIC_ORGANIZATION_ID` / `ANTHROPIC_SERVICE_ACCOUNT_ID`. They can't be run
   locally with `bun test`. **In this fork they are disabled** — none of those
