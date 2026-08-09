@@ -164,9 +164,15 @@ export function formatResultContent(content: any): string {
       typeof parsedContent[0] === "object" &&
       parsedContent[0]?.type === "text"
     ) {
-      // Extract the text field from the first item. Tool output is arbitrary,
-      // so `text` is not guaranteed to be a string.
-      contentStr = String(parsedContent[0]?.text || "");
+      // Keep every text block, not just the first: a tool result may split its
+      // output across several, and dropping the rest silently loses findings,
+      // file paths and follow-up instructions from the rendered summary. Blocks
+      // of other types (for example images) are skipped. Tool output is
+      // arbitrary, so `text` is not guaranteed to be a string.
+      contentStr = parsedContent
+        .filter((block: any) => block?.type === "text")
+        .map((block: any) => String(block?.text || ""))
+        .join("\n");
     } else {
       contentStr = String(content).trim();
     }
