@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 /**
- * Reads buffered inline-comment calls from /tmp/inline-comments-buffer.jsonl,
- * classifies each as "real review" vs "test/probe" using Haiku, and posts
+ * Reads buffered inline-comment calls from the per-job buffer file (see
+ * getInlineCommentBufferPath), classifies each as "real review" vs
+ * "test/probe" using Haiku, and posts
  * only the real ones. Calls with confirmed=false are never posted.
  *
  * If the Anthropic API is unavailable (Bedrock/Vertex users without a direct
@@ -11,8 +12,9 @@
  */
 import { readFileSync } from "fs";
 import { createOctokit } from "../github/api/client";
+import { getInlineCommentBufferPath } from "../mcp/inline-comment-buffer";
 
-const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
+const BUFFER_PATH = getInlineCommentBufferPath();
 
 type BufferedComment = {
   ts: string;
