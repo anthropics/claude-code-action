@@ -7,6 +7,7 @@ export const PR_QUERY = `
         title
         body
         author {
+          __typename
           login
         }
         baseRefName
@@ -57,6 +58,7 @@ export const PR_QUERY = `
             databaseId
             body
             author {
+              __typename
               login
             }
             createdAt
@@ -70,6 +72,7 @@ export const PR_QUERY = `
             id
             databaseId
             author {
+              __typename
               login
             }
             body
@@ -85,6 +88,7 @@ export const PR_QUERY = `
                 path
                 line
                 author {
+                  __typename
                   login
                 }
                 createdAt
@@ -107,6 +111,7 @@ export const ISSUE_QUERY = `
         title
         body
         author {
+          __typename
           login
         }
         createdAt
@@ -124,6 +129,7 @@ export const ISSUE_QUERY = `
             databaseId
             body
             author {
+              __typename
               login
             }
             createdAt
