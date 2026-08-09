@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+//
+// GitHub CI MCP Server - read-only access to this PR's workflow runs and logs.
+//
+// The tool handlers are exported so they can be tested directly. The stdio
+// bootstrap only runs when this file is the process entrypoint — importing it
+// must never start a server or exit the process.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -6,274 +12,265 @@ import { z } from "zod";
 import { GITHUB_API_URL } from "../github/api/config";
 import { mkdir, writeFile } from "fs/promises";
 import { Octokit } from "@octokit/rest";
+import { toolError, toolSuccess, type ToolResult } from "./tool-result";
 
-const REPO_OWNER = process.env.REPO_OWNER;
-const REPO_NAME = process.env.REPO_NAME;
-const PR_NUMBER = process.env.PR_NUMBER;
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const RUNNER_TEMP = process.env.RUNNER_TEMP || "/tmp";
+export type CiContext = {
+  owner: string;
+  repo: string;
+  pullNumber: number;
+  githubToken: string;
+  runnerTemp: string;
+};
 
-if (!REPO_OWNER || !REPO_NAME || !PR_NUMBER || !GITHUB_TOKEN) {
-  console.error(
-    "[GitHub CI Server] Error: REPO_OWNER, REPO_NAME, PR_NUMBER, and GITHUB_TOKEN environment variables are required",
-  );
-  process.exit(1);
+export const MISSING_ENV_MESSAGE =
+  "[GitHub CI Server] Error: REPO_OWNER, REPO_NAME, PR_NUMBER, and GITHUB_TOKEN environment variables are required";
+
+export function readCiContext(env: NodeJS.ProcessEnv = process.env): CiContext {
+  const owner = env.REPO_OWNER;
+  const repo = env.REPO_NAME;
+  const prNumber = env.PR_NUMBER;
+  const githubToken = env.GITHUB_TOKEN;
+
+  if (!owner || !repo || !prNumber || !githubToken) {
+    throw new Error(MISSING_ENV_MESSAGE);
+  }
+
+  return {
+    owner,
+    repo,
+    pullNumber: parseInt(prNumber, 10),
+    githubToken,
+    runnerTemp: env.RUNNER_TEMP || "/tmp",
+  };
 }
 
-const server = new McpServer({
-  name: "GitHub CI Server",
-  version: "0.0.1",
-});
+function createClient(context: CiContext): Octokit {
+  return new Octokit({
+    auth: context.githubToken,
+    baseUrl: GITHUB_API_URL,
+  });
+}
 
-console.error("[GitHub CI Server] MCP Server instance created");
+/** CI status summary for the PR's head commit. */
+export async function getCiStatus(
+  { status }: { status?: string },
+  context: CiContext,
+  client: Octokit = createClient(context),
+): Promise<ToolResult> {
+  const { owner, repo, pullNumber } = context;
 
-server.tool(
-  "get_ci_status",
-  "Get CI status summary for this PR",
-  {
-    status: z
-      .enum([
-        "completed",
-        "action_required",
-        "cancelled",
-        "failure",
-        "neutral",
-        "skipped",
-        "stale",
-        "success",
-        "timed_out",
-        "in_progress",
-        "queued",
-        "requested",
-        "waiting",
-        "pending",
-      ])
-      .optional()
-      .describe("Filter workflow runs by status"),
-  },
-  async ({ status }) => {
-    try {
-      const client = new Octokit({
-        auth: GITHUB_TOKEN,
-        baseUrl: GITHUB_API_URL,
-      });
+  // Get the PR to find the head SHA
+  const { data: prData } = await client.pulls.get({
+    owner,
+    repo,
+    pull_number: pullNumber,
+  });
+  const headSha = prData.head.sha;
 
-      // Get the PR to find the head SHA
-      const { data: prData } = await client.pulls.get({
-        owner: REPO_OWNER!,
-        repo: REPO_NAME!,
-        pull_number: parseInt(PR_NUMBER!, 10),
-      });
-      const headSha = prData.head.sha;
+  const { data: runsData } = await client.actions.listWorkflowRunsForRepo({
+    owner,
+    repo,
+    head_sha: headSha,
+    ...(status && { status: status as never }),
+  });
 
-      const { data: runsData } = await client.actions.listWorkflowRunsForRepo({
-        owner: REPO_OWNER!,
-        repo: REPO_NAME!,
-        head_sha: headSha,
-        ...(status && { status }),
-      });
+  // Process runs to create summary
+  const runs = runsData.workflow_runs || [];
+  const summary = {
+    total_runs: runs.length,
+    failed: 0,
+    passed: 0,
+    pending: 0,
+  };
 
-      // Process runs to create summary
-      const runs = runsData.workflow_runs || [];
-      const summary = {
-        total_runs: runs.length,
-        failed: 0,
-        passed: 0,
-        pending: 0,
-      };
-
-      const processedRuns = runs.map((run: any) => {
-        // Update summary counts
-        if (run.status === "completed") {
-          if (run.conclusion === "success") {
-            summary.passed++;
-          } else if (run.conclusion === "failure") {
-            summary.failed++;
-          }
-        } else {
-          summary.pending++;
-        }
-
-        return {
-          id: run.id,
-          name: run.name,
-          status: run.status,
-          conclusion: run.conclusion,
-          html_url: run.html_url,
-          created_at: run.created_at,
-        };
-      });
-
-      const result = {
-        summary,
-        runs: processedRuns,
-      };
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: ${errorMessage}`,
-          },
-        ],
-        error: errorMessage,
-        isError: true,
-      };
+  const processedRuns = runs.map((run: any) => {
+    // Update summary counts
+    if (run.status === "completed") {
+      if (run.conclusion === "success") {
+        summary.passed++;
+      } else if (run.conclusion === "failure") {
+        summary.failed++;
+      }
+    } else {
+      summary.pending++;
     }
-  },
-);
 
-server.tool(
-  "get_workflow_run_details",
-  "Get job and step details for a workflow run",
-  {
-    run_id: z.number().describe("The workflow run ID"),
-  },
-  async ({ run_id }) => {
-    try {
-      const client = new Octokit({
-        auth: GITHUB_TOKEN,
-        baseUrl: GITHUB_API_URL,
-      });
+    return {
+      id: run.id,
+      name: run.name,
+      status: run.status,
+      conclusion: run.conclusion,
+      html_url: run.html_url,
+      created_at: run.created_at,
+    };
+  });
 
-      // Get jobs for this workflow run
-      const { data: jobsData } = await client.actions.listJobsForWorkflowRun({
-        owner: REPO_OWNER!,
-        repo: REPO_NAME!,
-        run_id,
-      });
+  return toolSuccess({
+    summary,
+    runs: processedRuns,
+  });
+}
 
-      const processedJobs = jobsData.jobs.map((job: any) => {
-        // Extract failed steps
-        const failedSteps = (job.steps || [])
-          .filter((step: any) => step.conclusion === "failure")
-          .map((step: any) => ({
-            name: step.name,
-            number: step.number,
-          }));
+/** Job and step details for a workflow run, with failed steps called out. */
+export async function getWorkflowRunDetails(
+  { run_id }: { run_id: number },
+  context: CiContext,
+  client: Octokit = createClient(context),
+): Promise<ToolResult> {
+  const { owner, repo } = context;
 
-        return {
-          id: job.id,
-          name: job.name,
-          conclusion: job.conclusion,
-          html_url: job.html_url,
-          failed_steps: failedSteps,
-        };
-      });
+  // Get jobs for this workflow run
+  const { data: jobsData } = await client.actions.listJobsForWorkflowRun({
+    owner,
+    repo,
+    run_id,
+  });
 
-      const result = {
-        jobs: processedJobs,
-      };
+  const processedJobs = jobsData.jobs.map((job: any) => {
+    // Extract failed steps
+    const failedSteps = (job.steps || [])
+      .filter((step: any) => step.conclusion === "failure")
+      .map((step: any) => ({
+        name: step.name,
+        number: step.number,
+      }));
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+    return {
+      id: job.id,
+      name: job.name,
+      conclusion: job.conclusion,
+      html_url: job.html_url,
+      failed_steps: failedSteps,
+    };
+  });
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: ${errorMessage}`,
-          },
-        ],
-        error: errorMessage,
-        isError: true,
-      };
-    }
-  },
-);
+  return toolSuccess({ jobs: processedJobs });
+}
 
-server.tool(
-  "download_job_log",
-  "Download job logs to disk",
-  {
-    job_id: z.number().describe("The job ID"),
-  },
-  async ({ job_id }) => {
-    try {
-      const client = new Octokit({
-        auth: GITHUB_TOKEN,
-        baseUrl: GITHUB_API_URL,
-      });
+/** Writes a job's logs under RUNNER_TEMP and returns the path. */
+export async function downloadJobLog(
+  { job_id }: { job_id: number },
+  context: CiContext,
+  client: Octokit = createClient(context),
+): Promise<ToolResult> {
+  const { owner, repo, runnerTemp } = context;
 
-      const response = await client.actions.downloadJobLogsForWorkflowRun({
-        owner: REPO_OWNER!,
-        repo: REPO_NAME!,
-        job_id,
-      });
+  const response = await client.actions.downloadJobLogsForWorkflowRun({
+    owner,
+    repo,
+    job_id,
+  });
 
-      const logsText = response.data as unknown as string;
+  const logsText = response.data as unknown as string;
 
-      const logsDir = `${RUNNER_TEMP}/github-ci-logs`;
-      await mkdir(logsDir, { recursive: true });
+  const logsDir = `${runnerTemp}/github-ci-logs`;
+  await mkdir(logsDir, { recursive: true });
 
-      const logPath = `${logsDir}/job-${job_id}.log`;
-      await writeFile(logPath, logsText, "utf-8");
+  const logPath = `${logsDir}/job-${job_id}.log`;
+  await writeFile(logPath, logsText, "utf-8");
 
-      const result = {
-        path: logPath,
-        size_bytes: Buffer.byteLength(logsText, "utf-8"),
-      };
+  return toolSuccess({
+    path: logPath,
+    size_bytes: Buffer.byteLength(logsText, "utf-8"),
+  });
+}
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+export function createCiServer(): McpServer {
+  const server = new McpServer({
+    name: "GitHub CI Server",
+    version: "0.0.1",
+  });
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: ${errorMessage}`,
-          },
-        ],
-        error: errorMessage,
-        isError: true,
-      };
-    }
-  },
-);
+  console.error("[GitHub CI Server] MCP Server instance created");
+
+  server.tool(
+    "get_ci_status",
+    "Get CI status summary for this PR",
+    {
+      status: z
+        .enum([
+          "completed",
+          "action_required",
+          "cancelled",
+          "failure",
+          "neutral",
+          "skipped",
+          "stale",
+          "success",
+          "timed_out",
+          "in_progress",
+          "queued",
+          "requested",
+          "waiting",
+          "pending",
+        ])
+        .optional()
+        .describe("Filter workflow runs by status"),
+    },
+    async ({ status }) => {
+      try {
+        return await getCiStatus({ status }, readCiContext());
+      } catch (error) {
+        return toolError(error);
+      }
+    },
+  );
+
+  server.tool(
+    "get_workflow_run_details",
+    "Get job and step details for a workflow run",
+    {
+      run_id: z.number().describe("The workflow run ID"),
+    },
+    async ({ run_id }) => {
+      try {
+        return await getWorkflowRunDetails({ run_id }, readCiContext());
+      } catch (error) {
+        return toolError(error);
+      }
+    },
+  );
+
+  server.tool(
+    "download_job_log",
+    "Download job logs to disk",
+    {
+      job_id: z.number().describe("The job ID"),
+    },
+    async ({ job_id }) => {
+      try {
+        return await downloadJobLog({ job_id }, readCiContext());
+      } catch (error) {
+        return toolError(error);
+      }
+    },
+  );
+
+  return server;
+}
 
 async function runServer() {
+  // Fail fast on a misconfigured environment, exactly as this server did when
+  // the check ran at module scope.
   try {
-    const transport = new StdioServerTransport();
-
-    await server.connect(transport);
-
-    process.on("exit", () => {
-      server.close();
-    });
-  } catch (error) {
-    throw error;
+    readCiContext();
+  } catch {
+    console.error(MISSING_ENV_MESSAGE);
+    process.exit(1);
   }
+
+  const server = createCiServer();
+  const transport = new StdioServerTransport();
+
+  await server.connect(transport);
+
+  process.on("exit", () => {
+    server.close();
+  });
 }
 
-runServer().catch(() => {
-  process.exit(1);
-});
+if (import.meta.main) {
+  runServer().catch(() => {
+    process.exit(1);
+  });
+}

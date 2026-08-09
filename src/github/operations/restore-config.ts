@@ -22,7 +22,7 @@ import { dirname, join, resolve, sep } from "path";
 //   .gitconfig   — git reads ~/.gitconfig and .git/config, never cwd/.gitconfig.
 //   .bashrc etc. — shells source these from $HOME; checkout cannot reach $HOME.
 //   .vscode/.idea— IDE config; nothing in the CLI's startup path reads them.
-const SENSITIVE_PATHS = [
+export const SENSITIVE_PATHS = [
   ".claude",
   ".mcp.json",
   ".claude.json",
