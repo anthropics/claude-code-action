@@ -269,17 +269,58 @@ export function filterCommentsToTriggerTime<
 }
 
 /**
+ * Extracts the databaseId of the review that triggered this run, if any.
+ *
+ * Only a pull_request_review event has one. Returned as a string so it can be
+ * compared against GraphQL's databaseId without a numeric cast.
+ */
+export function extractTriggeringReviewId(
+  context: ParsedGitHubContext,
+): string | undefined {
+  if (isPullRequestReviewEvent(context)) {
+    return context.payload.review?.id?.toString();
+  }
+  return undefined;
+}
+
+/**
  * Filters reviews to only include those that existed in their final state before the trigger time.
  * Similar to filterCommentsToTriggerTime but for GitHubReview objects which use submittedAt instead of createdAt.
+ *
+ * On a pull_request_review event the trigger time IS the triggering review's
+ * submittedAt, so the strict "before the trigger" rule would always discard the
+ * very review that asked Claude to act, taking its inline comments with it.
+ * That one review is admitted by id. Everything else at or after the trigger is
+ * still excluded, so content that lands mid-run cannot slip into the prompt.
  */
 export function filterReviewsToTriggerTime<
-  T extends { submittedAt: string; updatedAt?: string; lastEditedAt?: string },
->(reviews: T[], triggerTime: string | undefined): T[] {
+  T extends {
+    databaseId?: string;
+    submittedAt: string;
+    updatedAt?: string;
+    lastEditedAt?: string;
+  },
+>(
+  reviews: T[],
+  triggerTime: string | undefined,
+  triggeringReviewId?: string,
+): T[] {
   if (!triggerTime) return reviews;
 
   const triggerTimestamp = new Date(triggerTime).getTime();
 
   return reviews.filter((review) => {
+    // The review that triggered this run is always in scope, whatever its
+    // timestamp: it is the request being answered, and its author already
+    // passed the actor/permission checks that gated the run.
+    if (
+      triggeringReviewId !== undefined &&
+      review.databaseId !== undefined &&
+      review.databaseId.toString() === triggeringReviewId
+    ) {
+      return true;
+    }
+
     // Review must have been submitted before trigger (not at or after)
     const submittedTimestamp = new Date(review.submittedAt).getTime();
     if (submittedTimestamp >= triggerTimestamp) {
@@ -367,6 +408,7 @@ type FetchDataParams = {
   isPR: boolean;
   triggerUsername?: string;
   triggerTime?: string;
+  triggeringReviewId?: string;
   originalTitle?: string;
   originalBody?: string | null;
   includeCommentsByActor?: string;
@@ -394,6 +436,7 @@ export async function fetchGitHubData({
   isPR,
   triggerUsername,
   triggerTime,
+  triggeringReviewId,
   originalTitle,
   originalBody,
   includeCommentsByActor,
@@ -527,16 +570,31 @@ export async function fetchGitHubData({
   if (reviewData && reviewData.nodes) {
     // Drop reviews submitted or edited after the trigger, then filter by actor.
     reviewData.nodes = filterCommentsByActor(
-      filterReviewsToTriggerTime(reviewData.nodes, triggerTime),
+      filterReviewsToTriggerTime(
+        reviewData.nodes,
+        triggerTime,
+        triggeringReviewId,
+      ),
       includeCommentsByActor,
       excludeCommentsByActor,
     );
 
     // Apply the same trigger-time + actor filtering to inline review comments.
+    // The triggering review's own inline comments are exempt from the
+    // trigger-time cut: they are created when the review is submitted, so their
+    // createdAt equals the trigger time and the strict rule would drop every
+    // one of them, leaving the review body with no line-level feedback attached.
+    // Actor filtering still applies to them.
     reviewData.nodes.forEach((review) => {
       if (review.comments?.nodes) {
+        const isTriggeringReview =
+          triggeringReviewId !== undefined &&
+          review.databaseId?.toString() === triggeringReviewId;
+
         review.comments.nodes = filterCommentsByActor(
-          filterCommentsToTriggerTime(review.comments.nodes, triggerTime),
+          isTriggeringReview
+            ? review.comments.nodes
+            : filterCommentsToTriggerTime(review.comments.nodes, triggerTime),
           includeCommentsByActor,
           excludeCommentsByActor,
         );
