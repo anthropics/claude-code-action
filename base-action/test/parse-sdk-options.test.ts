@@ -621,4 +621,62 @@ describe("parseSdkOptions", () => {
       }
     });
   });
+
+  describe("showFullOutput debug detection", () => {
+    test("should enable full output when the runner signals debug via RUNNER_DEBUG", () => {
+      const originalEnv = { ...process.env };
+      delete process.env.ACTIONS_STEP_DEBUG;
+      process.env.RUNNER_DEBUG = "1";
+
+      try {
+        const result = parseSdkOptions({});
+
+        expect(result.showFullOutput).toBe(true);
+      } finally {
+        process.env = originalEnv;
+      }
+    });
+
+    test("should still honor an explicitly set ACTIONS_STEP_DEBUG step env var", () => {
+      const originalEnv = { ...process.env };
+      delete process.env.RUNNER_DEBUG;
+      process.env.ACTIONS_STEP_DEBUG = "true";
+
+      try {
+        const result = parseSdkOptions({});
+
+        expect(result.showFullOutput).toBe(true);
+      } finally {
+        process.env = originalEnv;
+      }
+    });
+
+    test("should not enable full output when neither debug signal is present", () => {
+      const originalEnv = { ...process.env };
+      delete process.env.RUNNER_DEBUG;
+      delete process.env.ACTIONS_STEP_DEBUG;
+
+      try {
+        const result = parseSdkOptions({});
+
+        expect(result.showFullOutput).toBe(false);
+      } finally {
+        process.env = originalEnv;
+      }
+    });
+
+    test("should enable full output when show_full_output is set regardless of debug", () => {
+      const originalEnv = { ...process.env };
+      delete process.env.RUNNER_DEBUG;
+      delete process.env.ACTIONS_STEP_DEBUG;
+
+      try {
+        const result = parseSdkOptions({ showFullOutput: "true" });
+
+        expect(result.showFullOutput).toBe(true);
+      } finally {
+        process.env = originalEnv;
+      }
+    });
+  });
 });
