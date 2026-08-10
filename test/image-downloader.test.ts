@@ -12,6 +12,7 @@ import fs from "fs/promises";
 import { downloadCommentImages } from "../src/github/utils/image-downloader";
 import type { CommentWithImages } from "../src/github/utils/image-downloader";
 import type { Octokits } from "../src/github/api/client";
+import path from "path";
 
 // Asset URLs and their signed download URLs share the asset's GUID.
 const GUID_1 = "f871c23e-a84d-4f1f-b9a0-86626c63f161";
@@ -28,7 +29,7 @@ describe("downloadCommentImages", () => {
   let consoleLogSpy: any;
   let consoleWarnSpy: any;
   let consoleErrorSpy: any;
-  let fsMkdirSpy: any;
+  let fsMkdtempSpy: any;
   let fsWriteFileSpy: any;
   let fetchSpy: any;
 
@@ -39,7 +40,7 @@ describe("downloadCommentImages", () => {
     consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {});
 
     // Spy on fs methods
-    fsMkdirSpy = spyOn(fs, "mkdir").mockResolvedValue(undefined);
+    fsMkdtempSpy = spyOn(fs, "mkdtemp").mockResolvedValue("/tmp/github-images");
     fsWriteFileSpy = spyOn(fs, "writeFile").mockResolvedValue(undefined);
 
     // Set fake system time for consistent filenames
@@ -50,7 +51,7 @@ describe("downloadCommentImages", () => {
     consoleLogSpy.mockRestore();
     consoleWarnSpy.mockRestore();
     consoleErrorSpy.mockRestore();
-    fsMkdirSpy.mockRestore();
+    fsMkdtempSpy.mockRestore();
     fsWriteFileSpy.mockRestore();
     if (fetchSpy) fetchSpy.mockRestore();
     setSystemTime(); // Reset to real time
@@ -75,12 +76,22 @@ describe("downloadCommentImages", () => {
   test("should create download directory", async () => {
     const mockOctokit = createMockOctokit();
     const comments: CommentWithImages[] = [];
+    const originalRunnerTemp = process.env.RUNNER_TEMP;
+    process.env.RUNNER_TEMP = "/runner/temp";
 
-    await downloadCommentImages(mockOctokit, "owner", "repo", comments);
+    try {
+      await downloadCommentImages(mockOctokit, "owner", "repo", comments);
+    } finally {
+      if (originalRunnerTemp === undefined) {
+        delete process.env.RUNNER_TEMP;
+      } else {
+        process.env.RUNNER_TEMP = originalRunnerTemp;
+      }
+    }
 
-    expect(fsMkdirSpy).toHaveBeenCalledWith("/tmp/github-images", {
-      recursive: true,
-    });
+    expect(fsMkdtempSpy).toHaveBeenCalledWith(
+      path.join("/runner/temp", "github-images-"),
+    );
   });
 
   test("should handle comments without images", async () => {
@@ -1133,5 +1144,53 @@ describe("downloadCommentImages", () => {
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "Found 1 image(s) in issue_comment 1001",
     );
+  });
+
+  test("should isolate concurrent invocations even with the same timestamp", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl1 = assetUrl(GUID_1);
+    const imageUrl2 = assetUrl(GUID_2);
+    const signedUrl1 = signedUrlFor(GUID_1, ".png");
+    const signedUrl2 = signedUrlFor(GUID_2, ".png");
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl1}"><img src="${signedUrl2}">`,
+      },
+    });
+
+    fsMkdtempSpy
+      .mockResolvedValueOnce("/tmp/github-images-job-1")
+      .mockResolvedValueOnce("/tmp/github-images-job-2");
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const [result1, result2] = await Promise.all([
+      downloadCommentImages(mockOctokit, "owner", "repo", [
+        {
+          type: "issue_comment",
+          id: "2001",
+          body: `First: ![image](${imageUrl1})`,
+        },
+      ]),
+      downloadCommentImages(mockOctokit, "owner", "repo", [
+        {
+          type: "issue_comment",
+          id: "2002",
+          body: `Second: ![image](${imageUrl2})`,
+        },
+      ]),
+    ]);
+
+    expect(result1.get(imageUrl1)).toBe(
+      path.join("/tmp/github-images-job-1", "image-1704067200000-0.png"),
+    );
+    expect(result2.get(imageUrl2)).toBe(
+      path.join("/tmp/github-images-job-2", "image-1704067200000-0.png"),
+    );
+    expect(result1.get(imageUrl1)).not.toBe(result2.get(imageUrl2));
   });
 });
