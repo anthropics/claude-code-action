@@ -9,6 +9,7 @@ import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
 import { validatePathWithinRepo } from "./path-validation";
+import { createBase64BlobPayload } from "./github-file-content";
 import { updateGitReference } from "./update-git-reference";
 
 type GitHubRef = {
@@ -258,58 +259,36 @@ server.tool(
           // Get the proper file mode based on file permissions
           const fileMode = await getFileMode(fullPath);
 
-          // Check if file is binary (images, etc.)
-          const isBinaryFile =
-            /\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|tar|gz|exe|bin|woff|woff2|ttf|eot)$/i.test(
-              relativePath,
+          // Create a blob from the raw bytes so every file is committed without
+          // relying on a filename extension to identify binary content.
+          const fileContent = await readFile(fullPath);
+          const blobUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs`;
+          const blobResponse = await fetch(blobUrl, {
+            method: "POST",
+            headers: {
+              Accept: "application/vnd.github+json",
+              Authorization: `Bearer ${githubToken}`,
+              "X-GitHub-Api-Version": "2022-11-28",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(createBase64BlobPayload(fileContent)),
+          });
+
+          if (!blobResponse.ok) {
+            const errorText = await blobResponse.text();
+            throw new Error(
+              `Failed to create blob for ${relativePath}: ${blobResponse.status} - ${errorText}`,
             );
-
-          if (isBinaryFile) {
-            // For binary files, create a blob first using the Blobs API
-            const binaryContent = await readFile(fullPath);
-
-            // Create blob using Blobs API (supports encoding parameter)
-            const blobUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs`;
-            const blobResponse = await fetch(blobUrl, {
-              method: "POST",
-              headers: {
-                Accept: "application/vnd.github+json",
-                Authorization: `Bearer ${githubToken}`,
-                "X-GitHub-Api-Version": "2022-11-28",
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                content: binaryContent.toString("base64"),
-                encoding: "base64",
-              }),
-            });
-
-            if (!blobResponse.ok) {
-              const errorText = await blobResponse.text();
-              throw new Error(
-                `Failed to create blob for ${relativePath}: ${blobResponse.status} - ${errorText}`,
-              );
-            }
-
-            const blobData = (await blobResponse.json()) as { sha: string };
-
-            // Return tree entry with blob SHA
-            return {
-              path: relativePath,
-              mode: fileMode,
-              type: "blob",
-              sha: blobData.sha,
-            };
-          } else {
-            // For text files, include content directly in tree
-            const content = await readFile(fullPath, "utf-8");
-            return {
-              path: relativePath,
-              mode: fileMode,
-              type: "blob",
-              content: content,
-            };
           }
+
+          const blobData = (await blobResponse.json()) as { sha: string };
+
+          return {
+            path: relativePath,
+            mode: fileMode,
+            type: "blob",
+            sha: blobData.sha,
+          };
         }),
       );
 
