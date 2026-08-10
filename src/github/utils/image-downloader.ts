@@ -28,6 +28,9 @@ function extractAssetGuid(url: string): string | undefined {
 
 const SIGNED_URL_HOST = "private-user-images.githubusercontent.com";
 
+/** Maximum size of one downloaded image, enforced before it is written. */
+export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+
 // Signed download URLs have the shape /<owner-id>/<asset-id>-<guid>.<ext>.
 // The GUID must come from the resolved filename, not from anywhere in the raw
 // string, so text that merely embeds a GUID cannot claim another asset.
@@ -248,8 +251,7 @@ export async function downloadCommentImages(
             );
           }
 
-          const arrayBuffer = await imageResponse.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
+          const buffer = await readImageResponse(imageResponse);
 
           // GitHub user-attachment URLs (/user-attachments/assets/<uuid>) carry
           // no file extension, so the URL-based guess silently falls back to
@@ -287,6 +289,72 @@ export async function downloadCommentImages(
   }
 
   return urlToPathMap;
+}
+
+async function readImageResponse(response: Response): Promise<Buffer> {
+  const contentLength = response.headers?.get("content-length");
+  if (contentLength) {
+    const declaredLength = Number(contentLength);
+    if (
+      Number.isSafeInteger(declaredLength) &&
+      declaredLength > MAX_IMAGE_SIZE_BYTES
+    ) {
+      throw new Error(
+        `Image exceeds the ${MAX_IMAGE_SIZE_BYTES}-byte size limit`,
+      );
+    }
+  }
+
+  const responseBody = (
+    response as Response & {
+      body?: ReadableStream<Uint8Array> | null;
+    }
+  ).body;
+
+  if (responseBody === undefined) {
+    // Some test doubles do not expose a ReadableStream. Keep this fallback
+    // bounded by checking the completed body before returning it.
+    const arrayBuffer = await response.arrayBuffer();
+    if (arrayBuffer.byteLength > MAX_IMAGE_SIZE_BYTES) {
+      throw new Error(
+        `Image exceeds the ${MAX_IMAGE_SIZE_BYTES}-byte size limit`,
+      );
+    }
+    return Buffer.from(arrayBuffer);
+  }
+
+  if (responseBody === null) {
+    throw new Error("Image response has no body");
+  }
+
+  const reader = responseBody.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_IMAGE_SIZE_BYTES) {
+        try {
+          await reader.cancel();
+        } catch {
+          // Preserve the size-limit error if cancellation also fails.
+        }
+        throw new Error(
+          `Image exceeds the ${MAX_IMAGE_SIZE_BYTES}-byte size limit`,
+        );
+      }
+
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return Buffer.concat(chunks);
 }
 
 function getImageExtension(url: string): string {

@@ -9,7 +9,10 @@ import {
   setSystemTime,
 } from "bun:test";
 import fs from "fs/promises";
-import { downloadCommentImages } from "../src/github/utils/image-downloader";
+import {
+  downloadCommentImages,
+  MAX_IMAGE_SIZE_BYTES,
+} from "../src/github/utils/image-downloader";
 import type { CommentWithImages } from "../src/github/utils/image-downloader";
 import type { Octokits } from "../src/github/api/client";
 
@@ -760,6 +763,84 @@ describe("downloadCommentImages", () => {
     );
 
     expect(result.size).toBe(0);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      `✗ Failed to download ${imageUrl}:`,
+      expect.any(Error),
+    );
+  });
+
+  test("should skip an image whose declared size exceeds the limit", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    const arrayBufferSpy = jest.fn();
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({
+        "content-length": String(MAX_IMAGE_SIZE_BYTES + 1),
+      }),
+      arrayBuffer: arrayBufferSpy,
+    } as unknown as Response);
+
+    const result = await downloadCommentImages(mockOctokit, "owner", "repo", [
+      {
+        type: "issue_comment",
+        id: "445",
+        body: `Oversized image: ![image](${imageUrl})`,
+      },
+    ]);
+
+    expect(result.size).toBe(0);
+    expect(arrayBufferSpy).not.toHaveBeenCalled();
+    expect(fsWriteFileSpy).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      `✗ Failed to download ${imageUrl}:`,
+      expect.any(Error),
+    );
+  });
+
+  test("should skip a streamed image that exceeds the limit", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(MAX_IMAGE_SIZE_BYTES));
+        controller.enqueue(new Uint8Array(1));
+      },
+    });
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers(),
+      body: stream,
+    } as unknown as Response);
+
+    const result = await downloadCommentImages(mockOctokit, "owner", "repo", [
+      {
+        type: "issue_comment",
+        id: "446",
+        body: `Streamed oversized image: ![image](${imageUrl})`,
+      },
+    ]);
+
+    expect(result.size).toBe(0);
+    expect(fsWriteFileSpy).not.toHaveBeenCalled();
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       `✗ Failed to download ${imageUrl}:`,
       expect.any(Error),
