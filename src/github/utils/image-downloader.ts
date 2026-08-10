@@ -34,6 +34,8 @@ const SIGNED_URL_HOST = "private-user-images.githubusercontent.com";
 const SIGNED_URL_PATH_REGEX =
   /^\/[^/]+\/[^/]*-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\.[a-z0-9]+)?$/i;
 
+const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS = 30_000;
+
 function extractSignedUrlAssetGuid(signedUrl: string): string | undefined {
   let parsed: URL;
   try {
@@ -85,13 +87,19 @@ export type CommentWithImages =
   | IssueBody
   | PullRequestBody;
 
+type ImageDownloadOptions = {
+  timeoutMs?: number;
+};
+
 export async function downloadCommentImages(
   octokits: Octokits,
   owner: string,
   repo: string,
   comments: CommentWithImages[],
+  options: ImageDownloadOptions = {},
 ): Promise<Map<string, string>> {
   const urlToPathMap = new Map<string, string>();
+  const timeoutMs = options.timeoutMs ?? DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS;
   const downloadsDir = "/tmp/github-images";
 
   await fs.mkdir(downloadsDir, { recursive: true });
@@ -241,15 +249,7 @@ export async function downloadCommentImages(
         try {
           console.log(`Downloading ${originalUrl}...`);
 
-          const imageResponse = await fetch(signedUrl);
-          if (!imageResponse.ok) {
-            throw new Error(
-              `HTTP ${imageResponse.status}: ${imageResponse.statusText}`,
-            );
-          }
-
-          const arrayBuffer = await imageResponse.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
+          const buffer = await fetchImage(signedUrl, timeoutMs);
 
           // GitHub user-attachment URLs (/user-attachments/assets/<uuid>) carry
           // no file extension, so the URL-based guess silently falls back to
@@ -287,6 +287,37 @@ export async function downloadCommentImages(
   }
 
   return urlToPathMap;
+}
+
+async function fetchImage(url: string, timeoutMs: number): Promise<Buffer> {
+  const controller = new AbortController();
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`Image download timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    const response = await Promise.race([
+      fetch(url, { signal: controller.signal }),
+      timeoutPromise,
+    ]);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const arrayBuffer = await Promise.race([
+      response.arrayBuffer(),
+      timeoutPromise,
+    ]);
+    return Buffer.from(arrayBuffer);
+  } finally {
+    if (timeoutHandle !== undefined) {
+      clearTimeout(timeoutHandle);
+    }
+  }
 }
 
 function getImageExtension(url: string): string {
