@@ -20,9 +20,11 @@ export function formatContext(
   if (isPR) {
     const prData = contextData as GitHubPullRequest;
     const sanitizedTitle = sanitizeContent(prData.title);
+    const sanitizedHeadRef = sanitizeContent(prData.headRefName);
+    const sanitizedBaseRef = sanitizeContent(prData.baseRefName);
     return `PR Title: ${sanitizedTitle}
 PR Author: ${prData.author.login}
-PR Branch: ${prData.headRefName} -> ${prData.baseRefName}
+PR Branch: ${sanitizedHeadRef} -> ${sanitizedBaseRef}
 PR State: ${prData.state}
 PR Labels: ${formatLabels(prData.labels.nodes)}
 PR Additions: ${prData.additions}
@@ -136,7 +138,7 @@ export function formatChangedFiles(changedFiles: GitHubFile[]): string {
   return changedFiles
     .map(
       (file) =>
-        `- ${file.path} (${file.changeType}) +${file.additions}/-${file.deletions}`,
+        `- ${sanitizeContent(file.path)} (${file.changeType}) +${file.additions}/-${file.deletions}`,
     )
     .join("\n");
 }
@@ -147,7 +149,7 @@ export function formatChangedFilesWithSHA(
   return changedFiles
     .map(
       (file) =>
-        `- ${file.path} (${file.changeType}) +${file.additions}/-${file.deletions} SHA: ${file.sha}`,
+        `- ${sanitizeContent(file.path)} (${file.changeType}) +${file.additions}/-${file.deletions} SHA: ${file.sha}`,
     )
     .join("\n");
 }

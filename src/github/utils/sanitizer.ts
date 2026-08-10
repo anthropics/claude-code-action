@@ -6,6 +6,14 @@ export function stripInvisibleCharacters(content: string): string {
   );
   content = content.replace(/\u00AD/g, "");
   content = content.replace(/[\u202A-\u202E\u2066-\u2069]/g, "");
+  // Variation selectors and the Unicode "Tags" block: both render as nothing
+  // in every font/renderer, so they're a known channel for smuggling
+  // invisible text ("ASCII smuggling") past a human reviewer to the model.
+  content = content.replace(/[\uFE00-\uFE0F]/g, "");
+  content = content.replace(
+    /[\u{E0000}-\u{E007F}]|[\u{E0100}-\u{E01EF}]/gu,
+    "",
+  );
   return content;
 }
 
@@ -60,12 +68,16 @@ export function normalizeHtmlEntities(content: string): string {
 }
 
 export function sanitizeContent(content: string): string {
+  // Decode numeric HTML entities first so an entity-encoded delimiter
+  // (e.g. "&#60;!--...--&#62;" or "&#97;lt=...") can't smuggle a comment or
+  // hidden attribute past the structural strips below, which only match the
+  // literal "<!--", "alt=", etc. text.
+  content = normalizeHtmlEntities(content);
   content = stripHtmlComments(content);
   content = stripInvisibleCharacters(content);
   content = stripMarkdownImageAltText(content);
   content = stripMarkdownLinkTitles(content);
   content = stripHiddenAttributes(content);
-  content = normalizeHtmlEntities(content);
   content = redactGitHubTokens(content);
   return content;
 }

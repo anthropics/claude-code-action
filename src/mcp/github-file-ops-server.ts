@@ -9,7 +9,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { readFile, stat } from "fs/promises";
-import { resolve } from "path";
+import { resolve, sep } from "path";
 import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
@@ -509,7 +509,7 @@ export async function deleteFiles(
   const cwd = process.cwd();
   const rawPaths = paths.map((filePath) => {
     if (filePath.startsWith("/")) {
-      if (filePath.startsWith(cwd)) {
+      if (filePath === cwd || filePath.startsWith(cwd + sep)) {
         // Strip CWD from absolute path
         return filePath.slice(cwd.length + 1);
       } else {

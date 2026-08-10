@@ -316,6 +316,26 @@ describe("github_file_ops server", () => {
       expect(calls).toEqual([]);
     });
 
+    test("does not treat a sibling directory sharing cwd as a string prefix as being inside cwd", async () => {
+      // Regression: the CWD strip used `startsWith(cwd)` with no path-separator
+      // boundary, so an absolute path in a sibling directory whose name happens
+      // to start with cwd's name (e.g. cwd "/a/repo" and this path
+      // "/a/repo-evil/secrets.txt") was misidentified as being inside cwd and
+      // had one character over-stripped, instead of hitting the intended
+      // "must be relative to repository root" rejection.
+      const siblingPath = `${process.cwd()}-evil/secrets.txt`;
+
+      await expect(
+        deleteFiles(
+          { paths: [siblingPath], message: "nope" },
+          context,
+          FAST_RETRY,
+        ),
+      ).rejects.toThrow(/must be relative to repository root/);
+
+      expect(calls).toEqual([]);
+    });
+
     test("deletes a path whose parent exists but whose file is already gone", async () => {
       mkdirSync(join(repoDir, "src"), { recursive: true });
 
