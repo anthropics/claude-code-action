@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 bun install             # Install dependencies
 bun test                # Run all tests (Bun's test runner, not jest)
+bun run test:coverage   # Run the suite with coverage, then the coverage gate
 bun run typecheck       # TypeScript type checking (tsc --noEmit)
 bun run format          # Format with prettier
 bun run format:check    # Check formatting
@@ -32,11 +33,19 @@ usually passes without you doing anything. Edits made any other way — the GitH
 web UI, a plain `git commit` — bypass it, and the pre-commit hook or CI is where
 that surfaces.
 
-CI (`.github/workflows/ci.yml`) is three jobs: `bun test`, `bun run
-format:check`, `bun run typecheck` — the same three the pre-commit hook runs.
-`ci-all.yml` is the orchestrator that calls it on every PR and push to `main`;
-the integration `test-*.yml` jobs it used to call are commented out in this fork
-(see Things That Will Bite You).
+CI (`.github/workflows/ci.yml`) is four jobs: `bun test`, `bun run
+format:check`, `bun run typecheck`, and `bun run test:coverage`. The first
+three are what the pre-commit hook runs; the coverage gate deliberately stays
+out of it, because it re-runs the whole suite to produce the lcov file and
+doubling the hook's runtime to catch something CI catches anyway is a bad
+trade. `ci-all.yml` is the orchestrator that calls it on every PR and push to
+`main`; the integration `test-*.yml` jobs it used to call are commented out in
+this fork (see Things That Will Bite You).
+
+**The coverage job is separate from the `test` job on purpose.** If the two
+shared a job, a red X would be ambiguous between "a test broke" and "coverage
+slipped" — and this repo has already learned once what an ambiguous red check
+costs (see the `test-*.yml` entry).
 
 ## What This Is
 
@@ -135,7 +144,8 @@ src/mcp/                   # in-process MCP servers (exported handlers + import.
                            #   inline-comment-buffer + path-validation (repo-root containment for file ops)
 src/create-prompt/         # writes the assembled prompt to a temp file for the CLI
 src/utils/                 # retry, branch-template, extract-user-request
-scripts/                   # pre-commit hook + install-hooks.sh; gh.sh / git-push.sh / edit-issue-labels.sh
+scripts/                   # pre-commit hook + install-hooks.sh; check-coverage.ts (the CI coverage gate);
+                           #   gh.sh / git-push.sh / edit-issue-labels.sh
                            #   (allow-listed wrappers this repo's own claude.yml + issue-triage.yml hand to Claude)
 .github/workflows/         # ci.yml + ci-all.yml (the unit CI that actually gates PRs);
                            #   test-*.yml (integration, disabled in this fork); claude.yml + issue-triage.yml
@@ -361,6 +371,21 @@ run (names/URLs are strictly validated against path traversal).
   `src/entrypoints/update-comment-link.ts` is the single allow-listed exception:
   its exits sit behind an `import.meta.main` guard, which the same test requires
   it to keep.
+- **The coverage gate checks for zero-coverage files, not just a percentage.**
+  `scripts/check-coverage.ts` (run by `bun run test:coverage`, and by the
+  `coverage` job in `ci.yml`) enumerates `src/**` and `base-action/src/**` and
+  fails on any file absent from the lcov report. That shape is the whole point:
+  **Bun omits files no test ever imports rather than listing them at 0%**, so an
+  untested file is invisible in _both_ halves of the percentage. That is exactly
+  how 1,485 code lines — the four MCP servers among them — sat at zero while the
+  headline read 82.58%. A plain threshold would have reported that repo as
+  healthy, so replacing this with one re-opens the hole it was written to close.
+  Files that genuinely cannot be covered go in `KNOWN_UNCOVERED` **with a
+  reason**; the gate also fails on a _stale_ entry (file now covered, or gone),
+  so the list can't rot into a rubber stamp. `MINIMUM_LINE_COVERAGE` is a
+  secondary floor, on lcov's basis — which is not the same number the `text`
+  reporter prints (71.91% vs 80.80% for the same run), so don't copy a figure
+  between them.
 - **The file-ops ref update retries _everything_, not just the 403.** The 403
   retry in `github-file-ops-server.ts` exists for a real transient GitHub
   failure ("Resource not accessible by integration"), but no `shouldRetry`

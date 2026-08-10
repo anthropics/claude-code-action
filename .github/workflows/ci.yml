@@ -52,3 +52,22 @@ jobs:
 
       - name: Run TypeScript type check
         run: bun run typecheck
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.2.12
+
+      - name: Install dependencies
+        run: bun install
+
+      # Separate from the `test` job on purpose: this one must not become the
+      # thing that reports test failures, or a red X here would be ambiguous
+      # between "a test broke" and "coverage slipped". It re-runs the suite
+      # because Bun writes the lcov file as a side effect of running it.
+      - name: Check coverage
+        run: bun run test:coverage

@@ -7,6 +7,7 @@
     "format:check": "prettier --check .",
     "install-hooks": "bun run scripts/install-hooks.sh",
     "test": "bun test",
+    "test:coverage": "bun test --coverage --coverage-reporter=lcov --coverage-dir=coverage && bun run scripts/check-coverage.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

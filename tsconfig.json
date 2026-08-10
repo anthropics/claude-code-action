@@ -25,6 +25,6 @@
     "noUnusedParameters": true,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": ["src/**/*", "base-action/**/*", "test/**/*"],
+  "include": ["src/**/*", "base-action/**/*", "test/**/*", "scripts/**/*.ts"],
   "exclude": ["node_modules"]
 }

@@ -1,4 +1,7 @@
 .DS_Store
 node_modules
 
+# Written by `bun run test:coverage`
+coverage/
+
 **/.claude/settings.local.json
