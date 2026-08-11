@@ -165,6 +165,8 @@ runs:
             sleep 5
           done
           echo "Claude Code installed successfully"
+          # Add the directory containing the installed binary to PATH (install.sh places it in ~/.local/bin)
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
         else
           echo "Using custom Claude Code executable: $PATH_TO_CLAUDE_CODE_EXECUTABLE"
           # Add the directory containing the custom executable to PATH
