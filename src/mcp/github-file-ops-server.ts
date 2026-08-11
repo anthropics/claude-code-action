@@ -8,6 +8,7 @@ import { resolve } from "path";
 import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
+import { isBinaryContent } from "./binary-detection";
 import { validatePathWithinRepo } from "./path-validation";
 import { updateGitReference } from "./update-git-reference";
 
@@ -258,17 +259,14 @@ server.tool(
           // Get the proper file mode based on file permissions
           const fileMode = await getFileMode(fullPath);
 
-          // Check if file is binary (images, etc.)
-          const isBinaryFile =
-            /\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|tar|gz|exe|bin|woff|woff2|ttf|eot)$/i.test(
-              relativePath,
-            );
+          // Check if the file is binary by inspecting its contents. An
+          // extension allowlist used to decide this, which corrupted every
+          // binary type that wasn't on the list.
+          const fileContent = await readFile(fullPath);
 
-          if (isBinaryFile) {
+          if (isBinaryContent(fileContent)) {
             // For binary files, create a blob first using the Blobs API
-            const binaryContent = await readFile(fullPath);
-
-            // Create blob using Blobs API (supports encoding parameter)
+            // (supports the encoding parameter)
             const blobUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs`;
             const blobResponse = await fetch(blobUrl, {
               method: "POST",
@@ -279,7 +277,7 @@ server.tool(
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                content: binaryContent.toString("base64"),
+                content: fileContent.toString("base64"),
                 encoding: "base64",
               }),
             });
@@ -302,12 +300,11 @@ server.tool(
             };
           } else {
             // For text files, include content directly in tree
-            const content = await readFile(fullPath, "utf-8");
             return {
               path: relativePath,
               mode: fileMode,
               type: "blob",
-              content: content,
+              content: fileContent.toString("utf-8"),
             };
           }
         }),
