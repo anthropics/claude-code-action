@@ -175,6 +175,9 @@ async function run() {
     } catch (error) {
       if (error instanceof WorkflowValidationSkipError) {
         core.setOutput("skipped_due_to_workflow_validation_mismatch", "true");
+        // Report a distinct conclusion ("neutral") so a skipped review is not
+        // indistinguishable from a real pass. See #1632.
+        core.setOutput("conclusion", "neutral");
         console.log("Exiting due to workflow validation skip");
         return;
       }

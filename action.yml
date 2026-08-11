@@ -168,7 +168,7 @@ inputs:
 
 outputs:
   conclusion:
-    description: "Execution status of Claude Code ('success' or 'failure')"
+    description: "Execution status of Claude Code ('success', 'failure', or 'neutral' when skipped by workflow validation)"
     value: ${{ steps.run.outputs.conclusion }}
   execution_file:
     description: "Path to the Claude Code execution output file"
