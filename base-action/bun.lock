@@ -6,7 +6,7 @@
       "name": "@anthropic-ai/claude-code-base-action",
       "dependencies": {
         "@actions/core": "^1.10.1",
-        "@anthropic-ai/claude-agent-sdk": "^0.3.229",
+        "@anthropic-ai/claude-agent-sdk": "^0.3.231",
         "shell-quote": "^1.8.3",
       },
       "devDependencies": {
@@ -27,23 +27,23 @@
 
     "@actions/io": ["@actions/io@1.1.3", "", {}, "sha512-wi9JjgKLYS7U/z8PPbco+PvTb/nRWjeoFlJ1Qer83k/3C5PHQi28hiVdeE2kHXmIL99mQFawx8qt/JPjZilJ8Q=="],
 
-    "@anthropic-ai/claude-agent-sdk": ["@anthropic-ai/claude-agent-sdk@0.3.229", "", { "optionalDependencies": { "@anthropic-ai/claude-agent-sdk-darwin-arm64": "0.3.229", "@anthropic-ai/claude-agent-sdk-darwin-x64": "0.3.229", "@anthropic-ai/claude-agent-sdk-linux-arm64": "0.3.229", "@anthropic-ai/claude-agent-sdk-linux-arm64-musl": "0.3.229", "@anthropic-ai/claude-agent-sdk-linux-x64": "0.3.229", "@anthropic-ai/claude-agent-sdk-linux-x64-musl": "0.3.229", "@anthropic-ai/claude-agent-sdk-win32-arm64": "0.3.229", "@anthropic-ai/claude-agent-sdk-win32-x64": "0.3.229" }, "peerDependencies": { "@anthropic-ai/sdk": ">=0.93.0", "@modelcontextprotocol/sdk": "^1.29.0", "zod": "^4.0.0" } }, "sha512-ZxSFO7cNSz7jqsOmoGkBtvMT4JGWb2a8PUe6doAydZXH6mm6FsoUf+duSUm2rDrbv7OMoD8HDGwNZv5P3woE3w=="],
+    "@anthropic-ai/claude-agent-sdk": ["@anthropic-ai/claude-agent-sdk@0.3.231", "", { "optionalDependencies": { "@anthropic-ai/claude-agent-sdk-darwin-arm64": "0.3.231", "@anthropic-ai/claude-agent-sdk-darwin-x64": "0.3.231", "@anthropic-ai/claude-agent-sdk-linux-arm64": "0.3.231", "@anthropic-ai/claude-agent-sdk-linux-arm64-musl": "0.3.231", "@anthropic-ai/claude-agent-sdk-linux-x64": "0.3.231", "@anthropic-ai/claude-agent-sdk-linux-x64-musl": "0.3.231", "@anthropic-ai/claude-agent-sdk-win32-arm64": "0.3.231", "@anthropic-ai/claude-agent-sdk-win32-x64": "0.3.231" }, "peerDependencies": { "@anthropic-ai/sdk": ">=0.93.0", "@modelcontextprotocol/sdk": "^1.29.0", "zod": "^4.0.0" } }, "sha512-tazYrn34/p9tNpzt2v5lkjQMO4ypnm52tQFFd2rUIFsmDfeaRZZp7laO6WeujFCenxAoDotFPlzr+y6uxwb0Ew=="],
 
-    "@anthropic-ai/claude-agent-sdk-darwin-arm64": ["@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.229", "", { "os": "darwin", "cpu": "arm64" }, "sha512-yVrJwSG9ur001ggDHKPUHlRuHKwbi2ETfby+4wlktRcQ5sAXqcSeS6B4T+IsXk8NDDHKXbCxpAPnCB5dz1Ac9g=="],
+    "@anthropic-ai/claude-agent-sdk-darwin-arm64": ["@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.231", "", { "os": "darwin", "cpu": "arm64" }, "sha512-xT7LBojUmP8uwfZvGLzgKHGhiBlAmVujhUXcy6AIXePgvfZ6dd8TeAdckJz1VZDt/zFDy6t2MwZKCzb7gVRVCA=="],
 
-    "@anthropic-ai/claude-agent-sdk-darwin-x64": ["@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.229", "", { "os": "darwin", "cpu": "x64" }, "sha512-MOhOwgh9fqnX/rqeVJzy+NNFx+xXX2Kej/jx33xTV+4J5aJ2H1SwjZ+r3f/k1MMQmPvkrE0GHnMYrpu4hfvZ5Q=="],
+    "@anthropic-ai/claude-agent-sdk-darwin-x64": ["@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.231", "", { "os": "darwin", "cpu": "x64" }, "sha512-3SaelJtW3kKqaI2fjqFVmE9csPCBjMngndUwwWhxzlsP1v6fyglgX39FhpoImcLilaEwEVZjhuwIOerknpnOsg=="],
 
-    "@anthropic-ai/claude-agent-sdk-linux-arm64": ["@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.229", "", { "os": "linux", "cpu": "arm64" }, "sha512-xSPUmKNik7HEYsbdUFywbjvGzUth0P2KohetJixSOrBha63ZRun449ssEHU55VX3qH+YO5ENn129l5TGFzMNGQ=="],
+    "@anthropic-ai/claude-agent-sdk-linux-arm64": ["@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.231", "", { "os": "linux", "cpu": "arm64" }, "sha512-4/HBqCPwJakmWalyT0/xjMyHz5o7cK52qeESMDIq27Zo46JGgjM/A4Ddzh5wqT9L80Y9gP6ezSU3c/cg7KQWAw=="],
 
-    "@anthropic-ai/claude-agent-sdk-linux-arm64-musl": ["@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.229", "", { "os": "linux", "cpu": "arm64" }, "sha512-S0XcKhUXLFdEv1Pq+aYiV7fDlTa/n+bajBNkKv12eUzjCUFsM/TfSyU5shnkQg9y7NtoB4owK/rezm5hHD1ybg=="],
+    "@anthropic-ai/claude-agent-sdk-linux-arm64-musl": ["@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.231", "", { "os": "linux", "cpu": "arm64" }, "sha512-ikM2Ftmu8rqrjzrPLFQOwlQuYpWzacSfovYER2sKr/YODcy+e3UR7SfcGeUWj6aGSex3avf7TIWoR32c2I254A=="],
 
-    "@anthropic-ai/claude-agent-sdk-linux-x64": ["@anthropic-ai/claude-agent-sdk-linux-x64@0.3.229", "", { "os": "linux", "cpu": "x64" }, "sha512-Cs0NxWVL/Up8kEh//P2cE+3VHrDxoSmWUP3EvI/GU+1RRGZPDD80UN1Rvl3TMC5QPMq+IYPjh1yncnxZ6j8aNw=="],
+    "@anthropic-ai/claude-agent-sdk-linux-x64": ["@anthropic-ai/claude-agent-sdk-linux-x64@0.3.231", "", { "os": "linux", "cpu": "x64" }, "sha512-f9AEC6YcyFVwzsyYC3fGItNS3w09et6pgChw3Yf7lch/YNc2NZXA4VQEBP+htzkGJHdnpVr6oEF06i2oFk8xqQ=="],
 
-    "@anthropic-ai/claude-agent-sdk-linux-x64-musl": ["@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.229", "", { "os": "linux", "cpu": "x64" }, "sha512-9gJsr0elKyV21ln+Mza5kYiSAsqSAWFiHuaT+MiXAycBK73UbzRVLBg87dajkGagg6H1u5ZtPSkqNXzA2xArmA=="],
+    "@anthropic-ai/claude-agent-sdk-linux-x64-musl": ["@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.231", "", { "os": "linux", "cpu": "x64" }, "sha512-IgK4qgxcRNEPIoIzSvaQolcOxBcJI5+UMaa02qf8ngQP4ROxNF4Kuh04c5SGbuY7CTH8bew6R7dbOBImmrOM4Q=="],
 
-    "@anthropic-ai/claude-agent-sdk-win32-arm64": ["@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.229", "", { "os": "win32", "cpu": "arm64" }, "sha512-2fkljxQweZUa41RrlhLh+VdZrJ4kYzEBHGD8sc+Xy2bjkF8T4GTmsE8eKSWN3NfSCQOLHgK7Bxfm6+2n88WJMg=="],
+    "@anthropic-ai/claude-agent-sdk-win32-arm64": ["@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.231", "", { "os": "win32", "cpu": "arm64" }, "sha512-PT5KQYDbcC6h6x0taD1gyax7EHYh5FYoYgIdmp0wJg1U5oiY9G8RiFuO/Q96uY9ie4JLkWgoVoPzU9hztWJSfw=="],
 
-    "@anthropic-ai/claude-agent-sdk-win32-x64": ["@anthropic-ai/claude-agent-sdk-win32-x64@0.3.229", "", { "os": "win32", "cpu": "x64" }, "sha512-2M2/KHJTGqzduA8eRZDu1vWSFkMqKl9JZMqJmaJ2THIR2g7jBUAzK0B57UzkO9uQXoXWFH7P91OSKKGA4rwfwQ=="],
+    "@anthropic-ai/claude-agent-sdk-win32-x64": ["@anthropic-ai/claude-agent-sdk-win32-x64@0.3.231", "", { "os": "win32", "cpu": "x64" }, "sha512-cN7inf1VipIun3PpDkhhZ6lAF+2wmFzMuC+x5dVy64l1YyuXRHDcugQ4nUODZsdmeOd6VJSBjT+aV+RP3dRBVg=="],
 
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.93.0", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-q9vaSZQVFx6B/gPxetGYfLXSJD5v0sOmh0OpZDq7yCrTSA+Rscvrtyol7JJTW40wEpQB4U1B4JXzxQitbQ3CAA=="],
 
