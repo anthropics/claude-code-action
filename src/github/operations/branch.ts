@@ -13,6 +13,7 @@ import type { GitHubPullRequest } from "../types";
 import type { Octokits } from "../api/client";
 import type { FetchDataResult } from "../data/fetcher";
 import { generateBranchName } from "../../utils/branch-template";
+import { fetchDepthArgs } from "./fetch-depth";
 
 /**
  * Extracts the first label from GitHub data, or returns undefined if no labels exist
@@ -175,12 +176,19 @@ export async function setupBranch(
 
       const branchName = prData.headRefName;
 
-      // Determine optimal fetch depth based on PR commit count, with a minimum of 20
+      // Determine optimal fetch depth based on PR commit count, with a minimum
+      // of 20. Only applied to a checkout that is already shallow — see
+      // fetchDepthArgs.
       const commitCount = prData.commits.totalCount;
       const fetchDepth = Math.max(commitCount, 20);
+      const depthArgs = fetchDepthArgs(fetchDepth);
 
       console.log(
-        `PR #${entityNumber}: ${commitCount} commits, using fetch depth ${fetchDepth}`,
+        `PR #${entityNumber}: ${commitCount} commits, ${
+          depthArgs.length > 0
+            ? `using fetch depth ${fetchDepth}`
+            : "fetching without a depth limit (checkout has full history)"
+        }`,
       );
 
       // Validate branch names before use to prevent command injection
@@ -195,13 +203,13 @@ export async function setupBranch(
         execGit([
           "fetch",
           "origin",
-          `--depth=${fetchDepth}`,
+          ...depthArgs,
           `pull/${entityNumber}/head:${branchName}`,
         ]);
       } else {
         // Execute git commands to checkout PR branch (dynamic depth based on PR size)
         // Using execFileSync instead of shell template literals for security
-        execGit(["fetch", "origin", `--depth=${fetchDepth}`, branchName]);
+        execGit(["fetch", "origin", ...depthArgs, branchName]);
       }
       execGit(["checkout", branchName, "--"]);
 
@@ -302,7 +310,7 @@ export async function setupBranch(
       // Ensure we're on the source branch
       console.log(`Fetching and checking out source branch: ${sourceBranch}`);
       validateBranchName(sourceBranch);
-      execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
+      execGit(["fetch", "origin", sourceBranch, ...fetchDepthArgs(1)]);
       execGit(["checkout", sourceBranch, "--"]);
 
       return {
@@ -320,7 +328,7 @@ export async function setupBranch(
     // Fetch and checkout the source branch first to ensure we branch from the correct base
     console.log(`Fetching and checking out source branch: ${sourceBranch}`);
     validateBranchName(sourceBranch);
-    execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
+    execGit(["fetch", "origin", sourceBranch, ...fetchDepthArgs(1)]);
     execGit(["checkout", sourceBranch, "--"]);
 
     // Create and checkout the new branch from the source branch

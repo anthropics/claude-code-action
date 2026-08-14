@@ -394,6 +394,37 @@ describe("restoreConfigFromBase", () => {
     expect(countClaudePrExcludeEntries()).toBe(1);
   });
 
+  test("leaves a full checkout unshallow so base..HEAD stays scoped to the PR", () => {
+    // The damage only shows up once base has moved on since the PR branched:
+    // the merge base is then an older commit that a depth-limited fetch of base
+    // truncates away, and every base..HEAD comparison silently changes meaning.
+    git(["checkout", "main"]);
+    writeRepoFile("src/other.ts", "export const advanced = true;\n");
+    git(["add", "src/other.ts"]);
+    git(["commit", "-m", "base advance"]);
+    git(["push", "origin", "main"]);
+    git(["checkout", "pr"]);
+
+    expect(git(["rev-parse", "--is-shallow-repository"]).trim()).toBe("false");
+    const mergeBaseBefore = git(["merge-base", "origin/main", "HEAD"]).trim();
+
+    restoreConfigFromBase("main");
+
+    expect(git(["rev-parse", "--is-shallow-repository"]).trim()).toBe("false");
+    expect(git(["merge-base", "origin/main", "HEAD"]).trim()).toBe(
+      mergeBaseBefore,
+    );
+    // These are the two commands the prompt tells Claude to run to scope its
+    // work to the PR: the log range must not pick up already-merged commits,
+    // and the three-dot diff must still resolve a merge base at all.
+    expect(git(["log", "--format=%s", "origin/main..HEAD"]).trim()).toBe(
+      "pr config",
+    );
+    expect(
+      git(["diff", "--name-only", "origin/main...HEAD"]).trim().split("\n"),
+    ).toEqual([".claude/settings.json", "CLAUDE.md"]);
+  });
+
   function git(args: string[]): string {
     return execFileSync("git", args, {
       cwd: repoDir,
