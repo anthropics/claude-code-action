@@ -14,6 +14,8 @@ permissions:
 
 jobs:
   test-mcp-integration:
+    # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -94,6 +96,8 @@ jobs:
           echo "✓ All MCP server checks passed!"
 
   test-mcp-config-flag:
+    # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
