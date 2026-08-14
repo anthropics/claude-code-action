@@ -6,6 +6,8 @@ on:
 
 jobs:
   review:
+    # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
