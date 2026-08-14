@@ -22,6 +22,7 @@ export type GitHubComment = {
 export type GitHubReviewComment = GitHubComment & {
   path: string;
   line: number | null;
+  diffHunk?: string | null;
 };
 
 export type GitHubCommit = {
@@ -85,9 +86,13 @@ export type GitHubPullRequest = {
       commit: GitHubCommit;
     }>;
   };
+  // GitHub's GraphQL `files` field resolves to null when the PR's diff is too
+  // large for GitHub to compute (very large PRs). `changedFiles` is also
+  // misreported as 0 in that case, so the null must be guarded and treated as
+  // "file list unavailable" rather than "no files changed".
   files: {
     nodes: GitHubFile[];
-  };
+  } | null;
   comments: {
     nodes: GitHubComment[];
   };

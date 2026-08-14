@@ -14,6 +14,8 @@ permissions:
 
 jobs:
   test-custom-executables:
+    # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -59,7 +61,7 @@ jobs:
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           path_to_claude_code_executable: /home/runner/.local/bin/claude
           path_to_bun_executable: /home/runner/.bun/bin/bun
-          allowed_tools: "LS,Read"
+          claude_args: '--allowedTools "LS,Read"'
 
       - name: Verify custom executables worked
         run: |

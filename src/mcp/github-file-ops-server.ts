@@ -8,8 +8,9 @@ import { resolve } from "path";
 import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
-import { retryWithBackoff } from "../utils/retry";
+import { isBinaryContent } from "./binary-detection";
 import { validatePathWithinRepo } from "./path-validation";
+import { updateGitReference } from "./update-git-reference";
 
 type GitHubRef = {
   object: {
@@ -258,17 +259,14 @@ server.tool(
           // Get the proper file mode based on file permissions
           const fileMode = await getFileMode(fullPath);
 
-          // Check if file is binary (images, etc.)
-          const isBinaryFile =
-            /\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|tar|gz|exe|bin|woff|woff2|ttf|eot)$/i.test(
-              relativePath,
-            );
+          // Check if the file is binary by inspecting its contents. An
+          // extension allowlist used to decide this, which corrupted every
+          // binary type that wasn't on the list.
+          const fileContent = await readFile(fullPath);
 
-          if (isBinaryFile) {
+          if (isBinaryContent(fileContent)) {
             // For binary files, create a blob first using the Blobs API
-            const binaryContent = await readFile(fullPath);
-
-            // Create blob using Blobs API (supports encoding parameter)
+            // (supports the encoding parameter)
             const blobUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs`;
             const blobResponse = await fetch(blobUrl, {
               method: "POST",
@@ -279,7 +277,7 @@ server.tool(
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                content: binaryContent.toString("base64"),
+                content: fileContent.toString("base64"),
                 encoding: "base64",
               }),
             });
@@ -302,12 +300,11 @@ server.tool(
             };
           } else {
             // For text files, include content directly in tree
-            const content = await readFile(fullPath, "utf-8");
             return {
               path: relativePath,
               mode: fileMode,
               type: "blob",
-              content: content,
+              content: fileContent.toString("utf-8"),
             };
           }
         }),
@@ -365,57 +362,13 @@ server.tool(
       const newCommitData = (await newCommitResponse.json()) as GitHubNewCommit;
 
       // 6. Update the reference to point to the new commit
-      const updateRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${branch}`;
-
-      // We're seeing intermittent 403 "Resource not accessible by integration" errors
-      // on certain repos when updating git references. These appear to be transient
-      // GitHub API issues that succeed on retry.
-      await retryWithBackoff(
-        async () => {
-          const updateRefResponse = await fetch(updateRefUrl, {
-            method: "PATCH",
-            headers: {
-              Accept: "application/vnd.github+json",
-              Authorization: `Bearer ${githubToken}`,
-              "X-GitHub-Api-Version": "2022-11-28",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              sha: newCommitData.sha,
-              force: false,
-            }),
-          });
-
-          if (!updateRefResponse.ok) {
-            const errorText = await updateRefResponse.text();
-
-            // Provide a more helpful error message for 403 permission errors
-            if (updateRefResponse.status === 403) {
-              const permissionError = new Error(
-                `Permission denied: Unable to push commits to branch '${branch}'. ` +
-                  `Please rebase your branch from the main/master branch to allow Claude to commit.\n\n` +
-                  `Original error: ${errorText}`,
-              );
-              throw permissionError;
-            }
-
-            // For other errors, use the original message
-            const error = new Error(
-              `Failed to update reference: ${updateRefResponse.status} - ${errorText}`,
-            );
-
-            // For non-403 errors, fail immediately without retry
-            console.error("Non-retryable error:", updateRefResponse.status);
-            throw error;
-          }
-        },
-        {
-          maxAttempts: 3,
-          initialDelayMs: 1000, // Start with 1 second delay
-          maxDelayMs: 5000, // Max 5 seconds delay
-          backoffFactor: 2, // Double the delay each time
-        },
-      );
+      await updateGitReference({
+        owner,
+        repo,
+        branch,
+        sha: newCommitData.sha,
+        githubToken,
+      });
 
       const simplifiedResult = {
         commit: {
@@ -479,21 +432,18 @@ server.tool(
         throw new Error("GITHUB_TOKEN environment variable is required");
       }
 
-      // Convert absolute paths to relative if they match CWD
-      const cwd = process.cwd();
-      const processedPaths = paths.map((filePath) => {
-        if (filePath.startsWith("/")) {
-          if (filePath.startsWith(cwd)) {
-            // Strip CWD from absolute path
-            return filePath.slice(cwd.length + 1);
-          } else {
-            throw new Error(
-              `Path '${filePath}' must be relative to repository root or within current working directory`,
-            );
-          }
-        }
-        return filePath;
-      });
+      // Validate all paths are within the repository root and normalize them to
+      // repo-relative paths for the git tree entries. This mirrors the validation
+      // already performed by the commit_files tool and rejects path traversal
+      // ("../") and symlinked escapes as defense-in-depth.
+      const resolvedRepoDir = resolve(REPO_DIR);
+      const processedPaths = await Promise.all(
+        paths.map(async (filePath) => {
+          await validatePathWithinRepo(filePath, REPO_DIR);
+          const normalizedPath = resolve(resolvedRepoDir, filePath);
+          return normalizedPath.slice(resolvedRepoDir.length + 1);
+        }),
+      );
 
       // 1. Get the branch reference (create if doesn't exist)
       const baseSha = await getOrCreateBranchRef(
@@ -580,58 +530,13 @@ server.tool(
       const newCommitData = (await newCommitResponse.json()) as GitHubNewCommit;
 
       // 6. Update the reference to point to the new commit
-      const updateRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${branch}`;
-
-      // We're seeing intermittent 403 "Resource not accessible by integration" errors
-      // on certain repos when updating git references. These appear to be transient
-      // GitHub API issues that succeed on retry.
-      await retryWithBackoff(
-        async () => {
-          const updateRefResponse = await fetch(updateRefUrl, {
-            method: "PATCH",
-            headers: {
-              Accept: "application/vnd.github+json",
-              Authorization: `Bearer ${githubToken}`,
-              "X-GitHub-Api-Version": "2022-11-28",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              sha: newCommitData.sha,
-              force: false,
-            }),
-          });
-
-          if (!updateRefResponse.ok) {
-            const errorText = await updateRefResponse.text();
-
-            // Provide a more helpful error message for 403 permission errors
-            if (updateRefResponse.status === 403) {
-              console.log("Received 403 error, will retry...");
-              const permissionError = new Error(
-                `Permission denied: Unable to push commits to branch '${branch}'. ` +
-                  `Please rebase your branch from the main/master branch to allow Claude to commit.\n\n` +
-                  `Original error: ${errorText}`,
-              );
-              throw permissionError;
-            }
-
-            // For other errors, use the original message
-            const error = new Error(
-              `Failed to update reference: ${updateRefResponse.status} - ${errorText}`,
-            );
-
-            // For non-403 errors, fail immediately without retry
-            console.error("Non-retryable error:", updateRefResponse.status);
-            throw error;
-          }
-        },
-        {
-          maxAttempts: 3,
-          initialDelayMs: 1000, // Start with 1 second delay
-          maxDelayMs: 5000, // Max 5 seconds delay
-          backoffFactor: 2, // Double the delay each time
-        },
-      );
+      await updateGitReference({
+        owner,
+        repo,
+        branch,
+        sha: newCommitData.sha,
+        githubToken,
+      });
 
       const simplifiedResult = {
         commit: {

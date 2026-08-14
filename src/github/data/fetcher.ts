@@ -1,4 +1,5 @@
 import { execFileSync } from "child_process";
+import type { IssuesEvent } from "@octokit/webhooks-types";
 import type { Octokits } from "../api/client";
 import { ISSUE_QUERY, PR_QUERY, USER_QUERY } from "../api/queries/github";
 import {
@@ -29,6 +30,12 @@ import {
  * Extracts the trigger timestamp from the GitHub webhook payload.
  * This timestamp represents when the triggering comment/review/event was created.
  *
+ * For `issues` and `pull_request` events there is no dedicated trigger
+ * object in the payload, so the issue/PR's own timestamps from the webhook
+ * snapshot are used: `created_at` for opened events, otherwise `updated_at`
+ * (falling back to `created_at`). For issues labeled/assigned events,
+ * prefer resolveTriggerTimestamp() which looks up the exact event time.
+ *
  * @param context - Parsed GitHub context from webhook
  * @returns ISO timestamp string or undefined if not available
  */
@@ -41,9 +48,136 @@ export function extractTriggerTimestamp(
     return context.payload.review.submitted_at || undefined;
   } else if (isPullRequestReviewCommentEvent(context)) {
     return context.payload.comment.created_at || undefined;
+  } else if (isIssuesEvent(context)) {
+    const issue = context.payload.issue;
+    if (context.eventAction === "opened") {
+      return issue?.created_at || issue?.updated_at || undefined;
+    }
+    // updated_at reflects the last comment or edit on the issue, so the
+    // newest pre-existing comment can share this timestamp and be excluded
+    // along with anything newer.
+    return issue?.updated_at || issue?.created_at || undefined;
+  } else if (isPullRequestEvent(context)) {
+    const pullRequest = context.payload.pull_request;
+    if (context.eventAction === "opened") {
+      return pullRequest?.created_at || pullRequest?.updated_at || undefined;
+    }
+    return pullRequest?.updated_at || pullRequest?.created_at || undefined;
   }
 
   return undefined;
+}
+
+/**
+ * Resolves the trigger timestamp for the event, consulting the GitHub API
+ * where the webhook payload does not carry an exact time for the triggering
+ * action.
+ *
+ * For issues labeled/assigned events the label/assignment carries no
+ * timestamp of its own in the payload, so the matching entry in the issue's
+ * event history is looked up and its `created_at` is used. If the lookup
+ * fails, this falls back to extractTriggerTimestamp().
+ *
+ * @param context - Parsed GitHub context from webhook
+ * @param octokits - GitHub API clients
+ * @returns ISO timestamp string or undefined if not available
+ */
+export async function resolveTriggerTimestamp(
+  context: ParsedGitHubContext,
+  octokits: Octokits,
+): Promise<string | undefined> {
+  if (
+    isIssuesEvent(context) &&
+    (context.eventAction === "labeled" || context.eventAction === "assigned")
+  ) {
+    const eventTime = await findIssueEventTime(context, octokits);
+    if (eventTime) {
+      return eventTime;
+    }
+    console.warn(
+      `Could not resolve the ${context.eventAction} event time for issue #${context.entityNumber}; falling back to the webhook payload timestamps`,
+    );
+  }
+
+  return extractTriggerTimestamp(context);
+}
+
+/**
+ * Looks up the most recent labeled/assigned event on the issue that matches
+ * the label or assignee in the webhook payload, returning its created_at.
+ */
+async function findIssueEventTime(
+  context: ParsedGitHubContext & { payload: IssuesEvent },
+  octokits: Octokits,
+): Promise<string | undefined> {
+  const payload = context.payload;
+  let matches: (event: {
+    event: string;
+    label?: { name?: string | null };
+    assignee?: { login?: string } | null;
+  }) => boolean;
+
+  if (payload.action === "labeled") {
+    const labelName = payload.label?.name;
+    if (!labelName) return undefined;
+    matches = (event) =>
+      event.event === "labeled" && event.label?.name === labelName;
+  } else if (payload.action === "assigned") {
+    const assigneeLogin = payload.assignee?.login;
+    if (!assigneeLogin) return undefined;
+    matches = (event) =>
+      event.event === "assigned" && event.assignee?.login === assigneeLogin;
+  } else {
+    return undefined;
+  }
+
+  try {
+    const events = await octokits.rest.paginate(
+      octokits.rest.issues.listEvents,
+      {
+        owner: context.repository.owner,
+        repo: context.repository.repo,
+        issue_number: context.entityNumber,
+        per_page: 100,
+      },
+    );
+
+    let latest: (typeof events)[number] | undefined;
+    for (const event of events.filter(matches)) {
+      if (
+        !latest ||
+        new Date(event.created_at).getTime() >
+          new Date(latest.created_at).getTime()
+      ) {
+        latest = event;
+      }
+    }
+
+    // Labeling/assignment does not bump the issue's updated_at, so the event
+    // that fired this webhook cannot predate the payload snapshot's
+    // updated_at. An older match means the current event is not visible in
+    // the events API yet; ignore it rather than adopt a stale boundary.
+    const snapshotUpdatedAt = payload.issue?.updated_at;
+    if (
+      latest &&
+      snapshotUpdatedAt &&
+      new Date(latest.created_at).getTime() <
+        new Date(snapshotUpdatedAt).getTime()
+    ) {
+      console.warn(
+        `Latest matching ${payload.action} event on issue #${context.entityNumber} predates the issue's updated_at; treating it as stale`,
+      );
+      return undefined;
+    }
+
+    return latest?.created_at || undefined;
+  } catch (error) {
+    console.warn(
+      `Failed to fetch events for issue #${context.entityNumber}:`,
+      error,
+    );
+    return undefined;
+  }
 }
 
 /**
@@ -290,7 +424,12 @@ export async function fetchGitHubData({
       if (prResult.repository.pullRequest) {
         const pullRequest = prResult.repository.pullRequest;
         contextData = pullRequest;
-        changedFiles = pullRequest.files.nodes || [];
+        if (pullRequest.files === null) {
+          console.warn(
+            `GitHub did not return the file list for PR #${prNumber} (diff likely too large); proceeding without file-level context`,
+          );
+        }
+        changedFiles = pullRequest.files?.nodes ?? [];
         comments = filterCommentsByActor(
           filterCommentsToTriggerTime(
             pullRequest.comments?.nodes || [],

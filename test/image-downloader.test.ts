@@ -13,6 +13,17 @@ import { downloadCommentImages } from "../src/github/utils/image-downloader";
 import type { CommentWithImages } from "../src/github/utils/image-downloader";
 import type { Octokits } from "../src/github/api/client";
 
+// Asset URLs and their signed download URLs share the asset's GUID.
+const GUID_1 = "f871c23e-a84d-4f1f-b9a0-86626c63f161";
+const GUID_2 = "0b0c9d33-4e6a-4f4e-8a1a-2f9e5c6d7e8f";
+const GUID_3 = "a1b2c3d4-e5f6-4789-abcd-ef0123456789";
+
+const assetUrl = (guid: string, suffix = "") =>
+  `https://github.com/user-attachments/assets/${guid}${suffix}`;
+
+const signedUrlFor = (guid: string, ext: string, token = "token") =>
+  `https://private-user-images.githubusercontent.com/12345/98765432-${guid}${ext}?jwt=${token}`;
+
 describe("downloadCommentImages", () => {
   let consoleLogSpy: any;
   let consoleWarnSpy: any;
@@ -97,10 +108,8 @@ describe("downloadCommentImages", () => {
 
   test("should detect and download images from issue comments", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl =
-      "https://github.com/user-attachments/assets/test-image.png";
-    const signedUrl =
-      "https://private-user-images.githubusercontent.com/test.png?jwt=token";
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
 
     // Mock octokit response
     // @ts-expect-error Mock implementation doesn't match full type signature
@@ -164,10 +173,8 @@ describe("downloadCommentImages", () => {
     // the URL-based guess used to default to ".png" while the bytes are JPEG —
     // producing a mislabeled file that the Anthropic API rejected with a 400.
     const mockOctokit = createMockOctokit();
-    const imageUrl =
-      "https://github.com/user-attachments/assets/f871c23e-a84d-4f1f-b9a0-86626c63f161";
-    const signedUrl =
-      "https://private-user-images.githubusercontent.com/screenshot?jwt=token";
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".jpg");
 
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.get = jest.fn().mockResolvedValue({
@@ -209,10 +216,8 @@ describe("downloadCommentImages", () => {
 
   test("should handle review comments", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl =
-      "https://github.com/user-attachments/assets/review-image.jpg";
-    const signedUrl =
-      "https://private-user-images.githubusercontent.com/review.jpg?jwt=token";
+    const imageUrl = assetUrl(GUID_1, ".jpg");
+    const signedUrl = signedUrlFor(GUID_1, ".jpg");
 
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.pulls.getReviewComment = jest.fn().mockResolvedValue({
@@ -255,10 +260,8 @@ describe("downloadCommentImages", () => {
 
   test("should handle review bodies", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl =
-      "https://github.com/user-attachments/assets/review-body.png";
-    const signedUrl =
-      "https://private-user-images.githubusercontent.com/body.png?jwt=token";
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
 
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.pulls.getReview = jest.fn().mockResolvedValue({
@@ -303,10 +306,8 @@ describe("downloadCommentImages", () => {
 
   test("should handle issue bodies", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl =
-      "https://github.com/user-attachments/assets/issue-body.gif";
-    const signedUrl =
-      "https://private-user-images.githubusercontent.com/issue.gif?jwt=token";
+    const imageUrl = assetUrl(GUID_1, ".gif");
+    const signedUrl = signedUrlFor(GUID_1, ".gif");
 
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.get = jest.fn().mockResolvedValue({
@@ -352,9 +353,8 @@ describe("downloadCommentImages", () => {
 
   test("should handle PR bodies", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl = "https://github.com/user-attachments/assets/pr-body.webp";
-    const signedUrl =
-      "https://private-user-images.githubusercontent.com/pr.webp?jwt=token";
+    const imageUrl = assetUrl(GUID_1, ".webp");
+    const signedUrl = signedUrlFor(GUID_1, ".webp");
 
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.pulls.get = jest.fn().mockResolvedValue({
@@ -400,12 +400,10 @@ describe("downloadCommentImages", () => {
 
   test("should handle multiple images in a single comment", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl1 = "https://github.com/user-attachments/assets/image1.png";
-    const imageUrl2 = "https://github.com/user-attachments/assets/image2.jpg";
-    const signedUrl1 =
-      "https://private-user-images.githubusercontent.com/1.png?jwt=token1";
-    const signedUrl2 =
-      "https://private-user-images.githubusercontent.com/2.jpg?jwt=token2";
+    const imageUrl1 = assetUrl(GUID_1);
+    const imageUrl2 = assetUrl(GUID_2, ".jpg");
+    const signedUrl1 = signedUrlFor(GUID_1, ".png", "token1");
+    const signedUrl2 = signedUrlFor(GUID_2, ".jpg", "token2");
 
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
@@ -447,11 +445,215 @@ describe("downloadCommentImages", () => {
     );
   });
 
+  test("should pair images by asset identifier even when the HTML order differs", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl1 = assetUrl(GUID_1);
+    const imageUrl2 = assetUrl(GUID_2);
+    const signedUrl1 = signedUrlFor(GUID_1, ".png", "token1");
+    const signedUrl2 = signedUrlFor(GUID_2, ".png", "token2");
+
+    // The rendered HTML lists the second asset first.
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl2}"><img src="${signedUrl1}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "999",
+        body: `Two images: ![img1](${imageUrl1}) and ![img2](${imageUrl2})`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenNthCalledWith(1, signedUrl1);
+    expect(fetchSpy).toHaveBeenNthCalledWith(2, signedUrl2);
+    expect(result.get(imageUrl1)).toBe(
+      "/tmp/github-images/image-1704067200000-0.png",
+    );
+    expect(result.get(imageUrl2)).toBe(
+      "/tmp/github-images/image-1704067200000-1.png",
+    );
+  });
+
+  test("should match asset identifiers case-insensitively", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl = assetUrl(GUID_1.toUpperCase());
+    const signedUrl = signedUrlFor(GUID_1, ".png");
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "1002",
+        body: `Uppercase: ![test](${imageUrl})`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(fetchSpy).toHaveBeenCalledWith(signedUrl);
+    expect(result.get(imageUrl)).toBe(
+      "/tmp/github-images/image-1704067200000-0.png",
+    );
+  });
+
+  test("should skip an image whose signed URL refers to a different asset", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl = assetUrl(GUID_1);
+    // The rendered HTML only contains a signed URL for a different asset.
+    const signedUrl = signedUrlFor(GUID_2, ".png");
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "1003",
+        body: `Original image: ![test](${imageUrl})`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(result.size).toBe(0);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      `No matching signed URL found for ${imageUrl}, skipping`,
+    );
+  });
+
+  test("should not pair a signed URL that only names the asset in a leading path segment", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl = assetUrl(GUID_1);
+    // The path segment mentions the requested asset, but the URL resolves to a
+    // different asset's filename once ".." is applied.
+    const signedUrl = `https://private-user-images.githubusercontent.com/${GUID_1}/../12345/98765432-${GUID_2}.png?jwt=token`;
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<a href="${signedUrl}">${signedUrl}</a>`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "1005",
+        body: `Original image: ![test](${imageUrl})`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(result.size).toBe(0);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      `No matching signed URL found for ${imageUrl}, skipping`,
+    );
+  });
+
+  test("should skip an image URL without an asset identifier", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl =
+      "https://github.com/user-attachments/assets/test-image.png";
+    const signedUrl = signedUrlFor(GUID_1, ".png");
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const comments: CommentWithImages[] = [
+      {
+        type: "issue_comment",
+        id: "1004",
+        body: `No identifier: ![test](${imageUrl})`,
+      },
+    ];
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      comments,
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(result.size).toBe(0);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      `No matching signed URL found for ${imageUrl}, skipping`,
+    );
+  });
+
   test("should skip already downloaded images", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl = "https://github.com/user-attachments/assets/duplicate.png";
-    const signedUrl =
-      "https://private-user-images.githubusercontent.com/dup.png?jwt=token";
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
 
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
@@ -494,7 +696,7 @@ describe("downloadCommentImages", () => {
 
   test("should handle missing HTML body", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl = "https://github.com/user-attachments/assets/missing.png";
+    const imageUrl = assetUrl(GUID_1);
 
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
@@ -526,9 +728,8 @@ describe("downloadCommentImages", () => {
 
   test("should handle fetch errors", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl = "https://github.com/user-attachments/assets/error.png";
-    const signedUrl =
-      "https://private-user-images.githubusercontent.com/error.png?jwt=token";
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
 
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
@@ -567,7 +768,7 @@ describe("downloadCommentImages", () => {
 
   test("should handle API errors gracefully", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl = "https://github.com/user-attachments/assets/api-error.png";
+    const imageUrl = assetUrl(GUID_1);
 
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest
@@ -599,42 +800,21 @@ describe("downloadCommentImages", () => {
   test("should extract correct file extensions", async () => {
     const mockOctokit = createMockOctokit();
     const extensions = [
-      {
-        url: "https://github.com/user-attachments/assets/test.png",
-        ext: ".png",
-      },
-      {
-        url: "https://github.com/user-attachments/assets/test.jpg",
-        ext: ".jpg",
-      },
-      {
-        url: "https://github.com/user-attachments/assets/test.jpeg",
-        ext: ".jpeg",
-      },
-      {
-        url: "https://github.com/user-attachments/assets/test.gif",
-        ext: ".gif",
-      },
-      {
-        url: "https://github.com/user-attachments/assets/test.webp",
-        ext: ".webp",
-      },
-      {
-        url: "https://github.com/user-attachments/assets/test.svg",
-        ext: ".svg",
-      },
-      {
-        // default
-        url: "https://github.com/user-attachments/assets/no-extension",
-        ext: ".png",
-      },
+      { url: assetUrl(GUID_1, ".png"), ext: ".png" },
+      { url: assetUrl(GUID_1, ".jpg"), ext: ".jpg" },
+      { url: assetUrl(GUID_1, ".jpeg"), ext: ".jpeg" },
+      { url: assetUrl(GUID_1, ".gif"), ext: ".gif" },
+      { url: assetUrl(GUID_1, ".webp"), ext: ".webp" },
+      { url: assetUrl(GUID_1, ".svg"), ext: ".svg" },
+      // default
+      { url: assetUrl(GUID_1), ext: ".png" },
     ];
 
     let callIndex = 0;
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
-        body_html: `<img src="https://private-user-images.githubusercontent.com/test?jwt=token">`,
+        body_html: `<img src="${signedUrlFor(GUID_1, "")}">`,
       },
     });
 
@@ -669,12 +849,11 @@ describe("downloadCommentImages", () => {
     }
   });
 
-  test("should handle mismatched signed URL count", async () => {
+  test("should handle a signed URL missing for one of several images", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl1 = "https://github.com/user-attachments/assets/img1.png";
-    const imageUrl2 = "https://github.com/user-attachments/assets/img2.png";
-    const signedUrl1 =
-      "https://private-user-images.githubusercontent.com/1.png?jwt=token";
+    const imageUrl1 = assetUrl(GUID_1);
+    const imageUrl2 = assetUrl(GUID_2);
+    const signedUrl1 = signedUrlFor(GUID_1, ".png");
 
     // Only one signed URL for two images
     // @ts-expect-error Mock implementation doesn't match full type signature
@@ -710,14 +889,15 @@ describe("downloadCommentImages", () => {
       "/tmp/github-images/image-1704067200000-0.png",
     );
     expect(result.get(imageUrl2)).toBeUndefined();
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      `No matching signed URL found for ${imageUrl2}, skipping`,
+    );
   });
 
   test("should detect and download images from HTML img tags", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl =
-      "https://github.com/user-attachments/assets/html-image.png";
-    const signedUrl =
-      "https://private-user-images.githubusercontent.com/html.png?jwt=token";
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
 
     // Mock octokit response
     // @ts-expect-error Mock implementation doesn't match full type signature
@@ -777,14 +957,10 @@ describe("downloadCommentImages", () => {
 
   test("should handle HTML img tags with different quote styles", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl1 =
-      "https://github.com/user-attachments/assets/single-quote.jpg";
-    const imageUrl2 =
-      "https://github.com/user-attachments/assets/double-quote.png";
-    const signedUrl1 =
-      "https://private-user-images.githubusercontent.com/single.jpg?jwt=token1";
-    const signedUrl2 =
-      "https://private-user-images.githubusercontent.com/double.png?jwt=token2";
+    const imageUrl1 = assetUrl(GUID_1, ".jpg");
+    const imageUrl2 = assetUrl(GUID_2, ".png");
+    const signedUrl1 = signedUrlFor(GUID_1, ".jpg", "token1");
+    const signedUrl2 = signedUrlFor(GUID_2, ".png", "token2");
 
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
@@ -828,18 +1004,17 @@ describe("downloadCommentImages", () => {
 
   test("should handle mixed Markdown and HTML images", async () => {
     const mockOctokit = createMockOctokit();
-    const markdownUrl =
-      "https://github.com/user-attachments/assets/markdown.png";
-    const htmlUrl = "https://github.com/user-attachments/assets/html.jpg";
-    const signedUrl1 =
-      "https://private-user-images.githubusercontent.com/md.png?jwt=token1";
-    const signedUrl2 =
-      "https://private-user-images.githubusercontent.com/html.jpg?jwt=token2";
+    const markdownUrl = assetUrl(GUID_1);
+    const htmlUrl = assetUrl(GUID_2, ".jpg");
+    const signedUrl1 = signedUrlFor(GUID_1, ".png", "token1");
+    const signedUrl2 = signedUrlFor(GUID_2, ".jpg", "token2");
 
+    // The rendered HTML has the images in document order (HTML tag first),
+    // which is the reverse of the order in which the URLs are extracted.
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
-        body_html: `<img src="${signedUrl1}"><img src="${signedUrl2}">`,
+        body_html: `<img src="${signedUrl2}"><img src="${signedUrl1}">`,
       },
     });
 
@@ -852,7 +1027,7 @@ describe("downloadCommentImages", () => {
       {
         type: "issue_comment",
         id: "999",
-        body: `Markdown: ![test](${markdownUrl}) and HTML: <img src="${htmlUrl}" alt="test">`,
+        body: `HTML: <img src="${htmlUrl}" alt="test"> and Markdown: ![test](${markdownUrl})`,
       },
     ];
 
@@ -878,9 +1053,8 @@ describe("downloadCommentImages", () => {
 
   test("should deduplicate identical URLs from Markdown and HTML", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl = "https://github.com/user-attachments/assets/duplicate.png";
-    const signedUrl =
-      "https://private-user-images.githubusercontent.com/dup.png?jwt=token";
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
 
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
@@ -921,10 +1095,8 @@ describe("downloadCommentImages", () => {
 
   test("should handle HTML img tags with additional attributes", async () => {
     const mockOctokit = createMockOctokit();
-    const imageUrl =
-      "https://github.com/user-attachments/assets/complex-tag.webp";
-    const signedUrl =
-      "https://private-user-images.githubusercontent.com/complex.webp?jwt=token";
+    const imageUrl = assetUrl(GUID_3, ".webp");
+    const signedUrl = signedUrlFor(GUID_3, ".webp");
 
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({

@@ -28,7 +28,7 @@ PR Labels: ${formatLabels(prData.labels.nodes)}
 PR Additions: ${prData.additions}
 PR Deletions: ${prData.deletions}
 Total Commits: ${prData.commits.totalCount}
-Changed Files: ${prData.files.nodes.length} files`;
+Changed Files: ${prData.files ? `${prData.files.nodes.length} files` : "unknown (file list unavailable)"}`;
   } else {
     const issueData = contextData as GitHubIssue;
     const sanitizedTitle = sanitizeContent(issueData.title);
@@ -118,7 +118,16 @@ export function formatReviewComments(
 
           body = sanitizeContent(body);
 
-          return `  [Comment on ${comment.path}:${comment.line || "?"}]: ${body}`;
+          let formatted = `  [Comment on ${comment.path}:${comment.line || "?"}]: ${body}`;
+
+          // The diff hunk is the code the comment was left on. Without it the
+          // comment arrives without the context it was written against.
+          if (comment.diffHunk) {
+            const diffHunk = sanitizeContent(comment.diffHunk);
+            formatted += `\n  Diff context:\n\`\`\`diff\n${diffHunk}\n\`\`\``;
+          }
+
+          return formatted;
         })
         .join("\n");
       if (comments) {

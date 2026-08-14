@@ -1,4 +1,5 @@
 import { GITHUB_SERVER_URL } from "../api/config";
+import { redactSecrets } from "../utils/sanitizer";
 
 export type ExecutionDetails = {
   total_cost_usd?: number;
@@ -181,9 +182,11 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   // Build the new body with blank line between header and separator
   let newBody = `${header}${links}`;
 
-  // Add error details if available
+  // Add error details if available. The message may embed runtime credentials
+  // (e.g. a token in a git remote URL) that are not registered as workflow
+  // secrets, so redact known formats before posting.
   if (actionFailed && errorDetails) {
-    newBody += `\n\n\`\`\`\n${errorDetails}\n\`\`\``;
+    newBody += `\n\n\`\`\`\n${redactSecrets(errorDetails)}\n\`\`\``;
   }
 
   newBody += `\n\n---\n`;

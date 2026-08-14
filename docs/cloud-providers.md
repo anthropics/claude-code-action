@@ -7,7 +7,7 @@ You can authenticate with Claude using any of these four methods:
 3. Google Vertex AI with OIDC authentication
 4. Microsoft Foundry with OIDC authentication
 
-For detailed setup instructions for AWS Bedrock and Google Vertex AI, see the [official documentation](https://code.claude.com/docs/en/github-actions#for-aws-bedrock:).
+For detailed setup instructions for AWS Bedrock and Google Vertex AI, see the [official documentation](https://code.claude.com/docs/en/github-actions#using-with-amazon-bedrock-and-google-cloud).
 
 **Note**:
 
