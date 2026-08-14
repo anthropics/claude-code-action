@@ -87,8 +87,8 @@ export async function prepareMcpConfig(
       tool.startsWith("mcp__github_comment__"),
     );
 
-    const hasGitHubMcpTools = allowedToolsList.some((tool) =>
-      tool.startsWith("mcp__github__"),
+    const hasGitHubMcpTools = allowedToolsList.some(
+      (tool) => tool === "mcp__github" || tool.startsWith("mcp__github__"),
     );
 
     const hasInlineCommentTools = allowedToolsList.some((tool) =>
