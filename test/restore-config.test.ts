@@ -394,6 +394,18 @@ describe("restoreConfigFromBase", () => {
     expect(countClaudePrExcludeEntries()).toBe(1);
   });
 
+  test("does not convert a full checkout into a shallow repository", () => {
+    expect(git(["rev-parse", "--is-shallow-repository"]).trim()).toBe(
+      "false",
+    );
+
+    restoreConfigFromBase("main");
+
+    expect(git(["rev-parse", "--is-shallow-repository"]).trim()).toBe(
+      "false",
+    );
+  });
+
   function git(args: string[]): string {
     return execFileSync("git", args, {
       cwd: repoDir,

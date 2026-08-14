@@ -303,9 +303,21 @@ export function restoreConfigFromBase(baseBranch: string): void {
 
   // --no-recurse-submodules: explicitly suppress submodule fetching regardless of
   // fetch.recurseSubmodules config. Defense-in-depth alongside the delete above.
+  // Preserve the repository shallow/full state: use depth=1 only when the
+  // checkout is already shallow so we don't convert full checkouts into shallow.
+  const fetchArgs = [
+    "fetch",
+    "origin",
+    baseBranch,
+    "--no-recurse-submodules",
+  ];
+  if (isShallowRepository()) {
+    fetchArgs.push("--depth=1");
+  }
+
   execFileSync(
     "git",
-    ["fetch", "origin", baseBranch, "--depth=1", "--no-recurse-submodules"],
+    fetchArgs,
     {
       stdio: "inherit",
       env: process.env,
@@ -330,5 +342,17 @@ export function restoreConfigFromBase(baseBranch: string): void {
     });
   } catch {
     // Nothing was staged, or paths don't exist on HEAD — either is fine.
+  }
+}
+
+function isShallowRepository(): boolean {
+  try {
+    const output = execFileSync("git", ["rev-parse", "--is-shallow-repository"], {
+      stdio: "pipe",
+      encoding: "utf8",
+    });
+    return output.trim() === "true";
+  } catch {
+    return false;
   }
 }
