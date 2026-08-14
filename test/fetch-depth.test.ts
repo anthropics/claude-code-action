@@ -28,7 +28,16 @@ describe("setupBranch fetch depth", () => {
     repoDir = join(tempDir, "repo");
     const remoteDir = join(tempDir, "origin.git");
 
-    execFileSync("git", ["init", "--bare", remoteDir], { stdio: "pipe" });
+    // Pin the remote's HEAD to main: with the default init.defaultBranch of
+    // master it would dangle, and `git clone --depth=1` (which implies
+    // --single-branch) then produces an empty, non-shallow clone.
+    execFileSync(
+      "git",
+      ["init", "--bare", "--initial-branch=main", remoteDir],
+      {
+        stdio: "pipe",
+      },
+    );
     execFileSync("git", ["init", repoDir], { stdio: "pipe" });
     git(["checkout", "-b", "main"]);
     git(["config", "user.email", "test@example.com"]);
