@@ -304,20 +304,35 @@ export function restoreConfigFromBase(baseBranch: string): void {
 
   // --no-recurse-submodules: explicitly suppress submodule fetching regardless of
   // fetch.recurseSubmodules config. Defense-in-depth alongside the delete above.
-  execFileSync(
-    "git",
-    [
-      "fetch",
-      "origin",
-      baseBranch,
-      ...fetchDepthArgs(1),
-      "--no-recurse-submodules",
-    ],
-    {
-      stdio: "inherit",
-      env: process.env,
-    },
-  );
+  //
+  // Wrap fetch in try/catch: when credentials are unavailable (e.g., commit
+  // signing mode + persist-credentials=false), git fetch will fail. In that case,
+  // fall back to the already-safe behavior of leaving sensitive paths deleted
+  // rather than fatal-exiting the action.
+  try {
+    execFileSync(
+      "git",
+      [
+        "fetch",
+        "origin",
+        baseBranch,
+        ...fetchDepthArgs(1),
+        "--no-recurse-submodules",
+      ],
+      {
+        stdio: "inherit",
+        env: process.env,
+      },
+    );
+  } catch (error) {
+    console.warn(
+      `Warning: git fetch origin/${baseBranch} failed (likely missing credentials). ` +
+        `Sensitive paths will remain deleted (safe fallback).`,
+    );
+    // When fetch fails, skip checkout attempts below — base content is unavailable,
+    // so sensitive paths stay deleted, which is the safe outcome.
+    return;
+  }
 
   for (const p of SENSITIVE_PATHS) {
     try {
