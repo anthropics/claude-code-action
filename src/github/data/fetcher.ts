@@ -377,6 +377,101 @@ export type GitHubFileWithSHA = GitHubFile & {
   sha: string;
 };
 
+/** Reported for files whose working-tree content could not be hashed. */
+const SHA_UNKNOWN = "unknown";
+/** Reported for files the PR deletes, which have no working-tree content. */
+const SHA_DELETED = "deleted";
+
+/**
+ * Hash every path in one `git hash-object --stdin-paths` call.
+ *
+ * Returns null if the batch did not produce exactly one SHA per input path.
+ * Two cases make that check load-bearing rather than defensive:
+ *
+ *   - git aborts the whole batch on the first unreadable path, emitting the
+ *     SHAs computed before it and then exiting non-zero. That partial result
+ *     must never be zipped back onto the input list.
+ *   - --stdin-paths is newline-delimited, so a path containing a newline is
+ *     read as two paths. If both happen to exist, git exits 0 and returns one
+ *     SHA too many — none of them the file's own. Only the count reveals it.
+ *
+ * Either way the caller falls back to hashing each path individually.
+ */
+function hashObjectBatch(paths: string[]): string[] | null {
+  try {
+    const stdout = execFileSync("git", ["hash-object", "--stdin-paths"], {
+      encoding: "utf-8",
+      input: `${paths.join("\n")}\n`,
+    });
+    const shas = stdout.split("\n").filter((line) => line.length > 0);
+    return shas.length === paths.length ? shas : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Hash a single path, preserving the per-file warning on failure. */
+function hashObjectSingle(path: string): string {
+  try {
+    // `--` keeps a path beginning with "-" from being parsed as an option.
+    return execFileSync("git", ["hash-object", "--", path], {
+      encoding: "utf-8",
+    }).trim();
+  } catch (error) {
+    console.warn(`Failed to compute SHA for ${path}:`, error);
+    return SHA_UNKNOWN;
+  }
+}
+
+/**
+ * Compute working-tree blob SHAs for a PR's changed files.
+ *
+ * Hashing is batched into a single git invocation rather than one process per
+ * file: the work itself is trivial, so process creation dominates, and a large
+ * PR would otherwise spawn hundreds of them serially.
+ *
+ * Deleted files never enter the batch — they have no working-tree content — so
+ * batch results are zipped back onto the hashable subset, not the full list.
+ * If the batch fails, every remaining file is hashed individually so that one
+ * unreadable path degrades only its own SHA rather than all of them.
+ */
+export function computeChangedFileSHAs(
+  changedFiles: GitHubFile[],
+): GitHubFileWithSHA[] {
+  const hashableIndices: number[] = [];
+  const filesWithSHA: GitHubFileWithSHA[] = changedFiles.map((file, index) => {
+    if (file.changeType === "DELETED") {
+      return { ...file, sha: SHA_DELETED };
+    }
+    hashableIndices.push(index);
+    return { ...file, sha: SHA_UNKNOWN };
+  });
+
+  if (hashableIndices.length === 0) {
+    return filesWithSHA;
+  }
+
+  const paths = hashableIndices.map((index) => changedFiles[index]!.path);
+  const shas = hashObjectBatch(paths);
+
+  if (shas) {
+    hashableIndices.forEach((fileIndex, batchIndex) => {
+      filesWithSHA[fileIndex]!.sha = shas[batchIndex]!;
+    });
+    return filesWithSHA;
+  }
+
+  console.warn(
+    "Batched git hash-object failed; falling back to hashing each file individually",
+  );
+  for (const fileIndex of hashableIndices) {
+    filesWithSHA[fileIndex]!.sha = hashObjectSingle(
+      changedFiles[fileIndex]!.path,
+    );
+  }
+  return filesWithSHA;
+}
+
 export type FetchDataResult = {
   contextData: GitHubPullRequest | GitHubIssue;
   comments: GitHubComment[];
@@ -479,33 +574,7 @@ export async function fetchGitHubData({
   // Compute SHAs for changed files
   let changedFilesWithSHA: GitHubFileWithSHA[] = [];
   if (isPR && changedFiles.length > 0) {
-    changedFilesWithSHA = changedFiles.map((file) => {
-      // Don't compute SHA for deleted files
-      if (file.changeType === "DELETED") {
-        return {
-          ...file,
-          sha: "deleted",
-        };
-      }
-
-      try {
-        // Use git hash-object to compute the SHA for the current file content
-        const sha = execFileSync("git", ["hash-object", file.path], {
-          encoding: "utf-8",
-        }).trim();
-        return {
-          ...file,
-          sha,
-        };
-      } catch (error) {
-        console.warn(`Failed to compute SHA for ${file.path}:`, error);
-        // Return original file without SHA if computation fails
-        return {
-          ...file,
-          sha: "unknown",
-        };
-      }
-    });
+    changedFilesWithSHA = computeChangedFileSHAs(changedFiles);
   }
 
   // Prepare all comments for image processing
