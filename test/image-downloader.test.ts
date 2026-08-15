@@ -1233,4 +1233,175 @@ describe("downloadCommentImages", () => {
       "Found 1 image(s) in issue_comment 1001",
     );
   });
+
+  test("should reject an image whose content-length exceeds the limit", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
+    let signal: AbortSignal | null | undefined;
+    const arrayBufferSpy = jest.fn();
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch");
+    fetchSpy.mockImplementation((_input: unknown, init?: RequestInit) => {
+      signal = init?.signal;
+      return Promise.resolve({
+        ok: true,
+        headers: {
+          get: (name: string) => (name === "content-length" ? "2048" : null),
+        },
+        arrayBuffer: arrayBufferSpy,
+      } as unknown as Response);
+    });
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      [
+        {
+          type: "issue_comment",
+          id: "447",
+          body: `Huge image: ![huge](${imageUrl})`,
+        },
+      ],
+      { maxBytes: 1024 },
+    );
+
+    expect(result.size).toBe(0);
+    // Rejected on the advertised size, without reading the body at all.
+    expect(arrayBufferSpy).not.toHaveBeenCalled();
+    expect(signal?.aborted).toBe(true);
+    expect(fsWriteFileSpy).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to download"),
+      expect.objectContaining({
+        message: "Image exceeds the 1024 byte limit (2048 bytes)",
+      }),
+    );
+  });
+
+  test("should abort a streamed body that grows past the limit", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
+    let signal: AbortSignal | null | undefined;
+    let chunksRead = 0;
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch");
+    fetchSpy.mockImplementation((_input: unknown, init?: RequestInit) => {
+      signal = init?.signal;
+      return Promise.resolve({
+        ok: true,
+        // No content-length: the response lies about (or omits) its size.
+        headers: { get: () => null },
+        body: {
+          getReader: () => ({
+            read: async () => {
+              chunksRead += 1;
+              return { done: false, value: new Uint8Array(64) };
+            },
+            releaseLock: () => {},
+          }),
+        },
+      } as unknown as Response);
+    });
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      [
+        {
+          type: "issue_comment",
+          id: "448",
+          body: `Endless image: ![endless](${imageUrl})`,
+        },
+      ],
+      { maxBytes: 128 },
+    );
+
+    expect(result.size).toBe(0);
+    // Stopped mid-stream instead of buffering the whole body.
+    expect(chunksRead).toBe(3);
+    expect(signal?.aborted).toBe(true);
+    expect(fsWriteFileSpy).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to download"),
+      expect.objectContaining({
+        message: "Image exceeds the 128 byte limit (192 bytes)",
+      }),
+    );
+  });
+
+  test("should save a streamed image that stays within the limit", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
+    const png = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ]);
+    let delivered = false;
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch");
+    fetchSpy.mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        headers: {
+          get: (name: string) =>
+            name === "content-length" ? String(png.byteLength) : null,
+        },
+        body: {
+          getReader: () => ({
+            read: async () => {
+              if (delivered) return { done: true, value: undefined };
+              delivered = true;
+              return { done: false, value: png };
+            },
+            releaseLock: () => {},
+          }),
+        },
+      } as unknown as Response),
+    );
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      [
+        {
+          type: "issue_comment",
+          id: "449",
+          body: `Small image: ![small](${imageUrl})`,
+        },
+      ],
+      { maxBytes: 1024 },
+    );
+
+    expect(result.size).toBe(1);
+    expect(fsWriteFileSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/tmp/github-images/image-"),
+      Buffer.from(png),
+    );
+  });
 });
