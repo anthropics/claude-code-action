@@ -111,6 +111,42 @@ describe("formatResultContent", () => {
     const result = formatResultContent(JSON.stringify(structuredContent));
     expect(result).toBe("**→** Hello world\n\n");
   });
+
+  test("keeps every text block, not just the first", () => {
+    const structuredContent = [
+      { type: "text", text: "first line" },
+      { type: "text", text: "second line" },
+      { type: "text", text: "third line" },
+    ];
+    const result = formatResultContent(JSON.stringify(structuredContent));
+
+    expect(result).toContain("first line");
+    expect(result).toContain("second line");
+    expect(result).toContain("third line");
+  });
+
+  test("keeps every text block when given an array directly", () => {
+    const result = formatResultContent([
+      { type: "text", text: "alpha" },
+      { type: "text", text: "beta" },
+    ]);
+
+    expect(result).toContain("alpha");
+    expect(result).toContain("beta");
+  });
+
+  test("skips non-text blocks while keeping the text ones", () => {
+    const structuredContent = [
+      { type: "text", text: "visible" },
+      { type: "image", source: { data: "ignored-binary" } },
+      { type: "text", text: "also visible" },
+    ];
+    const result = formatResultContent(JSON.stringify(structuredContent));
+
+    expect(result).toContain("visible");
+    expect(result).toContain("also visible");
+    expect(result).not.toContain("ignored-binary");
+  });
 });
 
 describe("formatToolWithResult", () => {

@@ -8,6 +8,7 @@ import { resolve } from "path";
 import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
+import { isBinaryContent } from "./binary-detection";
 import { validatePathWithinRepo } from "./path-validation";
 import { updateGitReference } from "./update-git-reference";
 
@@ -258,17 +259,14 @@ server.tool(
           // Get the proper file mode based on file permissions
           const fileMode = await getFileMode(fullPath);
 
-          // Check if file is binary (images, etc.)
-          const isBinaryFile =
-            /\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|tar|gz|exe|bin|woff|woff2|ttf|eot)$/i.test(
-              relativePath,
-            );
+          // Check if the file is binary by inspecting its contents. An
+          // extension allowlist used to decide this, which corrupted every
+          // binary type that wasn't on the list.
+          const fileContent = await readFile(fullPath);
 
-          if (isBinaryFile) {
+          if (isBinaryContent(fileContent)) {
             // For binary files, create a blob first using the Blobs API
-            const binaryContent = await readFile(fullPath);
-
-            // Create blob using Blobs API (supports encoding parameter)
+            // (supports the encoding parameter)
             const blobUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs`;
             const blobResponse = await fetch(blobUrl, {
               method: "POST",
@@ -279,7 +277,7 @@ server.tool(
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                content: binaryContent.toString("base64"),
+                content: fileContent.toString("base64"),
                 encoding: "base64",
               }),
             });
@@ -302,12 +300,11 @@ server.tool(
             };
           } else {
             // For text files, include content directly in tree
-            const content = await readFile(fullPath, "utf-8");
             return {
               path: relativePath,
               mode: fileMode,
               type: "blob",
-              content: content,
+              content: fileContent.toString("utf-8"),
             };
           }
         }),
@@ -435,21 +432,18 @@ server.tool(
         throw new Error("GITHUB_TOKEN environment variable is required");
       }
 
-      // Convert absolute paths to relative if they match CWD
-      const cwd = process.cwd();
-      const processedPaths = paths.map((filePath) => {
-        if (filePath.startsWith("/")) {
-          if (filePath.startsWith(cwd)) {
-            // Strip CWD from absolute path
-            return filePath.slice(cwd.length + 1);
-          } else {
-            throw new Error(
-              `Path '${filePath}' must be relative to repository root or within current working directory`,
-            );
-          }
-        }
-        return filePath;
-      });
+      // Validate all paths are within the repository root and normalize them to
+      // repo-relative paths for the git tree entries. This mirrors the validation
+      // already performed by the commit_files tool and rejects path traversal
+      // ("../") and symlinked escapes as defense-in-depth.
+      const resolvedRepoDir = resolve(REPO_DIR);
+      const processedPaths = await Promise.all(
+        paths.map(async (filePath) => {
+          await validatePathWithinRepo(filePath, REPO_DIR);
+          const normalizedPath = resolve(resolvedRepoDir, filePath);
+          return normalizedPath.slice(resolvedRepoDir.length + 1);
+        }),
+      );
 
       // 1. Get the branch reference (create if doesn't exist)
       const baseSha = await getOrCreateBranchRef(
