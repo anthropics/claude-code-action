@@ -148,7 +148,9 @@ describe("downloadCommentImages", () => {
       mediaType: { format: "full+json" },
     });
 
-    expect(fetchSpy).toHaveBeenCalledWith(signedUrl);
+    expect(fetchSpy).toHaveBeenCalledWith(signedUrl, {
+      signal: expect.any(AbortSignal),
+    });
     expect(fsWriteFileSpy).toHaveBeenCalledWith(
       "/tmp/github-images/image-1704067200000-0.png",
       Buffer.from(mockArrayBuffer),
@@ -481,8 +483,12 @@ describe("downloadCommentImages", () => {
     );
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
-    expect(fetchSpy).toHaveBeenNthCalledWith(1, signedUrl1);
-    expect(fetchSpy).toHaveBeenNthCalledWith(2, signedUrl2);
+    expect(fetchSpy).toHaveBeenNthCalledWith(1, signedUrl1, {
+      signal: expect.any(AbortSignal),
+    });
+    expect(fetchSpy).toHaveBeenNthCalledWith(2, signedUrl2, {
+      signal: expect.any(AbortSignal),
+    });
     expect(result.get(imageUrl1)).toBe(
       "/tmp/github-images/image-1704067200000-0.png",
     );
@@ -523,7 +529,9 @@ describe("downloadCommentImages", () => {
       comments,
     );
 
-    expect(fetchSpy).toHaveBeenCalledWith(signedUrl);
+    expect(fetchSpy).toHaveBeenCalledWith(signedUrl, {
+      signal: expect.any(AbortSignal),
+    });
     expect(result.get(imageUrl)).toBe(
       "/tmp/github-images/image-1704067200000-0.png",
     );
@@ -766,6 +774,95 @@ describe("downloadCommentImages", () => {
     );
   });
 
+  test("should skip an image when the fetch times out", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
+    let signal: AbortSignal | null | undefined;
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch");
+    fetchSpy.mockImplementation((_input: unknown, init?: RequestInit) => {
+      signal = init?.signal;
+      return new Promise<Response>(() => {});
+    });
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      [
+        {
+          type: "issue_comment",
+          id: "445",
+          body: `Stalled image: ![stalled](${imageUrl})`,
+        },
+      ],
+      { timeoutMs: 5 },
+    );
+
+    expect(result.size).toBe(0);
+    expect(signal?.aborted).toBe(true);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to download"),
+      expect.objectContaining({
+        message: "Image download timed out after 5ms",
+      }),
+    );
+  });
+
+  test("should time out while reading a response body", async () => {
+    const mockOctokit = createMockOctokit();
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
+    let signal: AbortSignal | null | undefined;
+
+    // @ts-expect-error Mock implementation doesn't match full type signature
+    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+      data: {
+        body_html: `<img src="${signedUrl}">`,
+      },
+    });
+
+    fetchSpy = spyOn(global, "fetch");
+    fetchSpy.mockImplementation((_input: unknown, init?: RequestInit) => {
+      signal = init?.signal;
+      return Promise.resolve({
+        ok: true,
+        arrayBuffer: () => new Promise<ArrayBuffer>(() => {}),
+      } as Response);
+    });
+
+    const result = await downloadCommentImages(
+      mockOctokit,
+      "owner",
+      "repo",
+      [
+        {
+          type: "issue_comment",
+          id: "446",
+          body: `Stalled body: ![stalled](${imageUrl})`,
+        },
+      ],
+      { timeoutMs: 5 },
+    );
+
+    expect(result.size).toBe(0);
+    expect(signal?.aborted).toBe(true);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to download"),
+      expect.objectContaining({
+        message: "Image download timed out after 5ms",
+      }),
+    );
+  });
+
   test("should handle API errors gracefully", async () => {
     const mockOctokit = createMockOctokit();
     const imageUrl = assetUrl(GUID_1);
@@ -936,7 +1033,9 @@ describe("downloadCommentImages", () => {
       mediaType: { format: "full+json" },
     });
 
-    expect(fetchSpy).toHaveBeenCalledWith(signedUrl);
+    expect(fetchSpy).toHaveBeenCalledWith(signedUrl, {
+      signal: expect.any(AbortSignal),
+    });
     expect(fsWriteFileSpy).toHaveBeenCalledWith(
       "/tmp/github-images/image-1704067200000-0.png",
       Buffer.from(mockArrayBuffer),

@@ -22,6 +22,7 @@ export type GitHubComment = {
 export type GitHubReviewComment = GitHubComment & {
   path: string;
   line: number | null;
+  diffHunk?: string | null;
 };
 
 export type GitHubCommit = {

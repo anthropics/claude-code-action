@@ -6,6 +6,10 @@ import { z } from "zod";
 import { GITHUB_API_URL } from "../github/api/config";
 import { mkdir, writeFile } from "fs/promises";
 import { Octokit } from "@octokit/rest";
+import {
+  listWorkflowJobs,
+  listWorkflowRuns,
+} from "./github-actions-pagination";
 
 const REPO_OWNER = process.env.REPO_OWNER;
 const REPO_NAME = process.env.REPO_NAME;
@@ -66,7 +70,7 @@ server.tool(
       });
       const headSha = prData.head.sha;
 
-      const { data: runsData } = await client.actions.listWorkflowRunsForRepo({
+      const runs = await listWorkflowRuns(client, {
         owner: REPO_OWNER!,
         repo: REPO_NAME!,
         head_sha: headSha,
@@ -74,7 +78,6 @@ server.tool(
       });
 
       // Process runs to create summary
-      const runs = runsData.workflow_runs || [];
       const summary = {
         total_runs: runs.length,
         failed: 0,
@@ -148,13 +151,13 @@ server.tool(
       });
 
       // Get jobs for this workflow run
-      const { data: jobsData } = await client.actions.listJobsForWorkflowRun({
+      const jobs = await listWorkflowJobs(client, {
         owner: REPO_OWNER!,
         repo: REPO_NAME!,
         run_id,
       });
 
-      const processedJobs = jobsData.jobs.map((job: any) => {
+      const processedJobs = jobs.map((job: any) => {
         // Extract failed steps
         const failedSteps = (job.steps || [])
           .filter((step: any) => step.conclusion === "failure")

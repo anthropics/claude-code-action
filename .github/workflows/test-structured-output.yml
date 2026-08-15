@@ -15,6 +15,8 @@ permissions:
 jobs:
   test-basic-types:
     name: Test Basic Type Conversions
+    # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -76,6 +78,8 @@ jobs:
 
   test-complex-types:
     name: Test Arrays and Objects
+    # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -129,6 +133,8 @@ jobs:
 
   test-edge-cases:
     name: Test Edge Cases
+    # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -190,6 +196,8 @@ jobs:
 
   test-name-sanitization:
     name: Test Output Name Sanitization
+    # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -232,6 +240,8 @@ jobs:
 
   test-execution-file-structure:
     name: Test Execution File Format
+    # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -284,7 +294,7 @@ jobs:
       - test-edge-cases
       - test-name-sanitization
       - test-execution-file-structure
-    if: always()
+    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     steps:
       - name: Generate Summary
         run: |
