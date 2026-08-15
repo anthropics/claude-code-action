@@ -9,9 +9,31 @@ export async function checkAndCommitOrDeleteBranch(
   claudeBranch: string | undefined,
   baseBranch: string,
   useCommitSigning: boolean,
+  restoredConfigPaths: string[] = [],
 ): Promise<{ shouldDeleteBranch: boolean; branchLink: string }> {
   let branchLink = "";
   let shouldDeleteBranch = false;
+
+  // On pull requests, restoreConfigFromBase replaces .claude/, CLAUDE.md and
+  // friends with the base branch's versions and leaves them unstaged so the
+  // revert does not reach a commit. Auto-committing with a bare `git add -A`
+  // would stage them anyway and push a silent revert of the PR author's own
+  // config onto their branch.
+  //
+  // The exclusion is driven by what was actually restored rather than applied
+  // unconditionally: this path also runs for issues, where no restore happens
+  // and Claude may legitimately have been asked to edit CLAUDE.md or
+  // .claude/settings.json. Excluding those there would silently drop the work.
+  const pathspecArgs =
+    restoredConfigPaths.length > 0
+      ? ["--", ".", ...restoredConfigPaths.map((p) => `:(exclude)${p}`)]
+      : [];
+
+  if (pathspecArgs.length > 0) {
+    console.log(
+      `Excluding base-restored config from auto-commit: ${restoredConfigPaths.join(", ")}`,
+    );
+  }
 
   if (claudeBranch) {
     // First check if the branch exists remotely
@@ -57,15 +79,19 @@ export async function checkAndCommitOrDeleteBranch(
 
           // Check for uncommitted changes using git status
           try {
-            const gitStatus = await $`git status --porcelain`.quiet();
+            // Scoped the same way as the staging below: if the restored config
+            // is the only dirty entry there is no real work, and the branch
+            // should be treated as empty rather than receiving a pure revert.
+            const gitStatus =
+              await $`git status --porcelain ${pathspecArgs}`.quiet();
             const hasUncommittedChanges =
               gitStatus.stdout.toString().trim().length > 0;
 
             if (hasUncommittedChanges) {
               console.log("Found uncommitted changes, committing them...");
 
-              // Add all changes
-              await $`git add -A`;
+              // Add all changes, minus anything restored from the base branch
+              await $`git add -A ${pathspecArgs}`;
 
               // Commit with a descriptive message
               const runId = process.env.GITHUB_RUN_ID || "unknown";
