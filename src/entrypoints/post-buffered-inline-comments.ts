@@ -10,11 +10,12 @@
  * calls posted immediately.
  */
 import { readFileSync } from "fs";
+import * as core from "@actions/core";
 import { createOctokit } from "../github/api/client";
 
 const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
 
-type BufferedComment = {
+export type BufferedComment = {
   ts: string;
   path: string;
   line?: number;
@@ -41,6 +42,42 @@ For each numbered comment body below, respond with ONLY a JSON array of booleans
 
 Comments:
 `;
+
+export function formatErrorDetails(e: unknown): string {
+  try {
+    if (e && typeof e === "object") {
+      const err = e as {
+        message?: string;
+        status?: number;
+        response?: { status?: number; data?: unknown };
+      };
+      const status = err.response?.status ?? err.status;
+      const data = err.response?.data;
+      const msg = err.message || String(e);
+      let details = msg;
+      if (status !== undefined) {
+        details += ` (status ${status})`;
+      }
+      if (data !== undefined) {
+        let dataStr: string;
+        if (typeof data === "string") {
+          dataStr = data;
+        } else {
+          try {
+            dataStr = JSON.stringify(data);
+          } catch {
+            dataStr = String(data);
+          }
+        }
+        details += `: ${dataStr}`;
+      }
+      return details;
+    }
+    return e instanceof Error ? e.message : String(e);
+  } catch {
+    return String(e);
+  }
+}
 
 async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -108,7 +145,7 @@ async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
   }
 }
 
-async function postComment(
+export async function postComment(
   octokit: ReturnType<typeof createOctokit>["rest"],
   owner: string,
   repo: string,
@@ -136,11 +173,54 @@ async function postComment(
     await octokit.rest.pulls.createReviewComment(params);
     return true;
   } catch (e) {
-    console.log(
-      `  failed ${c.path}:${c.line}: ${e instanceof Error ? e.message : String(e)}`,
-    );
+    const errorDetails = formatErrorDetails(e);
+    core.error(`Failed to post ${c.path}:${c.line}: ${errorDetails}`);
+    console.log(`  dropped comment body: ${JSON.stringify(c.body)}`);
     return false;
   }
+}
+
+type PostCommentsResult = {
+  posted: number;
+  failed: number;
+  total: number;
+};
+
+export async function postComments(
+  octokit: ReturnType<typeof createOctokit>["rest"],
+  owner: string,
+  repo: string,
+  pull_number: number,
+  headSha: string,
+  comments: BufferedComment[],
+): Promise<PostCommentsResult> {
+  if (comments.length === 0) {
+    return { posted: 0, failed: 0, total: 0 };
+  }
+
+  let posted = 0;
+  let failed = 0;
+
+  for (const c of comments) {
+    if (await postComment(octokit, owner, repo, pull_number, headSha, c)) {
+      console.log(`  posted ${c.path}:${c.line}`);
+      posted++;
+    } else {
+      failed++;
+    }
+  }
+
+  console.log(`Posted ${posted}/${comments.length}`);
+
+  if (failed > 0) {
+    const summary = `Failed to post ${failed}/${comments.length} inline comment(s)`;
+    core.error(summary);
+    if (posted === 0) {
+      throw new Error(summary);
+    }
+  }
+
+  return { posted, failed, total: comments.length };
 }
 
 async function main() {
@@ -217,17 +297,12 @@ async function main() {
   const headSha = pr.data.head.sha;
 
   console.log(`Posting ${toPost.length} classified-as-real comment(s)`);
-  let posted = 0;
-  for (const c of toPost) {
-    if (await postComment(octokit, owner, repo, pull_number, headSha, c)) {
-      console.log(`  posted ${c.path}:${c.line}`);
-      posted++;
-    }
-  }
-  console.log(`Posted ${posted}/${toPost.length}`);
+  await postComments(octokit, owner, repo, pull_number, headSha, toPost);
 }
 
-main().catch((e) => {
-  console.error("post-buffered-inline-comments failed:", e);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((e) => {
+    console.error("post-buffered-inline-comments failed:", e);
+    process.exit(1);
+  });
+}
