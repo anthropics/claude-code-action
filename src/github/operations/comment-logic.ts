@@ -1,5 +1,6 @@
 import { GITHUB_SERVER_URL } from "../api/config";
 import { redactSecrets } from "../utils/sanitizer";
+import { buildModelEffortLine } from "./comments/common";
 
 export type ExecutionDetails = {
   total_cost_usd?: number;
@@ -17,6 +18,8 @@ export type CommentUpdateInput = {
   branchName?: string;
   triggerUsername?: string;
   errorDetails?: string;
+  model?: string;
+  effort?: string;
 };
 
 export function ensureProperlyEncodedUrl(url: string): string | null {
@@ -78,6 +81,8 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     branchName,
     triggerUsername,
     errorDetails,
+    model,
+    effort,
   } = input;
 
   // Extract content from the original comment body
@@ -182,6 +187,12 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   // Build the new body with blank line between header and separator
   let newBody = `${header}${links}`;
 
+  // Surface the active model/effort when configured.
+  const modelEffortLine = buildModelEffortLine(model, effort);
+  if (modelEffortLine) {
+    newBody += `\n\n${modelEffortLine}`;
+  }
+
   // Add error details if available. The message may embed runtime credentials
   // (e.g. a token in a git remote URL) that are not registered as workflow
   // secrets, so redact known formats before posting.
@@ -198,6 +209,12 @@ export function updateCommentBody(input: CommentUpdateInput): string {
 
   // Remove any existing duration info at the bottom
   bodyContent = bodyContent.replace(/\n*---\n*Duration: [0-9]+m? [0-9]+s/g, "");
+
+  // Remove the model/effort line the initial tracking comment carried over so
+  // it isn't duplicated below the separator (we re-render it in the header).
+  if (modelEffortLine) {
+    bodyContent = bodyContent.split(modelEffortLine).join("");
+  }
 
   // Add the cleaned body content
   newBody += bodyContent;
