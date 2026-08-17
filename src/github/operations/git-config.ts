@@ -6,9 +6,9 @@
  */
 
 import { $ } from "bun";
-import { mkdir, writeFile, rm } from "fs/promises";
+import { mkdir, writeFile, rm, chmod } from "fs/promises";
 import { join } from "path";
-import { homedir } from "os";
+import { homedir, platform } from "os";
 import type { GitHubContext } from "../context";
 import { GITHUB_SERVER_URL } from "../api/config";
 
@@ -89,6 +89,9 @@ export async function replaceCheckoutCredentials(
       '#!/bin/sh\necho username=x-access-token\necho password="$GH_TOKEN"\n',
       { mode: 0o700 },
     );
+    if (platform() !== "win32") {
+      await chmod(helperPath, 0o700);
+    }
     const cleanUrl = `https://${serverUrl.host}/${context.repository.owner}/${context.repository.repo}.git`;
     await $`git remote set-url origin ${cleanUrl}`;
     await $`git config credential.helper ${helperPath}`;
@@ -123,6 +126,9 @@ export async function setupSshSigning(sshSigningKey: string): Promise<void> {
   // Create .ssh directory with secure permissions (700)
   const sshDir = join(homedir(), ".ssh");
   await mkdir(sshDir, { recursive: true, mode: 0o700 });
+  if (platform() !== "win32") {
+    await chmod(sshDir, 0o700);
+  }
 
   // Ensure key ends with newline (required for ssh-keygen to parse it)
   const normalizedKey = sshSigningKey.endsWith("\n")
@@ -131,6 +137,9 @@ export async function setupSshSigning(sshSigningKey: string): Promise<void> {
 
   // Write the signing key atomically with secure permissions (600)
   await writeFile(SSH_SIGNING_KEY_PATH, normalizedKey, { mode: 0o600 });
+  if (platform() !== "win32") {
+    await chmod(SSH_SIGNING_KEY_PATH, 0o600);
+  }
   console.log(`✓ SSH signing key written to ${SSH_SIGNING_KEY_PATH}`);
 
   // Configure git to use SSH signing

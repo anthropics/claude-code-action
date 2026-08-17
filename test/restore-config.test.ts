@@ -12,6 +12,7 @@ import {
   writeFileSync,
 } from "fs";
 import { dirname, isAbsolute, join } from "path";
+import { platform } from "os";
 import { restoreConfigFromBase } from "../src/github/operations/restore-config";
 
 const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
@@ -124,8 +125,9 @@ describe("restoreConfigFromBase", () => {
     }
   });
 
-  test("restores symlinked CLAUDE.md paths from the PR base branch", () => {
-    setupSymlinkedMainBranch();
+  if (platform() !== "win32") {
+    test("restores symlinked CLAUDE.md paths from the PR base branch", () => {
+      setupSymlinkedMainBranch();
 
     git(["checkout", "pr"]);
     writeRepoFile(
@@ -367,19 +369,20 @@ describe("restoreConfigFromBase", () => {
   });
 
   test("records links back into a parent directory as placeholders", () => {
-    symlinkRepoFile(".claude/parent-dir", "..");
-    git(["add", "-A"]);
-    git(["commit", "-m", "pr adds a link back to the repo root"]);
+      symlinkRepoFile(".claude/parent-dir", "..");
+      git(["add", "-A"]);
+      git(["commit", "-m", "pr adds a link back to the repo root"]);
 
-    restoreConfigFromBase("main");
+      restoreConfigFromBase("main");
 
-    expectPlaceholder(".claude-pr/.claude/parent-dir");
-    expect(existsRepoFile(".claude-pr/.claude/parent-dir/src")).toBe(false);
-    expect(readRepoFile(".claude-pr/.claude/settings.json")).toBe(
-      `${JSON.stringify({ source: "pr" })}\n`,
-    );
-    expectNoLinksInSnapshot();
-  });
+      expectPlaceholder(".claude-pr/.claude/parent-dir");
+      expect(existsRepoFile(".claude-pr/.claude/parent-dir/src")).toBe(false);
+      expect(readRepoFile(".claude-pr/.claude/settings.json")).toBe(
+        `${JSON.stringify({ source: "pr" })}\n`,
+      );
+      expectNoLinksInSnapshot();
+    });
+  }
 
   test("does not modify an existing .gitignore", () => {
     writeRepoFile(".gitignore", "node_modules\n");
@@ -440,7 +443,7 @@ describe("restoreConfigFromBase", () => {
   }
 
   function readRepoFile(path: string): string {
-    return readFileSync(join(repoDir, path), "utf8");
+    return readFileSync(join(repoDir, path), "utf8").replace(/\r\n/g, "\n");
   }
 
   function writeOutsideFile(path: string, contents: string): string {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { spawnSync } from "child_process";
+import { platform } from "os";
 import { buildInstallCommand } from "../src/entrypoints/run";
 
 describe("buildInstallCommand (regression for #1136)", () => {
@@ -21,7 +22,7 @@ describe("buildInstallCommand (regression for #1136)", () => {
   });
 });
 
-describe("pipefail semantics (proves the bug shape and the fix)", () => {
+(platform() !== "win32" ? describe : describe.skip)("pipefail semantics (proves the bug shape and the fix)", () => {
   // Mirrors the real install invocation: a curl that returns non-zero
   // feeding into `bash -s --`. Without pipefail, the pipeline exits 0
   // because bash -s receives an empty stdin and does nothing. With
