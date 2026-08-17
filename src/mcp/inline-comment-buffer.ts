@@ -1,4 +1,22 @@
 import { existsSync, readFileSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+
+/**
+ * Absolute path of the inline-comment buffer for the current job.
+ *
+ * A fixed `/tmp` path is unsafe on self-hosted runners, where the machine and
+ * its `/tmp` persist between jobs: a run could replay comments buffered by an
+ * earlier run, and concurrent jobs (including jobs for different repositories)
+ * would append to and truncate the same file. GitHub allocates `RUNNER_TEMP`
+ * per job and clears it between jobs, and each runner on a shared machine gets
+ * its own, so scoping the buffer to it isolates runs without any cleanup of our
+ * own. Falls back to the OS temp dir when running outside Actions.
+ */
+export function getInlineCommentBufferPath(): string {
+  const dir = process.env.RUNNER_TEMP || tmpdir();
+  return join(dir, "inline-comments-buffer.jsonl");
+}
 
 export type BufferedCommentMatch = {
   path: string;

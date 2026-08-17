@@ -157,6 +157,12 @@ export async function prepareMcpConfig(
           REPO_NAME: repo,
           PR_NUMBER: context.entityNumber?.toString() || "",
           GITHUB_API_URL: GITHUB_API_URL,
+          // Forwarded explicitly because this env block is an allowlist, not an
+          // extension of the parent environment. The server writes the inline
+          // comment buffer and the post step reads it, so both must resolve
+          // getInlineCommentBufferPath() to the same file. If RUNNER_TEMP is
+          // unset, both sides fall back to the OS temp dir and still agree.
+          RUNNER_TEMP: process.env.RUNNER_TEMP || "",
           CLASSIFY_INLINE_COMMENTS: context.inputs.classifyInlineComments
             ? "true"
             : "false",
