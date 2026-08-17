@@ -8,7 +8,7 @@
             "command": "bunx prettier@3.5.3 --no-config --write ."
           }
         ],
-        "matcher": "Edit|Write|MultiEdit"
+        "matcher": "Edit|Write|MultiEdit|Follow"
       }
     ]
   }
