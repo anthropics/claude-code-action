@@ -620,5 +620,22 @@ describe("parseSdkOptions", () => {
         process.env = originalEnv;
       }
     });
+
+    test("should strip ALL_INPUTS from env", () => {
+      const originalEnv = { ...process.env };
+      process.env.ALL_INPUTS = JSON.stringify({
+        anthropic_api_key: "sk-ant-test-key",
+        github_token: "ghp_test_token",
+      });
+
+      try {
+        const options: ClaudeOptions = {};
+        const result = parseSdkOptions(options);
+
+        expect(result.sdkOptions.env?.ALL_INPUTS).toBeUndefined();
+      } finally {
+        process.env = originalEnv;
+      }
+    });
   });
 });
