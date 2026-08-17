@@ -6,6 +6,7 @@ import {
   stripHiddenAttributes,
   normalizeHtmlEntities,
   sanitizeContent,
+  sanitizeCommentBody,
   stripHtmlComments,
   redactGitHubTokens,
   redactSecrets,
@@ -516,5 +517,58 @@ describe("stripHtmlComments (legacy)", () => {
     expect(stripHtmlComments("Hello <!-- \nexample\n -->World")).toBe(
       "Hello World",
     );
+  });
+});
+
+describe("sanitizeCommentBody", () => {
+  it("should sanitize hidden content and redact multi-provider secrets", () => {
+    const comment = `
+      <!-- Internal comment -->
+      Here is the review feedback:
+      - GitHub PAT: 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
+      - Anthropic Key: sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcdefgh
+      - AWS Key: AKIAIOSFODNN7EXAMPLE
+      - Slack Token: xoxb-1234567890-abcdefghijkl
+      - JWT: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+      - Zero-width: clean\u200Btext
+    `;
+
+    const result = sanitizeCommentBody(comment);
+
+    // Stripped hidden elements
+    expect(result).not.toContain("<!-- Internal comment -->");
+    expect(result).not.toContain("\u200B");
+    expect(result).toContain("cleantext");
+
+    // Redacted credentials
+    expect(result).not.toContain("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");
+    expect(result).not.toContain(
+      "sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcdefgh",
+    );
+    expect(result).not.toContain("AKIAIOSFODNN7EXAMPLE");
+    expect(result).not.toContain("xoxb-1234567890-abcdefghijkl");
+    expect(result).not.toContain("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9");
+
+    expect(result).toContain("[REDACTED_GITHUB_TOKEN]");
+    expect(result).toContain("[REDACTED_ANTHROPIC_KEY]");
+    expect(result).toContain("[REDACTED_AWS_KEY_ID]");
+    expect(result).toContain("[REDACTED_SLACK_TOKEN]");
+    expect(result).toContain("[REDACTED_JWT]");
+  });
+
+  it("should preserve valid code review suggestions and markdown formatting", () => {
+    const validComment = `### Code Review Feedback
+
+Here is a suggestion to fix the logic:
+
+\`\`\`typescript
+function calculateTotal(items: Item[]): number {
+  return items.reduce((sum, item) => sum + item.price, 0);
+}
+\`\`\`
+
+Please also check the test cases in \`test/index.test.ts\`.`;
+
+    expect(sanitizeCommentBody(validComment)).toBe(validComment);
   });
 });

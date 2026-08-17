@@ -77,6 +77,17 @@ export function sanitizeContent(content: string): string {
 }
 
 /**
+ * Sanitize model-authored comment content before publishing to GitHub.
+ *
+ * Combines structural/prompt-injection sanitization (`sanitizeContent`) with
+ * multi-provider secret redaction (`redactSecrets` for GitHub tokens, Anthropic API keys,
+ * AWS keys, Slack tokens, and JWTs) as a defense-in-depth measure.
+ */
+export function sanitizeCommentBody(content: string): string {
+  return redactSecrets(sanitizeContent(content));
+}
+
+/**
  * Redact well-known credential formats (GitHub, Anthropic, AWS, Slack, JWTs)
  * from arbitrary text. Callers don't need to know which vendor a value belongs to.
  *

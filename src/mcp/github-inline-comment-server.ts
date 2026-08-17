@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { appendFileSync } from "fs";
 import { z } from "zod";
 import { createOctokit } from "../github/api/client";
-import { sanitizeContent } from "../github/utils/sanitizer";
+import { sanitizeCommentBody } from "../github/utils/sanitizer";
 import { removeBufferedComment } from "./inline-comment-buffer";
 
 // Get repository and PR information from environment variables
@@ -98,8 +98,8 @@ server.tool(
       const repo = REPO_NAME;
       const pull_number = parseInt(PR_NUMBER, 10);
 
-      // Sanitize the comment body to remove any potential GitHub tokens
-      const sanitizedBody = sanitizeContent(body);
+      // Sanitize the comment body and redact potential secrets
+      const sanitizedBody = sanitizeCommentBody(body);
 
       // Validate that either line or both startLine and line are provided
       if (!line && !startLine) {
