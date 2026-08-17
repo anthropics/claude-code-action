@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { execFileSync } from "child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
+import { tmpdir } from "os";
 import { setupBranch } from "../src/github/operations/branch";
 import { fetchDepthArgs } from "../src/github/operations/fetch-depth";
 import { createMockContext } from "./mockContext";
@@ -24,7 +25,7 @@ describe("setupBranch fetch depth", () => {
 
   beforeEach(() => {
     originalCwd = process.cwd();
-    tempDir = mkdtempSync(join("/tmp", "fetch-depth-"));
+    tempDir = mkdtempSync(join(tmpdir(), "fetch-depth-"));
     repoDir = join(tempDir, "repo");
     const remoteDir = join(tempDir, "origin.git");
 
@@ -81,12 +82,13 @@ describe("setupBranch fetch depth", () => {
 
   test("still limits the depth on an already shallow checkout", () => {
     const shallowDir = join(tempDir, "shallow");
+    const originPath = join(tempDir, "origin.git").replace(/\\/g, "/");
     execFileSync(
       "git",
       [
         "clone",
         "--depth=1",
-        `file://${join(tempDir, "origin.git")}`,
+        `file://${originPath}`,
         shallowDir,
       ],
       { stdio: "pipe" },
