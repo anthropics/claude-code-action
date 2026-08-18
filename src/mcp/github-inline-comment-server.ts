@@ -5,7 +5,10 @@ import { appendFileSync } from "fs";
 import { z } from "zod";
 import { createOctokit } from "../github/api/client";
 import { sanitizeContent } from "../github/utils/sanitizer";
-import { removeBufferedComment } from "./inline-comment-buffer";
+import {
+  getInlineCommentBufferPath,
+  removeBufferedComment,
+} from "./inline-comment-buffer";
 
 // Get repository and PR information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -16,7 +19,7 @@ const PR_NUMBER = process.env.PR_NUMBER;
 // prevents subagents from posting test/probe comments when they inherit this
 // tool and probe it after hitting unrelated errors. The action's post-step
 // reports the buffer count for diagnostics.
-const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
+const BUFFER_PATH = getInlineCommentBufferPath();
 const CLASSIFY_ENABLED = process.env.CLASSIFY_INLINE_COMMENTS !== "false";
 
 if (!REPO_OWNER || !REPO_NAME || !PR_NUMBER) {

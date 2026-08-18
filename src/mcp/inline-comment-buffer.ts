@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { join } from "path";
 
 export type BufferedCommentMatch = {
   path: string;
@@ -6,6 +7,54 @@ export type BufferedCommentMatch = {
   startLine?: number;
   body: string;
 };
+
+function sanitizePathSegment(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_.-]/g, "_");
+}
+
+/**
+ * Return a buffer path scoped to one repository workflow run and attempt.
+ *
+ * Self-hosted runners can be reused by multiple repositories, so a fixed
+ * machine-wide path can replay another run's buffered review comments.
+ */
+export function getInlineCommentBufferPath(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const runnerTemp = env.RUNNER_TEMP || "/tmp";
+  const repository =
+    env.GITHUB_REPOSITORY ||
+    [env.REPO_OWNER, env.REPO_NAME].filter(Boolean).join("/") ||
+    "local";
+  const runId = env.GITHUB_RUN_ID || "local";
+  const runAttempt = env.GITHUB_RUN_ATTEMPT || "1";
+
+  return join(
+    runnerTemp,
+    `inline-comments-buffer-${sanitizePathSegment(repository)}-${sanitizePathSegment(runId)}-${sanitizePathSegment(runAttempt)}.jsonl`,
+  );
+}
+
+/**
+ * Read and remove a completed run's buffer before processing its contents.
+ *
+ * Removing the file immediately keeps stale comments from surviving parsing,
+ * classification, or posting failures.
+ */
+export function consumeInlineCommentBuffer(
+  bufferPath: string,
+): string | undefined {
+  try {
+    return readFileSync(bufferPath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return undefined;
+    }
+    throw error;
+  } finally {
+    rmSync(bufferPath, { force: true });
+  }
+}
 
 /**
  * Remove any buffered inline comment that matches an already-posted comment.

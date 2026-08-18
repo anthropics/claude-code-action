@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Reads buffered inline-comment calls from /tmp/inline-comments-buffer.jsonl,
+ * Reads buffered inline-comment calls from this workflow run's buffer,
  * classifies each as "real review" vs "test/probe" using Haiku, and posts
  * only the real ones. Calls with confirmed=false are never posted.
  *
@@ -9,10 +9,13 @@
  * preserves backward compatibility — before this change, all unconfirmed
  * calls posted immediately.
  */
-import { readFileSync } from "fs";
 import { createOctokit } from "../github/api/client";
+import {
+  consumeInlineCommentBuffer,
+  getInlineCommentBufferPath,
+} from "../mcp/inline-comment-buffer";
 
-const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
+const BUFFER_PATH = getInlineCommentBufferPath();
 
 type BufferedComment = {
   ts: string;
@@ -144,10 +147,8 @@ async function postComment(
 }
 
 async function main() {
-  let raw: string;
-  try {
-    raw = readFileSync(BUFFER_PATH, "utf8");
-  } catch {
+  const raw = consumeInlineCommentBuffer(BUFFER_PATH);
+  if (raw === undefined) {
     console.log("No buffered inline comments");
     return;
   }
