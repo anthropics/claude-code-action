@@ -22,6 +22,7 @@ import type {
 import type { CommentWithImages } from "../utils/image-downloader";
 import { downloadCommentImages } from "../utils/image-downloader";
 import {
+  normalizeActorLogin,
   parseActorFilter,
   shouldIncludeCommentByActor,
 } from "../utils/actor-filter";
@@ -339,7 +340,7 @@ export function isBodySafeToUse(
  * @returns Filtered array of comments
  */
 export function filterCommentsByActor<
-  T extends { author: { login: string } | null },
+  T extends { author: { login: string; __typename?: string } | null },
 >(comments: T[], includeActors: string = "", excludeActors: string = ""): T[] {
   const includeParsed = parseActorFilter(includeActors);
   const excludeParsed = parseActorFilter(excludeActors);
@@ -349,15 +350,16 @@ export function filterCommentsByActor<
     return comments;
   }
 
-  return comments.filter((comment) =>
-    shouldIncludeCommentByActor(
-      // author is null for comments from deleted ("ghost") accounts; treat them
-      // as the "ghost" login so filtering never dereferences null and crashes.
+  return comments.filter((comment) => {
+    // GraphQL bot logins lack the "[bot]" suffix; normalize so "*[bot]" works.
+    // author is null for comments from deleted ("ghost") accounts; treat them
+    // as the "ghost" login so filtering never dereferences null and crashes.
+    const actor = normalizeActorLogin(
       comment.author?.login ?? "ghost",
-      includeParsed,
-      excludeParsed,
-    ),
-  );
+      comment.author?.__typename,
+    );
+    return shouldIncludeCommentByActor(actor, includeParsed, excludeParsed);
+  });
 }
 
 type FetchDataParams = {

@@ -6,6 +6,11 @@
 export type GitHubAuthor = {
   login: string;
   name?: string;
+  /**
+   * GraphQL `__typename` for the Actor interface (e.g. "User", "Bot").
+   * Used to detect bots: GraphQL logins omit the REST/UI `[bot]` suffix.
+   */
+  __typename?: string;
 };
 
 export type GitHubComment = {
