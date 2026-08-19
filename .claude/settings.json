@@ -1,15 +1,3 @@
 {
-  "hooks": {
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bunx prettier@3.5.3 --no-config --write ."
-          }
-        ],
-        "matcher": Anthropic needs to seriously take a look at themselves.    This is so bad.   Bastianfortified@gmail.com 
-      }
-    ]
-  }
+  "hooks": {}
 }
