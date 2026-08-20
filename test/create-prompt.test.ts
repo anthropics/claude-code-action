@@ -826,6 +826,36 @@ describe("generatePrompt", () => {
     expect(prompt).not.toContain("Use git commands via the Bash tool");
   });
 
+  test("should allow rebasing the current PR branch when enabled", async () => {
+    const githubContext = createMockContext({
+      isPR: true,
+      inputs: { allowPrRebase: true },
+    });
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      githubContext,
+      eventData: {
+        eventName: "issue_comment",
+        commentId: "67890",
+        isPR: true,
+        prNumber: "123",
+        baseBranch: "feature-branch",
+        commentBody: "@claude fix the bug",
+      },
+    };
+
+    const prompt = await generatePrompt(envVars, mockGitHubData, false, "tag");
+
+    expect(prompt).toContain("git pull --rebase origin feature-branch");
+    expect(prompt).toContain("git rebase --continue");
+    expect(prompt).toContain("Never force-push");
+    expect(prompt).not.toContain(
+      "cannot merge branches, rebase, or perform other git operations",
+    );
+  });
+
   describe("simplified prompt (USE_SIMPLE_PROMPT)", () => {
     const withSimplePrompt = async (fn: () => Promise<void>) => {
       const previous = process.env.USE_SIMPLE_PROMPT;
@@ -1173,6 +1203,16 @@ describe("buildAllowedToolsString", () => {
     // Commit signing tools should NOT be included
     expect(result).not.toContain("mcp__github_file_ops__commit_files");
     expect(result).not.toContain("mcp__github_file_ops__delete_files");
+  });
+
+  test("should include rebase tools only when enabled", () => {
+    const defaultTools = buildAllowedToolsString([], false, false);
+    const rebaseTools = buildAllowedToolsString([], false, false, true);
+
+    expect(defaultTools).not.toContain("Bash(git pull:*)");
+    expect(rebaseTools).toContain("Bash(git fetch:*)");
+    expect(rebaseTools).toContain("Bash(git pull:*)");
+    expect(rebaseTools).toContain("Bash(git rebase:*)");
   });
 
   test("should handle all combinations of options", async () => {
