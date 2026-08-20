@@ -110,6 +110,12 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     durationStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
   }
 
+  // Calculate cost string if available
+  let costStr = "";
+  if (executionDetails?.total_cost_usd !== undefined) {
+    costStr = `$${executionDetails.total_cost_usd.toFixed(4)}`;
+  }
+
   // Build the header
   let header = "";
 
@@ -117,6 +123,9 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     header = "**Claude encountered an error";
     if (durationStr) {
       header += ` after ${durationStr}`;
+    }
+    if (costStr) {
+      header += ` (${costStr})`;
     }
     header += "**";
   } else {
@@ -128,6 +137,9 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     header = `**Claude finished @${username}'s task`;
     if (durationStr) {
       header += ` in ${durationStr}`;
+    }
+    if (costStr) {
+      header += ` (${costStr})`;
     }
     header += "**";
   }
