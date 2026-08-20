@@ -30,6 +30,12 @@ export type UpdateCommentLinkParams = {
   prepareSuccess: boolean;
   prepareError?: string;
   useCommitSigning: boolean;
+  /**
+   * Paths restored from the PR base branch by restoreConfigFromBase. The
+   * auto-commit in checkAndCommitOrDeleteBranch must leave these alone, or it
+   * commits the revert onto the PR author's branch.
+   */
+  restoredConfigPaths?: string[];
 };
 
 export async function updateCommentLink(
@@ -43,6 +49,7 @@ export async function updateCommentLink(
     context,
     octokit,
     useCommitSigning,
+    restoredConfigPaths = [],
   } = params;
 
   const { owner, repo } = context.repository;
@@ -116,6 +123,7 @@ export async function updateCommentLink(
     claudeBranch,
     baseBranch,
     useCommitSigning,
+    restoredConfigPaths,
   );
 
   // Check if we need to add PR URL when we have a new branch
