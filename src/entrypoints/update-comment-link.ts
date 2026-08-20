@@ -120,8 +120,11 @@ export async function updateCommentLink(
 
   // Check if we need to add PR URL when we have a new branch
   let prLink = "";
-  // If claudeBranch is set, it means we created a new branch (for issues or closed/merged PRs)
-  if (claudeBranch && !shouldDeleteBranch) {
+  // If claudeBranch is set and branchLink is non-empty, it means we created a new branch
+  // (for issues or closed/merged PRs) that actually exists remotely with commits.
+  // We must guard on branchLink being non-empty to avoid calling compareCommitsWithBasehead
+  // on a branch that was never pushed (which would result in a 404 from the GitHub API).
+  if (claudeBranch && !shouldDeleteBranch && branchLink) {
     // Check if comment already contains a PR URL
     const serverUrlPattern = serverUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const prUrlPattern = new RegExp(
