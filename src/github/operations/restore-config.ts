@@ -23,7 +23,7 @@ import { fetchDepthArgs } from "./fetch-depth";
 //   .gitconfig   — git reads ~/.gitconfig and .git/config, never cwd/.gitconfig.
 //   .bashrc etc. — shells source these from $HOME; checkout cannot reach $HOME.
 //   .vscode/.idea— IDE config; nothing in the CLI's startup path reads them.
-const SENSITIVE_PATHS = [
+export const SENSITIVE_PATHS = [
   ".claude",
   ".mcp.json",
   ".claude.json",
@@ -31,6 +31,10 @@ const SENSITIVE_PATHS = [
   ".ripgreprc",
   "CLAUDE.md",
   "CLAUDE.local.md",
+  // Documented @AGENTS.md imports resolve against the working tree, so the
+  // PR-head file would load after CLAUDE.md itself is restored from base.
+  "AGENTS.md",
+  "AGENTS.local.md",
   ".husky",
 ];
 

@@ -12,7 +12,10 @@ import {
   writeFileSync,
 } from "fs";
 import { dirname, isAbsolute, join } from "path";
-import { restoreConfigFromBase } from "../src/github/operations/restore-config";
+import {
+  restoreConfigFromBase,
+  SENSITIVE_PATHS,
+} from "../src/github/operations/restore-config";
 
 const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
 
@@ -423,6 +426,63 @@ describe("restoreConfigFromBase", () => {
     expect(
       git(["diff", "--name-only", "origin/main...HEAD"]).trim().split("\n"),
     ).toEqual([".claude/settings.json", "CLAUDE.md"]);
+  });
+
+  test("lists AGENTS.md and AGENTS.local.md as sensitive", () => {
+    expect(SENSITIVE_PATHS).toContain("AGENTS.md");
+    expect(SENSITIVE_PATHS).toContain("AGENTS.local.md");
+    expect(SENSITIVE_PATHS).toContain("CLAUDE.md");
+  });
+
+  test("restores PR-modified AGENTS.md from the base branch", () => {
+    git(["checkout", "main"]);
+    writeRepoFile("AGENTS.md", "base agent instructions\n");
+    writeRepoFile("CLAUDE.md", "See @AGENTS.md\n");
+    git(["add", "AGENTS.md", "CLAUDE.md"]);
+    git(["commit", "-m", "base agents"]);
+    git(["push", "origin", "main"]);
+    git(["checkout", "pr"]);
+    writeRepoFile("AGENTS.md", "pr adversarial instructions\n");
+    git(["add", "AGENTS.md"]);
+    git(["commit", "-m", "pr agents"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("AGENTS.md")).toBe("base agent instructions\n");
+    expect(readRepoFile(".claude-pr/AGENTS.md")).toBe(
+      "pr adversarial instructions\n",
+    );
+    expect(readRepoFile("CLAUDE.md")).toBe("See @AGENTS.md\n");
+  });
+
+  test("deletes AGENTS.md that exists only on the PR head", () => {
+    writeRepoFile("AGENTS.md", "pr-only agents\n");
+    git(["add", "AGENTS.md"]);
+    git(["commit", "-m", "pr adds agents"]);
+
+    restoreConfigFromBase("main");
+
+    expect(existsRepoFile("AGENTS.md")).toBe(false);
+    expect(readRepoFile(".claude-pr/AGENTS.md")).toBe("pr-only agents\n");
+  });
+
+  test("restores AGENTS.local.md from base when the PR rewrites it", () => {
+    git(["checkout", "main"]);
+    writeRepoFile("AGENTS.local.md", "base local agents\n");
+    git(["add", "AGENTS.local.md"]);
+    git(["commit", "-m", "base local agents"]);
+    git(["push", "origin", "main"]);
+    git(["checkout", "pr"]);
+    writeRepoFile("AGENTS.local.md", "pr local agents\n");
+    git(["add", "AGENTS.local.md"]);
+    git(["commit", "-m", "pr local agents"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("AGENTS.local.md")).toBe("base local agents\n");
+    expect(readRepoFile(".claude-pr/AGENTS.local.md")).toBe(
+      "pr local agents\n",
+    );
   });
 
   function git(args: string[]): string {
