@@ -819,6 +819,12 @@ describe("generatePrompt", () => {
     // Should have commit signing tool instructions
     expect(prompt).toContain("mcp__github_file_ops__commit_files");
     expect(prompt).toContain("mcp__github_file_ops__delete_files");
+    expect(prompt).toContain(
+      'mcp__github_file_ops__delete_files: {"paths": ["path/to/old.js"]',
+    );
+    expect(prompt).not.toContain(
+      'mcp__github_file_ops__delete_files: {"files":',
+    );
     // Comment tool should always be from comment server, not file ops
     expect(prompt).toContain("mcp__github_comment__update_claude_comment");
 
