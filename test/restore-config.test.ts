@@ -485,6 +485,141 @@ describe("restoreConfigFromBase", () => {
     );
   });
 
+  test("restores nested @docs/AGENTS.md imported from restored CLAUDE.md", () => {
+    expect(SENSITIVE_PATHS).not.toContain("docs/AGENTS.md");
+    expect(SENSITIVE_PATHS.some((p) => p.includes("*"))).toBe(false);
+
+    git(["checkout", "main"]);
+    writeRepoFile("CLAUDE.md", "See @docs/AGENTS.md\n");
+    writeRepoFile("docs/AGENTS.md", "base nested agents\n");
+    git(["add", "CLAUDE.md", "docs/AGENTS.md"]);
+    git(["commit", "-m", "base nested agents"]);
+    git(["push", "origin", "main"]);
+    git(["checkout", "pr"]);
+    writeRepoFile("docs/AGENTS.md", "pr nested adversarial\n");
+    git(["add", "docs/AGENTS.md"]);
+    git(["commit", "-m", "pr nested agents"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("CLAUDE.md")).toBe("See @docs/AGENTS.md\n");
+    expect(readRepoFile("docs/AGENTS.md")).toBe("base nested agents\n");
+    expect(readRepoFile(".claude-pr/docs/AGENTS.md")).toBe(
+      "pr nested adversarial\n",
+    );
+  });
+
+  test("deletes a PR-only nested import target from restored CLAUDE.md", () => {
+    git(["checkout", "main"]);
+    writeRepoFile("CLAUDE.md", "See @docs/AGENTS.md\n");
+    git(["add", "CLAUDE.md"]);
+    git(["commit", "-m", "base imports missing nested file"]);
+    git(["push", "origin", "main"]);
+    git(["checkout", "pr"]);
+    writeRepoFile("docs/AGENTS.md", "pr-only nested agents\n");
+    git(["add", "docs/AGENTS.md"]);
+    git(["commit", "-m", "pr adds nested agents"]);
+
+    restoreConfigFromBase("main");
+
+    expect(existsRepoFile("docs/AGENTS.md")).toBe(false);
+    expect(readRepoFile(".claude-pr/docs/AGENTS.md")).toBe(
+      "pr-only nested agents\n",
+    );
+  });
+
+  test("does not restore a nested path mentioned only inside backticks", () => {
+    git(["checkout", "main"]);
+    writeRepoFile("CLAUDE.md", "Mention `@docs/AGENTS.md` without importing\n");
+    writeRepoFile("docs/AGENTS.md", "base nested agents\n");
+    git(["add", "CLAUDE.md", "docs/AGENTS.md"]);
+    git(["commit", "-m", "base backtick mention"]);
+    git(["push", "origin", "main"]);
+    git(["checkout", "pr"]);
+    writeRepoFile("docs/AGENTS.md", "pr nested agents\n");
+    git(["add", "docs/AGENTS.md"]);
+    git(["commit", "-m", "pr nested agents"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("docs/AGENTS.md")).toBe("pr nested agents\n");
+    expect(existsRepoFile(".claude-pr/docs/AGENTS.md")).toBe(false);
+  });
+
+  test("ignores @-imports that escape the repository", () => {
+    const outsideFile = join(tempDir, "outside.md");
+    writeFileSync(outsideFile, "outside notes\n");
+    git(["checkout", "main"]);
+    writeRepoFile("CLAUDE.md", "See @../outside.md and @~/secret.md\n");
+    git(["add", "CLAUDE.md"]);
+    git(["commit", "-m", "base escaping imports"]);
+    git(["push", "origin", "main"]);
+    git(["checkout", "pr"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readFileSync(outsideFile, "utf8")).toBe("outside notes\n");
+    expect(existsRepoFile("outside.md")).toBe(false);
+    expect(existsRepoFile(".claude-pr/outside.md")).toBe(false);
+  });
+
+  test("restores a two-hop import chain and does not hang on a cycle", () => {
+    git(["checkout", "main"]);
+    writeRepoFile("CLAUDE.md", "@docs/AGENTS.md\n");
+    writeRepoFile("docs/AGENTS.md", "@../shared/rules.md\n");
+    writeRepoFile("shared/rules.md", "@../docs/AGENTS.md\nbase rules\n");
+    git(["add", "CLAUDE.md", "docs/AGENTS.md", "shared/rules.md"]);
+    git(["commit", "-m", "base import chain"]);
+    git(["push", "origin", "main"]);
+    git(["checkout", "pr"]);
+    writeRepoFile("docs/AGENTS.md", "@../shared/rules.md\npr agents\n");
+    writeRepoFile("shared/rules.md", "@../docs/AGENTS.md\npr rules\n");
+    git(["add", "docs/AGENTS.md", "shared/rules.md"]);
+    git(["commit", "-m", "pr import chain"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("docs/AGENTS.md")).toBe("@../shared/rules.md\n");
+    expect(readRepoFile("shared/rules.md")).toBe(
+      "@../docs/AGENTS.md\nbase rules\n",
+    );
+    expect(readRepoFile(".claude-pr/docs/AGENTS.md")).toBe(
+      "@../shared/rules.md\npr agents\n",
+    );
+    expect(readRepoFile(".claude-pr/shared/rules.md")).toBe(
+      "@../docs/AGENTS.md\npr rules\n",
+    );
+  });
+
+  test("does not restore a fifth-hop import beyond the documented depth", () => {
+    git(["checkout", "main"]);
+    writeRepoFile("CLAUDE.md", "@a.md\n");
+    writeRepoFile("a.md", "@b.md\n");
+    writeRepoFile("b.md", "@c.md\n");
+    writeRepoFile("c.md", "@d.md\n");
+    writeRepoFile("d.md", "@e.md\n");
+    writeRepoFile("e.md", "base hop five\n");
+    git(["add", "CLAUDE.md", "a.md", "b.md", "c.md", "d.md", "e.md"]);
+    git(["commit", "-m", "base five hops"]);
+    git(["push", "origin", "main"]);
+    git(["checkout", "pr"]);
+    writeRepoFile("a.md", "@b.md\npr a\n");
+    writeRepoFile("b.md", "@c.md\npr b\n");
+    writeRepoFile("c.md", "@d.md\npr c\n");
+    writeRepoFile("d.md", "@e.md\npr d\n");
+    writeRepoFile("e.md", "pr hop five\n");
+    git(["add", "a.md", "b.md", "c.md", "d.md", "e.md"]);
+    git(["commit", "-m", "pr five hops"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("a.md")).toBe("@b.md\n");
+    expect(readRepoFile("b.md")).toBe("@c.md\n");
+    expect(readRepoFile("c.md")).toBe("@d.md\n");
+    expect(readRepoFile("d.md")).toBe("@e.md\n");
+    expect(readRepoFile("e.md")).toBe("pr hop five\n");
+  });
+
   function git(args: string[]): string {
     return execFileSync("git", args, {
       cwd: repoDir,
