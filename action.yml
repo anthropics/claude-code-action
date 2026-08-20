@@ -229,22 +229,7 @@ runs:
       continue-on-error: true
       shell: bash
       run: |
-        if [ "${CLAUDE_CODE_SUBPROCESS_ENV_SCRUB:-}" = "0" ]; then
-          echo "Subprocess isolation opted out via CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=0"
-          exit 0
-        fi
-        if command -v apt-get >/dev/null && command -v sudo >/dev/null; then
-          for i in 1 2 3; do
-            sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat && break
-            echo "apt-get attempt $i failed, retrying..."
-            sleep 5
-          done
-        fi
-        # Ubuntu 24.04+ restricts unprivileged user namespaces via AppArmor.
-        # The sysctl doesn't exist on older kernels — that's fine.
-        if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ] && command -v sudo >/dev/null; then
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-        fi
+        "${GITHUB_ACTION_PATH}/scripts/install-subprocess-isolation-dependencies.sh"
 
     - name: Pin bun binary for post-steps
       if: ${{ inputs.allowed_non_write_users != '' }}
