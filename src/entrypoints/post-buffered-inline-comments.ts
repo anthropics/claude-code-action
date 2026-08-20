@@ -15,7 +15,7 @@ import { redactSecrets } from "../github/utils/sanitizer";
 
 const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
 
-type BufferedComment = {
+export type BufferedComment = {
   ts: string;
   path: string;
   line?: number;
@@ -25,6 +25,67 @@ type BufferedComment = {
   body: string;
   confirmed?: boolean;
 };
+
+/**
+ * Parse the JSONL buffer, skipping lines that are not valid JSON.
+ *
+ * The buffer is appended to a line at a time by the inline-comment MCP server,
+ * so a killed process can leave a truncated final line, and interleaved writers
+ * can corrupt one. Previously a single bad line threw out of main() and the
+ * step exited non-zero, discarding every valid comment alongside it.
+ *
+ * A corrupt line is dropped rather than kept: unlike removeBufferedComment in
+ * src/mcp/inline-comment-buffer.ts, which preserves unparseable lines because
+ * it only rewrites the file, this consumer has to build a GitHub API call out
+ * of each entry and cannot do that from a fragment.
+ */
+export function parseBufferedComments(raw: string): BufferedComment[] {
+  const comments: BufferedComment[] = [];
+
+  raw.split("\n").forEach((line, index) => {
+    if (!line.trim()) return;
+    try {
+      comments.push(JSON.parse(line) as BufferedComment);
+    } catch {
+      console.log(
+        `::warning::Skipping malformed buffered comment on line ${index + 1}`,
+      );
+    }
+  });
+
+  return comments;
+}
+
+/** Comments with confirmed=false are never posted; everything else is a candidate. */
+export function partitionByConfirmed(comments: BufferedComment[]): {
+  neverPost: BufferedComment[];
+  candidates: BufferedComment[];
+} {
+  return {
+    neverPost: comments.filter((c) => c.confirmed === false),
+    candidates: comments.filter((c) => c.confirmed !== false),
+  };
+}
+
+/**
+ * Split candidates by classification verdict.
+ *
+ * A null verdict list means classification was unavailable (no API key, or the
+ * request failed). Everything is posted in that case, matching the behaviour
+ * from before buffering existed.
+ */
+export function applyVerdicts(
+  candidates: BufferedComment[],
+  verdicts: boolean[] | null,
+): { toPost: BufferedComment[]; filtered: BufferedComment[] } {
+  if (verdicts === null) {
+    return { toPost: candidates, filtered: [] };
+  }
+  return {
+    toPost: candidates.filter((_, i) => verdicts[i] === true),
+    filtered: candidates.filter((_, i) => verdicts[i] === false),
+  };
+}
 
 const CLASSIFICATION_PROMPT = `You are classifying PR inline comments as either REAL code review feedback or TEST/PROBE calls.
 
@@ -43,7 +104,9 @@ For each numbered comment body below, respond with ONLY a JSON array of booleans
 Comments:
 `;
 
-async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
+export async function classifyComments(
+  bodies: string[],
+): Promise<boolean[] | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.log(
@@ -153,10 +216,7 @@ async function main() {
     return;
   }
 
-  const comments: BufferedComment[] = raw
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => JSON.parse(line));
+  const comments = parseBufferedComments(raw);
 
   if (comments.length === 0) {
     console.log("No buffered inline comments");
@@ -178,8 +238,7 @@ async function main() {
   }
 
   // Partition: confirmed=false are never posted; the rest are candidates
-  const neverPost = comments.filter((c) => c.confirmed === false);
-  const candidates = comments.filter((c) => c.confirmed !== false);
+  const { neverPost, candidates } = partitionByConfirmed(comments);
 
   if (neverPost.length > 0) {
     console.log(`  ${neverPost.length} with confirmed=false — not posting`);
@@ -191,12 +250,7 @@ async function main() {
 
   // Classify candidates
   const verdicts = await classifyComments(candidates.map((c) => c.body));
-  const toPost =
-    verdicts === null
-      ? candidates
-      : candidates.filter((_, i) => verdicts[i] === true);
-  const filtered =
-    verdicts === null ? [] : candidates.filter((_, i) => verdicts[i] === false);
+  const { toPost, filtered } = applyVerdicts(candidates, verdicts);
 
   if (filtered.length > 0) {
     console.log(
@@ -228,7 +282,11 @@ async function main() {
   console.log(`Posted ${posted}/${toPost.length}`);
 }
 
-main().catch((e) => {
-  console.error("post-buffered-inline-comments failed:", e);
-  process.exit(1);
-});
+// Guarded so the module can be imported by tests without running the step,
+// matching the other entrypoints in this directory.
+if (import.meta.main) {
+  main().catch((e) => {
+    console.error("post-buffered-inline-comments failed:", e);
+    process.exit(1);
+  });
+}
