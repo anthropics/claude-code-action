@@ -21,13 +21,30 @@ export function createBranchLink(
   return `\n[View branch](${branchUrl})`;
 }
 
+/**
+ * Build the optional "Model: … · Effort: …" line shown in tracking comments.
+ * Returns an empty string when neither value is set so callers can omit the
+ * line entirely rather than rendering empty fields.
+ */
+export function buildModelEffortLine(model?: string, effort?: string): string {
+  const parts: string[] = [];
+  if (model) parts.push(`**Model:** ${model}`);
+  if (effort) parts.push(`**Effort:** ${effort}`);
+  return parts.join(" · ");
+}
+
 export function createCommentBody(
   jobRunLink: string,
   branchLink: string = "",
+  model?: string,
+  effort?: string,
 ): string {
+  const modelEffortLine = buildModelEffortLine(model, effort);
+  const configSection = modelEffortLine ? `${modelEffortLine}\n\n` : "";
+
   return `Claude Code is working… ${SPINNER_HTML}
 
-I'll analyze this and get back to you.
+${configSection}I'll analyze this and get back to you.
 
 ${jobRunLink}${branchLink}`;
 }

@@ -4,6 +4,7 @@ import {
   createJobRunLink,
   createBranchLink,
   createCommentBody,
+  buildModelEffortLine,
 } from "../src/github/operations/comments/common";
 import { GITHUB_SERVER_URL } from "../src/github/api/config";
 
@@ -51,6 +52,25 @@ describe("comments/common", () => {
       expect(body).toContain(jobRunLink);
     });
 
+    test("includes model and effort when provided", () => {
+      const body = createCommentBody(
+        createJobRunLink("o", "r", "7"),
+        "",
+        "claude-sonnet-4-6",
+        "high",
+      );
+
+      expect(body).toContain(
+        "**Model:** claude-sonnet-4-6 · **Effort:** high",
+      );
+    });
+
+    test("omits model/effort fields when not provided", () => {
+      const body = createCommentBody(createJobRunLink("o", "r", "7"));
+      expect(body).not.toContain("**Model:**");
+      expect(body).not.toContain("**Effort:**");
+    });
+
     test("omits the branch link when none is provided (defaults to empty)", () => {
       const body = createCommentBody(createJobRunLink("o", "r", "7"));
       expect(body).not.toContain("View branch");
@@ -68,6 +88,29 @@ describe("comments/common", () => {
       // The branch link (with its leading newline) comes after the job run link.
       expect(body.indexOf(branchLink)).toBeGreaterThan(
         body.indexOf(jobRunLink),
+      );
+    });
+  });
+
+  describe("buildModelEffortLine", () => {
+    test("returns an empty string when neither value is set", () => {
+      expect(buildModelEffortLine()).toBe("");
+      expect(buildModelEffortLine(undefined, undefined)).toBe("");
+    });
+
+    test("shows only the model when effort is unset", () => {
+      expect(buildModelEffortLine("claude-sonnet-4-6")).toBe(
+        "**Model:** claude-sonnet-4-6",
+      );
+    });
+
+    test("shows only the effort when model is unset", () => {
+      expect(buildModelEffortLine(undefined, "high")).toBe("**Effort:** high");
+    });
+
+    test("joins model and effort with a separator", () => {
+      expect(buildModelEffortLine("claude-sonnet-4-6", "high")).toBe(
+        "**Model:** claude-sonnet-4-6 · **Effort:** high",
       );
     });
   });
