@@ -8,6 +8,33 @@ This FAQ addresses common questions and gotchas when using the Claude Code GitHu
 
 The `github-actions` user cannot trigger subsequent GitHub Actions workflows. This is a GitHub security feature to prevent infinite loops. To make this work, you need to use a Personal Access Token (PAT) instead, which will act as a regular user, or use a separate app token of your own. When posting a comment on an issue or PR from your workflow, use your PAT instead of the `GITHUB_TOKEN` generated in your workflow.
 
+### Why don't CI workflows run after Claude pushes commits?
+
+If Claude's commits appear as `github-actions[bot]`, GitHub will not trigger follow-up workflows from those commits. This is the same GitHub security restriction that prevents workflows from recursively triggering other workflows with the default `GITHUB_TOKEN`.
+
+For the default Claude GitHub App setup, enable GitHub API commit signing so Claude can create commits with the app token instead:
+
+```yaml
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+- uses: anthropics/claude-code-action@v1
+  with:
+    claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    use_commit_signing: true
+```
+
+You can use `anthropic_api_key` instead of `claude_code_oauth_token` if your workflow authenticates with an Anthropic API key.
+
+Do not pass `github_token: ${{ secrets.GITHUB_TOKEN }}` for this setup. Providing the default workflow token keeps Claude on the `github-actions[bot]` path that GitHub suppresses for follow-up workflow triggers.
+
+With `use_commit_signing` enabled, the action exchanges its OIDC token for the Claude GitHub App installation token and creates commits through GitHub's API. Those commits are attributed to `claude[bot]`, so normal PR events such as `pull_request` `synchronize` can trigger downstream CI instead of being suppressed as `github-actions[bot]` activity.
+
+This depends on the workflow file matching the version on the repository's default branch. If the PR changes the Claude workflow itself, GitHub may reject the OIDC exchange for that run, and the action may skip or fail before using GitHub App commit signing. See [Commit Signing](./security.md#commit-signing) for more details about the available signing options.
+
 ### Why does Claude say I don't have permission to trigger it?
 
 Only users with **write permissions** to the repository can trigger Claude. This is a security feature to prevent unauthorized use. Make sure the user commenting has at least write access to the repository.
