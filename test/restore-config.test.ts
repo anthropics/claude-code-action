@@ -425,6 +425,22 @@ describe("restoreConfigFromBase", () => {
     ).toEqual([".claude/settings.json", "CLAUDE.md"]);
   });
 
+  test("gracefully handles git fetch failures and leaves sensitive paths deleted", () => {
+    // Simulate a private repo scenario where credentials are unavailable by
+    // removing the remote. The git fetch will fail, but the action should not
+    // fatal-exit; it should leave sensitive paths deleted (safe fallback).
+    git(["remote", "remove", "origin"]);
+
+    expect(() => restoreConfigFromBase("main")).not.toThrow();
+
+    expect(existsRepoFile("CLAUDE.md")).toBe(false);
+    expect(existsRepoFile(".claude/settings.json")).toBe(false);
+    expect(existsRepoFile(".claude-pr/CLAUDE.md")).toBe(true);
+    expect(readRepoFile(".claude-pr/CLAUDE.md")).toBe(
+      "pr claude instructions\n",
+    );
+  });
+
   function git(args: string[]): string {
     return execFileSync("git", args, {
       cwd: repoDir,
