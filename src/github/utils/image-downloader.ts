@@ -35,6 +35,9 @@ const SIGNED_URL_PATH_REGEX =
   /^\/[^/]+\/[^/]*-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\.[a-z0-9]+)?$/i;
 
 const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS = 30_000;
+// GitHub caps issue/PR image attachments at 10 MB, so anything above that is
+// not something a comment could legitimately carry.
+const DEFAULT_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 function extractSignedUrlAssetGuid(signedUrl: string): string | undefined {
   let parsed: URL;
@@ -89,6 +92,7 @@ export type CommentWithImages =
 
 type ImageDownloadOptions = {
   timeoutMs?: number;
+  maxBytes?: number;
 };
 
 export async function downloadCommentImages(
@@ -100,6 +104,7 @@ export async function downloadCommentImages(
 ): Promise<Map<string, string>> {
   const urlToPathMap = new Map<string, string>();
   const timeoutMs = options.timeoutMs ?? DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS;
+  const maxBytes = options.maxBytes ?? DEFAULT_MAX_IMAGE_BYTES;
   const downloadsDir = "/tmp/github-images";
 
   await fs.mkdir(downloadsDir, { recursive: true });
@@ -249,7 +254,7 @@ export async function downloadCommentImages(
         try {
           console.log(`Downloading ${originalUrl}...`);
 
-          const buffer = await fetchImage(signedUrl, timeoutMs);
+          const buffer = await fetchImage(signedUrl, timeoutMs, maxBytes);
 
           // GitHub user-attachment URLs (/user-attachments/assets/<uuid>) carry
           // no file extension, so the URL-based guess silently falls back to
@@ -289,7 +294,11 @@ export async function downloadCommentImages(
   return urlToPathMap;
 }
 
-async function fetchImage(url: string, timeoutMs: number): Promise<Buffer> {
+async function fetchImage(
+  url: string,
+  timeoutMs: number,
+  maxBytes: number,
+): Promise<Buffer> {
   const controller = new AbortController();
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -298,6 +307,9 @@ async function fetchImage(url: string, timeoutMs: number): Promise<Buffer> {
       reject(new Error(`Image download timed out after ${timeoutMs}ms`));
     }, timeoutMs);
   });
+
+  const tooLarge = (bytes: number | string) =>
+    new Error(`Image exceeds the ${maxBytes} byte limit (${bytes} bytes)`);
 
   try {
     const response = await Promise.race([
@@ -308,10 +320,51 @@ async function fetchImage(url: string, timeoutMs: number): Promise<Buffer> {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
+    // Reject on the advertised size before reading anything.
+    const contentLength = Number(response.headers?.get?.("content-length"));
+    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+      controller.abort();
+      throw tooLarge(contentLength);
+    }
+
+    // Stream when the body is available so an oversized (or lying) response is
+    // dropped mid-flight instead of being buffered in full.
+    const body = response.body;
+    if (body?.getReader) {
+      const reader = body.getReader();
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+
+      try {
+        for (;;) {
+          const { done, value } = await Promise.race([
+            reader.read(),
+            timeoutPromise,
+          ]);
+          if (done) break;
+          if (!value) continue;
+
+          received += value.byteLength;
+          if (received > maxBytes) {
+            controller.abort();
+            throw tooLarge(received);
+          }
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock?.();
+      }
+
+      return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
+    }
+
     const arrayBuffer = await Promise.race([
       response.arrayBuffer(),
       timeoutPromise,
     ]);
+    if (arrayBuffer.byteLength > maxBytes) {
+      throw tooLarge(arrayBuffer.byteLength);
+    }
     return Buffer.from(arrayBuffer);
   } finally {
     if (timeoutHandle !== undefined) {
