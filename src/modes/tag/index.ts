@@ -62,10 +62,11 @@ export async function prepareTagMode({
     excludeCommentsByActor: context.inputs.excludeCommentsByActor,
   });
 
-  // Setup branch
-  const branchInfo = await setupBranch(octokit, githubData, context);
-
-  // Configure git authentication
+  // Configure git authentication before setupBranch, which performs an
+  // unauthenticated `git fetch` on several paths (open same-repo PR, fork PR,
+  // new branch from an issue/closed PR). If the workflow checked out with
+  // actions/checkout's `persist-credentials: false`, that fetch has no
+  // credential to use unless auth is configured first.
   // SSH signing takes precedence if provided
   const useSshSigning = !!context.inputs.sshSigningKey;
   const useApiCommitSigning = context.inputs.useCommitSigning && !useSshSigning;
@@ -99,6 +100,9 @@ export async function prepareTagMode({
       throw error;
     }
   }
+
+  // Setup branch
+  const branchInfo = await setupBranch(octokit, githubData, context);
 
   // Create prompt file
   await createPrompt(
