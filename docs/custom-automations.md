@@ -26,7 +26,7 @@ This action supports the following GitHub events ([learn more GitHub event trigg
 
 ## Automated Documentation Updates
 
-Automatically update documentation when specific files change (see [`examples/claude-pr-path-specific.yml`](../examples/claude-pr-path-specific.yml)):
+Automatically update documentation when specific files change (see [`examples/pr-review-filtered-paths.yml`](../examples/pr-review-filtered-paths.yml)):
 
 ```yaml
 on:
@@ -47,7 +47,7 @@ When API files are modified, the action automatically detects that a `prompt` is
 
 ## Author-Specific Code Reviews
 
-Automatically review PRs from specific authors or external contributors (see [`examples/claude-review-from-author.yml`](../examples/claude-review-from-author.yml)):
+Automatically review PRs from specific authors or external contributors (see [`examples/pr-review-filtered-authors.yml`](../examples/pr-review-filtered-authors.yml)):
 
 ```yaml
 on:

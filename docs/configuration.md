@@ -275,6 +275,29 @@ For provider-specific models:
     # ... other inputs
 ```
 
+### 1M context models through an API gateway
+
+When `ANTHROPIC_BASE_URL` points to an Anthropic-compatible API gateway,
+Claude Code may not be able to verify that the gateway supports a model's native
+1M context window and can budget the session at 200K instead. Append the
+`[1m]` selector to explicitly use the 1M context window for supported models,
+including Claude Opus 5 and Claude Sonnet 5:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    claude_args: |
+      --model "claude-opus-5[1m]"
+    # ... other inputs
+```
+
+Use the same selector when setting a model through `ANTHROPIC_MODEL` or another
+Claude Code model environment variable. The selector is resolved by Claude Code
+before requests are sent to the provider. The action's sanitized result output
+includes each model's resolved
+`contextWindow` and `maxOutputTokens` under `modelUsage`, so these limits are
+visible without enabling `show_full_output`.
+
 ## Claude Code Settings
 
 You can provide Claude Code settings to customize behavior such as model selection, environment variables, permissions, and hooks. Settings can be provided either as a JSON string or a path to a settings file.
@@ -337,17 +360,17 @@ For a complete list of available settings and their descriptions, see the [Claud
 
 Many individual input parameters have been consolidated into `claude_args` or `settings`. Here's how to migrate:
 
-| Old Input             | New Approach                                             |
-| --------------------- | -------------------------------------------------------- |
-| `allowed_tools`       | Use `claude_args: "--allowedTools Tool1,Tool2"`          |
-| `disallowed_tools`    | Use `claude_args: "--disallowedTools Tool1,Tool2"`       |
-| `max_turns`           | Use `claude_args: "--max-turns 10"`                      |
-| `model`               | Use `claude_args: "--model claude-4-0-sonnet-20250805"`  |
-| `claude_env`          | Use `settings` with `"env"` object                       |
-| `custom_instructions` | Use `claude_args: "--system-prompt 'Your instructions'"` |
-| `mcp_config`          | Use `claude_args: "--mcp-config '{...}'"`                |
-| `direct_prompt`       | Use `prompt` input instead                               |
-| `override_prompt`     | Use `prompt` with GitHub context variables               |
+| Old Input             | New Approach                                                    |
+| --------------------- | --------------------------------------------------------------- |
+| `allowed_tools`       | Use `claude_args: "--allowedTools Tool1,Tool2"`                 |
+| `disallowed_tools`    | Use `claude_args: "--disallowedTools Tool1,Tool2"`              |
+| `max_turns`           | Use `claude_args: "--max-turns 10"`                             |
+| `model`               | Use `claude_args: "--model claude-4-0-sonnet-20250805"`         |
+| `claude_env`          | Use `settings` with `"env"` object                              |
+| `custom_instructions` | Use `claude_args: "--append-system-prompt 'Your instructions'"` |
+| `mcp_config`          | Use `claude_args: "--mcp-config '{...}'"`                       |
+| `direct_prompt`       | Use `prompt` input instead                                      |
+| `override_prompt`     | Use `prompt` with GitHub context variables                      |
 
 ## Custom Executables for Specialized Environments
 

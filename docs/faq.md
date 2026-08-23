@@ -153,7 +153,7 @@ prompt: "Review this PR for security vulnerabilities"
 **These inputs are deprecated in v1.0:**
 
 - **`direct_prompt`** → Use `prompt` instead
-- **`custom_instructions`** → Use `claude_args` with `--system-prompt`
+- **`custom_instructions`** → Use `claude_args` with `--append-system-prompt` (appends to the default system prompt, matching v0 behavior; `--system-prompt` replaces it entirely)
 
 Migration examples:
 
@@ -165,7 +165,7 @@ custom_instructions: "Focus on security"
 # New (v1.0)
 prompt: "Review this PR"
 claude_args: |
-  --system-prompt "Focus on security"
+  --append-system-prompt "Focus on security"
 ```
 
 ### Why doesn't Claude execute my bash commands?

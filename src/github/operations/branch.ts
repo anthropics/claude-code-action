@@ -13,6 +13,7 @@ import type { GitHubPullRequest } from "../types";
 import type { Octokits } from "../api/client";
 import type { FetchDataResult } from "../data/fetcher";
 import { generateBranchName } from "../../utils/branch-template";
+import { fetchDepthArgs } from "./fetch-depth";
 
 /**
  * Extracts the first label from GitHub data, or returns undefined if no labels exist
@@ -27,7 +28,7 @@ function extractFirstLabel(githubData: FetchDataResult): string | undefined {
  * This prevents command injection by ensuring only safe characters are used.
  *
  * Valid branch names:
- * - Start with alphanumeric character or @ (not dash, to prevent option injection)
+ * - Start with alphanumeric character, underscore, or @ (not dash, to prevent option injection)
  * - Contain only alphanumeric, forward slash, hyphen, underscore, period, hash (#), plus (+), comma (,), or at sign (@)
  * - Do not start or end with a period
  * - Do not end with a slash
@@ -68,12 +69,15 @@ export function validateBranchName(branchName: string): void {
   // @ is valid per git-check-ref-format anywhere in a ref name, including the first character
   //   (e.g. ticket conventions like "TICKET-123@add-feature" or prefixes like "@hotfix/...");
   //   the bare name "@" (HEAD shorthand) and the "@{" sequence (reflog syntax) are rejected below.
+  // _ is valid per git-check-ref-format anywhere in a ref name, including the first character;
+  //   leading underscores are a common convention for release/internal branches (e.g.
+  //   "_release/v1.2.3"), which previously failed validation as a PR's base branch.
   // All git calls use execFileSync (not shell interpolation), so none of these characters carry injection risk.
-  const validPattern = /^[a-zA-Z0-9@][a-zA-Z0-9/_.#+,@-]*$/;
+  const validPattern = /^[a-zA-Z0-9@_][a-zA-Z0-9/_.#+,@-]*$/;
 
   if (!validPattern.test(branchName)) {
     throw new Error(
-      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric character or '@' and contain only alphanumeric characters, forward slashes, hyphens, underscores, periods, hashes (#), plus signs (+), commas (,), or at signs (@).`,
+      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric character, underscore, or '@' and contain only alphanumeric characters, forward slashes, hyphens, underscores, periods, hashes (#), plus signs (+), commas (,), or at signs (@).`,
     );
   }
 
@@ -172,12 +176,19 @@ export async function setupBranch(
 
       const branchName = prData.headRefName;
 
-      // Determine optimal fetch depth based on PR commit count, with a minimum of 20
+      // Determine optimal fetch depth based on PR commit count, with a minimum
+      // of 20. Only applied to a checkout that is already shallow — see
+      // fetchDepthArgs.
       const commitCount = prData.commits.totalCount;
       const fetchDepth = Math.max(commitCount, 20);
+      const depthArgs = fetchDepthArgs(fetchDepth);
 
       console.log(
-        `PR #${entityNumber}: ${commitCount} commits, using fetch depth ${fetchDepth}`,
+        `PR #${entityNumber}: ${commitCount} commits, ${
+          depthArgs.length > 0
+            ? `using fetch depth ${fetchDepth}`
+            : "fetching without a depth limit (checkout has full history)"
+        }`,
       );
 
       // Validate branch names before use to prevent command injection
@@ -192,13 +203,13 @@ export async function setupBranch(
         execGit([
           "fetch",
           "origin",
-          `--depth=${fetchDepth}`,
+          ...depthArgs,
           `pull/${entityNumber}/head:${branchName}`,
         ]);
       } else {
         // Execute git commands to checkout PR branch (dynamic depth based on PR size)
         // Using execFileSync instead of shell template literals for security
-        execGit(["fetch", "origin", `--depth=${fetchDepth}`, branchName]);
+        execGit(["fetch", "origin", ...depthArgs, branchName]);
       }
       execGit(["checkout", branchName, "--"]);
 
@@ -285,6 +296,11 @@ export async function setupBranch(
       // Branch doesn't exist (non-zero exit code), continue with generated name
     }
 
+    // Validate before either path uses the name. The signing path hands it to
+    // the file ops server rather than to git, so without this an invalid
+    // template only surfaces as a 422 on the first commit.
+    validateBranchName(newBranch);
+
     // For commit signing, defer branch creation to the file ops server
     if (context.inputs.useCommitSigning) {
       console.log(
@@ -294,7 +310,7 @@ export async function setupBranch(
       // Ensure we're on the source branch
       console.log(`Fetching and checking out source branch: ${sourceBranch}`);
       validateBranchName(sourceBranch);
-      execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
+      execGit(["fetch", "origin", sourceBranch, ...fetchDepthArgs(1)]);
       execGit(["checkout", sourceBranch, "--"]);
 
       return {
@@ -312,8 +328,7 @@ export async function setupBranch(
     // Fetch and checkout the source branch first to ensure we branch from the correct base
     console.log(`Fetching and checking out source branch: ${sourceBranch}`);
     validateBranchName(sourceBranch);
-    validateBranchName(newBranch);
-    execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
+    execGit(["fetch", "origin", sourceBranch, ...fetchDepthArgs(1)]);
     execGit(["checkout", sourceBranch, "--"]);
 
     // Create and checkout the new branch from the source branch

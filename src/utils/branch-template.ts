@@ -28,6 +28,20 @@ function extractDescription(
     .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
 }
 
+/**
+ * Sanitizes a label into a git-safe branch segment. Labels are free-form and
+ * often scoped (e.g. "area:permissions"), so characters that are invalid in a
+ * branch name (":", "/", spaces, ...) are replaced with a hyphen rather than
+ * dropped, keeping the label readable. Returns "" if nothing usable remains.
+ */
+function sanitizeLabel(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-") // Replace runs of invalid chars with a hyphen
+    .replace(/-+/g, "-") // Collapse multiple hyphens
+    .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
+}
+
 export interface BranchTemplateVariables {
   prefix: string;
   entityType: string;
@@ -59,6 +73,21 @@ export function applyBranchTemplate(
 }
 
 /**
+ * Collapses empty path segments produced when a template variable resolves to
+ * an empty string. For example, an issue title with no alphanumeric characters
+ * (emoji-only, CJK-only, or punctuation-only) makes `{{description}}` empty, so
+ * a template like `{{prefix}}{{description}}/{{entityNumber}}` yields
+ * `claude//123`. Consecutive slashes — and a leading or trailing slash — are
+ * rejected by `validateBranchName`, which aborts the whole run, so normalize
+ * them into a valid branch name instead of crashing.
+ */
+function collapseEmptyPathSegments(branchName: string): string {
+  return branchName
+    .replace(/\/{2,}/g, "/") // collapse runs of slashes left by empty segments
+    .replace(/^\/+|\/+$/g, ""); // drop leading/trailing slashes
+}
+
+/**
  * Generates a branch name from the provided `template` and set of `variables`. Uses a default format if the template is empty or produces an empty result.
  */
 export function generateBranchName(
@@ -78,12 +107,14 @@ export function generateBranchName(
     entityNumber,
     timestamp: `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`,
     sha: sha?.substring(0, 8), // First 8 characters of SHA
-    label: label || entityType, // Fall back to entityType if no label
+    label: (label && sanitizeLabel(label)) || entityType, // Sanitize; fall back to entityType if empty/no label
     description: title ? extractDescription(title) : undefined,
   };
 
   if (template?.trim()) {
-    const branchName = applyBranchTemplate(template, variables);
+    const branchName = collapseEmptyPathSegments(
+      applyBranchTemplate(template, variables),
+    );
 
     // Some templates could produce empty results- validate
     if (branchName.trim().length > 0) return branchName;

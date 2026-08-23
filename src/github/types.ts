@@ -1,14 +1,23 @@
 // Types for GitHub GraphQL query responses
+
+// GitHub's GraphQL `author`/`actor` fields resolve to null when the underlying
+// account has been deleted (the "ghost" user). Any field typed as
+// `GitHubAuthor | null` can therefore be null at runtime and must be guarded.
+// `__typename` distinguishes an App/bot actor from a human. GraphQL's
+// `Actor.login` returns the bare name for bots ("dependabot"), unlike REST which
+// appends a suffix ("dependabot[bot]"), so the typename is the only reliable bot
+// signal on this data. See `resolveActorName` in `utils/actor-filter.ts`.
 export type GitHubAuthor = {
   login: string;
   name?: string;
+  __typename?: string;
 };
 
 export type GitHubComment = {
   id: string;
   databaseId: string;
   body: string;
-  author: GitHubAuthor;
+  author: GitHubAuthor | null;
   createdAt: string;
   updatedAt?: string;
   lastEditedAt?: string;
@@ -18,6 +27,7 @@ export type GitHubComment = {
 export type GitHubReviewComment = GitHubComment & {
   path: string;
   line: number | null;
+  diffHunk?: string | null;
 };
 
 export type GitHubCommit = {
@@ -39,7 +49,7 @@ export type GitHubFile = {
 export type GitHubReview = {
   id: string;
   databaseId: string;
-  author: GitHubAuthor;
+  author: GitHubAuthor | null;
   body: string;
   state: string;
   submittedAt: string;
@@ -53,7 +63,7 @@ export type GitHubReview = {
 export type GitHubPullRequest = {
   title: string;
   body: string;
-  author: GitHubAuthor;
+  author: GitHubAuthor | null;
   baseRefName: string;
   headRefName: string;
   headRefOid: string;
@@ -81,9 +91,13 @@ export type GitHubPullRequest = {
       commit: GitHubCommit;
     }>;
   };
+  // GitHub's GraphQL `files` field resolves to null when the PR's diff is too
+  // large for GitHub to compute (very large PRs). `changedFiles` is also
+  // misreported as 0 in that case, so the null must be guarded and treated as
+  // "file list unavailable" rather than "no files changed".
   files: {
     nodes: GitHubFile[];
-  };
+  } | null;
   comments: {
     nodes: GitHubComment[];
   };
@@ -95,7 +109,7 @@ export type GitHubPullRequest = {
 export type GitHubIssue = {
   title: string;
   body: string;
-  author: GitHubAuthor;
+  author: GitHubAuthor | null;
   createdAt: string;
   updatedAt?: string;
   lastEditedAt?: string;

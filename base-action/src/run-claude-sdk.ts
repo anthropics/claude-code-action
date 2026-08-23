@@ -82,6 +82,35 @@ async function createPromptConfig(
   return createMultiBlockMessage();
 }
 
+type ModelUsageSummary = Record<
+  string,
+  {
+    contextWindow: number;
+    maxOutputTokens: number;
+  }
+>;
+
+/**
+ * Keep resolved model limits visible without exposing token usage or cost details.
+ */
+function sanitizeModelUsage(
+  modelUsage: SDKResultMessage["modelUsage"] | undefined,
+): ModelUsageSummary | undefined {
+  if (!modelUsage) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    Object.entries(modelUsage).map(([model, usage]) => [
+      model,
+      {
+        contextWindow: usage.contextWindow,
+        maxOutputTokens: usage.maxOutputTokens,
+      },
+    ]),
+  );
+}
+
 /**
  * Sanitizes SDK output to match CLI sanitization behavior
  */
@@ -119,6 +148,7 @@ function sanitizeSdkOutput(
         num_turns: resultMsg.num_turns,
         total_cost_usd: resultMsg.total_cost_usd,
         permission_denials_count: resultMsg.permission_denials?.length ?? 0,
+        modelUsage: sanitizeModelUsage(resultMsg.modelUsage),
       },
       null,
       2,
@@ -208,7 +238,21 @@ export async function runClaudeWithSdk(
     throw new Error("No result message received from Claude");
   }
 
-  const isSuccess = resultMessage.subtype === "success";
+  if (
+    resultMessage.subtype === "success" &&
+    !resultMessage.is_error &&
+    sdkOptions.maxTurns !== undefined &&
+    resultMessage.num_turns > sdkOptions.maxTurns
+  ) {
+    const message = `Claude reported a successful result after ${resultMessage.num_turns} turns, exceeding the configured maximum of ${sdkOptions.maxTurns}`;
+    core.error(message);
+    throw new Error(message);
+  }
+
+  // subtype "success" with is_error:true means the run errored without producing
+  // a real result — treat it as failure so CI does not show a misleading green check.
+  const isSuccess =
+    resultMessage.subtype === "success" && !resultMessage.is_error;
   result.conclusion = isSuccess ? "success" : "failure";
 
   // Handle structured output
@@ -234,14 +278,21 @@ export async function runClaudeWithSdk(
   }
 
   if (!isSuccess) {
+    if (resultMessage.subtype === "success" && resultMessage.is_error) {
+      core.error(
+        "Claude result reported subtype success with is_error:true (run did not complete successfully)",
+      );
+    }
     if ("errors" in resultMessage && resultMessage.errors) {
       core.error(`Execution failed: ${resultMessage.errors.join(", ")}`);
     }
     throw new Error(
       `Claude execution failed: ${
-        "errors" in resultMessage && resultMessage.errors
-          ? resultMessage.errors.join(", ")
-          : "unknown error"
+        resultMessage.subtype === "success" && resultMessage.is_error
+          ? "result is_error:true"
+          : "errors" in resultMessage && resultMessage.errors
+            ? resultMessage.errors.join(", ")
+            : "unknown error"
       }`,
     );
   }

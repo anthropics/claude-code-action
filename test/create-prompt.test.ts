@@ -6,8 +6,10 @@ import {
   getEventTypeAndContext,
   buildAllowedToolsString,
   buildDisallowedToolsString,
+  prepareContext,
 } from "../src/create-prompt";
 import type { PreparedContext } from "../src/create-prompt";
+import { createMockContext } from "./mockContext";
 
 beforeAll(() => {
   process.env.GITHUB_ACTION_PATH = "/test/action/path";
@@ -822,6 +824,35 @@ describe("generatePrompt", () => {
 
     // Should not have git command instructions
     expect(prompt).not.toContain("Use git commands via the Bash tool");
+
+    // Bash is off unless the user passes --allowedTools through claude_args.
+    // allowed_tools was removed in v1.0 and must not appear as live guidance.
+    expect(prompt).toContain(
+      "Run arbitrary Bash commands (unless explicitly allowed via claude_args with --allowedTools)",
+    );
+    expect(prompt).not.toContain("allowed_tools configuration");
+  });
+
+  test("does not mention allowed_tools when commit signing is off", async () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issue_comment",
+        commentId: "67890",
+        isPR: true,
+        prNumber: "123",
+        commentBody: "@claude fix the bug",
+      },
+    };
+
+    const prompt = await generatePrompt(envVars, mockGitHubData, false, "tag");
+
+    expect(prompt).not.toContain("allowed_tools");
+    expect(prompt).not.toContain(
+      "Run arbitrary Bash commands (unless explicitly allowed",
+    );
   });
 
   describe("simplified prompt (USE_SIMPLE_PROMPT)", () => {
@@ -1268,5 +1299,85 @@ describe("buildDisallowedToolsString", () => {
 
     // Only custom disallowed tools should remain
     expect(result).toBe("BadTool1,BadTool2");
+  });
+});
+
+describe("prepareContext validation errors", () => {
+  const commentId = "12345";
+
+  test("throws on an unsupported event type", () => {
+    const context = createMockContext({
+      eventName: "deployment_status" as any,
+    });
+
+    expect(() => prepareContext(context, commentId)).toThrow(
+      "Unsupported event type: deployment_status",
+    );
+  });
+
+  test("pull_request event requires a PR number (isPR must be true)", () => {
+    const context = createMockContext({
+      eventName: "pull_request",
+      eventAction: "opened",
+      isPR: false,
+    });
+
+    expect(() => prepareContext(context, commentId)).toThrow(
+      "PR_NUMBER is required for pull_request event",
+    );
+  });
+
+  test("pull_request_review event requires a PR number", () => {
+    const context = createMockContext({
+      eventName: "pull_request_review",
+      isPR: false,
+      payload: {
+        review: { body: "please fix", user: { login: "user1" } },
+      } as any,
+    });
+
+    expect(() => prepareContext(context, commentId)).toThrow(
+      "PR_NUMBER is required for pull_request_review event",
+    );
+  });
+
+  test("issues event requires an event action", () => {
+    const context = createMockContext({
+      eventName: "issues",
+      eventAction: "",
+      isPR: false,
+      payload: { issue: { user: { login: "user1" } } } as any,
+    });
+
+    expect(() => prepareContext(context, commentId)).toThrow(
+      "GITHUB_EVENT_ACTION is required for issues event",
+    );
+  });
+
+  test("issues event rejects an unsupported action", () => {
+    const context = createMockContext({
+      eventName: "issues",
+      eventAction: "deleted",
+      isPR: false,
+      payload: { issue: { user: { login: "user1" } } } as any,
+    });
+
+    expect(() =>
+      prepareContext(context, commentId, "main", "claude/issue-1"),
+    ).toThrow("Unsupported issue action: deleted");
+  });
+
+  test("issue_comment on an issue requires a claude branch", () => {
+    const context = createMockContext({
+      eventName: "issue_comment",
+      isPR: false,
+      payload: {
+        comment: { id: 999, body: "@claude help", user: { login: "user1" } },
+      } as any,
+    });
+
+    expect(() => prepareContext(context, commentId)).toThrow(
+      "CLAUDE_BRANCH is required for issue_comment event",
+    );
   });
 });
