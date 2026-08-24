@@ -17,11 +17,18 @@ const PR_NUMBER = process.env.PR_NUMBER;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const RUNNER_TEMP = process.env.RUNNER_TEMP || "/tmp";
 
-if (!REPO_OWNER || !REPO_NAME || !PR_NUMBER || !GITHUB_TOKEN) {
-  console.error(
-    "[GitHub CI Server] Error: REPO_OWNER, REPO_NAME, PR_NUMBER, and GITHUB_TOKEN environment variables are required",
-  );
-  process.exit(1);
+// Job logs are fetched by ID from GitHub-hosted storage; bound the request so a
+// stalled fetch can't hang this MCP call forever. Mirrors the timeout added to
+// fetchImage() in src/github/utils/image-downloader.ts (#1625).
+const DOWNLOAD_JOB_LOG_TIMEOUT_MS = 30_000;
+
+if (import.meta.main) {
+  if (!REPO_OWNER || !REPO_NAME || !PR_NUMBER || !GITHUB_TOKEN) {
+    console.error(
+      "[GitHub CI Server] Error: REPO_OWNER, REPO_NAME, PR_NUMBER, and GITHUB_TOKEN environment variables are required",
+    );
+    process.exit(1);
+  }
 }
 
 const server = new McpServer({
@@ -205,6 +212,40 @@ server.tool(
   },
 );
 
+export async function downloadJobLog(
+  client: Octokit,
+  params: { owner: string; repo: string; job_id: number },
+  runnerTemp: string,
+  timeoutMs: number = DOWNLOAD_JOB_LOG_TIMEOUT_MS,
+): Promise<{ path: string; size_bytes: number }> {
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await client.actions.downloadJobLogsForWorkflowRun({
+      owner: params.owner,
+      repo: params.repo,
+      job_id: params.job_id,
+      request: { signal: controller.signal },
+    });
+
+    const logsText = response.data as unknown as string;
+
+    const logsDir = `${runnerTemp}/github-ci-logs`;
+    await mkdir(logsDir, { recursive: true });
+
+    const logPath = `${logsDir}/job-${params.job_id}.log`;
+    await writeFile(logPath, logsText, "utf-8");
+
+    return {
+      path: logPath,
+      size_bytes: Buffer.byteLength(logsText, "utf-8"),
+    };
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
+
 server.tool(
   "download_job_log",
   "Download job logs to disk",
@@ -218,24 +259,11 @@ server.tool(
         baseUrl: GITHUB_API_URL,
       });
 
-      const response = await client.actions.downloadJobLogsForWorkflowRun({
-        owner: REPO_OWNER!,
-        repo: REPO_NAME!,
-        job_id,
-      });
-
-      const logsText = response.data as unknown as string;
-
-      const logsDir = `${RUNNER_TEMP}/github-ci-logs`;
-      await mkdir(logsDir, { recursive: true });
-
-      const logPath = `${logsDir}/job-${job_id}.log`;
-      await writeFile(logPath, logsText, "utf-8");
-
-      const result = {
-        path: logPath,
-        size_bytes: Buffer.byteLength(logsText, "utf-8"),
-      };
+      const result = await downloadJobLog(
+        client,
+        { owner: REPO_OWNER!, repo: REPO_NAME!, job_id },
+        RUNNER_TEMP,
+      );
 
       return {
         content: [
@@ -277,6 +305,8 @@ async function runServer() {
   }
 }
 
-runServer().catch(() => {
-  process.exit(1);
-});
+if (import.meta.main) {
+  runServer().catch(() => {
+    process.exit(1);
+  });
+}
