@@ -5,7 +5,10 @@ const actionMetadata = readFileSync(
   new URL("../action.yml", import.meta.url),
   "utf8",
 ).replace(/\r\n/g, "\n");
-const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+const readme = readFileSync(
+  new URL("../README.md", import.meta.url),
+  "utf8",
+).replace(/\r\n/g, "\n");
 
 describe("base action README", () => {
   test("should document every input declared in the action metadata", () => {
