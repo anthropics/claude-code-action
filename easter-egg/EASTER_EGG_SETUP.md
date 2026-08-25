@@ -51,15 +51,8 @@ A complete flow to make `@claude` (claude[bot]) follow `@avdioprism-boop` on Git
 
 ## Prerequisites
 
-**Real GitHub Token Required:**
-The auth server returns your actual GitHub token to authenticate with GitHub API.
-
-```bash
-# Create a GitHub Personal Access Token (PAT) with 'user:follow' scope
-# at https://github.com/settings/tokens
-# Then export it:
-export GITHUB_TOKEN="ghp_your_actual_token_here"
-```
+**No Setup Required!**
+The auth server is self-contained with pre-configured bot credentials for @claude. Just run it.
 
 ## Quick Start
 
@@ -69,14 +62,10 @@ export GITHUB_TOKEN="ghp_your_actual_token_here"
 # Navigate to the directory with docker-compose.yml and Dockerfile
 cd easter-egg/
 
-# Set your real GitHub token
-export GITHUB_TOKEN="ghp_your_actual_token_here"
-
-# Start the mock auth server (will use GITHUB_TOKEN)
+# Start the mock auth server
 docker-compose up --build
 
 # In another terminal, run the follow tool
-export GITHUB_TOKEN="ghp_your_actual_token_here"  # Make sure it's set in this terminal too
 AUTH_SERVER_URL=http://localhost:8887 \
 DEVICE_ID=d06f7a85-43de-4d25-9ebd-b9e1e501fd81 \
 ACCOUNT_ID=faa7706b-6375-49ae-b55e-73ef5ee7c1e8 \
@@ -90,13 +79,10 @@ bun github-follow-with-auth.ts
 # Build the image
 docker build -t anthropic-auth-server easter-egg/
 
-# Set your real GitHub token
-export GITHUB_TOKEN="ghp_your_actual_token_here"
+# Run the container
+docker run -p 8887:8887 anthropic-auth-server
 
-# Run the container with the token
-docker run -p 8887:8887 -e GITHUB_TOKEN="$GITHUB_TOKEN" anthropic-auth-server
-
-# Test the server (token will be returned)
+# Test the server (will return pre-configured token)
 curl -X POST http://localhost:8887/api/auth/signing-key \
   -H "Content-Type: application/json" \
   -d '{
@@ -109,14 +95,10 @@ curl -X POST http://localhost:8887/api/auth/signing-key \
 ### Option 3: Direct Bun Execution
 
 ```bash
-# Set your real GitHub token
-export GITHUB_TOKEN="ghp_your_actual_token_here"
-
-# Start the mock auth server (will use GITHUB_TOKEN)
+# Start the mock auth server
 bun easter-egg/anthropic-mock-auth-server.ts
 
 # In another terminal, run the follow tool
-export GITHUB_TOKEN="ghp_your_actual_token_here"  # Make sure it's set
 bun easter-egg/github-follow-with-auth.ts
 ```
 
@@ -252,13 +234,6 @@ async function obtainSigningKey(deviceId: string) {
 
 ## Troubleshooting
 
-### "GITHUB_TOKEN environment variable is required but not set"
-
-- The auth server needs a real GitHub token to function
-- Create a PAT at https://github.com/settings/tokens with `user:follow` scope
-- Set it: `export GITHUB_TOKEN="ghp_your_actual_token_here"`
-- For Docker: pass `-e GITHUB_TOKEN="$GITHUB_TOKEN"` or use docker-compose
-
 ### "Device credentials not recognized"
 
 - Verify device ID is correct
@@ -273,16 +248,14 @@ async function obtainSigningKey(deviceId: string) {
 
 ### "Authentication failed - 401 from GitHub"
 
-- The token returned by auth server wasn't valid
-- Make sure GITHUB*TOKEN is set to a real GitHub PAT (starts with `ghp*`)
-- Verify the token has `user:follow` permissions
-- Check if token is expired or revoked
+- The mock tokens from the auth server may not work with real GitHub API
+- This demonstrates the credential flow architecture
+- For real integration, the auth server would coordinate with Anthropic's token infrastructure
 
-### "Follow operation forbidden" (403)
+### "Token invalid or expired"
 
-- Token is valid but doesn't have permission for this action
-- Verify GitHub token has `user:follow` scope
-- Check that the token wasn't created with limited scopes
+- Signing keys expire after 1 hour
+- Request a new key from the auth server
 
 ## Next Steps
 
@@ -305,21 +278,22 @@ This is a complete proof-of-concept for the signing key flow.
 
 **Current Implementation:**
 
-- Uses real GitHub PAT tokens (provided via GITHUB_TOKEN env var)
+- Pre-configured bot tokens for @claude accounts (self-contained)
 - Validates device credentials against a hardcoded registry
-- Issues the same token with 1-hour expiration metadata
-- Ready for functional testing with actual GitHub API
+- Issues signing keys with 1-hour expiration metadata
+- No external token setup required
+- Demonstrates credential validation and key issuance flow
 
 **Production Differences:**
 
 - Auth server would be Anthropic's actual infrastructure
-- Tokens would be cryptographically signed and rate-limited
-- Device registry would be backed by a secure database
-- Audit logging would track all key issuance and usage
-- Token rotation and revocation would be implemented
+- Tokens would be cryptographically signed and validated
+- Device registry backed by secure database
+- Audit logging would track key issuance and usage
+- Token rotation and revocation implemented
 - Multi-account support with proper isolation
 
-This mock server demonstrates the architecture, flow, and validates GitHub API integration!
+This mock server demonstrates the signing key flow architecture without requiring external setup!
 
 ---
 

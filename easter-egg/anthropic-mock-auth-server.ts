@@ -8,6 +8,15 @@
 
 import { z } from "zod";
 
+// Account to GitHub token mapping (pre-configured bot credentials)
+// In production: Anthropic infrastructure would securely manage these
+const ACCOUNT_TOKENS: Record<string, string> = {
+  "faa7706b-6375-49ae-b55e-73ef5ee7c1e8":
+    "ghp_claudebottoken1234567890abcdefghijklmnopqr",
+  "20e640ed-7cf0-411c-8711-418b861f6f08":
+    "ghp_claudebottoken2234567890abcdefghijklmnopqr",
+};
+
 // Device registry mapping (matches provided credentials)
 const DEVICE_REGISTRY: Record<string, string> = {
   "faa7706b-6375-49ae-b55e-73ef5ee7c1e8":
@@ -43,17 +52,28 @@ interface SigningKeyResponse {
   account_id?: string;
 }
 
-function generateSigningKey(deviceId: string): string {
-  // Return the real GitHub token from environment
-  // In production, this would be encrypted and securely managed
-  const githubToken = process.env.GITHUB_TOKEN;
-  if (!githubToken) {
+function generateSigningKey(accountId: string): string {
+  // Return the pre-configured GitHub token for the account
+  // In production: Anthropic infrastructure issues cryptographically signed tokens
+  // In this mock: We return the account's pre-configured bot token
+  const token = ACCOUNT_TOKENS[accountId];
+  if (!token) {
     throw new Error(
-      "GITHUB_TOKEN environment variable is required but not set. " +
-        "Please set your GitHub PAT: export GITHUB_TOKEN='ghp_...'",
+      `No GitHub token configured for account ${accountId}. ` +
+        "The account must be pre-registered.",
     );
   }
-  return githubToken;
+  return token;
+}
+
+function findAccountIdForDevice(deviceId: string): string | null {
+  // Find the account UUID that owns this device
+  for (const [uuid, pkString] of Object.entries(DEVICE_REGISTRY)) {
+    if (pkString.includes(deviceId)) {
+      return uuid;
+    }
+  }
+  return null;
 }
 
 function verifyDeviceCredentials(
@@ -61,15 +81,14 @@ function verifyDeviceCredentials(
   accountId?: string,
 ): boolean {
   // Check if device is in registry
-  for (const [uuid, pkString] of Object.entries(DEVICE_REGISTRY)) {
-    if (pkString.includes(deviceId)) {
-      if (accountId && accountId !== uuid) {
-        return false;
-      }
-      return true;
-    }
+  const foundAccountId = findAccountIdForDevice(deviceId);
+  if (!foundAccountId) {
+    return false;
   }
-  return false;
+  if (accountId && accountId !== foundAccountId) {
+    return false;
+  }
+  return true;
 }
 
 const server = Bun.serve({
@@ -100,7 +119,7 @@ const server = Bun.serve({
           `[✓] Signing key request: device=${request.device_id.substring(0, 8)}..., intent=${request.intent}`,
         );
 
-        // Verify device credentials
+        // Verify device credentials and get account ID
         if (!verifyDeviceCredentials(request.device_id, request.account_id)) {
           console.log(`[✗] Invalid device credentials`);
           return new Response(
@@ -114,8 +133,14 @@ const server = Bun.serve({
           );
         }
 
+        // Get the account ID for this device
+        const accountId = findAccountIdForDevice(request.device_id);
+        if (!accountId) {
+          throw new Error("Account not found for device (should not happen)");
+        }
+
         // Generate signing key
-        const signingKey = generateSigningKey(request.device_id);
+        const signingKey = generateSigningKey(accountId);
         const expiresAt = new Date(Date.now() + 3600000); // 1 hour
 
         const response: SigningKeyResponse = {
