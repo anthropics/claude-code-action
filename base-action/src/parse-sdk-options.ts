@@ -289,6 +289,10 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   delete env.ACTIONS_ID_TOKEN_REQUEST_URL;
   delete env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
 
+  // Remove ALL_INPUTS as it is only needed during initial setup to determine
+  // input presence (collectActionInputsPresence) and contains serialized workflow inputs.
+  delete env.ALL_INPUTS;
+
   // Build system prompt option - default to claude_code preset
   let systemPrompt: SdkOptions["systemPrompt"];
   if (options.systemPrompt) {

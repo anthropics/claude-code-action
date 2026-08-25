@@ -1215,7 +1215,10 @@ describe("fetchGitHubData integration with time filtering", () => {
                 {
                   id: "2",
                   databaseId: "2",
-                  author: { login: "scanner[bot]" },
+                  // GraphQL returns the bare login for App actors plus
+                  // __typename: "Bot". It does NOT append a "[bot]" suffix the
+                  // way REST does, so this mirrors a real payload.
+                  author: { __typename: "Bot", login: "scanner" },
                   body: "Pre-trigger bot review",
                   state: "COMMENTED",
                   submittedAt: "2024-01-15T11:00:00Z",

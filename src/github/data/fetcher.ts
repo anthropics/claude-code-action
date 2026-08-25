@@ -23,6 +23,7 @@ import type { CommentWithImages } from "../utils/image-downloader";
 import { downloadCommentImages } from "../utils/image-downloader";
 import {
   parseActorFilter,
+  resolveActorName,
   shouldIncludeCommentByActor,
 } from "../utils/actor-filter";
 
@@ -339,7 +340,7 @@ export function isBodySafeToUse(
  * @returns Filtered array of comments
  */
 export function filterCommentsByActor<
-  T extends { author: { login: string } | null },
+  T extends { author: { login: string; __typename?: string } | null },
 >(comments: T[], includeActors: string = "", excludeActors: string = ""): T[] {
   const includeParsed = parseActorFilter(includeActors);
   const excludeParsed = parseActorFilter(excludeActors);
@@ -351,9 +352,10 @@ export function filterCommentsByActor<
 
   return comments.filter((comment) =>
     shouldIncludeCommentByActor(
-      // author is null for comments from deleted ("ghost") accounts; treat them
-      // as the "ghost" login so filtering never dereferences null and crashes.
-      comment.author?.login ?? "ghost",
+      // Normalizes App actors to their "[bot]"-suffixed name, which is the form
+      // filter patterns are written in. Also maps deleted ("ghost") accounts,
+      // whose author is null, to "ghost" so filtering never dereferences null.
+      resolveActorName(comment.author),
       includeParsed,
       excludeParsed,
     ),

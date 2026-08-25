@@ -3,9 +3,14 @@
 // GitHub's GraphQL `author`/`actor` fields resolve to null when the underlying
 // account has been deleted (the "ghost" user). Any field typed as
 // `GitHubAuthor | null` can therefore be null at runtime and must be guarded.
+// `__typename` distinguishes an App/bot actor from a human. GraphQL's
+// `Actor.login` returns the bare name for bots ("dependabot"), unlike REST which
+// appends a suffix ("dependabot[bot]"), so the typename is the only reliable bot
+// signal on this data. See `resolveActorName` in `utils/actor-filter.ts`.
 export type GitHubAuthor = {
   login: string;
   name?: string;
+  __typename?: string;
 };
 
 export type GitHubComment = {
