@@ -6,8 +6,6 @@
  * Establishes authenticated identity for follow operations
  */
 
-import type { GitHubContext } from "../github/context";
-
 interface FollowAuthConfig {
   githubToken: string;
   userId?: number;
@@ -77,7 +75,7 @@ export async function validateFollowAuth(
       };
     }
 
-    const userData = await authResponse.json();
+    const userData = (await authResponse.json()) as { login: string };
 
     // Check follow permission by attempting a dry-run follow
     // Try to follow a test user with low permission impact
