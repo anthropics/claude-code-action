@@ -85,12 +85,7 @@ describe("setupBranch fetch depth", () => {
     const originPath = join(tempDir, "origin.git").replace(/\\/g, "/");
     execFileSync(
       "git",
-      [
-        "clone",
-        "--depth=1",
-        `file://${originPath}`,
-        shallowDir,
-      ],
+      ["clone", "--depth=1", `file://${originPath}`, shallowDir],
       { stdio: "pipe" },
     );
 

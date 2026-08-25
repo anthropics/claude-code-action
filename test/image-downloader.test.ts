@@ -941,7 +941,10 @@ describe("downloadCommentImages", () => {
         comments,
       );
       expect(result.get(url)).toBe(
-        join(EXPECTED_DOWNLOADS_DIR, `image-${1704067200000 + callIndex}-0${ext}`),
+        join(
+          EXPECTED_DOWNLOADS_DIR,
+          `image-${1704067200000 + callIndex}-0${ext}`,
+        ),
       );
 
       // Reset for next iteration
