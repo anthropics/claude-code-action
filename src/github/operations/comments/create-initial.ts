@@ -7,6 +7,7 @@
 
 import { appendFileSync } from "fs";
 import { createJobRunLink, createCommentBody } from "./common";
+import { resolveModel, resolveEffort } from "../../../utils/claude-args";
 import {
   isPullRequestReviewCommentEvent,
   isPullRequestEvent,
@@ -23,7 +24,13 @@ export async function createInitialComment(
   const { owner, repo } = context.repository;
 
   const jobRunLink = createJobRunLink(owner, repo, context.runId);
-  const initialBody = createCommentBody(jobRunLink);
+  const claudeArgs = process.env.CLAUDE_ARGS || "";
+  const initialBody = createCommentBody(
+    jobRunLink,
+    "",
+    resolveModel(claudeArgs),
+    resolveEffort(claudeArgs),
+  );
 
   try {
     let response;

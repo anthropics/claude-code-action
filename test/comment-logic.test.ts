@@ -443,4 +443,46 @@ describe("updateCommentBody", () => {
       expect(result).not.toContain("tree/claude/issue-123");
     });
   });
+
+  describe("model and effort", () => {
+    it("renders the model/effort line when provided", () => {
+      const input = {
+        ...baseInput,
+        model: "claude-sonnet-4-6",
+        effort: "high",
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).toContain(
+        "**Model:** claude-sonnet-4-6 · **Effort:** high",
+      );
+    });
+
+    it("omits the model/effort line when not provided", () => {
+      const result = updateCommentBody(baseInput);
+      expect(result).not.toContain("**Model:**");
+      expect(result).not.toContain("**Effort:**");
+    });
+
+    it("renders effort without model", () => {
+      const input = { ...baseInput, effort: "xhigh" };
+      const result = updateCommentBody(input);
+      expect(result).toContain("**Effort:** xhigh");
+      expect(result).not.toContain("**Model:**");
+    });
+
+    it("strips a carried-over model/effort line from the initial body", () => {
+      const line = "**Model:** claude-sonnet-4-6 · **Effort:** high";
+      const input = {
+        ...baseInput,
+        currentBody: `Claude Code is working…\n\n${line}\n\nI'll analyze this and get back to you.`,
+        model: "claude-sonnet-4-6",
+        effort: "high",
+      };
+
+      const result = updateCommentBody(input);
+      const occurrences = result.split(line).length - 1;
+      expect(occurrences).toBe(1);
+    });
+  });
 });

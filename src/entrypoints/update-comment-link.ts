@@ -16,6 +16,7 @@ import type { ParsedGitHubContext } from "../github/context";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import { checkAndCommitOrDeleteBranch } from "../github/operations/branch-cleanup";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
+import { resolveModel, resolveEffort } from "../utils/claude-args";
 
 export type UpdateCommentLinkParams = {
   commentId: number;
@@ -213,6 +214,7 @@ export async function updateCommentLink(
   }
 
   // Prepare input for updateCommentBody function
+  const claudeArgs = process.env.CLAUDE_ARGS || "";
   const commentInput: CommentUpdateInput = {
     currentBody,
     actionFailed,
@@ -223,6 +225,8 @@ export async function updateCommentLink(
     branchName: shouldDeleteBranch || !branchLink ? undefined : claudeBranch,
     triggerUsername,
     errorDetails,
+    model: resolveModel(claudeArgs),
+    effort: resolveEffort(claudeArgs),
   };
 
   const updatedBody = updateCommentBody(commentInput);
