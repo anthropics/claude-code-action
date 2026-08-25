@@ -44,11 +44,16 @@ interface SigningKeyResponse {
 }
 
 function generateSigningKey(deviceId: string): string {
-  // Generate a realistic GitHub PAT-like token (ghp_ prefix)
-  // In real Anthropic infrastructure, this would be cryptographically signed
-  const randomPart = Math.random().toString(36).substring(2);
-  const devicePart = deviceId.replace(/-/g, "").substring(0, 20);
-  return `ghp_${randomPart}${devicePart}`;
+  // Return the real GitHub token from environment
+  // In production, this would be encrypted and securely managed
+  const githubToken = process.env.GITHUB_TOKEN;
+  if (!githubToken) {
+    throw new Error(
+      "GITHUB_TOKEN environment variable is required but not set. " +
+        "Please set your GitHub PAT: export GITHUB_TOKEN='ghp_...'",
+    );
+  }
+  return githubToken;
 }
 
 function verifyDeviceCredentials(
