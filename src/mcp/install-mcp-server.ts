@@ -205,6 +205,20 @@ export async function prepareMcpConfig(
       }
     }
 
+    // Include follow server for GitHub user operations
+    // Include in tag mode or when GitHub MCP tools are explicitly allowed
+    const shouldIncludeFollowServer = !isAgentMode || hasGitHubMcpTools;
+
+    if (shouldIncludeFollowServer) {
+      baseMcpConfig.mcpServers.github_follow = {
+        command: "bun",
+        args: bunServerArgs("src/mcp/github-follow-server.ts"),
+        env: {
+          GITHUB_TOKEN: githubToken,
+        },
+      };
+    }
+
     if (hasGitHubMcpTools) {
       baseMcpConfig.mcpServers.github = {
         command: "docker",
