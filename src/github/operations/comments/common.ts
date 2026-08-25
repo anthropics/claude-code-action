@@ -14,10 +14,7 @@ export function createJobRunLink(
 
 /** Encode Git-ref path segments without turning `/` into `%2F`. */
 export function encodeBranchNameForUrl(branchName: string): string {
-  return branchName
-    .split("/")
-    .map(encodeURIComponent)
-    .join("/");
+  return branchName.split("/").map(encodeURIComponent).join("/");
 }
 
 export function createBranchLink(
