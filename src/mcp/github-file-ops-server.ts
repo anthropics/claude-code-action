@@ -2,7 +2,6 @@
 // GitHub File Operations MCP Server
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
 import { readFile, stat } from "fs/promises";
 import { resolve } from "path";
 import { constants } from "fs";
@@ -11,6 +10,10 @@ import { GITHUB_API_URL } from "../github/api/config";
 import { isBinaryContent } from "./binary-detection";
 import { validatePathWithinRepo } from "./path-validation";
 import { updateGitReference } from "./update-git-reference";
+import {
+  commitFilesInputSchema,
+  deleteFilesInputSchema,
+} from "./github-file-ops-schemas";
 
 type GitHubRef = {
   object: {
@@ -197,14 +200,7 @@ async function getFileMode(filePath: string): Promise<string> {
 server.tool(
   "commit_files",
   "Commit one or more files to a repository in a single commit (this will commit them atomically in the remote repository)",
-  {
-    files: z
-      .array(z.string())
-      .describe(
-        'Array of file paths relative to repository root (e.g. ["src/main.js", "README.md"]). All files must exist locally.',
-      ),
-    message: z.string().describe("Commit message"),
-  },
+  commitFilesInputSchema,
   async ({ files, message }) => {
     const owner = REPO_OWNER;
     const repo = REPO_NAME;
@@ -414,14 +410,7 @@ server.tool(
 server.tool(
   "delete_files",
   "Delete one or more files from a repository in a single commit",
-  {
-    paths: z
-      .array(z.string())
-      .describe(
-        'Array of file paths to delete relative to repository root (e.g. ["src/old-file.js", "docs/deprecated.md"])',
-      ),
-    message: z.string().describe("Commit message"),
-  },
+  deleteFilesInputSchema,
   async ({ paths, message }) => {
     const owner = REPO_OWNER;
     const repo = REPO_NAME;
