@@ -16,6 +16,7 @@ import type { ParsedGitHubContext } from "../github/context";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import { checkAndCommitOrDeleteBranch } from "../github/operations/branch-cleanup";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
+import { encodeBranchNameForUrl } from "../github/operations/comments/common";
 
 export type UpdateCommentLinkParams = {
   commentId: number;
@@ -159,7 +160,7 @@ export async function updateCommentLink(
           const prBody = encodeURIComponent(
             `This PR addresses ${entityType.toLowerCase()} #${context.entityNumber}\n\nGenerated with [Claude Code](https://claude.ai/code)`,
           );
-          const prUrl = `${serverUrl}/${owner}/${repo}/compare/${baseBranch}...${claudeBranch}?quick_pull=1&title=${prTitle}&body=${prBody}`;
+          const prUrl = `${serverUrl}/${owner}/${repo}/compare/${encodeBranchNameForUrl(baseBranch)}...${encodeBranchNameForUrl(claudeBranch)}?quick_pull=1&title=${prTitle}&body=${prBody}`;
           prLink = `\n[Create a PR](${prUrl})`;
         }
       } catch (error) {
