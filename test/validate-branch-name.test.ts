@@ -29,6 +29,15 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("release.1.2.3")).not.toThrow();
     });
 
+    it("should accept branch names containing parentheses", () => {
+      expect(() =>
+        validateBranchName("feat(example)-valid-branch"),
+      ).not.toThrow();
+      expect(() =>
+        validateBranchName("fix(parser)-handle-empty-input"),
+      ).not.toThrow();
+    });
+
     it("should accept typical branch name formats", () => {
       expect(() =>
         validateBranchName("claude/issue-123-20250101-1234"),

@@ -36,6 +36,12 @@ describe("comments/common", () => {
       );
     });
 
+    test("encodes URL-significant characters in a branch name", () => {
+      expect(createBranchLink("o", "r", "claude/fix#123")).toBe(
+        `\n[View branch](${GITHUB_SERVER_URL}/o/r/tree/claude/fix%23123)`,
+      );
+    });
+
     test("prefixes the link with a newline so it renders on its own line", () => {
       expect(createBranchLink("o", "r", "main").startsWith("\n")).toBe(true);
     });

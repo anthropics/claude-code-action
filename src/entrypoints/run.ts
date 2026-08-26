@@ -77,7 +77,7 @@ async function installClaudeCode(): Promise<string> {
     return customExecutable;
   }
 
-  const claudeCodeVersion = "2.1.235";
+  const claudeCodeVersion = "2.1.246";
   console.log(`Installing Claude Code v${claudeCodeVersion}...`);
 
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -159,6 +159,9 @@ async function run() {
   let context: GitHubContext | undefined;
   let octokit: Octokits | undefined;
   let workloadIdentity: WorkloadIdentityHandle | undefined;
+  // Paths reverted to the PR base branch, which cleanup must not commit back
+  // onto the PR author's branch. Empty unless restoreConfigFromBase ran.
+  let restoredConfigPaths: string[] = [];
   // Track whether we've completed prepare phase, so we can attribute errors correctly
   let prepareCompleted = false;
   try {
@@ -268,7 +271,7 @@ async function run() {
         validateBranchName(restoreBase);
       }
       if (restoreBase) {
-        restoreConfigFromBase(restoreBase);
+        restoredConfigPaths = restoreConfigFromBase(restoreBase);
       }
     }
 
@@ -348,6 +351,7 @@ async function run() {
           prepareSuccess,
           prepareError,
           useCommitSigning: context.inputs.useCommitSigning,
+          restoredConfigPaths,
         });
       } catch (error) {
         console.error("Error updating comment with job link:", error);

@@ -354,4 +354,102 @@ describe("prepareMcpConfig", () => {
     const parsed = JSON.parse(result);
     expect(parsed.mcpServers.github_ci).not.toBeDefined();
   });
+
+  test("should include github MCP server when mcp__github shorthand is used", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: ["mcp__github"],
+      mode: "agent",
+      context: mockContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github).toBeDefined();
+    expect(parsed.mcpServers.github.command).toBe("docker");
+    expect(parsed.mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN).toBe(
+      "test-token",
+    );
+  });
+
+  test("should include inline comment server when mcp__github_inline_comment shorthand is used", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: ["mcp__github_inline_comment"],
+      mode: "agent",
+      context: mockPRContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_inline_comment).toBeDefined();
+    expect(parsed.mcpServers.github_inline_comment.env.GITHUB_TOKEN).toBe(
+      "test-token",
+    );
+    expect(parsed.mcpServers.github_inline_comment.env.PR_NUMBER).toBe("456");
+  });
+
+  test("should include comment server in agent mode when mcp__github_comment shorthand is used", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: ["mcp__github_comment"],
+      mode: "agent",
+      context: mockContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_comment).toBeDefined();
+    expect(parsed.mcpServers.github_comment.env.GITHUB_TOKEN).toBe(
+      "test-token",
+    );
+  });
+
+  test("should include CI server in agent mode when mcp__github_ci shorthand is used", async () => {
+    process.env.DEFAULT_WORKFLOW_TOKEN = "workflow-token";
+
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: ["mcp__github_ci"],
+      mode: "agent",
+      context: mockPRContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github_ci).toBeDefined();
+    expect(parsed.mcpServers.github_ci.env.GITHUB_TOKEN).toBe("workflow-token");
+    expect(parsed.mcpServers.github_ci.env.PR_NUMBER).toBe("456");
+
+    delete process.env.DEFAULT_WORKFLOW_TOKEN;
+  });
+
+  test("should not include github MCP server when unrelated tool is specified", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: ["Bash", "Read", "Grep"],
+      mode: "agent",
+      context: mockContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github).not.toBeDefined();
+    expect(parsed.mcpServers.github_inline_comment).not.toBeDefined();
+  });
 });
