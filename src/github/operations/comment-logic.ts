@@ -1,5 +1,6 @@
 import { GITHUB_SERVER_URL } from "../api/config";
 import { redactSecrets } from "../utils/sanitizer";
+import { encodeBranchNameForUrl } from "./comments/common";
 
 export type ExecutionDetails = {
   total_cost_usd?: number;
@@ -161,7 +162,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
       // Extract owner/repo from jobUrl
       const repoMatch = jobUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\//);
       if (repoMatch) {
-        branchUrl = `${GITHUB_SERVER_URL}/${repoMatch[1]}/${repoMatch[2]}/tree/${finalBranchName}`;
+        branchUrl = `${GITHUB_SERVER_URL}/${repoMatch[1]}/${repoMatch[2]}/tree/${encodeBranchNameForUrl(finalBranchName)}`;
       }
     }
 
