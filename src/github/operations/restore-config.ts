@@ -15,14 +15,27 @@ import {
 import { dirname, join, posix, relative, sep } from "path";
 import { fetchDepthArgs } from "./fetch-depth";
 
-// Paths that are both PR-controllable and read from cwd at CLI startup.
+// Paths that are PR-controllable AND auto-loaded or auto-executed from cwd
+// before any meaningful review — either by the CLI at startup, or by tooling
+// the action/agent routinely invokes while working on a task:
+//   - CLI startup reads: .claude/, .mcp.json, .claude.json, CLAUDE.md, ...
+//   - git operations the action performs: .husky (hooks run on commit),
+//     .gitmodules (read on fetch)
+//   - package-manager config executed on `install` (a routine agent step):
+//       .pnpmfile.cjs — top-level JS that pnpm runs on install; it is config,
+//                       not a lifecycle script, so it executes even under
+//                       `--ignore-scripts`.
+//       .yarnrc.yml   — `yarnPath` / `plugins` point to JS that Yarn loads and
+//                       executes on any command, including install.
+//       .npmrc        — can redirect the registry (supply-chain) and re-enable
+//                       install scripts.
 //
 // Deliberately excluded from the CLI's broader auto-edit blocklist:
-//   .git/        — not tracked by git; PR commits cannot place files there.
-//                  Restoring it would also undo the PR checkout entirely.
-//   .gitconfig   — git reads ~/.gitconfig and .git/config, never cwd/.gitconfig.
-//   .bashrc etc. — shells source these from $HOME; checkout cannot reach $HOME.
-//   .vscode/.idea— IDE config; nothing in the CLI's startup path reads them.
+// .git/ — not tracked by git; PR commits cannot place files there.
+// Restoring it would also undo the PR checkout entirely.
+// .gitconfig — git reads ~/.gitconfig and .git/config, never cwd/.gitconfig.
+// .bashrc etc. — shells source these from $HOME; checkout cannot reach $HOME.
+// .vscode/.idea— IDE config; nothing in the CLI's startup path reads them.
 export const SENSITIVE_PATHS = [
   ".claude",
   ".mcp.json",
@@ -32,6 +45,9 @@ export const SENSITIVE_PATHS = [
   "CLAUDE.md",
   "CLAUDE.local.md",
   ".husky",
+  ".pnpmfile.cjs",
+  ".npmrc",
+  ".yarnrc.yml",
 ];
 
 const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
