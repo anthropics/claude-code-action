@@ -544,6 +544,46 @@ describe("parseSdkOptions", () => {
       expect(result.sdkOptions.maxTurns).toBe(25);
       expect(result.sdkOptions.extraArgs?.["max-turns"]).toBeUndefined();
     });
+
+    test("should reject non-numeric max-turns in claudeArgs instead of passing NaN", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--max-turns abc",
+      };
+
+      expect(() => parseSdkOptions(options)).toThrow(
+        'Invalid max_turns value: "abc". Must be a non-negative integer.',
+      );
+    });
+
+    test("should reject non-numeric maxTurns input instead of passing NaN", () => {
+      const options: ClaudeOptions = {
+        maxTurns: "abc",
+      };
+
+      expect(() => parseSdkOptions(options)).toThrow(
+        'Invalid max_turns value: "abc". Must be a non-negative integer.',
+      );
+    });
+
+    test("should reject negative max-turns in claudeArgs", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--max-turns -5",
+      };
+
+      expect(() => parseSdkOptions(options)).toThrow(
+        'Invalid max_turns value: "-5". Must be a non-negative integer.',
+      );
+    });
+
+    test("should allow zero max-turns (no limit)", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--max-turns 0",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.maxTurns).toBe(0);
+    });
   });
 
   describe("environment variables passthrough", () => {
