@@ -273,6 +273,55 @@ describe("sanitizeContent", () => {
     expect(sanitized).not.toContain('title="');
     expect(sanitized).toContain("<div>Test</div>");
   });
+
+  it("should strip hidden attributes with entity-encoded attribute names", () => {
+    const encodedAttributes = `
+      <img &#97;lt="hidden instructions" src="pic.jpg">
+      <img &#x61;lt="hex alt" src="pic2.jpg">
+      <div &#116;itle="hidden title">Content 1</div>
+      <div &#x74;itle="hex title">Content 2</div>
+      <a &#97;ria-label="hidden label" href="#">Link 1</a>
+      <a &#x61;ria-label="hex aria label" href="#">Link 2</a>
+      <div &#100;ata-custom="hidden data">Data 1</div>
+      <div &#x64;ata-custom="hex data" d&#97;t&#97;-nested="val">Data 2</div>
+      <input &#112;laceholder="hidden placeholder" type="text">
+      <input &#x70;laceholder="hex placeholder" type="password">
+      <img &#97;lt='single quoted' &#116;itle=unquoted src="pic3.jpg" class="photo">
+    `;
+
+    const sanitized = sanitizeContent(encodedAttributes);
+
+    expect(sanitized).not.toContain("hidden instructions");
+    expect(sanitized).not.toContain("hex alt");
+    expect(sanitized).not.toContain("hidden title");
+    expect(sanitized).not.toContain("hex title");
+    expect(sanitized).not.toContain("hidden label");
+    expect(sanitized).not.toContain("hex aria label");
+    expect(sanitized).not.toContain("hidden data");
+    expect(sanitized).not.toContain("hex data");
+    expect(sanitized).not.toContain("hidden placeholder");
+    expect(sanitized).not.toContain("hex placeholder");
+    expect(sanitized).not.toContain("single quoted");
+    expect(sanitized).not.toContain("unquoted");
+    expect(sanitized).not.toContain("alt=");
+    expect(sanitized).not.toContain("title=");
+    expect(sanitized).not.toContain("aria-label=");
+    expect(sanitized).not.toContain("data-custom=");
+    expect(sanitized).not.toContain("data-nested=");
+    expect(sanitized).not.toContain("placeholder=");
+
+    expect(sanitized).toContain('<img src="pic.jpg">');
+    expect(sanitized).toContain('<img src="pic2.jpg">');
+    expect(sanitized).toContain("<div>Content 1</div>");
+    expect(sanitized).toContain("<div>Content 2</div>");
+    expect(sanitized).toContain('<a href="#">Link 1</a>');
+    expect(sanitized).toContain('<a href="#">Link 2</a>');
+    expect(sanitized).toContain("<div>Data 1</div>");
+    expect(sanitized).toContain("<div>Data 2</div>");
+    expect(sanitized).toContain('<input type="text">');
+    expect(sanitized).toContain('<input type="password">');
+    expect(sanitized).toContain('<img src="pic3.jpg" class="photo">');
+  });
 });
 
 describe("redactGitHubTokens", () => {
