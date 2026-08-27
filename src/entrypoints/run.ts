@@ -28,7 +28,10 @@ import { detectMode } from "../modes/detector";
 import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
 import { checkContainsTrigger } from "../github/validation/trigger";
-import { restoreConfigFromBase } from "../github/operations/restore-config";
+import {
+  restoreConfigFromBase,
+  describeRestoredPaths,
+} from "../github/operations/restore-config";
 import { validateBranchName } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
@@ -272,6 +275,20 @@ async function run() {
       }
       if (restoreBase) {
         restoredConfigPaths = restoreConfigFromBase(restoreBase);
+        // Tell the agent this happened. restoreConfigFromBase() only logs to
+        // the raw Action run log, which the agent never sees — without this,
+        // its own Bash/Read tool calls observe deleted/modified paths
+        // relative to HEAD with no explanation available anywhere in its
+        // context. See #1738.
+        const restoreNotice = describeRestoredPaths(restoredConfigPaths);
+        if (restoreNotice) {
+          process.env.APPEND_SYSTEM_PROMPT = [
+            process.env.APPEND_SYSTEM_PROMPT,
+            restoreNotice,
+          ]
+            .filter(Boolean)
+            .join("\n\n");
+        }
       }
     }
 
