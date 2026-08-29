@@ -271,7 +271,11 @@ async function run() {
         validateBranchName(restoreBase);
       }
       if (restoreBase) {
-        restoredConfigPaths = restoreConfigFromBase(restoreBase);
+        const fallbackBase = context.repository.default_branch || baseBranch;
+        if (fallbackBase) {
+          validateBranchName(fallbackBase);
+        }
+        restoredConfigPaths = restoreConfigFromBase(restoreBase, fallbackBase);
       }
     }
 
