@@ -65,6 +65,11 @@ async function installClaudeCode(): Promise<string> {
         "PATH_TO_CLAUDE_CODE_EXECUTABLE contains control characters (e.g. newlines), which is not allowed",
       );
     }
+    if (!existsSync(customExecutable)) {
+      throw new Error(
+        `PATH_TO_CLAUDE_CODE_EXECUTABLE points to a non-existent file: ${customExecutable}`,
+      );
+    }
     console.log(`Using custom Claude Code executable: ${customExecutable}`);
     const claudeDir = dirname(customExecutable);
     // Add to PATH by appending to GITHUB_PATH
@@ -98,12 +103,23 @@ async function installClaudeCode(): Promise<string> {
       console.log("Claude Code installed successfully");
       // Add to PATH
       const homeBin = `${process.env.HOME}/.local/bin`;
+      const claudePath = `${homeBin}/claude`;
+
+      // Verify the binary actually exists after installation
+      if (!existsSync(claudePath)) {
+        throw new Error(
+          `Claude Code installer exited successfully but the binary was not found at ${claudePath}. ` +
+          `This may indicate a regression in the installer (e.g., ${homeBin} directory not created). ` +
+          `Try using PATH_TO_CLAUDE_CODE_EXECUTABLE to specify an alternative installation location.`
+        );
+      }
+
       const githubPath = process.env.GITHUB_PATH;
       if (githubPath) {
         await appendFile(githubPath, `${homeBin}\n`);
       }
       process.env.PATH = `${homeBin}:${process.env.PATH}`;
-      return `${homeBin}/claude`;
+      return claudePath;
     } catch (error) {
       if (attempt === 3) {
         throw new Error(
