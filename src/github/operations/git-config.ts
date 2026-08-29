@@ -11,6 +11,7 @@ import { join } from "path";
 import { homedir } from "os";
 import type { GitHubContext } from "../context";
 import { GITHUB_SERVER_URL } from "../api/config";
+import { repositoryDir } from "./repo-dir";
 
 const SSH_SIGNING_KEY_PATH = join(homedir(), ".ssh", "claude_signing_key");
 
@@ -25,6 +26,7 @@ export async function configureGitAuth(
   user: GitUser,
 ) {
   console.log("Configuring git authentication for non-signing mode");
+  const repoDir = repositoryDir();
 
   // Determine the noreply email domain based on GITHUB_SERVER_URL
   const serverUrl = new URL(GITHUB_SERVER_URL);
@@ -38,8 +40,10 @@ export async function configureGitAuth(
   const botName = user.login;
   const botId = user.id;
   console.log(`Setting git user as ${botName}...`);
-  await $`git config user.name "${botName}"`;
-  await $`git config user.email "${botId}+${botName}@${noreplyDomain}"`;
+  await $`git config user.name "${botName}"`.cwd(repoDir);
+  await $`git config user.email "${botId}+${botName}@${noreplyDomain}"`.cwd(
+    repoDir,
+  );
   console.log(`✓ Set git user as ${botName}`);
 
   await replaceCheckoutCredentials(githubToken, context);
@@ -72,25 +76,29 @@ export async function replaceCheckoutCredentials(
   context: GitHubContext,
 ) {
   const serverUrl = new URL(GITHUB_SERVER_URL);
+  const repoDir = repositoryDir();
 
   // Remove the authorization header that actions/checkout sets
   console.log("Removing existing git authentication headers...");
   const extraheaderKey = `http.${GITHUB_SERVER_URL}/.extraheader`;
   let removedHeader = false;
   try {
-    await $`git config --unset-all ${extraheaderKey}`;
+    await $`git config --unset-all ${extraheaderKey}`.cwd(repoDir);
     removedHeader = true;
   } catch {
     // No extraheader in the local config (expected on the v6+ include layout).
   }
   try {
-    const includePaths =
-      await $`git config --local --get-all include.path`.text();
+    const includePaths = await $`git config --local --get-all include.path`
+      .cwd(repoDir)
+      .text();
     for (const includePath of includePaths.split("\n")) {
       const path = includePath.trim();
       if (!path) continue;
       try {
-        await $`git config --file ${path} --unset-all ${extraheaderKey}`;
+        await $`git config --file ${path} --unset-all ${extraheaderKey}`.cwd(
+          repoDir,
+        );
         removedHeader = true;
       } catch {
         // This include does not define the header; leave it untouched.
@@ -123,14 +131,14 @@ export async function replaceCheckoutCredentials(
       { mode: 0o700 },
     );
     const cleanUrl = `https://${serverUrl.host}/${context.repository.owner}/${context.repository.repo}.git`;
-    await $`git remote set-url origin ${cleanUrl}`;
-    await $`git config credential.helper ${helperPath}`;
+    await $`git remote set-url origin ${cleanUrl}`.cwd(repoDir);
+    await $`git config credential.helper ${helperPath}`.cwd(repoDir);
     console.log("✓ Configured credential helper");
   } else {
     // Update the remote URL to include the token for authentication
     console.log("Updating remote URL with authentication...");
     const remoteUrl = `https://x-access-token:${githubToken}@${serverUrl.host}/${context.repository.owner}/${context.repository.repo}.git`;
-    await $`git remote set-url origin ${remoteUrl}`;
+    await $`git remote set-url origin ${remoteUrl}`.cwd(repoDir);
     console.log("✓ Updated remote URL with authentication token");
   }
 }
@@ -167,9 +175,10 @@ export async function setupSshSigning(sshSigningKey: string): Promise<void> {
   console.log(`✓ SSH signing key written to ${SSH_SIGNING_KEY_PATH}`);
 
   // Configure git to use SSH signing
-  await $`git config gpg.format ssh`;
-  await $`git config user.signingkey ${SSH_SIGNING_KEY_PATH}`;
-  await $`git config commit.gpgsign true`;
+  const repoDir = repositoryDir();
+  await $`git config gpg.format ssh`.cwd(repoDir);
+  await $`git config user.signingkey ${SSH_SIGNING_KEY_PATH}`.cwd(repoDir);
+  await $`git config commit.gpgsign true`.cwd(repoDir);
 
   console.log("✓ Git configured to use SSH signing for commits");
 }
