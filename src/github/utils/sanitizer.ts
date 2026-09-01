@@ -66,12 +66,19 @@ export function normalizeHtmlEntities(content: string): string {
 }
 
 export function sanitizeContent(content: string): string {
+  // Decode numeric HTML entities first. Every stripper below matches literal
+  // syntax, so an entity-encoded payload ("&#60;!-- ... --&#62;", or
+  // "&#60;img alt=...&#62;") passes through all of them untouched and is only
+  // decoded afterwards - producing exactly the live HTML comment / hidden
+  // attribute those strippers exist to remove. Decoding first hands them the
+  // literal syntax they are written against. One pass is enough: a
+  // double-encoded payload ("&#38;#60;!--") decodes to inert text, not markup.
+  content = normalizeHtmlEntities(content);
   content = stripHtmlComments(content);
   content = stripInvisibleCharacters(content);
   content = stripMarkdownImageAltText(content);
   content = stripMarkdownLinkTitles(content);
   content = stripHiddenAttributes(content);
-  content = normalizeHtmlEntities(content);
   content = redactGitHubTokens(content);
   return content;
 }
