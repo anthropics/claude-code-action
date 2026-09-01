@@ -21,7 +21,8 @@ jobs:
 
       - name: Exchange for Anthropic access token
         run: |
-          curl -sS https://internal-api.anthropic.com/v1/oauth/token \
+          set -euo pipefail
+          curl -sS --fail-with-body https://api.anthropic.com/v1/oauth/token \
             -H "content-type: application/json" \
             --data @- <<JSON | jq 'with_entries(if (.key | test("token$")) then .value = "<redacted>" else . end)'
           {
