@@ -141,6 +141,55 @@ describe("setupGitHubToken", () => {
     expect(warningSpy).not.toHaveBeenCalled();
   });
 
+  test("reports the status when the error body is not JSON", async () => {
+    fetchSpy.mockImplementation(
+      async () =>
+        new Response("<html><body>502 Bad Gateway</body></html>", {
+          status: 502,
+          statusText: "Bad Gateway",
+        }),
+    );
+
+    // Without a guarded parse this rejects with a SyntaxError
+    // ("Unexpected token '<'"), losing the status entirely.
+    await expect(setupGitHubToken()).rejects.toThrow(
+      "App token exchange failed: 502 Bad Gateway",
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(warningSpy).not.toHaveBeenCalled();
+  });
+
+  test("reports the status when the error body is empty", async () => {
+    fetchSpy.mockImplementation(
+      async () =>
+        new Response("", { status: 503, statusText: "Service Unavailable" }),
+    );
+
+    await expect(setupGitHubToken()).rejects.toThrow(
+      "App token exchange failed: 503 Service Unavailable - Unknown error",
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  test("still skips on a plain-text workflow validation body", async () => {
+    fetchSpy.mockResolvedValue(
+      new Response("Workflow validation failed for this run", {
+        status: 401,
+        statusText: "Unauthorized",
+      }),
+    );
+
+    // Previously unreachable: the parse threw before isWorkflowValidationError
+    // could inspect the body.
+    await expect(setupGitHubToken()).rejects.toBeInstanceOf(
+      WorkflowValidationSkipError,
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   test("does not skip message-only workflow validation errors with unexpected status", async () => {
     const message =
       "Workflow validation failed. The workflow file must exist and have identical content to the version on the repository's default branch.";

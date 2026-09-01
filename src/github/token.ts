@@ -53,6 +53,44 @@ function isWorkflowValidationError(
   );
 }
 
+// Cap how much of a non-JSON error body is surfaced. A gateway can answer with
+// a whole HTML page; the opening lines are enough to identify what replied.
+const MAX_ERROR_BODY_CHARS = 500;
+
+/**
+ * Read a failed response's body without letting a non-JSON body mask the
+ * failure.
+ *
+ * The exchange endpoint answers with JSON, but a proxy or gateway in front of
+ * it can return an HTML error page or an empty body. `response.json()` then
+ * throws a SyntaxError that replaces the real failure: the status and
+ * statusText are never logged, `isWorkflowValidationError` never gets to run,
+ * and `retryWithBackoff` retries a response that will never parse.
+ */
+async function readErrorResponseBody(
+  response: Response,
+): Promise<AppTokenExchangeErrorResponse> {
+  let rawBody: string;
+  try {
+    rawBody = await response.text();
+  } catch {
+    return {};
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(rawBody);
+    if (parsed !== null && typeof parsed === "object") {
+      return parsed as AppTokenExchangeErrorResponse;
+    }
+  } catch {
+    // Not JSON. Fall through and surface the body as plain text instead, so
+    // the status line below still reaches the user.
+  }
+
+  const snippet = rawBody.trim().slice(0, MAX_ERROR_BODY_CHARS);
+  return snippet ? { message: snippet } : {};
+}
+
 async function getOidcToken(): Promise<string> {
   try {
     const oidcToken = await core.getIDToken("claude-code-github-action");
@@ -123,8 +161,7 @@ async function exchangeForAppToken(
   );
 
   if (!response.ok) {
-    const responseJson =
-      (await response.json()) as AppTokenExchangeErrorResponse;
+    const responseJson = await readErrorResponseBody(response);
 
     if (isWorkflowValidationError(response.status, responseJson)) {
       const message = getAppTokenExchangeErrorMessage(responseJson);
@@ -135,11 +172,13 @@ async function exchangeForAppToken(
       throw new WorkflowValidationSkipError(message);
     }
 
+    // Keep the status in the thrown error, not just in the log line: it is the
+    // most actionable part of the failure, and for an empty body it is the only
+    // information there is.
     const message = getAppTokenExchangeErrorMessage(responseJson);
-    console.error(
-      `App token exchange failed: ${response.status} ${response.statusText} - ${message}`,
-    );
-    throw new Error(message);
+    const failure = `App token exchange failed: ${response.status} ${response.statusText} - ${message}`;
+    console.error(failure);
+    throw new Error(failure);
   }
 
   const appTokenData = (await response.json()) as {
