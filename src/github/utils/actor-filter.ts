@@ -1,4 +1,38 @@
 /**
+ * Checks whether a bot actor is covered by the `allowed_bots` input.
+ *
+ * Entries and the actor are compared case-insensitively with any "[bot]" suffix
+ * removed, so "dependabot" and "dependabot[bot]" are the same entry. "*" allows
+ * every bot.
+ *
+ * Used by both authorization checks - `checkHumanActor` for non-User accounts
+ * and `checkWritePermissions` for actors the collaborator API cannot resolve -
+ * which must agree on whether a given bot is allowed.
+ *
+ * @param actor - Actor username to check
+ * @param allowedBots - Comma-separated allow-list, or "*" for all bots
+ * @returns true if the actor is allowed
+ */
+export function isAllowedBot(actor: string, allowedBots: string): boolean {
+  const trimmed = allowedBots.trim();
+  if (trimmed === "*") return true;
+  if (!trimmed) return false;
+
+  const allowedList = trimmed
+    .split(",")
+    .map((bot) =>
+      bot
+        .trim()
+        .toLowerCase()
+        .replace(/\[bot\]$/, ""),
+    )
+    .filter((bot) => bot.length > 0);
+
+  const normalizedActor = actor.toLowerCase().replace(/\[bot\]$/, "");
+  return allowedList.includes(normalizedActor);
+}
+
+/**
  * Parses actor filter string into array of patterns
  * @param filterString - Comma-separated actor names (e.g., "user1,user2,*[bot]")
  * @returns Array of actor patterns
