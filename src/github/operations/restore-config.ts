@@ -27,8 +27,13 @@ import { fetchDepthArgs } from "./fetch-depth";
 //                       `--ignore-scripts`.
 //       .yarnrc.yml   — `yarnPath` / `plugins` point to JS that Yarn loads and
 //                       executes on any command, including install.
+//       .yarnrc       — Yarn Classic's `yarn-path` points to JS that Yarn 1
+//                       runs as its binary on any command, including install —
+//                       the pre-Berry equivalent of `.yarnrc.yml`.
 //       .npmrc        — can redirect the registry (supply-chain) and re-enable
 //                       install scripts.
+//       bunfig.toml   — `preload` runs JS on `bun run`/`bun test`, and
+//                       `[install].registry` can redirect the registry.
 //
 // Deliberately excluded from the CLI's broader auto-edit blocklist:
 //   .git/        — not tracked by git; PR commits cannot place files there.
@@ -48,6 +53,8 @@ export const SENSITIVE_PATHS = [
   ".pnpmfile.cjs",
   ".npmrc",
   ".yarnrc.yml",
+  ".yarnrc",
+  "bunfig.toml",
 ];
 
 const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
