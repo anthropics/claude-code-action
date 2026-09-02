@@ -71,6 +71,45 @@ jobs:
 
 **Expected Output:** Claude posts review comments directly to the PR with inline annotations where appropriate.
 
+### Plugin Example (code-review plugin)
+
+The `code-review` plugin from the `claude-code-plugins` marketplace launches multiple parallel agents with confidence-based scoring to filter false positives. It checks for bugs, CLAUDE.md compliance, and historical context via git blame.
+
+```yaml
+name: Claude Code Review (Plugin)
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
+          plugins: 'code-review@claude-code-plugins'
+          prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+```
+
+**Key Configuration:**
+
+- **`--comment` flag is required** — without it, the plugin outputs to terminal only and no PR comments are posted
+- `pull-requests: write` is required for posting review comments
+- The plugin uses `gh` CLI internally (allowed by its command definition)
+
+**Expected Output:** Confidence-scored review comments (threshold ≥80) posted as inline PR comments, or a clean-pass summary if no issues found.
+
 ### Enhanced Example (With Progress Tracking)
 
 Want visual progress tracking for PR reviews? Use `track_progress: true` to get tracking comments like in v0.x:
