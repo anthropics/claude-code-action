@@ -1,0 +1,13 @@
+{
+  "name": "claude-code-action",
+  "version": "1.0.0",
+  "description": "Bundles the GitHub MCP servers that power the Claude Code GitHub Action: PR/issue comment updates, inline review comments, commit-signed file operations, and CI status inspection.",
+  "author": {
+    "name": "Anthropic",
+    "url": "https://github.com/anthropics/claude-code-action"
+  },
+  "homepage": "https://github.com/anthropics/claude-code-action",
+  "repository": "https://github.com/anthropics/claude-code-action",
+  "license": "MIT",
+  "keywords": ["github", "mcp", "pull-request", "code-review", "ci"]
+}
