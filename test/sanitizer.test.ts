@@ -517,6 +517,14 @@ describe("stripHtmlComments (legacy)", () => {
       "Hello World",
     );
   });
+
+  it("should not leave a residual delimiter when leftover characters would recombine into one", () => {
+    // Removing "<!---->" from "<!<!---->--> alert(1)" leaves the prefix "<!"
+    // and suffix "-->" adjacent to each other, reforming "<!-->".
+    const result = stripHtmlComments("<!<!---->--> alert(1)");
+    expect(result).not.toContain("<!--");
+    expect(result).not.toContain("-->");
+  });
 });
 
 describe("outbound comment sanitization and redaction", () => {

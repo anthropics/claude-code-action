@@ -158,5 +158,12 @@ export function redactGitHubTokens(content: string): string {
   return content;
 }
 
-export const stripHtmlComments = (content: string) =>
-  content.replace(/<!--[\s\S]*?-->/g, "");
+export const stripHtmlComments = (content: string) => {
+  let result = content.replace(/<!--[\s\S]*?-->/g, "");
+  // Removing a full "<!--...-->" block can leave leftover characters on
+  // either side that recombine into a new delimiter (e.g. "<!<!---->-->"
+  // reduces to "<!-->" with no matching "-->" left for a second pass to
+  // catch). Strip any surviving delimiter tokens outright.
+  result = result.replace(/<!--/g, "").replace(/-->/g, "");
+  return result;
+};
