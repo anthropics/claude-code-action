@@ -141,6 +141,7 @@ Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federa
 | `use_node_cache`                 | Enable Node.js dependency caching for projects with lock files                                                          | No       | `'false'`     |
 | `path_to_claude_code_executable` | Path to a custom Claude Code executable                                                                                 | No       | `''`          |
 | `path_to_bun_executable`         | Path to a custom Bun executable                                                                                         | No       | `''`          |
+| `bun_version`                    | Bun version to install when automatic installation is used                                                              | No       | `'1.3.14'`    |
 | `show_full_output`               | Show full JSON output (⚠️ May expose secrets - see [security docs](../docs/security.md#️-full-output-security-warning)) | No       | `'false'`\*\* |
 | `plugins`                        | Newline-separated Claude Code plugin names to install                                                                   | No       | `''`          |
 | `plugin_marketplaces`            | Newline-separated plugin marketplace Git URLs to install                                                                | No       | `''`          |

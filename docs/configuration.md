@@ -399,3 +399,16 @@ Use `path_to_bun_executable` to provide your own Bun runtime instead of the defa
 ```
 
 **Important**: Using incompatible versions may cause the action to fail. Ensure your custom executables are compatible with the action's requirements.
+
+### Bun Version
+
+By default the action installs the Bun version it pins (currently `1.3.14`). If your repository pins a different Bun version (e.g. via `devEngines`), set `bun_version` so the action installs a compatible version directly — no separate `oven-sh/setup-bun` step needed:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    bun_version: "1.4.0"
+    # ... other inputs
+```
+
+`bun_version` is ignored when `path_to_bun_executable` is provided.
