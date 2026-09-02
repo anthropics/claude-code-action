@@ -352,6 +352,7 @@ describe("installPlugins", () => {
   });
 
   // Marketplace functionality tests
+  // Note: marketplace operations now include a "list" call first to check for existing marketplaces
   test("should add a single marketplace before installing plugins", async () => {
     const spy = createMockSpawn();
     await installPlugins(
@@ -359,10 +360,17 @@ describe("installPlugins", () => {
       "test-plugin",
     );
 
-    expect(spy).toHaveBeenCalledTimes(2);
-    // First call: add marketplace
+    expect(spy).toHaveBeenCalledTimes(3); // list + add + install
+    // First call: list marketplaces
     expect(spy).toHaveBeenNthCalledWith(
       1,
+      "claude",
+      ["plugin", "marketplace", "list", "--json"],
+      { stdio: ["inherit", "pipe", "inherit"] },
+    );
+    // Second call: add marketplace
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
       "claude",
       [
         "plugin",
@@ -372,9 +380,9 @@ describe("installPlugins", () => {
       ],
       { stdio: "inherit" },
     );
-    // Second call: install plugin
+    // Third call: install plugin
     expect(spy).toHaveBeenNthCalledWith(
-      2,
+      3,
       "claude",
       ["plugin", "install", "test-plugin"],
       { stdio: "inherit" },
@@ -388,23 +396,30 @@ describe("installPlugins", () => {
       "test-plugin",
     );
 
-    expect(spy).toHaveBeenCalledTimes(3); // 2 marketplaces + 1 plugin
-    // First two calls: add marketplaces
+    expect(spy).toHaveBeenCalledTimes(4); // list + 2 marketplaces + 1 plugin
+    // First call: list marketplaces
     expect(spy).toHaveBeenNthCalledWith(
       1,
+      "claude",
+      ["plugin", "marketplace", "list", "--json"],
+      { stdio: ["inherit", "pipe", "inherit"] },
+    );
+    // Next two calls: add marketplaces
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
       "claude",
       ["plugin", "marketplace", "add", "https://github.com/user/m1.git"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
-      2,
+      3,
       "claude",
       ["plugin", "marketplace", "add", "https://github.com/user/m2.git"],
       { stdio: "inherit" },
     );
-    // Third call: install plugin
+    // Fourth call: install plugin
     expect(spy).toHaveBeenNthCalledWith(
-      3,
+      4,
       "claude",
       ["plugin", "install", "test-plugin"],
       { stdio: "inherit" },
@@ -418,10 +433,17 @@ describe("installPlugins", () => {
       "plugin1\nplugin2",
     );
 
-    expect(spy).toHaveBeenCalledTimes(3); // 1 marketplace + 2 plugins
-    // First call: add marketplace
+    expect(spy).toHaveBeenCalledTimes(4); // list + 1 marketplace + 2 plugins
+    // First call: list marketplaces
     expect(spy).toHaveBeenNthCalledWith(
       1,
+      "claude",
+      ["plugin", "marketplace", "list", "--json"],
+      { stdio: ["inherit", "pipe", "inherit"] },
+    );
+    // Second call: add marketplace
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
       "claude",
       [
         "plugin",
@@ -433,13 +455,13 @@ describe("installPlugins", () => {
     );
     // Next calls: install plugins
     expect(spy).toHaveBeenNthCalledWith(
-      2,
+      3,
       "claude",
       ["plugin", "install", "plugin1"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
-      3,
+      4,
       "claude",
       ["plugin", "install", "plugin2"],
       { stdio: "inherit" },
@@ -450,9 +472,15 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("https://github.com/user/marketplace.git", undefined);
 
-    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledTimes(2); // list + add
     expect(spy).toHaveBeenNthCalledWith(
       1,
+      "claude",
+      ["plugin", "marketplace", "list", "--json"],
+      { stdio: ["inherit", "pipe", "inherit"] },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
       "claude",
       [
         "plugin",
@@ -471,7 +499,7 @@ describe("installPlugins", () => {
       "test-plugin",
     );
 
-    expect(spy).toHaveBeenCalledTimes(3); // 2 marketplaces (skip empty) + 1 plugin
+    expect(spy).toHaveBeenCalledTimes(4); // list + 2 marketplaces (skip empty) + 1 plugin
   });
 
   test("should trim whitespace from marketplace URLs", async () => {
@@ -481,9 +509,15 @@ describe("installPlugins", () => {
       "test-plugin",
     );
 
-    expect(spy).toHaveBeenCalledTimes(3);
+    expect(spy).toHaveBeenCalledTimes(4); // list + 2 marketplaces + 1 plugin
     expect(spy).toHaveBeenNthCalledWith(
       1,
+      "claude",
+      ["plugin", "marketplace", "list", "--json"],
+      { stdio: ["inherit", "pipe", "inherit"] },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
       "claude",
       [
         "plugin",
@@ -494,7 +528,7 @@ describe("installPlugins", () => {
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
-      2,
+      3,
       "claude",
       ["plugin", "marketplace", "add", "https://github.com/user/m2.git"],
       { stdio: "inherit" },
@@ -565,8 +599,8 @@ describe("installPlugins", () => {
       ),
     ).rejects.toThrow("Failed to add marketplace");
 
-    // Should only try to add marketplace, not install any plugins
-    expect(spy).toHaveBeenCalledTimes(1);
+    // Should call list first, then fail on add
+    expect(spy).toHaveBeenCalledTimes(2); // list + add (failed)
   });
 
   test("should use custom executable for marketplace operations", async () => {
@@ -577,9 +611,15 @@ describe("installPlugins", () => {
       "/custom/path/to/claude",
     );
 
-    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenCalledTimes(3); // list + add + install
     expect(spy).toHaveBeenNthCalledWith(
       1,
+      "/custom/path/to/claude",
+      ["plugin", "marketplace", "list", "--json"],
+      { stdio: ["inherit", "pipe", "inherit"] },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
       "/custom/path/to/claude",
       [
         "plugin",
@@ -590,7 +630,7 @@ describe("installPlugins", () => {
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
-      2,
+      3,
       "/custom/path/to/claude",
       ["plugin", "install", "test-plugin"],
       { stdio: "inherit" },
@@ -602,15 +642,21 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("./my-local-marketplace", "test-plugin");
 
-    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenCalledTimes(3); // list + add + install
     expect(spy).toHaveBeenNthCalledWith(
       1,
+      "claude",
+      ["plugin", "marketplace", "list", "--json"],
+      { stdio: ["inherit", "pipe", "inherit"] },
+    );
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
       "claude",
       ["plugin", "marketplace", "add", "./my-local-marketplace"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
-      2,
+      3,
       "claude",
       ["plugin", "install", "test-plugin"],
       { stdio: "inherit" },
@@ -621,9 +667,9 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("/home/user/my-marketplace", "test-plugin");
 
-    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenCalledTimes(3); // list + add + install
     expect(spy).toHaveBeenNthCalledWith(
-      1,
+      2,
       "claude",
       ["plugin", "marketplace", "add", "/home/user/my-marketplace"],
       { stdio: "inherit" },
@@ -634,9 +680,9 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("C:\\Users\\user\\marketplace", "test-plugin");
 
-    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenCalledTimes(3); // list + add + install
     expect(spy).toHaveBeenNthCalledWith(
-      1,
+      2,
       "claude",
       ["plugin", "marketplace", "add", "C:\\Users\\user\\marketplace"],
       { stdio: "inherit" },
@@ -650,15 +696,15 @@ describe("installPlugins", () => {
       "test-plugin",
     );
 
-    expect(spy).toHaveBeenCalledTimes(3);
+    expect(spy).toHaveBeenCalledTimes(4); // list + 2 adds + install
     expect(spy).toHaveBeenNthCalledWith(
-      1,
+      2,
       "claude",
       ["plugin", "marketplace", "add", "./local-marketplace"],
       { stdio: "inherit" },
     );
     expect(spy).toHaveBeenNthCalledWith(
-      2,
+      3,
       "claude",
       ["plugin", "marketplace", "add", "https://github.com/user/remote.git"],
       { stdio: "inherit" },
@@ -669,9 +715,9 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("../shared-plugins/marketplace", "test-plugin");
 
-    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenCalledTimes(3); // list + add + install
     expect(spy).toHaveBeenNthCalledWith(
-      1,
+      2,
       "claude",
       ["plugin", "marketplace", "add", "../shared-plugins/marketplace"],
       { stdio: "inherit" },
@@ -682,9 +728,9 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("./plugins/my-org/my-marketplace", "test-plugin");
 
-    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenCalledTimes(3); // list + add + install
     expect(spy).toHaveBeenNthCalledWith(
-      1,
+      2,
       "claude",
       ["plugin", "marketplace", "add", "./plugins/my-org/my-marketplace"],
       { stdio: "inherit" },
@@ -695,12 +741,241 @@ describe("installPlugins", () => {
     const spy = createMockSpawn();
     await installPlugins("./my.plugin.marketplace", "test-plugin");
 
-    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenCalledTimes(3); // list + add + install
     expect(spy).toHaveBeenNthCalledWith(
-      1,
+      2,
       "claude",
       ["plugin", "marketplace", "add", "./my.plugin.marketplace"],
       { stdio: "inherit" },
     );
+  });
+});
+
+describe("installPlugins - marketplace removal before add", () => {
+  let spawnSpy: ReturnType<typeof spyOn> | undefined;
+
+  afterEach(() => {
+    if (spawnSpy) {
+      spawnSpy.mockRestore();
+    }
+  });
+
+  /**
+   * Creates a mock spawn that:
+   * - For "marketplace list --json": returns the provided JSON output via stdout
+   * - For "marketplace remove": succeeds silently
+   * - For "marketplace add": succeeds
+   * - For "plugin install": succeeds
+   */
+  function createMockSpawnWithMarketplaceList(marketplaceListJson: string) {
+    const calls: string[][] = [];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    spawnSpy = spyOn(childProcess, "spawn").mockImplementation(
+      (...spawnArgs: any[]) => {
+        const args = spawnArgs[1] as string[] | undefined;
+        if (args) calls.push(args);
+
+        const isMarketplaceList =
+          args?.[0] === "plugin" &&
+          args?.[1] === "marketplace" &&
+          args?.[2] === "list";
+
+        // Create mock stdout for marketplace list
+        const stdoutHandlers: Function[] = [];
+        const mockStdout = {
+          on: mock((event: string, handler: Function) => {
+            if (event === "data") {
+              stdoutHandlers.push(handler);
+            }
+          }),
+        };
+
+        const mockProcess = {
+          stdout: isMarketplaceList ? mockStdout : null,
+          on: mock((event: string, handler: Function) => {
+            if (event === "close") {
+              setTimeout(() => {
+                if (isMarketplaceList) {
+                  // Emit the marketplace list JSON output
+                  for (const h of stdoutHandlers) {
+                    h(Buffer.from(marketplaceListJson));
+                  }
+                }
+                handler(0);
+              }, 0);
+            }
+            return mockProcess;
+          }),
+        };
+
+        return mockProcess as any;
+      },
+    );
+
+    return { spy: spawnSpy, calls };
+  }
+
+  test("should remove existing marketplaces before adding new ones", async () => {
+    const { spy } = createMockSpawnWithMarketplaceList(
+      JSON.stringify([
+        {
+          name: "existing-marketplace",
+          source: "git",
+          url: "https://example.com/repo.git",
+          installLocation:
+            "/root/.claude/plugins/marketplaces/existing-marketplace",
+        },
+      ]),
+    );
+
+    await installPlugins(
+      "https://github.com/user/new-marketplace.git",
+      undefined,
+    );
+
+    // Expected calls: list, remove existing, add new
+    expect(spy).toHaveBeenCalledTimes(3);
+
+    // First: list marketplaces
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "list", "--json"],
+      { stdio: ["inherit", "pipe", "inherit"] },
+    );
+
+    // Second: remove existing marketplace
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "marketplace", "remove", "existing-marketplace"],
+      { stdio: "inherit" },
+    );
+
+    // Third: add new marketplace
+    expect(spy).toHaveBeenNthCalledWith(
+      3,
+      "claude",
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "https://github.com/user/new-marketplace.git",
+      ],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should remove multiple existing marketplaces", async () => {
+    const { spy } = createMockSpawnWithMarketplaceList(
+      JSON.stringify([
+        {
+          name: "marketplace-1",
+          source: "git",
+          url: "https://example.com/repo1.git",
+          installLocation: "/root/.claude/plugins/marketplaces/marketplace-1",
+        },
+        {
+          name: "marketplace-2",
+          source: "git",
+          url: "https://example.com/repo2.git",
+          installLocation: "/root/.claude/plugins/marketplaces/marketplace-2",
+        },
+      ]),
+    );
+
+    await installPlugins(
+      "https://github.com/user/new-marketplace.git",
+      undefined,
+    );
+
+    // Expected calls: list, remove 2 existing, add new
+    expect(spy).toHaveBeenCalledTimes(4);
+
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "marketplace", "remove", "marketplace-1"],
+      { stdio: "inherit" },
+    );
+
+    expect(spy).toHaveBeenNthCalledWith(
+      3,
+      "claude",
+      ["plugin", "marketplace", "remove", "marketplace-2"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should skip removal when no existing marketplaces", async () => {
+    const { spy } = createMockSpawnWithMarketplaceList(JSON.stringify([]));
+
+    await installPlugins(
+      "https://github.com/user/new-marketplace.git",
+      undefined,
+    );
+
+    // Expected calls: list, add new (no remove)
+    expect(spy).toHaveBeenCalledTimes(2);
+
+    expect(spy).toHaveBeenNthCalledWith(
+      1,
+      "claude",
+      ["plugin", "marketplace", "list", "--json"],
+      { stdio: ["inherit", "pipe", "inherit"] },
+    );
+
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      [
+        "plugin",
+        "marketplace",
+        "add",
+        "https://github.com/user/new-marketplace.git",
+      ],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should parse marketplace names correctly from JSON output", async () => {
+    const { spy } = createMockSpawnWithMarketplaceList(
+      JSON.stringify([
+        {
+          name: "pai-agent-plugins",
+          source: "git",
+          url: "https://oss.navercorp.com/pai/agent-plugins.git",
+          installLocation:
+            "/root/.claude/plugins/marketplaces/pai-agent-plugins",
+        },
+      ]),
+    );
+
+    await installPlugins(
+      "https://github.com/user/new-marketplace.git",
+      undefined,
+    );
+
+    // Should correctly extract "pai-agent-plugins" from JSON
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      "claude",
+      ["plugin", "marketplace", "remove", "pai-agent-plugins"],
+      { stdio: "inherit" },
+    );
+  });
+
+  test("should handle empty marketplace list output", async () => {
+    // Empty string will fail JSON parse, should return empty array
+    const { spy } = createMockSpawnWithMarketplaceList("");
+
+    await installPlugins(
+      "https://github.com/user/new-marketplace.git",
+      undefined,
+    );
+
+    // Expected calls: list, add new (no remove since empty)
+    expect(spy).toHaveBeenCalledTimes(2);
   });
 });
