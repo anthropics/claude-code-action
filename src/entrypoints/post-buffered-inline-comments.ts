@@ -15,6 +15,10 @@ import { redactSecrets } from "../github/utils/sanitizer";
 
 const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
 
+// Summary line for the batched review. event=COMMENT requires a non-empty body,
+// and this is what appears above the grouped inline comments on the PR.
+export const REVIEW_BODY = "Claude finished reviewing this pull request.";
+
 type BufferedComment = {
   ts: string;
   path: string;
@@ -107,6 +111,32 @@ async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
     );
     return null;
   }
+}
+
+/**
+ * Build the `comments[]` payload for a single batched review.
+ *
+ * Exported for testing: the review payload uses a different shape from
+ * createReviewComment (no commit_id/pull_number per entry, and multi-line
+ * hunks use start_line + line), so the mapping is worth pinning down.
+ */
+export function buildReviewComments(
+  comments: BufferedComment[],
+): Array<Record<string, unknown>> {
+  return comments.map((c) => {
+    const side = c.side || "RIGHT";
+    const entry: Record<string, unknown> = {
+      path: c.path,
+      body: redactSecrets(c.body),
+      side,
+    };
+    if (c.startLine) {
+      entry.start_line = c.startLine;
+      entry.start_side = side;
+    }
+    entry.line = c.line;
+    return entry;
+  });
 }
 
 async function postComment(
@@ -218,6 +248,34 @@ async function main() {
   const headSha = pr.data.head.sha;
 
   console.log(`Posting ${toPost.length} classified-as-real comment(s)`);
+
+  // Post as one review so the PR shows a single "reviewed" entry containing
+  // every inline comment, rather than one standalone review per comment.
+  try {
+    await octokit.pulls.createReview({
+      owner,
+      repo,
+      pull_number,
+      commit_id: headSha,
+      event: "COMMENT",
+      // Required by the API whenever event is COMMENT: a review submitted with
+      // event=COMMENT and no body is rejected with 422. The typings mark body
+      // optional, so this is not caught at compile time.
+      body: REVIEW_BODY,
+      comments: buildReviewComments(toPost) as never,
+    });
+    console.log(`Posted ${toPost.length}/${toPost.length} in a single review`);
+    return;
+  } catch (e) {
+    // createReview is atomic: one unmappable line (e.g. outside the diff, or
+    // stale after a force-push) rejects the whole batch. Rather than drop
+    // every comment, fall back to posting them individually — the pre-batch
+    // behaviour — so partial delivery still beats none.
+    console.log(
+      `::warning::Batched review failed (${e instanceof Error ? e.message : String(e)}) — falling back to individual comments`,
+    );
+  }
+
   let posted = 0;
   for (const c of toPost) {
     if (await postComment(octokit, owner, repo, pull_number, headSha, c)) {
@@ -228,7 +286,11 @@ async function main() {
   console.log(`Posted ${posted}/${toPost.length}`);
 }
 
-main().catch((e) => {
-  console.error("post-buffered-inline-comments failed:", e);
-  process.exit(1);
-});
+// Guarded so the module can be imported by tests without running the posting
+// flow, matching the other entrypoints (prepare.ts, run.ts, ...).
+if (import.meta.main) {
+  main().catch((e) => {
+    console.error("post-buffered-inline-comments failed:", e);
+    process.exit(1);
+  });
+}
