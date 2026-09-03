@@ -1,6 +1,10 @@
 import { $ } from "bun";
 import { homedir } from "os";
-import { readFile } from "fs/promises";
+import type { ClaudeSettings } from "./schemas/settings-schema";
+import {
+  validateExistingSettings,
+  processSettingsInput,
+} from "./validation/settings";
 
 export async function setupClaudeCodeSettings(
   settingsInput?: string,
@@ -14,11 +18,13 @@ export async function setupClaudeCodeSettings(
   console.log(`Creating .claude directory...`);
   await $`mkdir -p ${home}/.claude`.quiet();
 
-  let settings: Record<string, unknown> = {};
+  let settings: Partial<ClaudeSettings> = {};
+
+  // Load and validate existing settings
   try {
     const existingSettings = await $`cat ${settingsPath}`.quiet().text();
     if (existingSettings.trim()) {
-      settings = JSON.parse(existingSettings);
+      settings = validateExistingSettings(existingSettings);
       console.log(
         `Found existing settings:`,
         JSON.stringify(settings, null, 2),
@@ -27,32 +33,19 @@ export async function setupClaudeCodeSettings(
       console.log(`Settings file exists but is empty`);
     }
   } catch (e) {
+    if (
+      e instanceof Error &&
+      e.message.includes("Cannot proceed with invalid")
+    ) {
+      throw e; // Re-throw settings validation errors
+    }
     console.log(`No existing settings file found, creating new one`);
   }
 
-  // Handle settings input (either file path or JSON string)
+  // Process input settings if provided
   if (settingsInput && settingsInput.trim()) {
     console.log(`Processing settings input...`);
-    let inputSettings: Record<string, unknown> = {};
-
-    try {
-      // First try to parse as JSON
-      inputSettings = JSON.parse(settingsInput);
-      console.log(`Parsed settings input as JSON`);
-    } catch (e) {
-      // If not JSON, treat as file path
-      console.log(
-        `Settings input is not JSON, treating as file path: ${settingsInput}`,
-      );
-      try {
-        const fileContent = await readFile(settingsInput, "utf-8");
-        inputSettings = JSON.parse(fileContent);
-        console.log(`Successfully read and parsed settings from file`);
-      } catch (fileError) {
-        console.error(`Failed to read or parse settings file: ${fileError}`);
-        throw new Error(`Failed to process settings input: ${fileError}`);
-      }
-    }
+    const inputSettings = await processSettingsInput(settingsInput);
 
     // Merge input settings with existing settings
     settings = { ...settings, ...inputSettings };
