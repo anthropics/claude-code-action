@@ -16,6 +16,29 @@ on:
 
 jobs:
   claude-response:
+    # Restrict who can trigger Claude. Without this, anyone who can comment on
+    # the repository can start a run, and on a public repository that is a
+    # billing exposure: the job occupies a runner and spends tokens before the
+    # action's own write-access check (`checkWritePermissions`) can reject the
+    # actor.
+    #
+    # The association check is repeated in each branch on purpose. Every event
+    # exposes its trigger's association on a different field, and `&&` binds
+    # tighter than `||` in GitHub Actions expressions — a single guard placed in
+    # front of the chain would apply only to the first branch and leave the rest
+    # open.
+    #
+    # The `assigned` and `labeled` branches are not association-gated because
+    # there the trigger is whoever assigned or labelled the issue rather than its
+    # author; gating on the author would break `assignee_trigger` and
+    # `label_trigger` on issues opened by outside contributors. Those paths are
+    # still covered by `checkWritePermissions` at runtime.
+    if: |
+      (github.event_name == 'issue_comment' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association) && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && github.event.action == 'opened' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))) ||
+      (github.event_name == 'issues' && (github.event.action == 'assigned' || github.event.action == 'labeled'))
     runs-on: ubuntu-latest
     steps:
       - uses: anthropics/claude-code-action@v1
