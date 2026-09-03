@@ -96,16 +96,34 @@ describe("mention-triggered workflows gate on author_association", () => {
         expect(guardCount).toBe(mentionBranchCount);
       });
 
-      test("leaves assignee/label triggers reachable for outside-authored issues", () => {
+      test("does not ship an unconditional assigned/labeled branch", () => {
         const cond = condition(path);
-        // The trigger for these is whoever assigned/labelled, not the issue
-        // author, so gating them on issue.author_association would break
-        // assignee_trigger / label_trigger. checkWritePermissions still applies.
-        const assignBranch = topLevelBranches(cond).find((b) =>
-          b.includes("'assigned'"),
-        );
-        expect(assignBranch).toBeDefined();
-        expect(assignBranch).not.toInclude("author_association");
+        // assignee_trigger / label_trigger are unset by default, so
+        // checkContainsTrigger cannot match on those events. An unguarded
+        // `action == 'assigned'` branch would start a runner for every
+        // assignment only to no-op — widening runner usage, which is the
+        // opposite of the point. Enabling them is documented instead.
+        for (const branch of topLevelBranches(cond)) {
+          const isAssignOrLabel =
+            branch.includes("'assigned'") || branch.includes("'labeled'");
+          if (!isAssignOrLabel) continue;
+          // If such a branch is ever added it must be qualified by the
+          // configured trigger, not left as a bare event/action match.
+          expect(branch).toMatch(/assignee\.login|label\.name/);
+        }
+      });
+
+      test("does not subscribe to issue actions it cannot act on", () => {
+        const raw = readFileSync(new URL(path, import.meta.url), "utf8");
+        const issuesTypes = raw.match(/^ {2}issues:\n {4}types: \[(.*)\]$/m);
+        expect(issuesTypes).not.toBeNull();
+        const types = issuesTypes![1]!.split(",").map((t) => t.trim());
+        const cond = condition(path);
+        // Every subscribed action needs a branch that can match it, otherwise
+        // the workflow wakes a runner for events it will always skip.
+        for (const type of types) {
+          expect(cond).toInclude(`'${type}'`);
+        }
       });
     });
   }

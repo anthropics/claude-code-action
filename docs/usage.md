@@ -10,7 +10,7 @@ on:
   pull_request_review_comment:
     types: [created]
   issues:
-    types: [opened, assigned, labeled]
+    types: [opened]
   pull_request_review:
     types: [submitted]
 
@@ -28,17 +28,20 @@ jobs:
     # front of the chain would apply only to the first branch and leave the rest
     # open.
     #
-    # The `assigned` and `labeled` branches are not association-gated because
-    # there the trigger is whoever assigned or labelled the issue rather than its
-    # author; gating on the author would break `assignee_trigger` and
-    # `label_trigger` on issues opened by outside contributors. Those paths are
-    # still covered by `checkWritePermissions` at runtime.
+    # To use `assignee_trigger` or `label_trigger`, add `assigned` / `labeled` to
+    # the issues types above and add a branch for it, e.g.
+    #   (github.event_name == 'issues' && github.event.action == 'assigned' &&
+    #    github.event.assignee.login == 'claude')
+    # Those triggers key off who assigned or labelled rather than the issue
+    # author, so they are not gated on `author_association`;
+    # `checkWritePermissions` still applies. They are left out by default so an
+    # assignment on an unrelated issue does not start a runner that cannot match
+    # a configured trigger.
     if: |
       (github.event_name == 'issue_comment' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association) && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && github.event.action == 'opened' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))) ||
-      (github.event_name == 'issues' && (github.event.action == 'assigned' || github.event.action == 'labeled'))
+      (github.event_name == 'issues' && github.event.action == 'opened' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     steps:
       - uses: anthropics/claude-code-action@v1
