@@ -3,11 +3,12 @@ import { z } from "zod";
 /**
  * Raw shape passed to `server.tool` for create_inline_comment.
  *
- * `line` and `startLine` are constrained to positive integers. Diff line
- * numbers are 1-based, so 0 is never valid, and the handler tests them for
- * falsiness (`!line`, `!startLine`) rather than for presence - so a 0 that got
- * past the schema would be read as "absent" and silently change the request
- * rather than be rejected.
+ * `line` and `startLine` are constrained to positive integers: diff line
+ * numbers are 1-based, so 0 and fractions are never valid, and a 0 reaching
+ * the handler would be indistinguishable from an omitted argument.
+ *
+ * Rules that involve both fields live in `createInlineCommentPayloadSchema`
+ * below, which is what the handler parses through.
  */
 export const createInlineCommentInputSchema = {
   path: z
@@ -27,7 +28,7 @@ export const createInlineCommentInputSchema = {
     .positive()
     .optional()
     .describe(
-      "Line number for single-line comments (required if startLine is not provided)",
+      "Line number for the comment. Always required: the line for a single-line comment, or the END line of the range when startLine is given.",
     ),
   startLine: z
     .number()
@@ -35,7 +36,7 @@ export const createInlineCommentInputSchema = {
     .positive()
     .optional()
     .describe(
-      "Start line for multi-line comments (use with line parameter for the end line)",
+      "Start line for multi-line comments. Must be provided together with line (the end line), and must not be greater than it.",
     ),
   side: z
     .enum(["LEFT", "RIGHT"])
@@ -59,6 +60,42 @@ export const createInlineCommentInputSchema = {
     ),
 };
 
-export const createInlineCommentPayloadSchema = z.object(
-  createInlineCommentInputSchema,
-);
+/**
+ * Full payload schema, including the rules that span more than one field.
+ *
+ * `server.tool` is registered with the raw shape above, which is converted to
+ * JSON Schema key by key and so cannot express the relationship between `line`
+ * and `startLine`. The handler parses through this schema instead, so those
+ * rules are enforced in one place rather than re-implemented as ad-hoc checks.
+ *
+ * `line` is required either way: it is the line for a single-line comment and
+ * the end line of the range for a multi-line one. A `startLine` without it
+ * would be sent to GitHub as `start_line` with `line: undefined`.
+ */
+export const createInlineCommentPayloadSchema = z
+  .object(createInlineCommentInputSchema)
+  .superRefine((data, ctx) => {
+    if (data.line === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["line"],
+        message:
+          data.startLine === undefined
+            ? "Either 'line' for single-line comments or both 'startLine' and 'line' for multi-line comments must be provided"
+            : "'line' is required when 'startLine' is provided: it is the end line of the multi-line range",
+      });
+      return;
+    }
+
+    if (data.startLine !== undefined && data.startLine > data.line) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["startLine"],
+        message: `'startLine' (${data.startLine}) must not be greater than 'line' (${data.line}), which is the end of the range`,
+      });
+    }
+  })
+  // Every branch above requires `line`, so it is present by the time the
+  // transform runs. Restating that here keeps the handler from having to
+  // re-check it before passing the value to the GitHub API.
+  .transform((data) => ({ ...data, line: data.line as number }));

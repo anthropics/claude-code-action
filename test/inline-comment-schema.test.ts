@@ -25,27 +25,51 @@ describe("createInlineCommentPayloadSchema", () => {
     expect(parsed.line).toBe(12);
   });
 
-  test("allows both line fields to be omitted", () => {
-    // The handler, not the schema, enforces that at least one is present, so
-    // that it can return its own explanatory message.
-    const parsed = createInlineCommentPayloadSchema.parse(base);
-    expect(parsed.line).toBeUndefined();
-    expect(parsed.startLine).toBeUndefined();
+  test("rejects a payload with neither line nor startLine", () => {
+    expect(() => createInlineCommentPayloadSchema.parse(base)).toThrow(
+      /Either 'line' for single-line comments/,
+    );
+  });
+
+  test("rejects startLine without line", () => {
+    // `line` is the end of the range, so a startLine on its own used to reach
+    // the API as start_line with line: undefined.
+    expect(() =>
+      createInlineCommentPayloadSchema.parse({ ...base, startLine: 5 }),
+    ).toThrow(/'line' is required when 'startLine' is provided/);
+  });
+
+  test("rejects a range that ends before it starts", () => {
+    expect(() =>
+      createInlineCommentPayloadSchema.parse({
+        ...base,
+        startLine: 12,
+        line: 8,
+      }),
+    ).toThrow(/must not be greater than/);
+  });
+
+  test("accepts a range whose start and end are the same line", () => {
+    const parsed = createInlineCommentPayloadSchema.parse({
+      ...base,
+      startLine: 8,
+      line: 8,
+    });
+    expect(parsed.startLine).toBe(8);
+    expect(parsed.line).toBe(8);
   });
 
   test("rejects line 0", () => {
-    // Diff line numbers are 1-based. The handler checks `!line`, so a 0 that
-    // reached it would be read as "line not provided" and rejected with a
-    // message about a missing argument instead of an out-of-range one.
+    // Diff line numbers are 1-based, so 0 is never a line anyone can comment
+    // on - GitHub rejects it with a 422 long after the model has moved on.
     expect(() =>
       createInlineCommentPayloadSchema.parse({ ...base, line: 0 }),
     ).toThrow();
   });
 
   test("rejects startLine 0", () => {
-    // The handler derives `isSingleLine = !startLine`, so a startLine of 0
-    // would silently collapse a multi-line comment into a single-line one on
-    // the end line, reporting success for a request it did not carry out.
+    // A 0 here is treated as a real start of a range rather than as an absent
+    // argument, so it would be sent on as start_line: 0 and rejected there.
     expect(() =>
       createInlineCommentPayloadSchema.parse({
         ...base,
