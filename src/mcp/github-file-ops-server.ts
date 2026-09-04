@@ -10,6 +10,7 @@ import { GITHUB_API_URL } from "../github/api/config";
 import { isBinaryContent } from "./binary-detection";
 import { validatePathWithinRepo } from "./path-validation";
 import { updateGitReference } from "./update-git-reference";
+import { buildBranchRefUrl } from "./git-ref-url";
 import {
   commitFilesInputSchema,
   deleteFilesInputSchema,
@@ -66,7 +67,7 @@ async function getOrCreateBranchRef(
   githubToken: string,
 ): Promise<string> {
   // Try to get the branch reference
-  const refUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${branch}`;
+  const refUrl = buildBranchRefUrl(owner, repo, branch);
   const refResponse = await fetch(refUrl, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -87,7 +88,7 @@ async function getOrCreateBranchRef(
   const baseBranch = process.env.BASE_BRANCH!;
 
   // Get the SHA of the base branch
-  const baseRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${baseBranch}`;
+  const baseRefUrl = buildBranchRefUrl(owner, repo, baseBranch);
   const baseRefResponse = await fetch(baseRefUrl, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -119,7 +120,7 @@ async function getOrCreateBranchRef(
     const defaultBranch = repoData.default_branch;
 
     // Try default branch
-    const defaultRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${defaultBranch}`;
+    const defaultRefUrl = buildBranchRefUrl(owner, repo, defaultBranch);
     const defaultRefResponse = await fetch(defaultRefUrl, {
       headers: {
         Accept: "application/vnd.github+json",
