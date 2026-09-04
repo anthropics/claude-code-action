@@ -230,6 +230,15 @@ export async function runClaudeWithSdk(
   );
   if (initMessage && "session_id" in initMessage && initMessage.session_id) {
     result.sessionId = initMessage.session_id as string;
+    // Publish the output here rather than leaving it to the caller. Every path
+    // below this point can throw (is_error, maxTurns, the --json-schema check),
+    // and a throw skips the caller's setOutput block entirely — so the session
+    // id was logged but never exposed on exactly the runs where it is most
+    // useful for debugging. execution_file already survives the error path via
+    // setExecutionFileOutputIfPresent(); this gives session_id the same
+    // guarantee. Callers still set it on success; the value is identical.
+    // See issue #1720.
+    core.setOutput("session_id", result.sessionId);
     core.info(`Set session_id: ${result.sessionId}`);
   }
 
