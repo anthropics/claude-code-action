@@ -61,6 +61,7 @@ describe("git-config", () => {
   let originalActionPath: string | undefined;
   let originalNonWriteUsers: string | undefined;
   let originalGhToken: string | undefined;
+  let originalWorkspace: string | undefined;
   let originalGitEnv: Record<string, string | undefined>;
   let consoleLogSpy: any;
 
@@ -69,6 +70,8 @@ describe("git-config", () => {
     originalActionPath = process.env.GITHUB_ACTION_PATH;
     originalNonWriteUsers = process.env.ALLOWED_NON_WRITE_USERS;
     originalGhToken = process.env.GH_TOKEN;
+    originalWorkspace = process.env.GITHUB_WORKSPACE;
+    delete process.env.GITHUB_WORKSPACE;
     delete process.env.ALLOWED_NON_WRITE_USERS;
     originalGitEnv = {};
     for (const name of GIT_ENV_OVERRIDES) {
@@ -110,6 +113,7 @@ describe("git-config", () => {
     restoreEnv("GITHUB_ACTION_PATH", originalActionPath);
     restoreEnv("ALLOWED_NON_WRITE_USERS", originalNonWriteUsers);
     restoreEnv("GH_TOKEN", originalGhToken);
+    restoreEnv("GITHUB_WORKSPACE", originalWorkspace);
     for (const name of GIT_ENV_OVERRIDES) {
       restoreEnv(name, originalGitEnv[name]);
     }
@@ -174,6 +178,30 @@ describe("git-config", () => {
       );
       expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe("");
       expect(remoteUrl()).toBe(
+        `https://x-access-token:test-token@${SERVER.host}/test-owner/test-repo.git`,
+      );
+    });
+  });
+
+  describe("working directory", () => {
+    // The action runs as a composite step and has always taken the repository
+    // from the process working directory. Everything else in the action locates
+    // the checkout through GITHUB_WORKSPACE (see install-mcp-server.ts), so when
+    // the two disagree these git calls ran outside the checkout and git exited
+    // 128 with "not in a git directory" (issue #1591).
+    test("configures the checkout named by GITHUB_WORKSPACE, not the process cwd", async () => {
+      process.chdir(tempDir);
+      process.env.GITHUB_WORKSPACE = repoDir;
+
+      await configureGitAuth("test-token", createMockAutomationContext(), {
+        login: "claude[bot]",
+        id: 42,
+      });
+
+      expect(
+        runGit(["config", "--local", "--get-all", "user.name"], repoDir),
+      ).toBe("claude[bot]");
+      expect(runGit(["remote", "get-url", "origin"], repoDir)).toBe(
         `https://x-access-token:test-token@${SERVER.host}/test-owner/test-repo.git`,
       );
     });
