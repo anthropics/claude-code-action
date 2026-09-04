@@ -464,10 +464,14 @@ describe("integration tests", () => {
     );
 
     const jsonData = JSON.parse(readFileSync(jsonPath, "utf-8"));
-    const expectedOutput = readFileSync(expectedPath, "utf-8").trim();
+    const expectedOutput = readFileSync(expectedPath, "utf-8")
+      .trim()
+      .replace(/\r\n/g, "\n");
 
     // Format the data using our function
-    const actualOutput = formatTurnsFromData(jsonData).trim();
+    const actualOutput = formatTurnsFromData(jsonData)
+      .trim()
+      .replace(/\r\n/g, "\n");
 
     // Compare the outputs
     expect(actualOutput).toBe(expectedOutput);
