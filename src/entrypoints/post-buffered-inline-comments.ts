@@ -139,6 +139,44 @@ export function buildReviewComments(
   });
 }
 
+/**
+ * Whether a failed createReview definitively means nothing was created.
+ *
+ * 4xx responses (except 408/429) are request-validation failures: GitHub
+ * rejected the payload and committed nothing, so replaying individually is
+ * safe. Transport errors, timeouts and 5xx are ambiguous — the review may have
+ * been created even though the response was lost — so those must be reconciled
+ * before any replay, or duplicate comments get posted.
+ */
+export function isDeterministicRejection(error: unknown): boolean {
+  const status = (error as { status?: number } | null)?.status;
+  if (typeof status !== "number") return false;
+  if (status === 408 || status === 429) return false;
+  return status >= 400 && status < 500;
+}
+
+/**
+ * Look for a review we already created for this commit, so an ambiguous
+ * failure does not cause every comment to be posted twice.
+ */
+async function reviewAlreadyPosted(
+  octokit: ReturnType<typeof createOctokit>["rest"],
+  owner: string,
+  repo: string,
+  pull_number: number,
+  headSha: string,
+): Promise<boolean> {
+  const { data } = await octokit.pulls.listReviews({
+    owner,
+    repo,
+    pull_number,
+    per_page: 100,
+  });
+  return data.some(
+    (r) => r.commit_id === headSha && (r.body ?? "").includes(REVIEW_BODY),
+  );
+}
+
 async function postComment(
   octokit: ReturnType<typeof createOctokit>["rest"],
   owner: string,
@@ -147,7 +185,10 @@ async function postComment(
   headSha: string,
   c: BufferedComment,
 ): Promise<boolean> {
-  const params: Parameters<typeof octokit.rest.pulls.createReviewComment>[0] = {
+  // NOTE: octokit here is already the `.rest` client (see main), so members are
+  // reached as octokit.pulls.*. This previously read octokit.rest.pulls.*, which
+  // is undefined at runtime and made every individual post throw.
+  const params: Parameters<typeof octokit.pulls.createReviewComment>[0] = {
     owner,
     repo,
     pull_number,
@@ -164,7 +205,7 @@ async function postComment(
     params.line = c.line;
   }
   try {
-    await octokit.rest.pulls.createReviewComment(params);
+    await octokit.pulls.createReviewComment(params);
     return true;
   } catch (e) {
     console.log(
@@ -174,7 +215,7 @@ async function postComment(
   }
 }
 
-async function main() {
+export async function main() {
   let raw: string;
   try {
     raw = readFileSync(BUFFER_PATH, "utf8");
@@ -268,11 +309,45 @@ async function main() {
     return;
   } catch (e) {
     // createReview is atomic: one unmappable line (e.g. outside the diff, or
-    // stale after a force-push) rejects the whole batch. Rather than drop
-    // every comment, fall back to posting them individually — the pre-batch
+    // stale after a force-push) rejects the whole batch. Rather than drop every
+    // comment, fall back to posting them individually — the pre-batch
     // behaviour — so partial delivery still beats none.
+    //
+    // But only when the failure definitively means nothing was created. A lost
+    // response or a 5xx may follow a review GitHub already committed, and
+    // replaying then double-posts every comment. For those, reconcile against
+    // the API first and skip the replay if the review is already there.
+    const message = e instanceof Error ? e.message : String(e);
+
+    if (!isDeterministicRejection(e)) {
+      let alreadyPosted: boolean;
+      try {
+        alreadyPosted = await reviewAlreadyPosted(
+          octokit,
+          owner,
+          repo,
+          pull_number,
+          headSha,
+        );
+      } catch (checkError) {
+        // Cannot confirm either way. Posting nothing is recoverable by re-running;
+        // double-posting N comments onto a PR is not, so do not replay.
+        console.log(
+          `::warning::Batched review failed (${message}) and the follow-up check also failed (${checkError instanceof Error ? checkError.message : String(checkError)}) — not replaying, to avoid duplicate comments`,
+        );
+        return;
+      }
+
+      if (alreadyPosted) {
+        console.log(
+          `Batched review failed (${message}) but the review exists on the PR — not replaying`,
+        );
+        return;
+      }
+    }
+
     console.log(
-      `::warning::Batched review failed (${e instanceof Error ? e.message : String(e)}) — falling back to individual comments`,
+      `::warning::Batched review failed (${message}) — falling back to individual comments`,
     );
   }
 

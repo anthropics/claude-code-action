@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import {
   buildReviewComments,
+  isDeterministicRejection,
   REVIEW_BODY,
 } from "../src/entrypoints/post-buffered-inline-comments";
 
@@ -86,5 +87,35 @@ describe("REVIEW_BODY", () => {
     // The Octokit typings mark `body` optional, so an empty value would only
     // surface as a runtime 422 against the real API.
     expect(REVIEW_BODY.trim().length).toBeGreaterThan(0);
+  });
+});
+
+describe("isDeterministicRejection", () => {
+  // Only a definitive rejection proves nothing was created. Anything else may
+  // have succeeded server-side with the response lost, and replaying the
+  // comments individually would post them all a second time.
+  it("treats request-validation failures as deterministic", () => {
+    for (const status of [400, 401, 403, 404, 410, 422]) {
+      expect(isDeterministicRejection({ status })).toBe(true);
+    }
+  });
+
+  it("treats server errors as ambiguous", () => {
+    for (const status of [500, 502, 503, 504]) {
+      expect(isDeterministicRejection({ status })).toBe(false);
+    }
+  });
+
+  it("treats timeout and rate-limit as ambiguous", () => {
+    // 408/429 are 4xx but retryable, and GitHub may have applied the write.
+    expect(isDeterministicRejection({ status: 408 })).toBe(false);
+    expect(isDeterministicRejection({ status: 429 })).toBe(false);
+  });
+
+  it("treats transport errors with no status as ambiguous", () => {
+    expect(isDeterministicRejection(new Error("socket hang up"))).toBe(false);
+    expect(isDeterministicRejection({ code: "ECONNRESET" })).toBe(false);
+    expect(isDeterministicRejection(undefined)).toBe(false);
+    expect(isDeterministicRejection(null)).toBe(false);
   });
 });
