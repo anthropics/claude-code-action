@@ -124,6 +124,18 @@ describe("restoreConfigFromBase", () => {
     }
   });
 
+  test("falls back to the default branch when the PR base was deleted", () => {
+    restoreConfigFromBase("deleted-pr-base", "main");
+
+    expect(readRepoFile(".claude-pr/CLAUDE.md")).toBe(
+      "pr claude instructions\n",
+    );
+    expect(readRepoFile("CLAUDE.md")).toBe("base claude instructions\n");
+    expect(readRepoFile(".claude/settings.json")).toBe(
+      `${JSON.stringify({ source: "base" })}\n`,
+    );
+  });
+
   test("restores symlinked CLAUDE.md paths from the PR base branch", () => {
     setupSymlinkedMainBranch();
 
