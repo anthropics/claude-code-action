@@ -63,10 +63,7 @@ export async function prepareTagMode({
     excludeCommentsByActor: context.inputs.excludeCommentsByActor,
   });
 
-  // Setup branch
-  const branchInfo = await setupBranch(octokit, githubData, context);
-
-  // Configure git authentication
+  // Configure git authentication before setupBranch to ensure credentials are available
   // SSH signing takes precedence if provided
   const useSshSigning = !!context.inputs.sshSigningKey;
   const useApiCommitSigning = context.inputs.useCommitSigning && !useSshSigning;
@@ -110,6 +107,9 @@ export async function prepareTagMode({
       throw error;
     }
   }
+
+  // Setup branch
+  const branchInfo = await setupBranch(octokit, githubData, context);
 
   // Create prompt file
   await createPrompt(
