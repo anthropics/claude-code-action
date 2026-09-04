@@ -185,9 +185,10 @@ async function postComment(
   headSha: string,
   c: BufferedComment,
 ): Promise<boolean> {
-  // NOTE: octokit here is already the `.rest` client (see main), so members are
-  // reached as octokit.pulls.*. This previously read octokit.rest.pulls.*, which
-  // is undefined at runtime and made every individual post throw.
+  // octokit here is already the `.rest` client (see main), so members are
+  // reached as octokit.pulls.*, matching pulls.get / createReview elsewhere in
+  // this file. (@octokit/rest also self-references as .rest, so the previous
+  // octokit.rest.pulls.* worked too; this is only for consistency.)
   const params: Parameters<typeof octokit.pulls.createReviewComment>[0] = {
     owner,
     repo,

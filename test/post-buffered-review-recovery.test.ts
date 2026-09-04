@@ -31,7 +31,7 @@ function installOctokitStub(opts: {
     listReviews: 0,
   };
 
-  const rest = {
+  const rest: Record<string, unknown> = {
     pulls: {
       get: async () => ({ data: { head: { sha: "headsha" } } }),
       createReview: async () => {
@@ -50,6 +50,10 @@ function installOctokitStub(opts: {
       },
     },
   };
+  // The real @octokit/rest client exposes a self-referencing `.rest`, so
+  // `client.rest.pulls.x` and `client.pulls.x` are the same function. Mirror
+  // that here: a stub without it makes correct production code look broken.
+  rest.rest = rest;
 
   mock.module("../src/github/api/client", () => ({
     createOctokit: () => ({ rest }),
