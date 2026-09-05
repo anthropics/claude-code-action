@@ -50,6 +50,22 @@ function gitConfigGetAll(key: string): string {
   }
 }
 
+function gitConfigGetAllWithIncludes(key: string): string {
+  try {
+    return runGit(["config", "--local", "--includes", "--get-all", key]);
+  } catch {
+    return "";
+  }
+}
+
+function gitConfigFileGetAll(path: string, key: string): string {
+  try {
+    return runGit(["config", "--file", path, "--get-all", key]);
+  } catch {
+    return "";
+  }
+}
+
 function remoteUrl(): string {
   return runGit(["remote", "get-url", "origin"]);
 }
@@ -148,6 +164,62 @@ describe("git-config", () => {
       expect(gitConfigGetAll("credential.helper")).toBe(helperPath);
       expect(statSync(helperPath).mode & 0o777).toBe(0o700);
       expect(process.env.GH_TOKEN).toBe("helper-token");
+    });
+
+    test("removes the checkout extraheader from an ordinary include", async () => {
+      git(["config", "--local", "--unset-all", EXTRAHEADER_KEY]);
+      const credentialConfig = join(tempDir, "checkout credentials");
+      runGit([
+        "config",
+        "--file",
+        credentialConfig,
+        "--add",
+        EXTRAHEADER_KEY,
+        "AUTHORIZATION: basic included",
+      ]);
+      git(["config", "--local", "--add", "include.path", credentialConfig]);
+
+      expect(gitConfigGetAllWithIncludes(EXTRAHEADER_KEY)).toContain(
+        "AUTHORIZATION",
+      );
+
+      await replaceCheckoutCredentials(
+        "test-token",
+        createMockAutomationContext(),
+      );
+
+      expect(gitConfigFileGetAll(credentialConfig, EXTRAHEADER_KEY)).toBe("");
+      expect(gitConfigGetAllWithIncludes(EXTRAHEADER_KEY)).toBe("");
+      expect(gitConfigGetAll("include.path")).toBe(credentialConfig);
+    });
+
+    test("removes the checkout extraheader from a checkout v7 includeIf", async () => {
+      git(["config", "--local", "--unset-all", EXTRAHEADER_KEY]);
+      const credentialConfig = join(tempDir, "checkout v7 credentials");
+      runGit([
+        "config",
+        "--file",
+        credentialConfig,
+        "--add",
+        EXTRAHEADER_KEY,
+        "AUTHORIZATION: basic conditional",
+      ]);
+      const gitDir = runGit(["rev-parse", "--absolute-git-dir"], repoDir);
+      const includeKey = `includeIf.gitdir:${gitDir}.path`;
+      git(["config", "--local", "--add", includeKey, credentialConfig]);
+
+      expect(gitConfigGetAllWithIncludes(EXTRAHEADER_KEY)).toContain(
+        "AUTHORIZATION",
+      );
+
+      await replaceCheckoutCredentials(
+        "test-token",
+        createMockAutomationContext(),
+      );
+
+      expect(gitConfigFileGetAll(credentialConfig, EXTRAHEADER_KEY)).toBe("");
+      expect(gitConfigGetAllWithIncludes(EXTRAHEADER_KEY)).toBe("");
+      expect(gitConfigGetAll(includeKey)).toBe(credentialConfig);
     });
 
     test("succeeds when there is no checkout extraheader to remove", async () => {
