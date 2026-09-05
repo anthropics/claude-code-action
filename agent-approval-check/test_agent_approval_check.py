@@ -10,6 +10,7 @@ instantiated; permission checks are plain callables.
 """
 
 import json
+from pathlib import Path
 
 import agent_approval_check as aac
 import pytest
@@ -757,8 +758,26 @@ class TestExemptions:
         pr = self._pr_data([])
         assert not aac.is_review_exempt_pr(pr, config, REPO)
 
+    def test_prefixes_for_a_different_repo_do_not_apply(self):
+        config = make_config(exempt_path_prefixes={"other/repo": ["docs/"]})
+        pr = self._pr_data(["docs/a.md"])
+        assert not aac.is_review_exempt_pr(pr, config, REPO)
+
 
 # --- Configuration loading ---
+
+
+class TestPolicyConstants:
+    def test_write_access_sets_are_not_widened(self):
+        # These sets encode who can ever reach the authoritative REST
+        # permission check and what it accepts. Lock them so an accidental
+        # widening (e.g. a new association string) fails here first.
+        assert aac.WRITE_ACCESS_ASSOCIATIONS == frozenset(
+            {"OWNER", "MEMBER", "COLLABORATOR"}
+        )
+        assert aac.WRITE_PERMISSION_LEVELS == frozenset(
+            {"write", "push", "maintain", "admin"}
+        )
 
 
 class TestLoadAgentConfig:
@@ -829,6 +848,65 @@ protected_bases:
         config = aac.load_agent_config(path)
         assert config.protected_bases[REPO] == {"exact": ["main"]}
 
+    def test_shipped_example_config_is_valid(self):
+        # Keeps the documented example in agent-identities.example.yaml
+        # loadable — it is the template users copy.
+        example = Path(__file__).parent / "agent-identities.example.yaml"
+        config = aac.load_agent_config(example)
+        assert config.agent_emails == ["noreply@anthropic.com"]
+        assert config.agent_app_logins == ["claude[bot]", "claude-code[bot]"]
+        assert config.exempt_path_prefixes["owner/repo"] == ["docs/"]
+        assert config.protected_bases["owner/repo"]["exact"] == ["main"]
+
+
+class TestLoadAgentConfigFromEnv:
+    def test_parses_csv_inputs(self, monkeypatch):
+        monkeypatch.setenv("AGENT_EMAILS", "noreply@anthropic.com, bot@x.co")
+        monkeypatch.setenv("AGENT_LOGINS", "claude[bot],claude-code[bot]")
+        monkeypatch.setenv("EXCLUDED_APPROVERS", "stamp-bot")
+        monkeypatch.setenv("EXEMPT_HEAD_BRANCHES", "renovate/*")
+        monkeypatch.setenv("EXEMPT_PATH_PREFIXES", "docs/, examples/")
+        monkeypatch.setenv("PROTECTED_BASES", "main")
+
+        config = aac.load_agent_config_from_env(REPO)
+        assert config.agent_emails == ["noreply@anthropic.com", "bot@x.co"]
+        assert config.agent_app_logins == ["claude[bot]", "claude-code[bot]"]
+        assert config.excluded_approver_logins == ["stamp-bot"]
+        assert config.exempt_head_branches == ["renovate/*"]
+        assert config.exempt_path_prefixes == {REPO: ["docs/", "examples/"]}
+        assert config.protected_bases == {REPO: {"exact": ["main"], "prefixes": []}}
+
+    def test_blank_entries_are_dropped(self, monkeypatch):
+        monkeypatch.setenv("AGENT_LOGINS", " claude[bot] , , ,")
+        config = aac.load_agent_config_from_env(REPO)
+        assert config.agent_app_logins == ["claude[bot]"]
+
+    def test_unset_inputs_leave_defaults_empty(self, monkeypatch):
+        for name in (
+            "AGENT_EMAILS",
+            "AGENT_LOGINS",
+            "EXCLUDED_APPROVERS",
+            "EXEMPT_HEAD_BRANCHES",
+            "EXEMPT_PATH_PREFIXES",
+            "PROTECTED_BASES",
+            "CONFIG_FILE",
+        ):
+            monkeypatch.delenv(name, raising=False)
+        config = aac.load_agent_config_from_env(REPO)
+        assert config.agent_emails == []
+        assert config.agent_app_logins == []
+        assert config.exempt_path_prefixes == {}
+        assert config.protected_bases == {}
+
+    def test_config_file_takes_precedence_over_inline_inputs(self, tmp_path, monkeypatch):
+        config_path = tmp_path / "identities.yaml"
+        config_path.write_text("agent_emails: [from-file@x.co]\n")
+        monkeypatch.setenv("CONFIG_FILE", str(config_path))
+        monkeypatch.setenv("AGENT_EMAILS", "from-env@x.co")
+
+        config = aac.load_agent_config_from_env(REPO)
+        assert config.agent_emails == ["from-file@x.co"]
+
 
 class TestResolvePrNumber:
     def write_event(self, tmp_path, event):
@@ -882,6 +960,13 @@ class TestFormatStatusDescription:
         out = aac.format_status_description("x" * 200, HEAD)
         assert len(out) == 140
         assert out.endswith(f"… [{HEAD[:12]}]")
+
+    def test_message_exactly_at_the_limit_is_not_truncated(self):
+        suffix = f" [{HEAD[:12]}]"
+        message = "y" * (140 - len(suffix))
+        out = aac.format_status_description(message, HEAD)
+        assert out == f"{message}{suffix}"
+        assert "…" not in out
 
 
 class TestGenerateNotificationComment:
