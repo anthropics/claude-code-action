@@ -341,21 +341,14 @@ describe("parseSdkOptions", () => {
       );
     });
 
-    test("should merge inline JSON configs when file path is also present", () => {
-      // The file path here does not exist, so only the inline configs can be
-      // merged; the servers from the readable inline JSON must still survive.
+    test("should reject a file path that cannot be merged with inline configs", () => {
       const options: ClaudeOptions = {
         claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config '{"mcpServers":{"github_ci":{"command":"node"}}}' --mcp-config /tmp/user-config.json`,
       };
 
-      const result = parseSdkOptions(options);
-
-      // The inline JSON configs should be merged
-      const mcpConfig = JSON.parse(
-        result.sdkOptions.extraArgs?.["mcp-config"] as string,
+      expect(() => parseSdkOptions(options)).toThrow(
+        "Could not read --mcp-config file /tmp/user-config.json",
       );
-      expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
-      expect(mcpConfig.mcpServers).toHaveProperty("github_ci");
     });
 
     describe("mcp-config file paths are read and merged", () => {
@@ -449,39 +442,34 @@ describe("parseSdkOptions", () => {
         expect(mcpConfig.mcpServers).toHaveProperty("second");
       });
 
-      test("keeps the inline servers when the file cannot be read", () => {
-        const result = parseSdkOptions({
-          claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config ${join(dir, "missing.json")}`,
-        });
+      test("rejects the merge when a file cannot be read", () => {
+        const missing = join(dir, "missing.json");
 
-        const mcpConfig = JSON.parse(
-          result.sdkOptions.extraArgs?.["mcp-config"] as string,
-        );
-        expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
+        expect(() =>
+          parseSdkOptions({
+            claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config ${missing}`,
+          }),
+        ).toThrow(`Could not read --mcp-config file ${missing}`);
       });
 
-      test("keeps the inline servers when the file holds malformed JSON", () => {
+      test("rejects the merge when a file holds malformed JSON", () => {
         writeFileSync(configPath, "{ this is not json");
 
-        const result = parseSdkOptions({
-          claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config ${configPath}`,
-        });
-
-        const mcpConfig = JSON.parse(
-          result.sdkOptions.extraArgs?.["mcp-config"] as string,
-        );
-        expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
+        expect(() =>
+          parseSdkOptions({
+            claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config ${configPath}`,
+          }),
+        ).toThrow(`Could not read --mcp-config file ${configPath}`);
       });
 
-      test("returns the path unchanged when it is the only value and is unreadable", () => {
-        // Preserves the existing single-path behaviour: the CLI resolves the
-        // path itself and reports errors against it.
+      test("rejects repeated unreadable paths that must be merged", () => {
         const missing = join(dir, "missing.json");
-        const result = parseSdkOptions({
-          claudeArgs: `--mcp-config ${missing} --mcp-config ${missing}`,
-        });
 
-        expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBe(missing);
+        expect(() =>
+          parseSdkOptions({
+            claudeArgs: `--mcp-config ${missing} --mcp-config ${missing}`,
+          }),
+        ).toThrow(`Could not read --mcp-config file ${missing}`);
       });
     });
 

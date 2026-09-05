@@ -63,12 +63,11 @@ type McpConfig = {
  * Merge multiple MCP config values into a single config.
  * Each config can be a JSON string or a file path; both are read and their
  * mcpServers objects merged, with later values winning on key collisions.
- * If nothing can be read, the last unreadable path is returned unchanged so
- * the CLI can report the error against the real path.
+ * Merging is all-or-nothing: an unreadable or malformed value throws instead
+ * of silently running with only the remaining configuration.
  */
 function mergeMcpConfigs(configValues: string[]): string {
   const merged: McpConfig = { mcpServers: {} };
-  const unreadableFilePaths: string[] = [];
 
   for (const config of configValues) {
     const trimmed = config.trim();
@@ -81,9 +80,12 @@ function mergeMcpConfigs(configValues: string[]): string {
         if (parsed.mcpServers) {
           Object.assign(merged.mcpServers!, parsed.mcpServers);
         }
-      } catch {
-        // Not valid JSON despite the leading brace — nothing usable here.
-        unreadableFilePaths.push(trimmed);
+      } catch (error) {
+        throw new Error(
+          `Could not parse inline --mcp-config JSON: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
       }
     } else {
       // A file path. Read it now and merge its servers, so it survives
@@ -97,23 +99,12 @@ function mergeMcpConfigs(configValues: string[]): string {
           Object.assign(merged.mcpServers!, parsed.mcpServers);
         }
       } catch (error) {
-        unreadableFilePaths.push(trimmed);
-        console.warn(
+        throw new Error(
           `Could not read --mcp-config file ${trimmed}: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
       }
-    }
-  }
-
-  // Nothing could be merged. Hand the path back unchanged rather than an empty
-  // config, so the CLI reports the failure against the real path — and so a
-  // path that exists in the CLI's environment but not this one still works.
-  if (Object.keys(merged.mcpServers!).length === 0) {
-    const lastUnreadable = unreadableFilePaths[unreadableFilePaths.length - 1];
-    if (lastUnreadable) {
-      return lastUnreadable;
     }
   }
 
