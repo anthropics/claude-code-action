@@ -192,7 +192,12 @@ function parseClaudeArgsToExtraArgs(
  */
 export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   // Determine output verbosity
-  const isDebugMode = process.env.ACTIONS_STEP_DEBUG === "true";
+  // The runner exports RUNNER_DEBUG=1 when "Enable debug logging" is checked
+  // (the same variable @actions/core's isDebug() reads). ACTIONS_STEP_DEBUG is
+  // kept for environments where it is still exported explicitly.
+  const isDebugMode =
+    process.env.ACTIONS_STEP_DEBUG === "true" ||
+    process.env.RUNNER_DEBUG === "1";
   const showFullOutput = options.showFullOutput === "true" || isDebugMode;
 
   // Parse claudeArgs into extraArgs for CLI pass-through

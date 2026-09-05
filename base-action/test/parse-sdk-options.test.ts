@@ -546,6 +546,88 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("showFullOutput / debug mode", () => {
+    test("should enable full output when RUNNER_DEBUG is 1", () => {
+      // The runner exports RUNNER_DEBUG=1 on re-runs with "Enable debug
+      // logging" checked; ACTIONS_STEP_DEBUG is not set in step envs.
+      const originalEnv = { ...process.env };
+      process.env.RUNNER_DEBUG = "1";
+
+      try {
+        const result = parseSdkOptions({ claudeArgs: "" });
+
+        expect(result.showFullOutput).toBe(true);
+      } finally {
+        process.env = originalEnv;
+      }
+    });
+
+    test("should not enable full output when RUNNER_DEBUG is unset", () => {
+      const originalEnv = { ...process.env };
+      delete process.env.RUNNER_DEBUG;
+      delete process.env.ACTIONS_STEP_DEBUG;
+
+      try {
+        const result = parseSdkOptions({ claudeArgs: "" });
+
+        expect(result.showFullOutput).toBe(false);
+      } finally {
+        process.env = originalEnv;
+      }
+    });
+
+    test("should not enable full output for other RUNNER_DEBUG values", () => {
+      const originalEnv = { ...process.env };
+      process.env.RUNNER_DEBUG = "0";
+
+      try {
+        const result = parseSdkOptions({ claudeArgs: "" });
+
+        expect(result.showFullOutput).toBe(false);
+      } finally {
+        process.env = originalEnv;
+      }
+    });
+
+    test("should still honor ACTIONS_STEP_DEBUG for backwards compatibility", () => {
+      const originalEnv = { ...process.env };
+      process.env.ACTIONS_STEP_DEBUG = "true";
+
+      try {
+        const result = parseSdkOptions({ claudeArgs: "" });
+
+        expect(result.showFullOutput).toBe(true);
+      } finally {
+        process.env = originalEnv;
+      }
+    });
+
+    test("should prefer the showFullOutput input over env", () => {
+      const originalEnv = { ...process.env };
+      process.env.RUNNER_DEBUG = "1";
+
+      try {
+        const result = parseSdkOptions({
+          claudeArgs: "",
+          showFullOutput: "true",
+        });
+
+        expect(result.showFullOutput).toBe(true);
+
+        const explicit = parseSdkOptions({
+          claudeArgs: "",
+          showFullOutput: "false",
+        });
+
+        // The explicit "false" input still loses to debug mode, matching the
+        // documented behavior that debug re-runs reveal full output.
+        expect(explicit.showFullOutput).toBe(true);
+      } finally {
+        process.env = originalEnv;
+      }
+    });
+  });
+
   describe("environment variables passthrough", () => {
     test("should include OTEL environment variables in sdkOptions.env", () => {
       // Set up test environment variables
