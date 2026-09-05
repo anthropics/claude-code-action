@@ -125,7 +125,8 @@ If you need full history, you can configure this in your workflow before calling
 
 ```
 - uses: actions/checkout@v6
-  depth: 0 # will fetch full repo history
+  with:
+    fetch-depth: 0 # will fetch full repo history
 ```
 
 ## Configuration and Tools
