@@ -168,25 +168,26 @@ async function getOrCreateBranchRef(
   return baseSha;
 }
 
-// Get the appropriate Git file mode for a file
+// Get the appropriate Git file mode for a file.
+//
+// There is deliberately no 120000 (symlink) case. stat() resolves symlinks, so
+// isSymbolicLink() is never true here, and readFile() in commit_files resolves
+// them too - a symlinked path is committed as a regular blob holding the
+// target's content. Returning 120000 would require the blob content to be the
+// link target path instead, so the mode cannot be changed on its own without
+// producing a corrupt tree entry.
 async function getFileMode(filePath: string): Promise<string> {
   try {
     const fileStat = await stat(filePath);
-    if (fileStat.isFile()) {
-      // Check if execute bit is set for user
-      if (fileStat.mode & constants.S_IXUSR) {
-        return "100755"; // Executable file
-      } else {
-        return "100644"; // Regular file
-      }
-    } else if (fileStat.isDirectory()) {
+    if (fileStat.isDirectory()) {
       return "040000"; // Directory (tree)
-    } else if (fileStat.isSymbolicLink()) {
-      return "120000"; // Symbolic link
-    } else {
-      // Fallback for unknown file types
-      return "100644";
     }
+    // Check if execute bit is set for user
+    if (fileStat.isFile() && fileStat.mode & constants.S_IXUSR) {
+      return "100755"; // Executable file
+    }
+    // Regular file, and the fallback for unknown file types
+    return "100644";
   } catch (error) {
     // If we can't stat the file, default to regular file
     console.warn(
