@@ -254,5 +254,47 @@ describe("workload identity federation", () => {
 
       expect(existsSync(tokenDir)).toBe(false);
     });
+
+    test("does not recreate credentials when a refresh finishes after stop", async () => {
+      process.env.ANTHROPIC_FEDERATION_RULE_ID = "fdrl_test";
+      process.env.ANTHROPIC_ORGANIZATION_ID =
+        "00000000-0000-0000-0000-000000000000";
+
+      let resolveRefresh: ((token: string) => void) | undefined;
+      let tokenCalls = 0;
+      getIDTokenSpy.mockImplementation(() => {
+        tokenCalls += 1;
+        if (tokenCalls === 1) return Promise.resolve("initial-token");
+        return new Promise((resolve) => {
+          resolveRefresh = resolve;
+        });
+      });
+
+      let refresh: (() => void) | undefined;
+      const intervalSpy = spyOn(globalThis, "setInterval").mockImplementation(((
+        callback: () => void,
+      ) => {
+        refresh = callback;
+        return 1 as unknown as ReturnType<typeof setInterval>;
+      }) as typeof setInterval);
+
+      try {
+        const handle = await setupWorkloadIdentity();
+        expect(handle).toBeDefined();
+        expect(refresh).toBeDefined();
+
+        refresh!();
+        handle!.stop();
+        resolveRefresh!("refreshed-token");
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(existsSync(join(tempDir, "claude-workload-identity"))).toBe(
+          false,
+        );
+      } finally {
+        intervalSpy.mockRestore();
+      }
+    });
   });
 });
