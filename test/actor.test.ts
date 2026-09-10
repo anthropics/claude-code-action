@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, mock } from "bun:test";
 import { checkHumanActor } from "../src/github/validation/actor";
 import type { Octokit } from "@octokit/rest";
-import { createMockContext } from "./mockContext";
+import { createMockContext, createMockAutomationContext } from "./mockContext";
 
 function createMockOctokit(userType: string): Octokit {
   return {
@@ -15,6 +15,54 @@ function createMockOctokit(userType: string): Octokit {
       }),
     },
   } as unknown as Octokit;
+}
+
+// Mirrors the reported #1348 failure: the Users API returns 401 even though
+// the repo-scoped permission check succeeded. The mock also records calls so
+// tests can assert the payload path skipped the API entirely.
+function createMockOctokitThatThrows401(): {
+  octokit: Octokit;
+  getByUsername: ReturnType<typeof mock>;
+} {
+  const getByUsername = mock(async () => {
+    const err = new Error("Bad credentials - https://docs.github.com/rest");
+    (err as any).status = 401;
+    throw err;
+  });
+  const octokit = {
+    users: { getByUsername },
+  } as unknown as Octokit;
+  return { octokit, getByUsername };
+}
+
+// Builds an entity `*.labeled` context carrying a typed webhook sender, the
+// payload shape that lets checkHumanActor classify the actor without the API.
+function createSenderContext({
+  eventName = "pull_request",
+  eventAction = "labeled",
+  actor = "maintainer",
+  senderLogin = actor,
+  senderType = "User",
+  allowedBots = "",
+}: {
+  eventName?: "pull_request" | "issues";
+  eventAction?: string;
+  actor?: string;
+  senderLogin?: string;
+  senderType?: "User" | "Bot" | "Organization";
+  allowedBots?: string;
+}) {
+  return createMockContext({
+    eventName,
+    eventAction,
+    isPR: eventName === "pull_request",
+    actor,
+    payload: {
+      action: eventAction,
+      sender: { login: senderLogin, type: senderType },
+    } as any,
+    inputs: { allowedBots },
+  });
 }
 
 describe("checkHumanActor", () => {
@@ -213,6 +261,117 @@ describe("checkHumanActor", () => {
       await expect(checkHumanActor(mockOctokit, context)).rejects.toThrow(
         "Internal Server Error",
       );
+    });
+  });
+
+  describe("account type from event payload (#1348)", () => {
+    // Entity webhook events carry a typed `sender` with the triggering
+    // account's login and type. When that sender is the same identity being
+    // validated, checkHumanActor classifies the actor from the payload and
+    // skips the Users API — which can 401 on labeled events under the default
+    // OIDC + App-token-exchange auth even after repo-scoped calls succeed.
+    // The API remains the fallback when the payload has no matching sender.
+    // (The existing tests above, which use empty synthetic payloads, cover
+    // that fallback path.)
+
+    test("uses sender type for pull_request.labeled (case-insensitive), skipping the Users API", async () => {
+      const { octokit, getByUsername } = createMockOctokitThatThrows401();
+      // Actor casing differs from the sender login to also exercise the
+      // case-insensitive identity match.
+      const context = createSenderContext({
+        actor: "Maintainer",
+        senderLogin: "maintainer",
+      });
+
+      await expect(checkHumanActor(octokit, context)).resolves.toBeUndefined();
+      expect(getByUsername).not.toHaveBeenCalled();
+    });
+
+    test("uses sender type for issues.labeled, skipping the Users API", async () => {
+      const { octokit, getByUsername } = createMockOctokitThatThrows401();
+      const context = createSenderContext({ eventName: "issues" });
+
+      await expect(checkHumanActor(octokit, context)).resolves.toBeUndefined();
+      expect(getByUsername).not.toHaveBeenCalled();
+    });
+
+    test("uses sender type for workflow_dispatch, skipping the Users API", async () => {
+      // The optimization keys off the sender identity, not the event category:
+      // automation events (reached via agent mode) also carry a typed sender at
+      // runtime, so they skip the Users API too. This proves the behavior is
+      // neither labeled- nor entity-specific.
+      const { octokit, getByUsername } = createMockOctokitThatThrows401();
+      const context = createMockAutomationContext({
+        eventName: "workflow_dispatch",
+        actor: "maintainer",
+        payload: { sender: { login: "maintainer", type: "User" } } as any,
+      });
+
+      await expect(checkHumanActor(octokit, context)).resolves.toBeUndefined();
+      expect(getByUsername).not.toHaveBeenCalled();
+    });
+
+    test("falls back to the Users API when the event has no sender", async () => {
+      // A schedule event carries no sender, so the account type must still be
+      // resolved through the Users API. This is the real fallback invariant:
+      // missing sender metadata, not "automation event".
+      const getByUsername = mock(async () => ({ data: { type: "User" } }));
+      const octokit = {
+        users: { getByUsername },
+      } as unknown as Octokit;
+      const context = createMockAutomationContext({
+        eventName: "schedule",
+        actor: "maintainer",
+        payload: {
+          schedule: "0 0 * * *",
+          repository: { name: "test-repo", owner: { login: "test-owner" } },
+        } as any,
+      });
+
+      await expect(checkHumanActor(octokit, context)).resolves.toBeUndefined();
+      expect(getByUsername).toHaveBeenCalled();
+    });
+
+    test("rejects a disallowed bot sender without calling the Users API", async () => {
+      const { octokit, getByUsername } = createMockOctokitThatThrows401();
+      const context = createSenderContext({
+        actor: "scanner[bot]",
+        senderType: "Bot",
+        allowedBots: "",
+      });
+
+      await expect(checkHumanActor(octokit, context)).rejects.toThrow(
+        "Workflow initiated by non-human actor: scanner (type: Bot). Add bot to allowed_bots list or use '*' to allow all bots.",
+      );
+      expect(getByUsername).not.toHaveBeenCalled();
+    });
+
+    test("accepts an allowed bot sender without calling the Users API", async () => {
+      const { octokit, getByUsername } = createMockOctokitThatThrows401();
+      const context = createSenderContext({
+        actor: "scanner[bot]",
+        senderType: "Bot",
+        allowedBots: "scanner",
+      });
+
+      await expect(checkHumanActor(octokit, context)).resolves.toBeUndefined();
+      expect(getByUsername).not.toHaveBeenCalled();
+    });
+
+    test("falls back to the Users API when the sender login does not match the actor", async () => {
+      // A mismatched sender must never authorize a different actor: the
+      // payload is ignored and the existing API lookup runs (and here its
+      // 401 propagates, exactly as before this optimization).
+      const { octokit, getByUsername } = createMockOctokitThatThrows401();
+      const context = createSenderContext({
+        actor: "maintainer",
+        senderLogin: "different-user",
+      });
+
+      await expect(checkHumanActor(octokit, context)).rejects.toThrow(
+        "Bad credentials",
+      );
+      expect(getByUsername).toHaveBeenCalled();
     });
   });
 });
