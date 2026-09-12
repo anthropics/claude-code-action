@@ -33,12 +33,18 @@ export async function createInitialComment(
       context.isPR &&
       isPullRequestEvent(context)
     ) {
-      const comments = await octokit.rest.issues.listComments({
-        owner,
-        repo,
-        issue_number: context.entityNumber,
-      });
-      const existingComment = comments.data.find((comment) => {
+      // Paginate so the existing sticky comment is found even when it is not
+      // on the first page (listComments defaults to 30 comments per page).
+      const comments = await octokit.paginate(
+        octokit.rest.issues.listComments,
+        {
+          owner,
+          repo,
+          issue_number: context.entityNumber,
+          per_page: 100,
+        },
+      );
+      const existingComment = comments.find((comment) => {
         const idMatch = comment.user?.id === CLAUDE_APP_BOT_ID;
         const botNameMatch =
           comment.user?.type === "Bot" &&
