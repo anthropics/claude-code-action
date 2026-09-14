@@ -60,6 +60,7 @@ describe("git-config", () => {
   let repoDir: string;
   let originalActionPath: string | undefined;
   let originalNonWriteUsers: string | undefined;
+  let originalGitCredentialHelper: string | undefined;
   let originalGhToken: string | undefined;
   let originalGitEnv: Record<string, string | undefined>;
   let consoleLogSpy: any;
@@ -68,8 +69,10 @@ describe("git-config", () => {
     originalCwd = process.cwd();
     originalActionPath = process.env.GITHUB_ACTION_PATH;
     originalNonWriteUsers = process.env.ALLOWED_NON_WRITE_USERS;
+    originalGitCredentialHelper = process.env.GIT_CREDENTIAL_HELPER;
     originalGhToken = process.env.GH_TOKEN;
     delete process.env.ALLOWED_NON_WRITE_USERS;
+    delete process.env.GIT_CREDENTIAL_HELPER;
     originalGitEnv = {};
     for (const name of GIT_ENV_OVERRIDES) {
       originalGitEnv[name] = process.env[name];
@@ -109,6 +112,7 @@ describe("git-config", () => {
     consoleLogSpy?.mockRestore();
     restoreEnv("GITHUB_ACTION_PATH", originalActionPath);
     restoreEnv("ALLOWED_NON_WRITE_USERS", originalNonWriteUsers);
+    restoreEnv("GIT_CREDENTIAL_HELPER", originalGitCredentialHelper);
     restoreEnv("GH_TOKEN", originalGhToken);
     for (const name of GIT_ENV_OVERRIDES) {
       restoreEnv(name, originalGitEnv[name]);
@@ -148,6 +152,24 @@ describe("git-config", () => {
       expect(gitConfigGetAll("credential.helper")).toBe(helperPath);
       expect(statSync(helperPath).mode & 0o777).toBe(0o700);
       expect(process.env.GH_TOKEN).toBe("helper-token");
+    });
+
+    test("uses a credential helper when explicitly enabled", async () => {
+      process.env.GIT_CREDENTIAL_HELPER = "true";
+
+      await replaceCheckoutCredentials(
+        "explicit-helper-token",
+        createMockAutomationContext(),
+      );
+
+      expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe("");
+      expect(remoteUrl()).toBe(
+        `https://${SERVER.host}/test-owner/test-repo.git`,
+      );
+      expect(gitConfigGetAll("credential.helper")).toBe(
+        join(tempDir, ".git-credential-gh-token"),
+      );
+      expect(process.env.GH_TOKEN).toBe("explicit-helper-token");
     });
 
     test("succeeds when there is no checkout extraheader to remove", async () => {
