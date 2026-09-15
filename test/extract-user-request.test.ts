@@ -60,6 +60,19 @@ Focus on security issues.`,
     expect(extractUserRequest("/claude help me", "/claude")).toBe("help me");
   });
 
+  test("ignores trigger phrase embedded in another word (issue #1798)", () => {
+    const comment =
+      "Email security@claude.dev ASAP. @claude please review the auth module";
+    expect(extractUserRequest(comment, "@claude")).toBe(
+      "please review the auth module",
+    );
+  });
+
+  test("ignores trigger phrase followed by non-punctuation", () => {
+    const comment = "Check out @claudebot first, then @claude do this";
+    expect(extractUserRequest(comment, "@claude")).toBe("do this");
+  });
+
   test("handles trigger phrase with special regex characters", () => {
     expect(
       extractUserRequest("@claude[bot] do something", "@claude[bot]"),
