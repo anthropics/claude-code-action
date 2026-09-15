@@ -16,16 +16,17 @@ import { execFileSync } from "child_process";
  * lose, so the limit still applies there and large repositories keep the fetch
  * savings it was added for.
  */
-export function fetchDepthArgs(depth: number): string[] {
-  return isShallowRepository() ? [`--depth=${depth}`] : [];
+export function fetchDepthArgs(depth: number, cwd?: string): string[] {
+  return isShallowRepository(cwd) ? [`--depth=${depth}`] : [];
 }
 
-function isShallowRepository(): boolean {
+function isShallowRepository(cwd?: string): boolean {
   try {
     const output = execFileSync(
       "git",
       ["rev-parse", "--is-shallow-repository"],
       {
+        cwd,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
       },
