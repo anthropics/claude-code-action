@@ -112,6 +112,28 @@ function sanitizeModelUsage(
 }
 
 /**
+ * Count distinct assistant API rounds in the SDK stream.
+ * `result.num_turns` includes one per tool_result, so it can exceed --max-turns
+ * when tools run in parallel within the same round.
+ */
+function countAssistantRounds(messages: SDKMessage[]): number {
+  const assistantMessageIds = new Set<string>();
+
+  for (const message of messages) {
+    if (message.type !== "assistant") {
+      continue;
+    }
+
+    const id = (message as { message?: { id?: string } }).message?.id;
+    if (id) {
+      assistantMessageIds.add(id);
+    }
+  }
+
+  return assistantMessageIds.size;
+}
+
+/**
  * Sanitizes SDK output to match CLI sanitization behavior
  */
 function sanitizeSdkOutput(
@@ -238,13 +260,14 @@ export async function runClaudeWithSdk(
     throw new Error("No result message received from Claude");
   }
 
+  const assistantRounds = countAssistantRounds(messages);
   if (
     resultMessage.subtype === "success" &&
     !resultMessage.is_error &&
     sdkOptions.maxTurns !== undefined &&
-    resultMessage.num_turns > sdkOptions.maxTurns
+    assistantRounds > sdkOptions.maxTurns
   ) {
-    const message = `Claude reported a successful result after ${resultMessage.num_turns} turns, exceeding the configured maximum of ${sdkOptions.maxTurns}`;
+    const message = `Claude reported a successful result after ${assistantRounds} assistant rounds, exceeding the configured maximum of ${sdkOptions.maxTurns}`;
     core.error(message);
     throw new Error(message);
   }
