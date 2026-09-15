@@ -4,6 +4,7 @@ import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
+import { getExecutionFilePath } from "../src/execution-file";
 
 describe("runClaudeWithSdk", () => {
   const originalRunnerTemp = process.env.RUNNER_TEMP;
@@ -54,7 +55,7 @@ describe("runClaudeWithSdk", () => {
         }),
       ).rejects.toThrow("SDK execution error");
 
-      const executionFile = join(tempDir, "claude-execution-output.json");
+      const executionFile = getExecutionFilePath()!;
       await expect(readFile(executionFile, "utf-8")).resolves.toBe(
         JSON.stringify([initMessage], null, 2),
       );
@@ -204,7 +205,7 @@ describe("runClaudeWithSdk", () => {
         }),
       ).rejects.toThrow("result is_error:true");
 
-      const executionFile = join(tempDir, "claude-execution-output.json");
+      const executionFile = getExecutionFilePath()!;
       await expect(readFile(executionFile, "utf-8")).resolves.toBe(
         JSON.stringify([initMessage, errorResultMessage], null, 2),
       );
@@ -271,7 +272,7 @@ describe("runClaudeWithSdk", () => {
         "Claude reported a successful result after 73 turns, exceeding the configured maximum of 60",
       );
 
-      const executionFile = join(tempDir, "claude-execution-output.json");
+      const executionFile = getExecutionFilePath()!;
       await expect(readFile(executionFile, "utf-8")).resolves.toBe(
         JSON.stringify([initMessage, successResultMessage], null, 2),
       );
