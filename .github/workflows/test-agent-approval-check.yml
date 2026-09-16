@@ -1,0 +1,39 @@
+name: Test Agent Approval Check
+
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+# Unit tests only — no Claude API calls and no repository writes, so unlike the
+# other test-* workflows this needs no id-token and is safe to run on fork PRs.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # agent_approval_check.py declares `requires-python = ">=3.11"`, so the
+        # floor is tested alongside 3.12, the version agent-approval-check/action.yml
+        # actually installs at runtime.
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Pinned to the same versions agent-approval-check/action.yml installs, so
+      # CI exercises the dependency set the action actually runs with. The
+      # script's PEP 723 block leaves these unpinned; if that block ever becomes
+      # the source of truth, switch this to `uv run --script`.
+      - name: Install dependencies
+        run: pip install 'httpx==0.28.1' 'pyyaml==6.0.3' 'tenacity==9.1.4' 'pytest==8.4.2'
+
+      - name: Run tests
+        working-directory: agent-approval-check
+        run: python -m pytest test_agent_approval_check.py -v
