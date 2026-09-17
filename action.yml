@@ -137,6 +137,10 @@ inputs:
     description: "Force tag mode with tracking comments for pull_request and issue events. Only applicable to pull_request (opened, synchronize, ready_for_review, reopened, labeled) and issue (opened, edited, labeled, assigned) events."
     required: false
     default: "false"
+  token_only:
+    description: "Mint the GitHub App token (github_token output) and exit immediately, without running Claude. For automation that needs to act on GitHub as the Claude Code App's own identity -- picking up the App's repository permissions and satisfying checks scoped to that identity -- but has no use for the agent itself, such as a separate step in the same job performing a deterministic gh/API call. Skips the write-permission and trigger checks entirely, since neither is meaningful when no prompt will run. If github_token is also provided, setup does not mint a new App token -- it echoes the provided one back as the output instead, same as every other mode."
+    required: false
+    default: "false"
   include_fix_links:
     description: "Include 'Fix this' links in PR code review feedback that open Claude Code with context to fix the identified issue"
     required: false
@@ -311,6 +315,7 @@ runs:
         BOT_ID: ${{ inputs.bot_id }}
         BOT_NAME: ${{ inputs.bot_name }}
         TRACK_PROGRESS: ${{ inputs.track_progress }}
+        TOKEN_ONLY: ${{ inputs.token_only }}
         INCLUDE_FIX_LINKS: ${{ inputs.include_fix_links }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         CLAUDE_ARGS: ${{ inputs.claude_args }}
