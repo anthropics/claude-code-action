@@ -1,6 +1,7 @@
 import { describe, expect, it, jest, test } from "bun:test";
 import {
   extractTriggerTimestamp,
+  extractTriggeringReviewId,
   resolveTriggerTimestamp,
   extractOriginalTitle,
   extractOriginalBody,
@@ -1956,5 +1957,67 @@ describe("filterCommentsByActor", () => {
     const onlyGhost = filterCommentsByActor(comments, "ghost", "");
     expect(onlyGhost).toHaveLength(1);
     expect(onlyGhost[0].body).toBe("from a deleted account");
+  });
+});
+
+describe("extractTriggeringReviewId", () => {
+  it("returns the review id for a pull_request_review event", () => {
+    expect(extractTriggeringReviewId(mockPullRequestReviewContext)).toBe(
+      String((mockPullRequestReviewContext.payload as any).review.id),
+    );
+  });
+
+  it("returns undefined for non-review events", () => {
+    expect(extractTriggeringReviewId(mockIssueCommentContext)).toBeUndefined();
+    expect(
+      extractTriggeringReviewId(mockPullRequestOpenedContext),
+    ).toBeUndefined();
+  });
+});
+
+describe("filterReviewsToTriggerTime with a triggering review", () => {
+  const triggerTime = "2024-01-15T12:00:00Z";
+
+  const reviews = [
+    {
+      databaseId: "1",
+      submittedAt: "2024-01-15T11:00:00Z",
+      body: "pre-trigger review",
+    },
+    {
+      // Submitted exactly at the trigger: this IS the review that invoked the run.
+      databaseId: "2",
+      submittedAt: triggerTime,
+      body: "triggering review",
+    },
+    {
+      databaseId: "3",
+      submittedAt: "2024-01-15T13:00:00Z",
+      body: "post-trigger review",
+    },
+  ];
+
+  it("drops the triggering review when no id is supplied (the bug)", () => {
+    const result = filterReviewsToTriggerTime(reviews, triggerTime);
+
+    expect(result.map((r) => r.databaseId)).toEqual(["1"]);
+  });
+
+  it("keeps the triggering review when its id is supplied", () => {
+    const result = filterReviewsToTriggerTime(reviews, triggerTime, "2");
+
+    expect(result.map((r) => r.databaseId)).toEqual(["1", "2"]);
+  });
+
+  it("still excludes other reviews at or after the trigger", () => {
+    const result = filterReviewsToTriggerTime(reviews, triggerTime, "2");
+
+    expect(result.map((r) => r.databaseId)).not.toContain("3");
+  });
+
+  it("does not admit an unrelated review when the id does not match", () => {
+    const result = filterReviewsToTriggerTime(reviews, triggerTime, "999");
+
+    expect(result.map((r) => r.databaseId)).toEqual(["1"]);
   });
 });
