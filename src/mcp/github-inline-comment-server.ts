@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createOctokit } from "../github/api/client";
 import { redactSecrets, sanitizeContent } from "../github/utils/sanitizer";
 import { removeBufferedComment } from "./inline-comment-buffer";
+import { diffLineSchema } from "./inline-comment-schema";
 
 // Get repository and PR information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -49,20 +50,12 @@ server.tool(
           "IMPORTANT: The suggestion block will REPLACE the ENTIRE line range (single line or startLine to line). " +
           "Ensure the replacement is syntactically complete and valid - it must work as a drop-in replacement for the selected lines.",
       ),
-    line: z
-      .number()
-      .nonnegative()
-      .optional()
-      .describe(
-        "Line number for single-line comments (required if startLine is not provided)",
-      ),
-    startLine: z
-      .number()
-      .nonnegative()
-      .optional()
-      .describe(
-        "Start line for multi-line comments (use with line parameter for the end line)",
-      ),
+    line: diffLineSchema.describe(
+      "Line number for single-line comments (required if startLine is not provided)",
+    ),
+    startLine: diffLineSchema.describe(
+      "Start line for multi-line comments (use with line parameter for the end line)",
+    ),
     side: z
       .enum(["LEFT", "RIGHT"])
       .optional()
