@@ -77,7 +77,7 @@ async function installClaudeCode(): Promise<string> {
     return customExecutable;
   }
 
-  const claudeCodeVersion = "2.1.275";
+  const claudeCodeVersion = "2.1.276";
   console.log(`Installing Claude Code v${claudeCodeVersion}...`);
 
   for (let attempt = 1; attempt <= 3; attempt++) {
