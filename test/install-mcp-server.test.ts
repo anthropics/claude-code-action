@@ -43,6 +43,7 @@ describe("prepareMcpConfig", () => {
       includeFixLinks: true,
       includeCommentsByActor: "",
       excludeCommentsByActor: "",
+      allowWorkflowModifications: false,
     },
   };
 
