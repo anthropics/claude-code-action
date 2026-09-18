@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { execFileSync } from "child_process";
 import { mkdtempSync, rmSync, statSync } from "fs";
-import { tmpdir } from "os";
+import { tmpdir, platform } from "os";
 import { join } from "path";
 import {
   configureGitAuth,
@@ -146,7 +146,9 @@ describe("git-config", () => {
       );
       const helperPath = join(tempDir, ".git-credential-gh-token");
       expect(gitConfigGetAll("credential.helper")).toBe(helperPath);
-      expect(statSync(helperPath).mode & 0o777).toBe(0o700);
+      if (platform() !== "win32") {
+        expect(statSync(helperPath).mode & 0o777).toBe(0o700);
+      }
       expect(process.env.GH_TOKEN).toBe("helper-token");
     });
 
