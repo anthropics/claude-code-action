@@ -74,12 +74,15 @@ export function validateBranchName(branchName: string): void {
   //   "_release/v1.2.3"), which previously failed validation as a PR's base branch.
   // Parentheses are valid per git-check-ref-format and commonly appear in branch names that
   //   use Conventional Commit-style scopes (e.g. "feat(parser)-handle-empty-input").
+  // ; is valid per git-check-ref-format and appears in branch names generated from ticket
+  //   titles by some trackers (e.g. "FIDA-3971;-adjust-mapping"), which previously failed
+  //   validation as a PR's head ref and blocked review-only runs on those PRs entirely.
   // All git calls use execFileSync (not shell interpolation), so none of these characters carry injection risk.
-  const validPattern = /^[a-zA-Z0-9@_][a-zA-Z0-9/_.#+,@()-]*$/;
+  const validPattern = /^[a-zA-Z0-9@_][a-zA-Z0-9/_.#+,@();-]*$/;
 
   if (!validPattern.test(branchName)) {
     throw new Error(
-      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric character, underscore, or '@' and contain only alphanumeric characters, forward slashes, hyphens, underscores, periods, hashes (#), plus signs (+), commas (,), at signs (@), or parentheses.`,
+      `Invalid branch name: "${branchName}". Branch names must start with an alphanumeric character, underscore, or '@' and contain only alphanumeric characters, forward slashes, hyphens, underscores, periods, hashes (#), plus signs (+), commas (,), at signs (@), parentheses, or semicolons (;).`,
     );
   }
 
