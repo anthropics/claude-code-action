@@ -7,6 +7,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        workspace: [".", "setup"]
     steps:
       - uses: actions/checkout@v6
 
@@ -15,13 +18,18 @@ jobs:
           bun-version: 1.2.12
 
       - name: Install dependencies
+        working-directory: ${{ matrix.workspace }}
         run: bun install
 
       - name: Run tests
+        working-directory: ${{ matrix.workspace }}
         run: bun test
 
   prettier:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        workspace: [".", "setup"]
     steps:
       - uses: actions/checkout@v6
 
@@ -30,13 +38,18 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
+        working-directory: ${{ matrix.workspace }}
         run: bun install
 
       - name: Run prettier check
+        working-directory: ${{ matrix.workspace }}
         run: bun run format:check
 
   typecheck:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        workspace: [".", "setup"]
     steps:
       - uses: actions/checkout@v6
 
@@ -45,7 +58,48 @@ jobs:
           bun-version: 1.2.12
 
       - name: Install dependencies
+        working-directory: ${{ matrix.workspace }}
         run: bun install
 
       - name: Run TypeScript type check
+        working-directory: ${{ matrix.workspace }}
         run: bun run typecheck
+
+  setup-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: setup
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.12
+
+      - name: Install dependencies (setup)
+        run: bun install
+
+      - name: Build setup action
+        run: bun run build
+
+      - name: Verify dist files exist
+        run: |
+          if [ ! -f dist/index.js ]; then
+            echo "Error: dist/index.js not found"
+            exit 1
+          fi
+          if [ ! -f dist/index.js.map ]; then
+            echo "Error: dist/index.js.map not found"
+            exit 1
+          fi
+
+      - name: Check for uncommitted dist changes
+        run: |
+          if [ -n "$(git status --porcelain dist)" ]; then
+            echo "Error: Uncommitted changes in setup/dist/"
+            echo "Please run 'cd setup && bun run build' and commit the changes"
+            git status dist
+            git diff dist
+            exit 1
+          fi
