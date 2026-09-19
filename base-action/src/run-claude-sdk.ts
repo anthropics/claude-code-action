@@ -238,16 +238,13 @@ export async function runClaudeWithSdk(
     throw new Error("No result message received from Claude");
   }
 
-  if (
-    resultMessage.subtype === "success" &&
-    !resultMessage.is_error &&
-    sdkOptions.maxTurns !== undefined &&
-    resultMessage.num_turns > sdkOptions.maxTurns
-  ) {
-    const message = `Claude reported a successful result after ${resultMessage.num_turns} turns, exceeding the configured maximum of ${sdkOptions.maxTurns}`;
-    core.error(message);
-    throw new Error(message);
-  }
+  // maxTurns bounds model round trips, but result.num_turns counts every turn in
+  // the transcript, and batched tool calls inflate that well past the round-trip
+  // count. Comparing the two rejected runs the SDK itself reported as successful
+  // within the limit (a --max-turns 14 run returning num_turns 27). A genuine
+  // overrun is reported by the SDK as a non-success subtype (error_max_turns),
+  // which the isSuccess check below already treats as failure, so there is
+  // nothing to re-check against num_turns here.
 
   // subtype "success" with is_error:true means the run errored without producing
   // a real result — treat it as failure so CI does not show a misleading green check.
