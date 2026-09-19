@@ -47,21 +47,25 @@ export function stripHiddenAttributes(content: string): string {
   return content;
 }
 
+function decodeNumericEntity(value: string, radix: number): string {
+  const codePoint = parseInt(value, radix);
+  if (
+    codePoint > 0 &&
+    codePoint <= 0x10ffff &&
+    !/\p{C}/u.test(String.fromCodePoint(codePoint))
+  ) {
+    return String.fromCodePoint(codePoint);
+  }
+  return "";
+}
+
 export function normalizeHtmlEntities(content: string): string {
-  content = content.replace(/&#(\d+);/g, (_, dec) => {
-    const num = parseInt(dec, 10);
-    if (num >= 32 && num <= 126) {
-      return String.fromCharCode(num);
-    }
-    return "";
-  });
-  content = content.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
-    const num = parseInt(hex, 16);
-    if (num >= 32 && num <= 126) {
-      return String.fromCharCode(num);
-    }
-    return "";
-  });
+  content = content.replace(/&#(\d+);/g, (_, dec) =>
+    decodeNumericEntity(dec, 10),
+  );
+  content = content.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
+    decodeNumericEntity(hex, 16),
+  );
   return content;
 }
 
@@ -109,7 +113,7 @@ export function redactSecrets(content: string): string {
   );
 
   // JWT-shaped strings: three base64url segments, the first two starting
-  // with eyJ (base64 of `{"`).
+  // with eyJ (base64 of `{\"`).
   content = content.replace(
     /eyJ[A-Za-z0-9_-]{10,2000}\.eyJ[A-Za-z0-9_-]{10,4000}\.[A-Za-z0-9_-]{10,2000}\b/g,
     "[REDACTED_JWT]",
