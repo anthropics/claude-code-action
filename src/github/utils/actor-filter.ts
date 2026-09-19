@@ -37,8 +37,14 @@ export function resolveActorName(
 }
 
 /**
- * Checks if an actor matches a pattern
- * Supports wildcards: "*[bot]" matches all bots, "dependabot[bot]" matches specific
+ * Checks if an actor matches a pattern.
+ *
+ * Patterns are exact, case-sensitive login comparisons. The single exception is
+ * the literal pattern "*[bot]", which matches any login ending in "[bot]".
+ * `*` is not a metacharacter anywhere else, so a pattern like "dep*" matches
+ * only a login that is literally "dep*" - which is why the inputs document the
+ * limitation instead of promising glob support.
+ *
  * @param actor - Actor username to check
  * @param pattern - Pattern to match against
  * @returns true if actor matches pattern
