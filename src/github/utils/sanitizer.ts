@@ -47,16 +47,16 @@ export function stripHiddenAttributes(content: string): string {
   return content;
 }
 
+// A decoded entity must not reintroduce a character the sanitizer strips:
+// category C (controls, format characters, surrogates, private use) and the
+// line and paragraph separators (Zl, Zp), which are invisible line breaks.
 function decodeNumericEntity(value: string, radix: number): string {
   const codePoint = parseInt(value, radix);
-  if (
-    codePoint > 0 &&
-    codePoint <= 0x10ffff &&
-    !/\p{C}/u.test(String.fromCodePoint(codePoint))
-  ) {
-    return String.fromCodePoint(codePoint);
+  if (codePoint <= 0 || codePoint > 0x10ffff) {
+    return "";
   }
-  return "";
+  const character = String.fromCodePoint(codePoint);
+  return /\p{C}|\p{Zl}|\p{Zp}/u.test(character) ? "" : character;
 }
 
 export function normalizeHtmlEntities(content: string): string {
@@ -113,7 +113,7 @@ export function redactSecrets(content: string): string {
   );
 
   // JWT-shaped strings: three base64url segments, the first two starting
-  // with eyJ (base64 of `{\"`).
+  // with eyJ (a common base64url prefix for JSON objects).
   content = content.replace(
     /eyJ[A-Za-z0-9_-]{10,2000}\.eyJ[A-Za-z0-9_-]{10,4000}\.[A-Za-z0-9_-]{10,2000}\b/g,
     "[REDACTED_JWT]",
