@@ -106,7 +106,8 @@ describe("parseSdkOptions", () => {
       const result = parseSdkOptions(options);
 
       expect(result.sdkOptions.extraArgs?.["allowedTools"]).toBeUndefined();
-      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-3-5-sonnet");
+      expect(result.sdkOptions.extraArgs?.["model"]).toBeUndefined();
+      expect(result.sdkOptions.model).toBe("claude-3-5-sonnet");
     });
 
     test("should handle hyphenated --allowed-tools flag", () => {
@@ -135,6 +136,110 @@ describe("parseSdkOptions", () => {
         "Bash(git fetch:*)",
         "Bash(gh pr:*)",
       ]);
+    });
+
+    test("should preserve unquoted Bash(cmd:*) rules instead of collapsing to bare Bash", () => {
+      // Regression: shell-quote tokenizes unquoted `(`/`)` as control ops and
+      // `*` as a glob, which were filtered out — collapsing scoped rules like
+      // `Bash(gh:*)` into bare `Bash` (= Bash(*), unrestricted shell).
+      const options: ClaudeOptions = {
+        claudeArgs: "--allowedTools View,Bash(gh:*),Bash(cat:*)",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "View",
+        "Bash(gh:*)",
+        "Bash(cat:*)",
+      ]);
+      expect(result.sdkOptions.allowedTools).not.toContain("Bash");
+    });
+
+    test("should preserve unquoted space-separated Bash(cmd:*) rules", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--allowed-tools Bash(gh:*) Bash(cat:*) Read(//tmp/**)",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(gh:*)",
+        "Bash(cat:*)",
+        "Read(//tmp/**)",
+      ]);
+      expect(result.sdkOptions.allowedTools).not.toContain("Bash");
+    });
+
+    test("should preserve unquoted Tool(content) rules without glob chars", () => {
+      const options: ClaudeOptions = {
+        claudeArgs:
+          "--allowedTools Read(~/file),WebFetch(domain:example.com),Edit",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Read(~/file)",
+        "WebFetch(domain:example.com)",
+        "Edit",
+      ]);
+    });
+
+    test("should still preserve quoted Bash(cmd:*) rules (no regression)", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--allowedTools "Bash(gh:*),Bash(cat:*)"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(gh:*)",
+        "Bash(cat:*)",
+      ]);
+    });
+
+    test("should merge quoted tag-mode tools with unquoted user tools without widening", () => {
+      // Real-world shape: the action's tag mode wraps its own --allowedTools in
+      // double quotes, then appends the user's claude_args (typically unquoted
+      // in workflow YAML). Both halves must round-trip.
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--permission-mode acceptEdits --allowedTools "Glob,Grep,Read,Bash(git add:*),Bash(git commit:*)" ' +
+          "--model claude-opus-4-7\n" +
+          "--allowedTools View,Bash(gh:*),Bash(printf:*),Bash(cat:*)",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Glob",
+        "Grep",
+        "Read",
+        "Bash(git add:*)",
+        "Bash(git commit:*)",
+        "View",
+        "Bash(gh:*)",
+        "Bash(printf:*)",
+        "Bash(cat:*)",
+      ]);
+      expect(result.sdkOptions.allowedTools).not.toContain("Bash");
+    });
+
+    test("should preserve unquoted disallowedTools rules without widening", () => {
+      // Same bug class on the deny side: a scoped deny collapsing to bare
+      // `Bash` would block all shell instead of the intended prefix.
+      const options: ClaudeOptions = {
+        claudeArgs: "--disallowedTools Bash(rm:*),Bash(sudo:*)",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.disallowedTools).toEqual([
+        "Bash(rm:*)",
+        "Bash(sudo:*)",
+      ]);
+      expect(result.sdkOptions.disallowedTools).not.toContain("Bash");
     });
 
     test("should handle mixed camelCase and hyphenated allowedTools flags", () => {
@@ -262,7 +367,8 @@ describe("parseSdkOptions", () => {
       );
       expect(mcpConfig.mcpServers).toHaveProperty("server1");
       expect(mcpConfig.mcpServers).toHaveProperty("server2");
-      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-3-5-sonnet");
+      expect(result.sdkOptions.extraArgs?.["model"]).toBeUndefined();
+      expect(result.sdkOptions.model).toBe("claude-3-5-sonnet");
     });
 
     test("should handle real-world scenario: action config + user config", () => {
@@ -298,6 +404,46 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("add-dir handling", () => {
+    test("should accumulate multiple add-dir flags into additionalDirectories", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--add-dir "/path/to/dir-a"\n--add-dir "/path/to/dir-b"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.additionalDirectories).toEqual([
+        "/path/to/dir-a",
+        "/path/to/dir-b",
+      ]);
+      expect(result.sdkOptions.extraArgs?.["add-dir"]).toBeUndefined();
+    });
+
+    test("should map a single add-dir flag to additionalDirectories", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--add-dir "/path/to/dir"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.additionalDirectories).toEqual(["/path/to/dir"]);
+      expect(result.sdkOptions.extraArgs?.["add-dir"]).toBeUndefined();
+    });
+
+    test("should preserve other extraArgs when extracting add-dir", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--model "claude-3-5-sonnet" --add-dir "/path/to/dir"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.additionalDirectories).toEqual(["/path/to/dir"]);
+      expect(result.sdkOptions.extraArgs?.["model"]).toBeUndefined();
+      expect(result.sdkOptions.model).toBe("claude-3-5-sonnet");
+      expect(result.sdkOptions.extraArgs?.["add-dir"]).toBeUndefined();
+    });
+  });
+
   describe("other extraArgs passthrough", () => {
     test("should pass through json-schema in extraArgs", () => {
       const options: ClaudeOptions = {
@@ -321,7 +467,8 @@ describe("parseSdkOptions", () => {
 
       const result = parseSdkOptions(options);
 
-      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
+      expect(result.sdkOptions.extraArgs?.["model"]).toBeUndefined();
+      expect(result.sdkOptions.model).toBe("claude-haiku");
       expect(result.sdkOptions.allowedTools).toEqual(["Edit"]);
     });
 
@@ -332,7 +479,8 @@ describe("parseSdkOptions", () => {
 
       const result = parseSdkOptions(options);
 
-      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
+      expect(result.sdkOptions.extraArgs?.["model"]).toBeUndefined();
+      expect(result.sdkOptions.model).toBe("claude-haiku");
     });
 
     test("should not strip inline # that appears inside a quoted value", () => {
@@ -342,8 +490,59 @@ describe("parseSdkOptions", () => {
 
       const result = parseSdkOptions(options);
 
-      expect(result.sdkOptions.extraArgs?.["model"]).toBe("claude-haiku");
+      expect(result.sdkOptions.extraArgs?.["model"]).toBeUndefined();
+      expect(result.sdkOptions.model).toBe("claude-haiku");
       expect(result.sdkOptions.extraArgs?.["prompt"]).toBe("use color #ff0000");
+    });
+  });
+
+  describe("model handling", () => {
+    test("should map --model from claudeArgs to sdkOptions.model", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--model claude-haiku-4-5-20251001",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.model).toBe("claude-haiku-4-5-20251001");
+      expect(result.sdkOptions.extraArgs?.["model"]).toBeUndefined();
+    });
+
+    test("should prefer direct model option over --model from claudeArgs", () => {
+      const options: ClaudeOptions = {
+        model: "claude-sonnet-4-6",
+        claudeArgs: "--model claude-haiku-4-5-20251001",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.model).toBe("claude-sonnet-4-6");
+      expect(result.sdkOptions.extraArgs?.["model"]).toBeUndefined();
+    });
+  });
+
+  describe("max turns handling", () => {
+    test("should map --max-turns from claudeArgs to sdkOptions.maxTurns", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--max-turns 60",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.maxTurns).toBe(60);
+      expect(result.sdkOptions.extraArgs?.["max-turns"]).toBeUndefined();
+    });
+
+    test("should prefer the direct maxTurns option", () => {
+      const options: ClaudeOptions = {
+        maxTurns: "25",
+        claudeArgs: "--max-turns 60",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.maxTurns).toBe(25);
+      expect(result.sdkOptions.extraArgs?.["max-turns"]).toBeUndefined();
     });
   });
 
@@ -417,6 +616,23 @@ describe("parseSdkOptions", () => {
         expect(
           result.sdkOptions.env?.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
         ).toBeUndefined();
+      } finally {
+        process.env = originalEnv;
+      }
+    });
+
+    test("should strip ALL_INPUTS from env", () => {
+      const originalEnv = { ...process.env };
+      process.env.ALL_INPUTS = JSON.stringify({
+        anthropic_api_key: "sk-ant-test-key",
+        github_token: "ghp_test_token",
+      });
+
+      try {
+        const options: ClaudeOptions = {};
+        const result = parseSdkOptions(options);
+
+        expect(result.sdkOptions.env?.ALL_INPUTS).toBeUndefined();
       } finally {
         process.env = originalEnv;
       }

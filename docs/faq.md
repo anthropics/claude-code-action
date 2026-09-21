@@ -63,17 +63,14 @@ The GitHub App for Claude doesn't have workflow write access for security reason
 
 ### Why won't Claude rebase my branch?
 
-By default, Claude only uses commit tools for non-destructive changes to the branch. Claude is configured to:
+Claude only creates and pushes commits. It does not merge branches, rebase, force push, or perform other destructive git operations. Specifically, Claude is configured to:
 
 - Never push to branches other than where it was invoked (either its own branch or the PR branch)
 - Never force push or perform destructive operations
 
-You can grant additional tools via the `claude_args` input if needed:
+This restriction is enforced in Claude's system prompt, so it applies even if you grant the underlying git tools (for example `--allowedTools "Bash(git rebase:*)"`). In that case Claude will still decline rebase requests and explain the limitation rather than running the command.
 
-```yaml
-claude_args: |
-  --allowedTools "Bash(git rebase:*)"  # Use with caution
-```
+If you need to rebase, do it yourself locally — or with the Claude Code CLI outside of this action — and push the result.
 
 ### Why won't Claude create a pull request?
 
@@ -156,7 +153,7 @@ prompt: "Review this PR for security vulnerabilities"
 **These inputs are deprecated in v1.0:**
 
 - **`direct_prompt`** → Use `prompt` instead
-- **`custom_instructions`** → Use `claude_args` with `--system-prompt`
+- **`custom_instructions`** → Use `claude_args` with `--append-system-prompt` (appends to the default system prompt, matching v0 behavior; `--system-prompt` replaces it entirely)
 
 Migration examples:
 
@@ -168,7 +165,7 @@ custom_instructions: "Focus on security"
 # New (v1.0)
 prompt: "Review this PR"
 claude_args: |
-  --system-prompt "Focus on security"
+  --append-system-prompt "Focus on security"
 ```
 
 ### Why doesn't Claude execute my bash commands?

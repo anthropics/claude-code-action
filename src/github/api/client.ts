@@ -1,6 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import { graphql } from "@octokit/graphql";
-import { GITHUB_API_URL } from "./config";
+import { GITHUB_API_URL, GITHUB_GRAPHQL_URL } from "./config";
 
 export type Octokits = {
   rest: Octokit;
@@ -14,7 +14,7 @@ export function createOctokit(token: string): Octokits {
       baseUrl: GITHUB_API_URL,
     }),
     graphql: graphql.defaults({
-      baseUrl: GITHUB_API_URL,
+      baseUrl: GITHUB_GRAPHQL_URL,
       headers: {
         authorization: `token ${token}`,
       },

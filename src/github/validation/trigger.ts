@@ -38,7 +38,10 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   if (isIssuesEvent(context) && context.eventAction === "labeled") {
     const labelName = (context.payload as any).label?.name || "";
 
-    if (labelTrigger && labelName === labelTrigger) {
+    if (
+      labelTrigger &&
+      labelName.toLowerCase() === labelTrigger.toLowerCase()
+    ) {
       console.log(`Issue labeled with trigger label '${labelTrigger}'`);
       return true;
     }
@@ -51,6 +54,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(
       `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+      "i",
     );
 
     // Check in body
@@ -77,6 +81,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(
       `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+      "i",
     );
 
     // Check in body
@@ -105,6 +110,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(
       `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+      "i",
     );
     if (regex.test(reviewBody)) {
       console.log(
@@ -125,6 +131,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(
       `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+      "i",
     );
     if (regex.test(commentBody)) {
       console.log(`Comment contains exact trigger phrase '${triggerPhrase}'`);

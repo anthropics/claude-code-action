@@ -11,6 +11,9 @@ on:
 
 permissions:
   contents: read
+  # Lets the test workflows mint the GitHub OIDC token they exchange for a
+  # Claude API access token (workload identity federation). See docs/setup.md.
+  id-token: write
 
 jobs:
   ci:
@@ -18,20 +21,15 @@ jobs:
 
   test-base-action:
     uses: ./.github/workflows/test-base-action.yml
-    secrets: inherit # Required for ANTHROPIC_API_KEY
 
   test-custom-executables:
     uses: ./.github/workflows/test-custom-executables.yml
-    secrets: inherit
 
   test-mcp-servers:
     uses: ./.github/workflows/test-mcp-servers.yml
-    secrets: inherit
 
   test-settings:
     uses: ./.github/workflows/test-settings.yml
-    secrets: inherit
 
   test-structured-output:
     uses: ./.github/workflows/test-structured-output.yml
-    secrets: inherit

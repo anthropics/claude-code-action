@@ -111,6 +111,42 @@ describe("formatResultContent", () => {
     const result = formatResultContent(JSON.stringify(structuredContent));
     expect(result).toBe("**→** Hello world\n\n");
   });
+
+  test("keeps every text block, not just the first", () => {
+    const structuredContent = [
+      { type: "text", text: "first line" },
+      { type: "text", text: "second line" },
+      { type: "text", text: "third line" },
+    ];
+    const result = formatResultContent(JSON.stringify(structuredContent));
+
+    expect(result).toContain("first line");
+    expect(result).toContain("second line");
+    expect(result).toContain("third line");
+  });
+
+  test("keeps every text block when given an array directly", () => {
+    const result = formatResultContent([
+      { type: "text", text: "alpha" },
+      { type: "text", text: "beta" },
+    ]);
+
+    expect(result).toContain("alpha");
+    expect(result).toContain("beta");
+  });
+
+  test("skips non-text blocks while keeping the text ones", () => {
+    const structuredContent = [
+      { type: "text", text: "visible" },
+      { type: "image", source: { data: "ignored-binary" } },
+      { type: "text", text: "also visible" },
+    ];
+    const result = formatResultContent(JSON.stringify(structuredContent));
+
+    expect(result).toContain("visible");
+    expect(result).toContain("also visible");
+    expect(result).not.toContain("ignored-binary");
+  });
 });
 
 describe("formatToolWithResult", () => {
@@ -435,5 +471,195 @@ describe("integration tests", () => {
 
     // Compare the outputs
     expect(actualOutput).toBe(expectedOutput);
+  });
+});
+
+describe("detectContentType fallbacks", () => {
+  test("falls back to text for malformed JSON objects", () => {
+    // Looks like an object (starts with { ends with }) but does not parse.
+    expect(detectContentType("{not valid json}")).toBe("text");
+  });
+
+  test("falls back to text for malformed JSON arrays", () => {
+    // Looks like an array (starts with [ ends with ]) but does not parse.
+    expect(detectContentType("[not, valid, json]")).toBe("text");
+  });
+
+  test("classifies non-python, non-js code keywords as python by default", () => {
+    // Contains a code keyword ("class ") but matches neither the python-specific
+    // nor the javascript-specific checks, so it hits the default branch.
+    expect(detectContentType("class Foo {}")).toBe("python");
+  });
+});
+
+describe("formatResultContent non-string input", () => {
+  test("handles a numeric (non-string) result value", () => {
+    const result = formatResultContent(42);
+    expect(result).toContain("42");
+  });
+
+  test("handles a plain object (non-string, non-text-array) result value", () => {
+    const result = formatResultContent({ status: "ok" });
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  test("handles a text content block whose text field is not a string", () => {
+    expect(() =>
+      formatResultContent('[{"type":"text","text":{"foo":"bar"}}]'),
+    ).not.toThrow();
+    expect(formatResultContent('[{"type":"text","text":123}]')).toContain(
+      "123",
+    );
+  });
+});
+
+describe("system_other handling", () => {
+  test("groups a non-init system turn as system_other", () => {
+    const systemTurn: Turn = { type: "system", subtype: "some_other_subtype" };
+    const grouped = groupTurnsNaturally([systemTurn]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]?.type).toBe("system_other");
+    expect(grouped[0]?.data).toEqual(systemTurn);
+  });
+
+  test("renders a system_other group as a System Message section", () => {
+    const markdown = formatGroupedContent([
+      { type: "system_other", data: { type: "system" } as Turn },
+    ]);
+    expect(markdown).toContain("## ⚙️ System Message");
+  });
+
+  test("filters out thinking_tokens system messages", () => {
+    const data: Turn[] = [
+      { type: "system", subtype: "init", tools: [{ name: "tool1" }] },
+      { type: "system", subtype: "thinking_tokens" },
+      { type: "system", subtype: "thinking_tokens" },
+      { type: "system", subtype: "other_subtype" },
+    ];
+
+    const grouped = groupTurnsNaturally(data);
+
+    // Should have init and other_subtype, but not thinking_tokens
+    expect(grouped).toHaveLength(2);
+    expect(grouped[0]?.type).toBe("system_init");
+    expect(grouped[1]?.type).toBe("system_other");
+    expect(grouped[1]?.data?.subtype).toBe("other_subtype");
+  });
+
+  test("thinking_tokens does not appear in formatted output", () => {
+    const data: Turn[] = [
+      { type: "system", subtype: "init", tools: [] },
+      { type: "system", subtype: "thinking_tokens" },
+      { type: "system", subtype: "thinking_tokens" },
+    ];
+
+    const result = formatTurnsFromData(data);
+
+    expect(result).not.toContain("thinking_tokens");
+    expect(result).toContain("## 🚀 System Initialization");
+  });
+});
+
+describe("credential redaction", () => {
+  test("redacts credentials embedded in tool results", () => {
+    const data: Turn[] = [
+      {
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_1",
+              name: "Bash",
+              input: { command: "cat .env" },
+            },
+          ],
+        },
+      },
+      {
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_1",
+              content:
+                "GITHUB_TOKEN=ghs_xz7yzju2SZjGPa0dUNMAx0SH4xDOCS31LXQW\nAWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE",
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = formatTurnsFromData(data);
+
+    expect(result).toContain("[REDACTED_GITHUB_TOKEN]");
+    expect(result).toContain("[REDACTED_AWS_KEY_ID]");
+    expect(result).not.toContain("ghs_xz7yzju2SZjGPa0dUNMAx0SH4xDOCS31LXQW");
+    expect(result).not.toContain("AKIAIOSFODNN7EXAMPLE");
+  });
+
+  test("redacts credentials embedded in multi-line tool inputs", () => {
+    const data: Turn[] = [
+      {
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_2",
+              name: "Write",
+              input: {
+                file_path: ".env",
+                content:
+                  "AWS_ACCESS_KEY_ID=x\nGITHUB_TOKEN=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\n",
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = formatTurnsFromData(data);
+
+    expect(result).toContain("[REDACTED_GITHUB_TOKEN]");
+    expect(result).not.toContain("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");
+  });
+
+  test("redacts credentials wrapped in ANSI color codes", () => {
+    const key = "sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcdefgh";
+    const data: Turn[] = [
+      {
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_3",
+              name: "Bash",
+              input: { command: "node print-config.js" },
+            },
+          ],
+        },
+      },
+      {
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_3",
+              content: `apiKey: \x1b[32m${key}\x1b[39m\nregion: us-east-1`,
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = formatTurnsFromData(data);
+
+    expect(result).toContain("[REDACTED_ANTHROPIC_KEY]");
+    expect(result).not.toContain(key);
   });
 });

@@ -1,0 +1,39 @@
+# Require human approvals on PRs that contain agent-authored commits.
+#
+# Both triggers run the workflow file from the BASE/DEFAULT branch, so a PR
+# cannot edit this check to approve itself. (`pull_request_review` is not
+# used because it runs from the merge ref, not the default branch; native
+# Approve reviews are picked up on the next synchronize or `/approve`
+# comment.)
+#
+# After adding this workflow, mark `agent-approval-check` as a required
+# status check on your protected branches.
+
+name: agent-approval-check
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+
+jobs:
+  check:
+    # issue_comment also fires on plain issues; skip those early.
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action/agent-approval-check@main
+        with:
+          required_approvals: 2
+          agent_emails: noreply@anthropic.com
+          agent_logins: claude[bot],claude-code[bot]
+          # Uncomment to tune:
+          # excluded_approvers: dependabot[bot]
+          # exempt_path_prefixes: docs/
+          # protected_bases: main,release

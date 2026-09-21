@@ -4,7 +4,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { appendFileSync } from "fs";
 import { z } from "zod";
 import { createOctokit } from "../github/api/client";
-import { sanitizeContent } from "../github/utils/sanitizer";
+import { redactSecrets, sanitizeContent } from "../github/utils/sanitizer";
+import { removeBufferedComment } from "./inline-comment-buffer";
 
 // Get repository and PR information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -97,8 +98,8 @@ server.tool(
       const repo = REPO_NAME;
       const pull_number = parseInt(PR_NUMBER, 10);
 
-      // Sanitize the comment body to remove any potential GitHub tokens
-      const sanitizedBody = sanitizeContent(body);
+      // Sanitize the comment body to remove potential prompt injections and redact secrets
+      const sanitizedBody = redactSecrets(sanitizeContent(body));
 
       // Validate that either line or both startLine and line are provided
       if (!line && !startLine) {
@@ -179,6 +180,16 @@ server.tool(
       }
 
       const result = await octokit.rest.pulls.createReviewComment(params);
+
+      // The comment is now live. Drop any buffered copy of it so the
+      // post-session replay step cannot post it a second time (the model often
+      // re-issues a buffered call with confirmed=true after the buffer reply).
+      if (CLASSIFY_ENABLED) {
+        removeBufferedComment(
+          { path, line, startLine, body: sanitizedBody },
+          BUFFER_PATH,
+        );
+      }
 
       return {
         content: [

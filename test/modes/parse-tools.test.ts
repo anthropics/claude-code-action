@@ -37,9 +37,43 @@ describe("parseAllowedTools", () => {
 
   test("handles --allowedTools followed by another --allowedTools flag", () => {
     const args = "--allowedTools --allowedTools mcp__github__*";
-    // The second --allowedTools is consumed as a value of the first, then skipped.
-    // This is an edge case with malformed input - returns empty.
-    expect(parseAllowedTools(args)).toEqual([]);
+    // The first --allowedTools has no value (the next token is another flag);
+    // the second consumes mcp__github__*. This matches how the SDK option
+    // parser (parse-sdk-options.ts) reads the same input.
+    expect(parseAllowedTools(args)).toEqual(["mcp__github__*"]);
+  });
+
+  test("captures multiple values after a single --allowedTools flag", () => {
+    // Regression for #1357: the install-decision parser must capture every
+    // value, not just the first, so it agrees with the tools actually granted
+    // to Claude. Previously only "Read" was seen, so the github MCP server was
+    // not installed even though mcp__github__get_commit was granted.
+    const args = '--allowedTools "Read" "Grep" "mcp__github__get_commit"';
+    expect(parseAllowedTools(args)).toEqual([
+      "Read",
+      "Grep",
+      "mcp__github__get_commit",
+    ]);
+  });
+
+  test("captures multiple values spread across lines under one flag", () => {
+    const args = `--allowedTools
+ "Read"
+ "Grep"
+ "mcp__github__get_commit"`;
+    expect(parseAllowedTools(args)).toEqual([
+      "Read",
+      "Grep",
+      "mcp__github__get_commit",
+    ]);
+  });
+
+  test("ignores commented-out lines", () => {
+    // Regression for #1357: a commented-out flag must not be counted, matching
+    // the SDK parser which strips comment lines before parsing.
+    const args = `# --allowedTools "mcp__github__get_commit"
+--allowedTools "Read"`;
+    expect(parseAllowedTools(args)).toEqual(["Read"]);
   });
 
   test("parses multiple separate --allowed-tools flags", () => {

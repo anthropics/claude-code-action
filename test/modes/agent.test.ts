@@ -16,28 +16,35 @@ describe("Agent Mode", () => {
   let exportVariableSpy: any;
   let setOutputSpy: any;
   let configureGitAuthSpy: any;
+  let replaceCheckoutCredentialsSpy: any;
 
   beforeEach(() => {
     exportVariableSpy = spyOn(core, "exportVariable").mockImplementation(
       () => {},
     );
     setOutputSpy = spyOn(core, "setOutput").mockImplementation(() => {});
-    // Mock configureGitAuth to prevent actual git commands from running
+    // Mock git configuration to prevent actual git commands from running
     configureGitAuthSpy = spyOn(
       gitConfig,
       "configureGitAuth",
     ).mockImplementation(async () => {
       // Do nothing - prevent actual git config modifications
     });
+    replaceCheckoutCredentialsSpy = spyOn(
+      gitConfig,
+      "replaceCheckoutCredentials",
+    ).mockImplementation(async () => {});
   });
 
   afterEach(() => {
     exportVariableSpy?.mockClear();
     setOutputSpy?.mockClear();
     configureGitAuthSpy?.mockClear();
+    replaceCheckoutCredentialsSpy?.mockClear();
     exportVariableSpy?.mockRestore();
     setOutputSpy?.mockRestore();
     configureGitAuthSpy?.mockRestore();
+    replaceCheckoutCredentialsSpy?.mockRestore();
   });
 
   test("prepareAgentMode is exported as a function", () => {
@@ -256,5 +263,60 @@ describe("Agent Mode", () => {
     // should not include any MCP config
     // Should be empty or just whitespace when no MCP servers are included
     expect(result.claudeArgs).not.toContain("--mcp-config");
+  });
+
+  describe("git credential configuration", () => {
+    const mockOctokit = {
+      rest: {
+        users: {
+          getByUsername: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+        },
+      },
+    } as any;
+
+    test("uses full git auth on the non-signing path", async () => {
+      const context = createMockAutomationContext({
+        eventName: "workflow_dispatch",
+      });
+
+      await prepareAgentMode({
+        context,
+        octokit: mockOctokit,
+        githubToken: "test-token",
+      });
+
+      expect(configureGitAuthSpy).toHaveBeenCalledTimes(1);
+      expect(configureGitAuthSpy).toHaveBeenCalledWith("test-token", context, {
+        login: context.inputs.botName,
+        id: parseInt(context.inputs.botId),
+      });
+      // configureGitAuth performs the credential replacement itself; the mock
+      // stands in for it here, so the standalone helper is not invoked.
+      expect(replaceCheckoutCredentialsSpy).not.toHaveBeenCalled();
+    });
+
+    test("still replaces the checkout credential when API commit signing is enabled", async () => {
+      const context = createMockAutomationContext({
+        eventName: "workflow_dispatch",
+        inputs: { useCommitSigning: true },
+      });
+
+      await prepareAgentMode({
+        context,
+        octokit: mockOctokit,
+        githubToken: "test-token",
+      });
+
+      expect(configureGitAuthSpy).not.toHaveBeenCalled();
+      expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledTimes(1);
+      expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledWith(
+        "test-token",
+        context,
+      );
+    });
   });
 });

@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run format"
+            "command": "bunx prettier@3.5.3 --no-config --write ."
           }
         ],
         "matcher": "Edit|Write|MultiEdit"

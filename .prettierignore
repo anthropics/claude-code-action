@@ -1,2 +1,4 @@
 # Test fixtures should not be formatted to preserve exact output matching
 test/fixtures/
+# Snapshot of PR-authored config kept for review; do not reformat
+.claude-pr/

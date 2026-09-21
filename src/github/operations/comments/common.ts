@@ -12,12 +12,17 @@ export function createJobRunLink(
   return `[View job run](${jobRunUrl})`;
 }
 
+/** Encode Git-ref path segments without turning `/` into `%2F`. */
+export function encodeBranchNameForUrl(branchName: string): string {
+  return branchName.split("/").map(encodeURIComponent).join("/");
+}
+
 export function createBranchLink(
   owner: string,
   repo: string,
   branchName: string,
 ): string {
-  const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${branchName}`;
+  const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${encodeBranchNameForUrl(branchName)}`;
   return `\n[View branch](${branchUrl})`;
 }
 

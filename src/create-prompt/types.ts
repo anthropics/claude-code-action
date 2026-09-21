@@ -5,6 +5,7 @@ export type CommonFields = {
   claudeCommentId: string;
   triggerPhrase: string;
   triggerUsername?: string;
+  triggerUserId?: number;
   prompt?: string;
   claudeBranch?: string;
 };

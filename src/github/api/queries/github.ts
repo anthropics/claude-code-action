@@ -7,18 +7,26 @@ export const PR_QUERY = `
         title
         body
         author {
+          __typename
           login
         }
         baseRefName
         headRefName
         headRefOid
+        isCrossRepository
+        headRepository {
+          owner {
+            login
+          }
+          name
+        }
         createdAt
         updatedAt
         lastEditedAt
         additions
         deletions
         state
-        labels(first: 1) {
+        labels(first: 100) {
           nodes {
             name
           }
@@ -50,6 +58,7 @@ export const PR_QUERY = `
             databaseId
             body
             author {
+              __typename
               login
             }
             createdAt
@@ -63,6 +72,7 @@ export const PR_QUERY = `
             id
             databaseId
             author {
+              __typename
               login
             }
             body
@@ -77,7 +87,9 @@ export const PR_QUERY = `
                 body
                 path
                 line
+                diffHunk
                 author {
+                  __typename
                   login
                 }
                 createdAt
@@ -100,13 +112,14 @@ export const ISSUE_QUERY = `
         title
         body
         author {
+          __typename
           login
         }
         createdAt
         updatedAt
         lastEditedAt
         state
-        labels(first: 1) {
+        labels(first: 100) {
           nodes {
             name
           }
@@ -117,6 +130,7 @@ export const ISSUE_QUERY = `
             databaseId
             body
             author {
+              __typename
               login
             }
             createdAt
