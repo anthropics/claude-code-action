@@ -53,6 +53,19 @@ export function buildInstallCommand(version: string): string {
   return `set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash -s -- ${version}`;
 }
 
+// Exported for unit testing. The native installer can exit 0 and print
+// "successfully installed" while its launcher step silently fails, leaving
+// nothing at ~/.local/bin/claude (see #1817). Checking the path after install
+// turns that into an install failure — so the retry loop runs and the error
+// surfaces here — instead of a later SDK "native binary not found" ENOENT.
+export function verifyClaudeExecutable(claudePath: string): void {
+  if (!existsSync(claudePath)) {
+    throw new Error(
+      `Installer reported success but the Claude Code executable was not found at ${claudePath}`,
+    );
+  }
+}
+
 /**
  * Install Claude Code CLI, handling retry logic and custom executable paths.
  * Returns the absolute path to the claude executable.
@@ -95,9 +108,10 @@ async function installClaudeCode(): Promise<string> {
         });
         child.on("error", reject);
       });
+      const homeBin = `${process.env.HOME}/.local/bin`;
+      verifyClaudeExecutable(`${homeBin}/claude`);
       console.log("Claude Code installed successfully");
       // Add to PATH
-      const homeBin = `${process.env.HOME}/.local/bin`;
       const githubPath = process.env.GITHUB_PATH;
       if (githubPath) {
         await appendFile(githubPath, `${homeBin}\n`);
