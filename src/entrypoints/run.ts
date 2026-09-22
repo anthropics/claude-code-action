@@ -69,8 +69,9 @@ export function verifyClaudeExecutable(claudePath: string): void {
 /**
  * Install Claude Code CLI, handling retry logic and custom executable paths.
  * Returns the absolute path to the claude executable.
+ * Exported for unit testing.
  */
-async function installClaudeCode(): Promise<string> {
+export async function installClaudeCode(): Promise<string> {
   const customExecutable = process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
   if (customExecutable) {
     if (/[\x00-\x1f\x7f]/.test(customExecutable)) {
