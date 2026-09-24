@@ -59,6 +59,15 @@ type IssueOpenedEvent = {
   claudeBranch: string;
 };
 
+type IssueEditedEvent = {
+  eventName: "issues";
+  eventAction: "edited";
+  isPR: false;
+  issueNumber: string;
+  baseBranch: string;
+  claudeBranch: string;
+};
+
 type IssueAssignedEvent = {
   eventName: "issues";
   eventAction: "assigned";
@@ -102,6 +111,7 @@ export type EventData =
   | PullRequestCommentEvent
   | IssueCommentEvent
   | IssueOpenedEvent
+  | IssueEditedEvent
   | IssueAssignedEvent
   | IssueLabeledEvent
   | PullRequestEvent
