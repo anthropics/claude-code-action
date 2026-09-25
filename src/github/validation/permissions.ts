@@ -97,9 +97,9 @@ async function checkActorWritePermissions(
       } else if (allowedUsers) {
         const allowedUserList = allowedUsers
           .split(",")
-          .map((u) => u.trim())
+          .map((u) => u.trim().toLowerCase())
           .filter((u) => u.length > 0);
-        if (allowedUserList.includes(actor)) {
+        if (allowedUserList.includes(actor.toLowerCase())) {
           core.warning(
             `⚠️ SECURITY WARNING: Bypassing write permission check for ${actor} due to allowed_non_write_users configuration. This should only be used for workflows with very limited permissions.`,
           );

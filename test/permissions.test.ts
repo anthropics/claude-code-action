@@ -184,6 +184,58 @@ describe("checkWritePermissions", () => {
   });
 
   describe("allowed_non_write_users bypass", () => {
+    test.each([
+      { actor: "test-user", allowed: " other-user, TeSt-UsEr " },
+      { actor: "TeSt-UsEr", allowed: "test-user" },
+    ])(
+      "should match allowed usernames regardless of case: %j",
+      async ({ actor, allowed }) => {
+        const mockOctokit = createMockOctokit("read");
+        const context = { ...createContext(), actor };
+
+        expect(
+          await checkWritePermissions(mockOctokit, context, allowed, true),
+        ).toBe(true);
+        expect(coreInfoSpy).toHaveBeenCalledWith(
+          `Checking permissions for actor: ${actor}`,
+        );
+        expect(coreWarningSpy).toHaveBeenCalledWith(
+          expect.stringContaining(`write permission check for ${actor} due to`),
+        );
+      },
+    );
+
+    test("should still require github_token for a case-insensitive username match", async () => {
+      const mockOctokit = createMockOctokit("read");
+
+      expect(
+        await checkWritePermissions(
+          mockOctokit,
+          createContext(),
+          "TeSt-UsEr",
+          false,
+        ),
+      ).toBe(false);
+      expect(coreWarningSpy).toHaveBeenCalledWith(
+        "Actor has insufficient permissions: read",
+      );
+    });
+
+    test.each([
+      { actor: "test-user-other", allowed: "TeSt-UsEr" },
+      { actor: "test-user", allowed: "TeSt-UsEr-Other" },
+    ])(
+      "should not match a different username with the same prefix: %j",
+      async ({ actor, allowed }) => {
+        const mockOctokit = createMockOctokit("read");
+        const context = { ...createContext(), actor };
+
+        expect(
+          await checkWritePermissions(mockOctokit, context, allowed, true),
+        ).toBe(false);
+      },
+    );
+
     test("should bypass permission check for specific user when github_token provided", async () => {
       const mockOctokit = createMockOctokit("read");
       const context = createContext();
