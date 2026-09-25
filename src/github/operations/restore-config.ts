@@ -31,10 +31,25 @@ export const SENSITIVE_PATHS = [
   ".ripgreprc",
   "CLAUDE.md",
   "CLAUDE.local.md",
+  // Documented @-imports resolve against the working tree, so these root
+  // files would load from the PR head after CLAUDE.md is restored from base.
+  // Nested imports (e.g. @docs/AGENTS.md) are restored by walking the
+  // already-restored @-import closure — not by globbing **/AGENTS.md, which
+  // would treat a matching directory as a recursive restore target.
+  "AGENTS.md",
+  "AGENTS.local.md",
   ".husky",
 ];
 
 const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
+
+// Claude Code expands @-imports from project instruction files at launch,
+// recursively, up to four hops. Relative specs resolve against the importing
+// file. Code spans and fenced blocks are literal (https://code.claude.com/docs/en/memory).
+const MAX_IMPORT_HOPS = 4;
+const IMPORT_ROOTS = ["CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md"];
+const AT_IMPORT_RE =
+  /(?<![A-Za-z0-9._-])@((?:\.\.\/|\.\/)?[.A-Za-z0-9_][A-Za-z0-9_./-]*)/g;
 
 function isSameOrInside(child: string, parent: string): boolean {
   return child === parent || child.startsWith(`${parent}${sep}`);
@@ -206,6 +221,149 @@ function snapshotSensitivePath(
   }
 }
 
+function stripMarkdownCode(content: string): string {
+  return content.replace(/```[\s\S]*?```/g, " ").replace(/`[^`]*`/g, " ");
+}
+
+function extractAtImportSpecs(content: string): string[] {
+  const specs: string[] = [];
+  const text = stripMarkdownCode(content);
+  AT_IMPORT_RE.lastIndex = 0;
+  for (const match of text.matchAll(AT_IMPORT_RE)) {
+    if (match[1]) {
+      specs.push(match[1]);
+    }
+  }
+  return specs;
+}
+
+// Repo-relative posix path, or null if the spec is absolute, home-relative,
+// or escapes the working tree after resolving against the importing file.
+function resolveImportPath(fromFile: string, spec: string): string | null {
+  if (spec.startsWith("~") || spec.startsWith("/") || posix.isAbsolute(spec)) {
+    return null;
+  }
+  const fromDir = posix.dirname(fromFile);
+  const resolved = posix.normalize(
+    fromDir === "." ? spec : posix.join(fromDir, spec),
+  );
+  if (
+    resolved === "." ||
+    resolved === "" ||
+    resolved === ".." ||
+    resolved.startsWith("../") ||
+    resolved.split("/").includes("..")
+  ) {
+    return null;
+  }
+  return resolved;
+}
+
+function isBaseBlob(baseBranch: string, repoPath: string): boolean {
+  try {
+    const listing = execFileSync(
+      "git",
+      ["ls-tree", `origin/${baseBranch}`, "--", repoPath],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    ).trim();
+    return /(^|\s)blob\s/.test(listing);
+  } catch {
+    return false;
+  }
+}
+
+function isExistingDirectory(repoPath: string): boolean {
+  const stat = lstatSync(repoPath, { throwIfNoEntry: false });
+  return stat?.isDirectory() === true;
+}
+
+function isExistingFile(repoPath: string): boolean {
+  try {
+    return existsSync(repoPath) && statSync(repoPath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * After SENSITIVE_PATHS are restored, walk @-imports in those restored
+ * instruction files and restore each repo-relative target from base. Parses
+ * only already-restored content so a PR cannot enlarge the closure. Directory
+ * targets are ignored (no glob / no recursive tree restore).
+ */
+function restoreImportClosure(
+  baseBranch: string,
+  workTreeRealPath: string,
+  tracked: TrackedPaths,
+): string[] {
+  const extraRestored: string[] = [];
+  const handled = new Set<string>(SENSITIVE_PATHS);
+  const parsed = new Set<string>();
+  const queue: Array<{ path: string; depth: number }> = [];
+
+  for (const root of IMPORT_ROOTS) {
+    if (isExistingFile(root)) {
+      queue.push({ path: root, depth: 0 });
+    }
+  }
+
+  while (queue.length > 0) {
+    const item = queue.shift();
+    if (!item || parsed.has(item.path) || item.depth >= MAX_IMPORT_HOPS) {
+      continue;
+    }
+    parsed.add(item.path);
+    if (!isExistingFile(item.path)) {
+      continue;
+    }
+
+    let content: string;
+    try {
+      content = readFileSync(item.path, "utf8");
+    } catch {
+      continue;
+    }
+
+    for (const spec of extractAtImportSpecs(content)) {
+      const resolved = resolveImportPath(item.path, spec);
+      if (!resolved || isExistingDirectory(resolved)) {
+        continue;
+      }
+
+      if (!handled.has(resolved)) {
+        handled.add(resolved);
+        if (lstatSync(resolved, { throwIfNoEntry: false })) {
+          snapshotSensitivePath(
+            resolved,
+            `.claude-pr/${resolved}`,
+            workTreeRealPath,
+            tracked,
+          );
+        }
+        rmSync(resolved, { force: true });
+        if (isBaseBlob(baseBranch, resolved)) {
+          try {
+            execFileSync(
+              "git",
+              ["checkout", `origin/${baseBranch}`, "--", resolved],
+              { stdio: "pipe" },
+            );
+            extraRestored.push(resolved);
+          } catch {
+            // Checkout failed — path stays deleted.
+          }
+        }
+      }
+
+      if (item.depth + 1 < MAX_IMPORT_HOPS) {
+        queue.push({ path: resolved, depth: item.depth + 1 });
+      }
+    }
+  }
+
+  return extraRestored;
+}
+
 function ensureClaudePrExcludedFromGit(): void {
   const excludePath = execFileSync(
     "git",
@@ -247,12 +405,13 @@ function ensureClaudePrExcludedFromGit(): void {
  * commits with `git add -A`, the revert will be included in that commit. This
  * is a narrow UX tradeoff for closing the RCE surface.
  *
- * Only the paths listed in SENSITIVE_PATHS come from the base branch; the rest
- * of the working tree stays at the PR head. A base-branch hook or setting that
- * calls out through files a PR can change — package-manager scripts
- * (`bun run`, `npm run`, `yarn`, `pnpm run`), Makefile or task-runner targets,
- * repo-relative script paths, or tools that load executable project config —
- * therefore runs whatever the PR head provides. Keep restored hooks
+ * Only the paths listed in SENSITIVE_PATHS, plus repo-relative files reachable
+ * from restored CLAUDE.md / CLAUDE.local.md via @-imports, come from the base
+ * branch; the rest of the working tree stays at the PR head. A base-branch hook
+ * or setting that calls out through files a PR can change — package-manager
+ * scripts (`bun run`, `npm run`, `yarn`, `pnpm run`), Makefile or task-runner
+ * targets, repo-relative script paths, or tools that load executable project
+ * config — therefore runs whatever the PR head provides. Keep restored hooks
  * self-contained: invoke the tool binary directly, pin its version, and pass
  * config on the command line rather than reading it from the checkout. This
  * extends to the runtime itself: `bunx <tool>` runs the tool under `node` when
@@ -332,10 +491,20 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
     }
   }
 
+  const extraRestored = restoreImportClosure(
+    baseBranch,
+    workTreeRealPath,
+    tracked,
+  );
+  if (existsSync(".claude-pr")) {
+    ensureClaudePrExcludedFromGit();
+  }
+
   // `git checkout <ref> -- <path>` stages the restored files. Unstage so the
   // revert doesn't silently leak into commits the CLI makes later.
+  const resetPaths = [...SENSITIVE_PATHS, ...extraRestored];
   try {
-    execFileSync("git", ["reset", "--", ...SENSITIVE_PATHS], {
+    execFileSync("git", ["reset", "--", ...resetPaths], {
       stdio: "pipe",
     });
   } catch {
