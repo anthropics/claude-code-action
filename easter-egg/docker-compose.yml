@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  anthropic-auth-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8887:8887"
+    environment:
+      PORT: 8887
+      HOST: 0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8887/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - anthropic-network
+
+networks:
+  anthropic-network:
+    driver: bridge
