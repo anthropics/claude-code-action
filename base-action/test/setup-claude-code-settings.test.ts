@@ -95,15 +95,32 @@ describe("setupClaudeCodeSettings", () => {
   });
 
   test("should throw error for invalid JSON string", async () => {
-    expect(() =>
+    await expect(
       setupClaudeCodeSettings("{ invalid json", testHomeDir),
-    ).toThrow();
+    ).rejects.toThrow("Invalid JSON in inline settings input");
   });
 
   test("should throw error for non-existent file path", async () => {
-    expect(() =>
+    await expect(
       setupClaudeCodeSettings("/non/existent/file.json", testHomeDir),
-    ).toThrow();
+    ).rejects.toThrow("Failed to read settings input file");
+  });
+
+  test("should identify invalid JSON in a settings input file", async () => {
+    await writeFile(testSettingsPath, "{ invalid json");
+
+    await expect(
+      setupClaudeCodeSettings(testSettingsPath, testHomeDir),
+    ).rejects.toThrow("Invalid JSON in the settings input file");
+  });
+
+  test("should identify invalid JSON in existing Claude settings", async () => {
+    await mkdir(join(testHomeDir, ".claude"), { recursive: true });
+    await writeFile(settingsPath, "{ invalid json");
+
+    await expect(
+      setupClaudeCodeSettings(undefined, testHomeDir),
+    ).rejects.toThrow("Invalid JSON in the existing Claude settings file");
   });
 
   test("should handle empty string input", async () => {
