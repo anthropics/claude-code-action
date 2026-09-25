@@ -159,8 +159,16 @@ export function updateCommentBody(input: CommentUpdateInput): string {
 
     // If we don't have a URL yet but have a branch name, construct it
     if (!branchUrl && finalBranchName) {
-      // Extract owner/repo from jobUrl
-      const repoMatch = jobUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\//);
+      // Extract owner/repo from jobUrl. Match against GITHUB_SERVER_URL rather
+      // than a hardcoded "github.com", or GitHub Enterprise Server job URLs
+      // never match and the branch is left without a link.
+      const serverPattern = GITHUB_SERVER_URL.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&",
+      );
+      const repoMatch = jobUrl.match(
+        new RegExp(`${serverPattern}/([^/]+)/([^/]+)/`),
+      );
       if (repoMatch) {
         branchUrl = `${GITHUB_SERVER_URL}/${repoMatch[1]}/${repoMatch[2]}/tree/${encodeBranchNameForUrl(finalBranchName)}`;
       }
