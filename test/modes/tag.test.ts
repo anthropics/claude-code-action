@@ -18,8 +18,11 @@ describe("Tag Mode", () => {
     let spies: Array<{ mockRestore: () => void }>;
     let configureGitAuthSpy: any;
     let replaceCheckoutCredentialsSpy: any;
+    let prepareMcpConfigSpy: any;
+    let originalClaudeArgs: string | undefined;
 
     beforeEach(() => {
+      originalClaudeArgs = process.env.CLAUDE_ARGS;
       configureGitAuthSpy = spyOn(
         gitConfig,
         "configureGitAuth",
@@ -47,11 +50,19 @@ describe("Tag Mode", () => {
             }) as any,
         ),
         spyOn(createPrompt, "createPrompt").mockImplementation(async () => {}),
-        spyOn(mcp, "prepareMcpConfig").mockImplementation(async () => "{}"),
+        (prepareMcpConfigSpy = spyOn(
+          mcp,
+          "prepareMcpConfig",
+        ).mockImplementation(async () => "{}")),
       ];
     });
 
     afterEach(() => {
+      if (originalClaudeArgs === undefined) {
+        delete process.env.CLAUDE_ARGS;
+      } else {
+        process.env.CLAUDE_ARGS = originalClaudeArgs;
+      }
       for (const spy of spies) {
         spy.mockRestore();
       }
@@ -93,6 +104,21 @@ describe("Tag Mode", () => {
       expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledWith(
         "test-token",
         context,
+      );
+    });
+
+    test("forwards the mcp__github aggregate selector to MCP setup", async () => {
+      process.env.CLAUDE_ARGS = "--allowedTools mcp__github";
+
+      await prepareTagMode({
+        context: { ...mockIssueCommentContext },
+        octokit: {} as any,
+        githubToken: "test-token",
+      });
+
+      expect(prepareMcpConfigSpy).toHaveBeenCalledTimes(1);
+      expect(prepareMcpConfigSpy.mock.calls[0]?.[0].allowedTools).toContain(
+        "mcp__github",
       );
     });
   });
