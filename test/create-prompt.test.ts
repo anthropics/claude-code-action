@@ -235,6 +235,40 @@ describe("generatePrompt", () => {
     );
   });
 
+  test("encodes branch names with special characters in the compare link", async () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issues",
+        eventAction: "assigned",
+        isPR: false,
+        issueNumber: "1001",
+        baseBranch: "main",
+        claudeBranch: "claude/feat(parser)-handle-empty-input",
+        assigneeTrigger: "claude-bot",
+      },
+    };
+
+    // The pre-built compare link lives in the simple-prompt template.
+    process.env.USE_SIMPLE_PROMPT = "true";
+    try {
+      const prompt = await generatePrompt(envVars, mockGitHubData, false, "tag");
+
+      const line = prompt.split("\n").filter((l) => l.includes("compare/main...")).join("\n---\n");
+      expect(line).toBeDefined();
+      // Parentheses must be percent-encoded so they cannot terminate the
+      // markdown link early; path slashes stay literal.
+      expect(line).toContain(
+        "compare/main...claude/feat%28parser%29-handle-empty-input?",
+      );
+      expect(line).not.toContain("feat(parser)-handle-empty-input?");
+    } finally {
+      delete process.env.USE_SIMPLE_PROMPT;
+    }
+  });
+
   test("should generate prompt for issue labeled event", async () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
