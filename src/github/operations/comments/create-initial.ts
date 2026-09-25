@@ -8,13 +8,12 @@
 import { appendFileSync } from "fs";
 import { createJobRunLink, createCommentBody } from "./common";
 import {
-  isPullRequestReviewCommentEvent,
+  isIssueCommentEvent,
   isPullRequestEvent,
+  isPullRequestReviewCommentEvent,
   type ParsedGitHubContext,
 } from "../../context";
 import type { Octokit } from "@octokit/rest";
-
-const CLAUDE_APP_BOT_ID = 209825114;
 
 export async function createInitialComment(
   octokit: Octokit,
@@ -28,18 +27,19 @@ export async function createInitialComment(
   try {
     let response;
 
-    if (
+    const shouldUseStickyComment =
       context.inputs.useStickyComment &&
-      context.isPR &&
-      isPullRequestEvent(context)
-    ) {
+      (isPullRequestEvent(context) ||
+        (isIssueCommentEvent(context) && context.isPR));
+
+    if (shouldUseStickyComment) {
       const comments = await octokit.rest.issues.listComments({
         owner,
         repo,
         issue_number: context.entityNumber,
       });
       const existingComment = comments.data.find((comment) => {
-        const idMatch = comment.user?.id === CLAUDE_APP_BOT_ID;
+        const idMatch = comment.user?.id === Number(context.inputs.botId);
         const botNameMatch =
           comment.user?.type === "Bot" &&
           comment.user?.login.toLowerCase().includes("claude");
