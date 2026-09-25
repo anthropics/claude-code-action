@@ -79,9 +79,24 @@ describe("setupClaudeCodeSettings", () => {
     expect(settings.permissions).toEqual(testSettings.permissions);
   });
 
-  test("should override enableAllProjectMcpServers even if false in input", async () => {
+  test("should respect explicit false for enableAllProjectMcpServers", async () => {
     const inputSettings = JSON.stringify({
       enableAllProjectMcpServers: false,
+      model: "test-model",
+    });
+
+    await setupClaudeCodeSettings(inputSettings, testHomeDir);
+
+    const settingsContent = await readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsContent);
+
+    expect(settings.enableAllProjectMcpServers).toBe(false);
+    expect(settings.model).toBe("test-model");
+  });
+
+  test("should respect explicit true for enableAllProjectMcpServers", async () => {
+    const inputSettings = JSON.stringify({
+      enableAllProjectMcpServers: true,
       model: "test-model",
     });
 

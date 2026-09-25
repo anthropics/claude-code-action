@@ -59,9 +59,11 @@ export async function setupClaudeCodeSettings(
     console.log(`Merged settings with input settings`);
   }
 
-  // Always set enableAllProjectMcpServers to true
-  settings.enableAllProjectMcpServers = true;
-  console.log(`Updated settings with enableAllProjectMcpServers: true`);
+  // Default enableAllProjectMcpServers to true if not explicitly set by the user
+  settings.enableAllProjectMcpServers ??= true;
+  console.log(
+    `Using enableAllProjectMcpServers: ${settings.enableAllProjectMcpServers}`,
+  );
 
   await $`echo ${JSON.stringify(settings, null, 2)} > ${settingsPath}`.quiet();
   console.log(`Settings saved successfully`);
