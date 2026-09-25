@@ -88,3 +88,25 @@ export function shouldIncludeCommentByActor(
   // No filters or passed all checks
   return true;
 }
+
+/**
+ * Check if a bot actor is in the allowed bots list.
+ */
+export function isAllowedBot(actor: string, allowedBots: string): boolean {
+  const trimmed = allowedBots.trim();
+  if (trimmed === "*") return true;
+  if (!trimmed) return false;
+
+  const allowedList = trimmed
+    .split(",")
+    .map((bot) =>
+      bot
+        .trim()
+        .toLowerCase()
+        .replace(/\[bot\]$/, ""),
+    )
+    .filter((bot) => bot.length > 0);
+
+  const normalizedActor = actor.toLowerCase().replace(/\[bot\]$/, "");
+  return allowedList.includes(normalizedActor);
+}
