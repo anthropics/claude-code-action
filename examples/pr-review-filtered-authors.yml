@@ -1,7 +1,9 @@
 name: Claude Review - Specific Authors
 
+# This workflow supports fork PRs. See docs/fork-pr-support.md for details.
+
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize]
 
 jobs:
@@ -13,19 +15,27 @@ jobs:
       github.event.pull_request.user.login == 'external-contributor'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: read
+      contents: write
+      pull-requests: write
+      issues: write
       id-token: write
+      actions: read
     steps:
+      # Checkout fork repository for fork PR support
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: 1
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
 
       - name: Review PR from Specific Author
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Required for fork PR support with pull_request_target
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_non_write_users: '*'
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
