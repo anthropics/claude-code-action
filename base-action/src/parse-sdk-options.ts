@@ -1,3 +1,4 @@
+import * as core from "@actions/core";
 import { parse as parseShellArgs } from "shell-quote";
 import type { ClaudeOptions } from "./run-claude";
 import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
@@ -191,8 +192,15 @@ function parseClaudeArgsToExtraArgs(
  * Uses extraArgs for CLI pass-through instead of duplicating option parsing
  */
 export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
-  // Determine output verbosity
-  const isDebugMode = process.env.ACTIONS_STEP_DEBUG === "true";
+  // Determine output verbosity.
+  // `ACTIONS_STEP_DEBUG` is a repository secret read by the runner itself; it is
+  // never exported into the step environment, so checking it alone means a
+  // "Re-run with debug logging" never actually enables full output. The runner
+  // signals debug to the step by setting `RUNNER_DEBUG=1`, which is what
+  // `core.isDebug()` reads. The original check is kept for anyone who sets
+  // `ACTIONS_STEP_DEBUG` explicitly as a step-level env var.
+  const isDebugMode =
+    core.isDebug() || process.env.ACTIONS_STEP_DEBUG === "true";
   const showFullOutput = options.showFullOutput === "true" || isDebugMode;
 
   // Parse claudeArgs into extraArgs for CLI pass-through
