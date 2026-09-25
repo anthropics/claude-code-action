@@ -10,6 +10,10 @@ on:
       - "api/**/*.py"
       # You can add more specific patterns as needed
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   claude-review-paths:
     runs-on: ubuntu-latest
