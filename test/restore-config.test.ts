@@ -12,7 +12,10 @@ import {
   writeFileSync,
 } from "fs";
 import { dirname, isAbsolute, join } from "path";
-import { restoreConfigFromBase } from "../src/github/operations/restore-config";
+import {
+  restoreConfigFromBase,
+  describeRestoredPaths,
+} from "../src/github/operations/restore-config";
 
 const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
 
@@ -529,4 +532,23 @@ describe("restoreConfigFromBase", () => {
     const gitPath = git(["rev-parse", "--git-path", "info/exclude"]).trim();
     return isAbsolute(gitPath) ? gitPath : join(repoDir, gitPath);
   }
+});
+
+describe("describeRestoredPaths", () => {
+  test("returns empty string when nothing was restored", () => {
+    expect(describeRestoredPaths([])).toBe("");
+  });
+
+  test("names every restored path", () => {
+    const notice = describeRestoredPaths([".claude", "CLAUDE.md"]);
+    expect(notice).toContain(".claude, CLAUDE.md");
+  });
+
+  test("explains git status/diff noise and points to .claude-pr/", () => {
+    const notice = describeRestoredPaths([".claude"]);
+    expect(notice).toContain("git status");
+    expect(notice).toContain("git diff");
+    expect(notice).toContain(".claude-pr/");
+    expect(notice).toContain("not a checkout or filesystem problem");
+  });
 });
