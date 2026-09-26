@@ -134,6 +134,20 @@ describe("checkContainsTrigger", () => {
       expect(checkContainsTrigger(context)).toBe(false);
     });
 
+    it("should return true when the labeled name differs only in case from the trigger", () => {
+      const context = {
+        ...mockIssueLabeledContext,
+        payload: {
+          ...mockIssueLabeledContext.payload,
+          label: {
+            ...(mockIssueLabeledContext.payload as any).label,
+            name: "Claude-Task",
+          },
+        },
+      } as ParsedGitHubContext;
+      expect(checkContainsTrigger(context)).toBe(true);
+    });
+
     it("should return false for non-labeled events", () => {
       const context = {
         ...mockIssueLabeledContext,

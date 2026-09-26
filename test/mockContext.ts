@@ -140,7 +140,7 @@ export const mockIssueOpenedContext: ParsedGitHubContext = {
       body: "## Description\n\nThe application crashes immediately after launching.\n\n## Steps to reproduce\n\n1. Install the app\n2. Launch it\n3. See crash\n\n/claude please help me fix this",
       assignee: null,
       created_at: "2024-01-15T10:30:00Z",
-      updated_at: "2024-01-15T10:30:00Z",
+      updated_at: "2024-01-15T10:35:00Z",
       html_url: "https://github.com/test-owner/test-repo/issues/42",
       user: {
         login: "john-doe",
@@ -191,6 +191,8 @@ export const mockIssueAssignedContext: ParsedGitHubContext = {
         avatar_url: "https://avatars.githubusercontent.com/u/11111",
         html_url: "https://github.com/claude-bot",
       },
+      created_at: "2024-01-15T09:00:00Z",
+      updated_at: "2024-01-15T11:00:00Z",
     },
     repository: {
       name: "test-repo",
@@ -225,6 +227,8 @@ export const mockIssueLabeledContext: ParsedGitHubContext = {
         html_url: "https://github.com/alice-wonder",
       },
       assignee: null,
+      created_at: "2024-01-15T09:30:00Z",
+      updated_at: "2024-01-15T11:30:00Z",
     },
     label: {
       id: 987654321,
@@ -355,6 +359,8 @@ export const mockPullRequestOpenedContext: ParsedGitHubContext = {
         avatar_url: "https://avatars.githubusercontent.com/u/55555",
         html_url: "https://github.com/feature-developer",
       },
+      created_at: "2024-01-15T14:00:00Z",
+      updated_at: "2024-01-15T14:05:00Z",
     },
     repository: {
       name: "test-repo",

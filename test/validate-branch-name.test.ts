@@ -29,6 +29,15 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("release.1.2.3")).not.toThrow();
     });
 
+    it("should accept branch names containing parentheses", () => {
+      expect(() =>
+        validateBranchName("feat(example)-valid-branch"),
+      ).not.toThrow();
+      expect(() =>
+        validateBranchName("fix(parser)-handle-empty-input"),
+      ).not.toThrow();
+    });
+
     it("should accept typical branch name formats", () => {
       expect(() =>
         validateBranchName("claude/issue-123-20250101-1234"),
@@ -73,6 +82,16 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("TICKET-123@add-feature")).not.toThrow();
       expect(() => validateBranchName("@hotfix/login-timeout")).not.toThrow();
       expect(() => validateBranchName("agent/task@abc123")).not.toThrow();
+    });
+
+    it("should accept branch names starting with underscore (git-valid, common for release branches)", () => {
+      // Leading underscores are valid per git check-ref-format and a common
+      // convention for release/internal branches. Rejecting them broke the
+      // action on any open PR whose base branch was e.g. "_release/v1.2.3",
+      // since setupBranch validates the PR's baseRefName after checkout.
+      expect(() => validateBranchName("_release/v1.2.3")).not.toThrow();
+      expect(() => validateBranchName("_internal")).not.toThrow();
+      expect(() => validateBranchName("_wip/feature-x")).not.toThrow();
     });
   });
 

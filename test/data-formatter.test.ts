@@ -108,6 +108,43 @@ Changed Files: 2 files`,
     );
   });
 
+  test("renders an unknown file count when GraphQL returns null files (very large PR)", () => {
+    // GitHub declines to compute the diff for very large PRs and returns
+    // `files: null`. `changedFiles` is misreported as 0 in that case, so the
+    // count must render as unavailable rather than "0 files".
+    const prData: GitHubPullRequest = {
+      title: "Very large PR",
+      body: "PR body",
+      author: { login: "test-user" },
+      baseRefName: "main",
+      headRefName: "feature/test",
+      headRefOid: "abc123",
+      isCrossRepository: false,
+      headRepository: { owner: { login: "testowner" }, name: "testrepo" },
+      createdAt: "2023-01-01T00:00:00Z",
+      additions: 50,
+      deletions: 30,
+      state: "OPEN",
+      labels: {
+        nodes: [],
+      },
+      commits: {
+        totalCount: 3,
+        nodes: [],
+      },
+      files: null,
+      comments: {
+        nodes: [],
+      },
+      reviews: {
+        nodes: [],
+      },
+    };
+
+    const result = formatContext(prData, true);
+    expect(result).toContain("Changed Files: unknown (file list unavailable)");
+  });
+
   test("formats Issue context correctly", () => {
     const issueData: GitHubIssue = {
       title: "Test Issue",
@@ -158,6 +195,21 @@ Issue Author: test-user
 Issue State: OPEN
 Issue Labels: architecture, agent-sdk, drift:functional`,
     );
+  });
+
+  test("renders a deleted (null-author) issue author as 'ghost'", () => {
+    const issueData: GitHubIssue = {
+      title: "Test Issue",
+      body: "Issue body",
+      author: null,
+      createdAt: "2023-01-01T00:00:00Z",
+      state: "OPEN",
+      labels: { nodes: [] },
+      comments: { nodes: [] },
+    };
+
+    const result = formatContext(issueData, false);
+    expect(result).toContain("Issue Author: ghost");
   });
 });
 
@@ -249,6 +301,24 @@ describe("formatComments", () => {
     const result = formatComments(comments);
     expect(result).toBe(
       `[user1 at 2023-01-01T00:00:00Z]: First comment\n\n[user2 at 2023-01-02T00:00:00Z]: Second comment`,
+    );
+  });
+
+  test("renders deleted (null-author) comments as 'ghost'", () => {
+    // GitHub returns author: null for comments from deleted accounts.
+    const comments: GitHubComment[] = [
+      {
+        id: "1",
+        databaseId: "100001",
+        body: "From a deleted account",
+        author: null,
+        createdAt: "2023-01-01T00:00:00Z",
+      },
+    ];
+
+    const result = formatComments(comments);
+    expect(result).toBe(
+      "[ghost at 2023-01-01T00:00:00Z]: From a deleted account",
     );
   });
 
@@ -438,6 +508,112 @@ describe("formatReviewComments", () => {
     );
   });
 
+  test("includes the diff hunk as context when present", () => {
+    const reviewData = {
+      nodes: [
+        {
+          id: "review1",
+          databaseId: "300001",
+          author: { login: "reviewer1" },
+          body: "",
+          state: "COMMENTED",
+          submittedAt: "2023-01-01T00:00:00Z",
+          comments: {
+            nodes: [
+              {
+                id: "comment1",
+                databaseId: "200001",
+                body: "This can overflow",
+                author: { login: "reviewer1" },
+                createdAt: "2023-01-01T00:00:00Z",
+                path: "src/index.ts",
+                line: 42,
+                diffHunk: "@@ -40,3 +40,3 @@\n-const a = 1;\n+const a = 2;",
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const result = formatReviewComments(reviewData);
+
+    expect(result).toContain("[Comment on src/index.ts:42]: This can overflow");
+    expect(result).toContain("Diff context:");
+    expect(result).toContain("@@ -40,3 +40,3 @@");
+    expect(result).toContain("+const a = 2;");
+  });
+
+  test("omits the diff context when the comment has no diff hunk", () => {
+    const reviewData = {
+      nodes: [
+        {
+          id: "review1",
+          databaseId: "300001",
+          author: { login: "reviewer1" },
+          body: "",
+          state: "COMMENTED",
+          submittedAt: "2023-01-01T00:00:00Z",
+          comments: {
+            nodes: [
+              {
+                id: "comment1",
+                databaseId: "200001",
+                body: "No hunk here",
+                author: { login: "reviewer1" },
+                createdAt: "2023-01-01T00:00:00Z",
+                path: "src/index.ts",
+                line: 42,
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const result = formatReviewComments(reviewData);
+
+    expect(result).toContain("[Comment on src/index.ts:42]: No hunk here");
+    expect(result).not.toContain("Diff context:");
+  });
+
+  // GitHub returns line: null and diffHunk: "" for outdated comments whose
+  // line no longer exists in the diff (observed on anthropics/claude-code-action#1025).
+  test("omits the diff context for an outdated comment with an empty diff hunk", () => {
+    const reviewData = {
+      nodes: [
+        {
+          id: "review1",
+          databaseId: "300001",
+          author: { login: "reviewer1" },
+          body: "",
+          state: "COMMENTED",
+          submittedAt: "2023-01-01T00:00:00Z",
+          comments: {
+            nodes: [
+              {
+                id: "comment1",
+                databaseId: "200001",
+                body: "Outdated comment",
+                author: { login: "reviewer1" },
+                createdAt: "2023-01-01T00:00:00Z",
+                path: "src/index.ts",
+                line: null,
+                diffHunk: "",
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const result = formatReviewComments(reviewData);
+
+    expect(result).toContain("[Comment on src/index.ts:?]: Outdated comment");
+    expect(result).not.toContain("Diff context:");
+    expect(result).not.toContain("```diff");
+  });
+
   test("formats review with only body (no comments) correctly", () => {
     const reviewData = {
       nodes: [
@@ -491,6 +667,29 @@ describe("formatReviewComments", () => {
     const result = formatReviewComments(reviewData);
     expect(result).toBe(
       `[Review by reviewer1 at 2023-01-01T00:00:00Z]: COMMENTED\n  [Comment on src/main.ts:15]: Small suggestion here`,
+    );
+  });
+
+  test("renders deleted (null-author) reviews as 'ghost'", () => {
+    const reviewData = {
+      nodes: [
+        {
+          id: "review1",
+          databaseId: "300099",
+          author: null,
+          body: "Left before deleting the account",
+          state: "COMMENTED",
+          submittedAt: "2023-01-01T00:00:00Z",
+          comments: {
+            nodes: [],
+          },
+        },
+      ],
+    };
+
+    const result = formatReviewComments(reviewData);
+    expect(result).toBe(
+      `[Review by ghost at 2023-01-01T00:00:00Z]: COMMENTED\nLeft before deleting the account`,
     );
   });
 

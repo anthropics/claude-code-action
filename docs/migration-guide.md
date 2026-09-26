@@ -14,19 +14,19 @@ This guide helps you migrate from Claude Code Action v0.x to v1.0. The new versi
 
 The following inputs have been deprecated and replaced:
 
-| Deprecated Input      | Replacement                          | Notes                                         |
-| --------------------- | ------------------------------------ | --------------------------------------------- |
-| `mode`                | Auto-detected                        | Action automatically chooses based on context |
-| `direct_prompt`       | `prompt`                             | Direct drop-in replacement                    |
-| `override_prompt`     | `prompt`                             | Use GitHub context variables instead          |
-| `custom_instructions` | `claude_args: --system-prompt`       | Move to CLI arguments                         |
-| `max_turns`           | `claude_args: --max-turns`           | Use CLI format                                |
-| `model`               | `claude_args: --model`               | Specify via CLI                               |
-| `allowed_tools`       | `claude_args: --allowedTools`        | Use CLI format                                |
-| `disallowed_tools`    | `claude_args: --disallowedTools`     | Use CLI format                                |
-| `claude_env`          | `settings` with env object           | Use settings JSON                             |
-| `mcp_config`          | `claude_args: --mcp-config`          | Pass MCP config via CLI arguments             |
-| `timeout_minutes`     | Use GitHub Actions `timeout-minutes` | Configure at job level instead of input level |
+| Deprecated Input      | Replacement                           | Notes                                                                               |
+| --------------------- | ------------------------------------- | ----------------------------------------------------------------------------------- |
+| `mode`                | Auto-detected                         | Action automatically chooses based on context                                       |
+| `direct_prompt`       | `prompt`                              | Direct drop-in replacement                                                          |
+| `override_prompt`     | `prompt`                              | Use GitHub context variables instead                                                |
+| `custom_instructions` | `claude_args: --append-system-prompt` | Appends to the default prompt (v0 behavior); `--system-prompt` replaces it entirely |
+| `max_turns`           | `claude_args: --max-turns`            | Use CLI format                                                                      |
+| `model`               | `claude_args: --model`                | Specify via CLI                                                                     |
+| `allowed_tools`       | `claude_args: --allowedTools`         | Use CLI format                                                                      |
+| `disallowed_tools`    | `claude_args: --disallowedTools`      | Use CLI format                                                                      |
+| `claude_env`          | `settings` with env object            | Use settings JSON                                                                   |
+| `mcp_config`          | `claude_args: --mcp-config`           | Pass MCP config via CLI arguments                                                   |
+| `timeout_minutes`     | Use GitHub Actions `timeout-minutes`  | Configure at job level instead of input level                                       |
 
 ## Migration Examples
 
@@ -52,7 +52,7 @@ The following inputs have been deprecated and replaced:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     claude_args: |
       --max-turns 10
-      --system-prompt "Follow our coding standards"
+      --append-system-prompt "Follow our coding standards"
       --allowedTools Edit,Read,Write
 ```
 
@@ -255,14 +255,15 @@ claude_args: |
 
 ### Common claude_args Options
 
-| Option              | Description              | Example                                |
-| ------------------- | ------------------------ | -------------------------------------- |
-| `--max-turns`       | Limit conversation turns | `--max-turns 10`                       |
-| `--model`           | Specify Claude model     | `--model claude-4-0-sonnet-20250805`   |
-| `--allowedTools`    | Enable specific tools    | `--allowedTools Edit,Read,Write`       |
-| `--disallowedTools` | Disable specific tools   | `--disallowedTools WebSearch`          |
-| `--system-prompt`   | Add system instructions  | `--system-prompt "Focus on security"`  |
-| `--mcp-config`      | Add MCP server config    | `--mcp-config '{"mcpServers": {...}}'` |
+| Option                   | Description                                                               | Example                                                |
+| ------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `--max-turns`            | Limit conversation turns                                                  | `--max-turns 10`                                       |
+| `--model`                | Specify Claude model                                                      | `--model claude-4-0-sonnet-20250805`                   |
+| `--allowedTools`         | Enable specific tools                                                     | `--allowedTools Edit,Read,Write`                       |
+| `--disallowedTools`      | Disable specific tools                                                    | `--disallowedTools WebSearch`                          |
+| `--system-prompt`        | Replace the entire default system prompt                                  | `--system-prompt "Focus on security"`                  |
+| `--append-system-prompt` | Append to the default system prompt (keeps Claude Code's built-in prompt) | `--append-system-prompt "Follow our coding standards"` |
+| `--mcp-config`           | Add MCP server config                                                     | `--mcp-config '{"mcpServers": {...}}'`                 |
 
 ## Provider-Specific Updates
 
@@ -330,7 +331,7 @@ You can also pass MCP configuration from a file:
 - [ ] Remove `mode` input (auto-detected now)
 - [ ] Replace `direct_prompt` with `prompt`
 - [ ] Replace `override_prompt` with `prompt` using GitHub context
-- [ ] Move `custom_instructions` to `claude_args` with `--system-prompt`
+- [ ] Move `custom_instructions` to `claude_args` with `--append-system-prompt`
 - [ ] Convert `max_turns` to `claude_args` with `--max-turns`
 - [ ] Convert `model` to `claude_args` with `--model`
 - [ ] Convert `allowed_tools` to `claude_args` with `--allowedTools`
