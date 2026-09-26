@@ -31,7 +31,7 @@ Use provider-specific model names based on your chosen provider:
   with:
     use_bedrock: "true"
     claude_args: |
-      --model anthropic.claude-4-0-sonnet-20250805-v1:0
+      --model "us.anthropic.claude-opus-5-5[1m]"
     # ... other inputs
 
 # For Google Vertex AI with OIDC
@@ -74,7 +74,7 @@ AWS Bedrock, GCP Vertex AI, and Microsoft Foundry all support OIDC authenticatio
   with:
     use_bedrock: "true"
     claude_args: |
-      --model anthropic.claude-4-0-sonnet-20250805-v1:0
+      --model "us.anthropic.claude-opus-5-5[1m]"
     # ... other inputs
 
   permissions:
