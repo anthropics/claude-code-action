@@ -218,15 +218,11 @@ describe("runClaudeWithSdk", () => {
     }
   });
 
-  test("fails closed when a successful result exceeds maxTurns", async () => {
+  test("accepts a successful result whose num_turns exceeds maxTurns (batched tool calls)", async () => {
     const consoleErrorSpy = spyOn(console, "error").mockImplementation(
       () => {},
     );
     const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
-    const coreErrorSpy = spyOn(
-      await import("@actions/core"),
-      "error",
-    ).mockImplementation(() => {});
 
     tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
     process.env.RUNNER_TEMP = tempDir;
@@ -241,12 +237,16 @@ describe("runClaudeWithSdk", () => {
       model: "claude-opus-4-7",
     };
 
+    // maxTurns bounds model round trips; num_turns counts every transcript turn,
+    // which batched tool calls inflate past the round-trip count. A --max-turns 14
+    // run returning num_turns 27 is the reported case (#1758): the SDK considered
+    // it a success within the limit, so the action must not reject it.
     const successResultMessage = {
       type: "result",
       subtype: "success",
       is_error: false,
       duration_ms: 960000,
-      num_turns: 73,
+      num_turns: 27,
       total_cost_usd: 0,
       permission_denials: [],
     };
@@ -263,25 +263,68 @@ describe("runClaudeWithSdk", () => {
 
       await expect(
         runClaudeWithSdk(promptPath, {
-          sdkOptions: { maxTurns: 60 },
+          sdkOptions: { maxTurns: 14 },
           showFullOutput: false,
           hasJsonSchema: false,
         }),
-      ).rejects.toThrow(
-        "Claude reported a successful result after 73 turns, exceeding the configured maximum of 60",
-      );
-
-      const executionFile = join(tempDir, "claude-execution-output.json");
-      await expect(readFile(executionFile, "utf-8")).resolves.toBe(
-        JSON.stringify([initMessage, successResultMessage], null, 2),
-      );
-      expect(coreErrorSpy).toHaveBeenCalledWith(
-        "Claude reported a successful result after 73 turns, exceeding the configured maximum of 60",
-      );
+      ).resolves.toMatchObject({ conclusion: "success" });
     } finally {
       consoleErrorSpy.mockRestore();
       consoleLogSpy.mockRestore();
-      coreErrorSpy.mockRestore();
+    }
+  });
+
+  test("fails when the SDK reports a max-turns overrun", async () => {
+    const consoleErrorSpy = spyOn(console, "error").mockImplementation(
+      () => {},
+    );
+    const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+    process.env.RUNNER_TEMP = tempDir;
+
+    const promptPath = join(tempDir, "prompt.txt");
+    await writeFile(promptPath, "test prompt");
+
+    const initMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "session-123",
+      model: "claude-opus-4-7",
+    };
+
+    // A genuine overrun is the SDK's call: it reports a non-success subtype, and
+    // that must still fail the run so enforcement is preserved.
+    const errorResultMessage = {
+      type: "result",
+      subtype: "error_max_turns",
+      is_error: true,
+      duration_ms: 960000,
+      num_turns: 14,
+      total_cost_usd: 0,
+      permission_denials: [],
+    };
+
+    mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+      query: async function* () {
+        yield initMessage;
+        yield errorResultMessage;
+      },
+    }));
+
+    try {
+      const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+      await expect(
+        runClaudeWithSdk(promptPath, {
+          sdkOptions: { maxTurns: 14 },
+          showFullOutput: false,
+          hasJsonSchema: false,
+        }),
+      ).rejects.toThrow("Claude execution failed");
+    } finally {
+      consoleErrorSpy.mockRestore();
+      consoleLogSpy.mockRestore();
     }
   });
 });
