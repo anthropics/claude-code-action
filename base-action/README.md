@@ -128,6 +128,7 @@ Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federa
 | `prompt_file`                    | Path to a file containing the prompt to send to Claude Code                                                             | No\*     | `''`          |
 | `settings`                       | Claude Code settings as a JSON string or path to a settings JSON file                                                   | No       | `''`          |
 | `claude_args`                    | Additional arguments to pass directly to the Claude CLI                                                                 | No       | `''`          |
+| `timeout_minutes`                | Abort the Claude Code session after this many minutes, covering a tool call that never returns as well as the run's own total duration. Unset applies no internal bound | No       | `''`          |
 | `anthropic_api_key`              | Anthropic API key for direct Anthropic API authentication                                                               | No       | `''`          |
 | `claude_code_oauth_token`        | Claude Code OAuth token as an alternative to an Anthropic API key                                                       | No       | `''`          |
 | `anthropic_federation_rule_id`   | Workload identity federation rule ID (fdrl\_...). Requires `id-token: write` permission                                 | No       | `''`          |
