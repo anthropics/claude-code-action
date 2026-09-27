@@ -147,6 +147,20 @@ async function writeStepSummary(executionFile: string): Promise<void> {
   }
 }
 
+/**
+ * Handles a workflow-validation skip: the PR added or modified the invoking
+ * workflow file, so the action must not run (anti-tamper). Reports
+ * conclusion=neutral — never success — so a skipped run is distinguishable
+ * from a passing review in the action's outputs (#1632). Note this only sets
+ * the output value; the check-run conclusion itself is still determined by
+ * the step's exit code.
+ */
+export function handleWorkflowValidationSkip(): void {
+  core.setOutput("skipped_due_to_workflow_validation_mismatch", "true");
+  core.setOutput("conclusion", "neutral");
+  console.log("Exiting due to workflow validation skip");
+}
+
 async function run() {
   let githubToken: string | undefined;
   let commentId: number | undefined;
@@ -177,8 +191,7 @@ async function run() {
       githubToken = await setupGitHubToken();
     } catch (error) {
       if (error instanceof WorkflowValidationSkipError) {
-        core.setOutput("skipped_due_to_workflow_validation_mismatch", "true");
-        console.log("Exiting due to workflow validation skip");
+        handleWorkflowValidationSkip();
         return;
       }
       throw error;
