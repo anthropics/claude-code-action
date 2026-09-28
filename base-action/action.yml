@@ -67,6 +67,32 @@ inputs:
     required: false
     default: "false"
 
+  # OrcaRouter provider (first-class, OpenAI-compatible gateway)
+  orcarouter_provider:
+    description: "Route inference through OrcaRouter (https://api.orcarouter.ai/v1). Requires orcarouter_api_key or orcarouter_auth."
+    required: false
+    default: "false"
+  orcarouter_api_key:
+    description: "OrcaRouter API key (sk-orca-...). OrcaRouter - API entry point. Find or create keys at https://www.orcarouter.ai/console/token"
+    required: false
+    default: ""
+  orcarouter_auth:
+    description: "Use the OrcaRouter - Auth entry point (OAuth 2.0 + PKCE). Set with orcarouter_stage: connect to sign in and store a key, or on its own to reuse the stored login."
+    required: false
+    default: "false"
+  orcarouter_model:
+    description: "Model ID to use with OrcaRouter, in vendor/model form (e.g. openai/gpt-5.5). Must be present in the OrcaRouter model list for this run's entry point; otherwise the selection is cleared."
+    required: false
+    default: ""
+  orcarouter_code:
+    description: "Authorization code shown on the OrcaRouter consent screen, used by orcarouter_stage: connect. A GitHub Actions step cannot rely on an interactive prompt."
+    required: false
+    default: ""
+  orcarouter_stage:
+    description: "Run a standalone OrcaRouter credential command instead of an inference run. One of: connect (sign in and store a key), logout (remove the stored login), status (report the configured entry point, secret masked)."
+    required: false
+    default: ""
+
   use_node_cache:
     description: "Whether to use Node.js dependency caching (set to true only for Node.js projects with lock files)"
     required: false

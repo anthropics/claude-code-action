@@ -383,6 +383,16 @@ describe("redactSecrets", () => {
     );
   });
 
+  it("should redact OrcaRouter API keys (sk-orca-)", () => {
+    const key = "sk-orca-9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c";
+    expect(redactSecrets(`ANTHROPIC_AUTH_TOKEN=${key}`)).toBe(
+      "ANTHROPIC_AUTH_TOKEN=[REDACTED_ORCAROUTER_KEY]",
+    );
+    expect(redactSecrets(`failed for ${key} while calling the gateway`)).toBe(
+      "failed for [REDACTED_ORCAROUTER_KEY] while calling the gateway",
+    );
+  });
+
   it("should not redact sk- strings that are not sk-ant-", () => {
     const content =
       "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789 and sk-ant-short";

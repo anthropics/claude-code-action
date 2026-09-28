@@ -31,8 +31,13 @@ export function collectActionInputsPresence(): string {
     classify_inline_comments: "true",
     use_commit_signing: "false",
     ssh_signing_key: "",
+    orcarouter_provider: "false",
+    orcarouter_api_key: "",
+    orcarouter_auth: "false",
+    orcarouter_model: "",
+    orcarouter_code: "",
+    orcarouter_stage: "",
   };
-
   const allInputsJson = process.env.ALL_INPUTS;
   if (!allInputsJson) {
     console.log("ALL_INPUTS environment variable not found");
