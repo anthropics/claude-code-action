@@ -205,6 +205,12 @@ def check_job(file_name: str, job_id: str, job: dict) -> list[str]:
             f"Auto permission mode is not required for job '{job_id}' in {file_name}. "
             f"Reason: {EXEMPT_FROM_AUTO_MODE[key]}."
         )
+    if "defaultMode" in json.dumps(job):
+        # Catches a settings file that an earlier step of the job writes, which the
+        # step-level check cannot read.
+        errors.append(
+            f"{where} mentions 'defaultMode': settings must not set a permission mode. {HELP}"
+        )
     for index, step in enumerate(steps_of(job), start=1):
         if not runs_claude_code_action(step):
             continue
