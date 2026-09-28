@@ -141,12 +141,39 @@ def permission_mode_problem(step: dict, exempt: bool) -> str | None:
                 f"'claude_args' has '--permission-mode {mode}'. "
                 "Change it to '--permission-mode auto'"
             )
-    if "defaultMode" in str(inputs.get("settings", "")):
-        return (
-            "remove 'defaultMode' from the step's 'settings': "
-            "'settings' must not set a permission mode"
-        )
+    settings = [("the step's 'settings'", inputs.get("settings", ""))]
+    settings += [
+        ("'--settings' in 'claude_args'", args[index + 1])
+        for index, arg in enumerate(args)
+        if arg == "--settings" and index + 1 < len(args)
+    ]
+    settings += [
+        ("'--settings' in 'claude_args'", arg.split("=", 1)[1])
+        for arg in args
+        if arg.startswith("--settings=")
+    ]
+    for where, value in settings:
+        if "defaultMode" in settings_text(value):
+            return f"remove 'defaultMode' from {where}: settings must not set a permission mode"
     return None
+
+
+def settings_text(value) -> str:
+    """The settings JSON a 'settings' value stands for: the value itself, or the contents of
+    the file it names when it is a path inside the repository."""
+    text = str(value or "").strip()
+    if not text or text.startswith("{"):
+        return text
+    path = pathlib.Path(text)
+    root = pathlib.Path.cwd().resolve()
+    try:
+        resolved = path.resolve()
+        resolved.relative_to(root)
+    except (OSError, ValueError):
+        return text
+    if resolved.is_file():
+        return resolved.read_text(encoding="utf-8", errors="replace")
+    return text
 
 
 def check_job(file_name: str, job_id: str, job: dict) -> list[str]:
