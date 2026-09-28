@@ -153,14 +153,21 @@ def permission_mode_problem(step: dict, exempt: bool) -> str | None:
         if arg.startswith("--settings=")
     ]
     for where, value in settings:
-        if "defaultMode" in settings_text(value):
+        text = settings_text(value)
+        if text is None:
+            return (
+                f"{where} names a file outside the repository, which this check cannot read. "
+                "Use inline settings or a file inside the repository"
+            )
+        if "defaultMode" in text:
             return f"remove 'defaultMode' from {where}: settings must not set a permission mode"
     return None
 
 
-def settings_text(value) -> str:
+def settings_text(value) -> str | None:
     """The settings JSON a 'settings' value stands for: the value itself, or the contents of
-    the file it names when it is a path inside the repository."""
+    the file it names when it is a path inside the repository. None when it names a path
+    outside the repository."""
     text = str(value or "").strip()
     if not text or text.startswith("{"):
         return text
@@ -170,7 +177,7 @@ def settings_text(value) -> str:
         resolved = path.resolve()
         resolved.relative_to(root)
     except (OSError, ValueError):
-        return text
+        return None
     if resolved.is_file():
         return resolved.read_text(encoding="utf-8", errors="replace")
     return text
