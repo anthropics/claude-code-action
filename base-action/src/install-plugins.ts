@@ -194,11 +194,61 @@ async function addMarketplace(
 ): Promise<void> {
   console.log(`Adding marketplace: ${marketplace}`);
 
-  return executeClaudeCommand(
-    claudeExecutable,
-    ["plugin", "marketplace", "add", marketplace],
-    `Failed to add marketplace '${marketplace}'`,
-  );
+  return new Promise((resolve, reject) => {
+    const outputChunks: Buffer[] = [];
+    const childProcess: ChildProcess = spawn(
+      claudeExecutable,
+      ["plugin", "marketplace", "add", marketplace],
+      { stdio: ["inherit", "pipe", "pipe"] },
+    );
+
+    // Mirror output to the parent process so it remains visible in logs.
+    childProcess.stdout?.on("data", (chunk: Buffer) => {
+      outputChunks.push(chunk);
+      process.stdout.write(chunk);
+    });
+    childProcess.stderr?.on("data", (chunk: Buffer) => {
+      outputChunks.push(chunk);
+      process.stderr.write(chunk);
+    });
+
+    childProcess.on("close", (code: number | null) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      // Non-ephemeral runners retain ~/.claude state across runs. Treat
+      // "already installed" as success so the action is idempotent on
+      // persistent runners without requiring a manual cleanup step.
+      const output = Buffer.concat(outputChunks).toString();
+      if (output.includes("already installed")) {
+        console.log(
+          `Marketplace '${marketplace}' is already installed, skipping`,
+        );
+        resolve();
+        return;
+      }
+      if (code === null) {
+        reject(
+          new Error(
+            `Failed to add marketplace '${marketplace}': process terminated by signal`,
+          ),
+        );
+      } else {
+        reject(
+          new Error(
+            `Failed to add marketplace '${marketplace}' (exit code: ${code})`,
+          ),
+        );
+      }
+    });
+
+    childProcess.on("error", (err: Error) => {
+      reject(
+        new Error(`Failed to add marketplace '${marketplace}': ${err.message}`),
+      );
+    });
+  });
 }
 
 /**
