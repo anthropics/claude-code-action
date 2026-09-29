@@ -6,6 +6,7 @@ Claude Code action, or when it or a local action it uses mentions ANTHROPIC_FEDE
 
 import json
 import pathlib
+import re
 import shlex
 import subprocess
 import sys
@@ -16,12 +17,18 @@ POLICY_PATH = pathlib.Path(".github/egress-firewall.yaml")
 SIGN_IN_MARKER = "anthropic_federation_rule_id"
 CLAUDE_ACTIONS = ("anthropics/claude-code-action", "anthropics/claude-code-base-action")
 HELP = 'See CLAUDE.md, "Security hardening for GitHub Actions".'
+# Claude Code runs auto mode only on claude-opus-4-6 and newer models. On an older model it
+# falls back to its default permission mode, with no safety review.
+AUTO_MODE_MIN_VERSION = (4, 6)
+# The version in a model name: claude-opus-4-6, claude-sonnet-4-5-20250929, claude-3-5-sonnet-latest.
+MODEL_VERSION = re.compile(
+    r"claude-(?:(?:opus|sonnet|haiku)-(\d+)(?:-(\d{1,2}))?"
+    r"|(\d+)(?:-(\d{1,2}))?-(?:opus|sonnet|haiku))(?![\d.])"
+)
 
 # Key: "<workflow file name>:<job id>". Value: why that job is exempt from the table's rule.
 EXEMPT_FROM_FIREWALL_RUNNER: dict[str, str] = {}
-EXEMPT_FROM_AUTO_MODE: dict[str, str] = {
-    "claude.yml:claude": "answers @claude mentions, and for those the Claude Code action sets --permission-mode acceptEdits itself",
-}
+EXEMPT_FROM_AUTO_MODE: dict[str, str] = {}
 
 
 def stop(message: str):
@@ -99,10 +106,12 @@ def job_calls_claude(job: dict) -> bool:
     return False
 
 
-def permission_mode_problem(step: dict, exempt: bool) -> str | None:
+def permission_mode_problem(step: dict, exempt: bool, inherited_env: dict) -> str | None:
     """The message for a step whose permission mode is wrong, or None if it is right.
 
-    A step must set auto mode. A step of a job in EXEMPT_FROM_AUTO_MODE must set no mode at all.
+    A step must set auto mode, on a model that supports it. A step of a job in
+    EXEMPT_FROM_AUTO_MODE must set no mode at all. inherited_env is the workflow's and the
+    job's 'env'.
     """
     inputs = step.get("with") or {}
     lines = str(inputs.get("claude_args", "")).splitlines()
@@ -141,16 +150,19 @@ def permission_mode_problem(step: dict, exempt: bool) -> str | None:
                 f"'claude_args' has '--permission-mode {mode}'. "
                 "Change it to '--permission-mode auto'"
             )
+    env = {**inherited_env, **(step.get("env") or {})}
+    models = [
+        ("the step's 'model'", inputs.get("model", "")),
+        ("ANTHROPIC_MODEL", env.get("ANTHROPIC_MODEL", "")),
+    ]
+    models += [
+        (f"'{flag}' in 'claude_args'", value)
+        for flag in ("--model", "--fallback-model")
+        for value in flag_values(args, flag)
+    ]
     settings = [("the step's 'settings'", inputs.get("settings", ""))]
     settings += [
-        ("'--settings' in 'claude_args'", args[index + 1])
-        for index, arg in enumerate(args)
-        if arg == "--settings" and index + 1 < len(args)
-    ]
-    settings += [
-        ("'--settings' in 'claude_args'", arg.split("=", 1)[1])
-        for arg in args
-        if arg.startswith("--settings=")
+        ("'--settings' in 'claude_args'", value) for value in flag_values(args, "--settings")
     ]
     for where, value in settings:
         text = settings_text(value)
@@ -161,7 +173,40 @@ def permission_mode_problem(step: dict, exempt: bool) -> str | None:
             )
         if "defaultMode" in text:
             return f"remove 'defaultMode' from {where}: settings must not set a permission mode"
+        try:
+            parsed = json.loads(text) if text else {}
+        except ValueError:
+            parsed = {}
+        if isinstance(parsed, dict) and "model" in parsed:
+            models.append((f"'model' in {where}", parsed["model"]))
+    if not exempt:
+        for where, model in models:
+            if predates_auto_mode(str(model or "")):
+                return (
+                    f"{where} is '{model}', which Claude Code does not run in auto mode: it "
+                    "falls back to the default permission mode. Use claude-opus-4-6 or a newer model"
+                )
     return None
+
+
+def flag_values(args: list[str], flag: str) -> list[str]:
+    """The values a flag in claude_args is given, as '--flag value' or '--flag=value'."""
+    values = [
+        args[index + 1] for index, arg in enumerate(args) if arg == flag and index + 1 < len(args)
+    ]
+    return values + [arg.split("=", 1)[1] for arg in args if arg.startswith(f"{flag}=")]
+
+
+def predates_auto_mode(model: str) -> bool:
+    """Whether the model is older than AUTO_MODE_MIN_VERSION. A name with no version, such as
+    'opus' or 'default', stands for a current model, except 'haiku' (claude-haiku-4-5)."""
+    if model.strip().lower() == "haiku":
+        return True
+    match = MODEL_VERSION.search(model.lower())
+    if not match:
+        return False
+    major, minor = match.group(1, 2) if match.group(1) else match.group(3, 4)
+    return (int(major), int(minor or 0)) < AUTO_MODE_MIN_VERSION
 
 
 def settings_text(value) -> str | None:
@@ -183,7 +228,7 @@ def settings_text(value) -> str | None:
     return text
 
 
-def check_job(file_name: str, job_id: str, job: dict) -> list[str]:
+def check_job(file_name: str, job_id: str, job: dict, workflow_env: dict) -> list[str]:
     key = f"{file_name}:{job_id}"
     where = f".github/workflows/{file_name}: job '{job_id}'"
     errors = []
@@ -221,7 +266,8 @@ def check_job(file_name: str, job_id: str, job: dict) -> list[str]:
     for index, step in enumerate(steps_of(job), start=1):
         if not runs_claude_code_action(step):
             continue
-        problem = permission_mode_problem(step, exempt)
+        inherited_env = {**workflow_env, **(job.get("env") or {})}
+        problem = permission_mode_problem(step, exempt, inherited_env)
         if problem:
             step_label = f"step '{step['name']}'" if "name" in step else f"step {index}"
             errors.append(f"{where}, {step_label}: {problem}. {HELP}")
@@ -275,7 +321,7 @@ def main() -> int:
             if not isinstance(job, dict) or not job_calls_claude(job):
                 continue
             checked += 1
-            errors.extend(check_job(path.name, job_id, job))
+            errors.extend(check_job(path.name, job_id, job, workflow.get("env") or {}))
     if checked:
         errors.extend(check_policy())
     for error in errors:
