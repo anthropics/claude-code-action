@@ -22,6 +22,14 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     return true;
   }
 
+  // Built once and shared by every branch below: an exact match for the trigger
+  // phrase as a whole token, preceded by start-of-string or whitespace and
+  // followed by whitespace, sentence punctuation, or end-of-string. A single
+  // instance means the branches cannot drift apart - a widened character class
+  // that reached only some of them would make the trigger fire on comments but
+  // not on PR descriptions, or vice versa.
+  const regex = buildTriggerRegex(triggerPhrase);
+
   // Check for assignee trigger
   if (isIssuesAssignedEvent(context)) {
     // Remove @ symbol from assignee_trigger if present
@@ -51,11 +59,6 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   if (isIssuesEvent(context) && context.eventAction === "opened") {
     const issueBody = context.payload.issue.body || "";
     const issueTitle = context.payload.issue.title || "";
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
-      "i",
-    );
 
     // Check in body
     if (regex.test(issueBody)) {
@@ -78,11 +81,6 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   if (isPullRequestEvent(context)) {
     const prBody = context.payload.pull_request.body || "";
     const prTitle = context.payload.pull_request.title || "";
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
-      "i",
-    );
 
     // Check in body
     if (regex.test(prBody)) {
@@ -107,11 +105,6 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     (context.eventAction === "submitted" || context.eventAction === "edited")
   ) {
     const reviewBody = context.payload.review.body || "";
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
-      "i",
-    );
     if (regex.test(reviewBody)) {
       console.log(
         `Pull request review contains exact trigger phrase '${triggerPhrase}'`,
@@ -125,14 +118,8 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     isIssueCommentEvent(context) ||
     isPullRequestReviewCommentEvent(context)
   ) {
-    const commentBody = isIssueCommentEvent(context)
-      ? context.payload.comment.body
-      : context.payload.comment.body;
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
-      "i",
-    );
+    // Both event payloads expose comment.body, so no narrowing is needed here.
+    const commentBody = context.payload.comment.body;
     if (regex.test(commentBody)) {
       console.log(`Comment contains exact trigger phrase '${triggerPhrase}'`);
       return true;
@@ -146,6 +133,18 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
 
 export function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Builds the matcher for a trigger phrase: the phrase as a whole token, bounded
+ * by start-of-string or whitespace on the left and by whitespace, sentence
+ * punctuation, or end-of-string on the right. Case-insensitive.
+ */
+function buildTriggerRegex(triggerPhrase: string): RegExp {
+  return new RegExp(
+    `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+    "i",
+  );
 }
 
 export async function checkTriggerAction(context: ParsedGitHubContext) {
