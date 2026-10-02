@@ -2,8 +2,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { appendFileSync } from "fs";
-import { z } from "zod";
 import { createOctokit } from "../github/api/client";
+import {
+  createInlineCommentInputSchema,
+  createInlineCommentPayloadSchema,
+} from "./github-inline-comment-schemas";
 import { redactSecrets, sanitizeContent } from "../github/utils/sanitizer";
 import { removeBufferedComment } from "./inline-comment-buffer";
 
@@ -37,57 +40,24 @@ const server = new McpServer({
 server.tool(
   "create_inline_comment",
   "Create an inline comment on a specific line or lines in a PR file",
-  {
-    path: z
-      .string()
-      .describe("The file path to comment on (e.g., 'src/index.js')"),
-    body: z
-      .string()
-      .describe(
-        "The comment text (supports markdown and GitHub code suggestion blocks). " +
-          "For code suggestions, use: ```suggestion\\nreplacement code\\n```. " +
-          "IMPORTANT: The suggestion block will REPLACE the ENTIRE line range (single line or startLine to line). " +
-          "Ensure the replacement is syntactically complete and valid - it must work as a drop-in replacement for the selected lines.",
-      ),
-    line: z
-      .number()
-      .nonnegative()
-      .optional()
-      .describe(
-        "Line number for single-line comments (required if startLine is not provided)",
-      ),
-    startLine: z
-      .number()
-      .nonnegative()
-      .optional()
-      .describe(
-        "Start line for multi-line comments (use with line parameter for the end line)",
-      ),
-    side: z
-      .enum(["LEFT", "RIGHT"])
-      .optional()
-      .default("RIGHT")
-      .describe(
-        "Side of the diff to comment on: LEFT (old code) or RIGHT (new code)",
-      ),
-    commit_id: z
-      .string()
-      .optional()
-      .describe(
-        "Specific commit SHA to comment on (defaults to latest commit)",
-      ),
-    confirmed: z
-      .boolean()
-      .optional()
-      .describe(
-        "Set true to post immediately. When omitted, the call is buffered " +
-          "and classified after the session completes — real review comments " +
-          "post, test/probe comments are dropped. Set false to buffer and " +
-          "never post. Only set true when posting final review comments.",
-      ),
-  },
-  async ({ path, body, line, startLine, side, commit_id, confirmed }) => {
+  createInlineCommentInputSchema,
+  async (args) => {
     try {
+      // The tool is registered with the raw shape, which cannot express the
+      // rules that span `line` and `startLine`. Re-parsing here applies them
+      // before the comment is buffered or sent, so an unusable range is
+      // reported back to the caller instead of reaching the GitHub API.
+      const validated = createInlineCommentPayloadSchema.safeParse(args);
+
+      if (!validated.success) {
+        throw new Error(
+          validated.error.issues.map((issue) => issue.message).join(" "),
+        );
+      }
+
+      const { path, body, line, startLine, side, commit_id, confirmed } =
+        validated.data;
+
       const githubToken = process.env.GITHUB_TOKEN;
 
       if (!githubToken) {
@@ -100,13 +70,6 @@ server.tool(
 
       // Sanitize the comment body to remove potential prompt injections and redact secrets
       const sanitizedBody = redactSecrets(sanitizeContent(body));
-
-      // Validate that either line or both startLine and line are provided
-      if (!line && !startLine) {
-        throw new Error(
-          "Either 'line' for single-line comments or both 'startLine' and 'line' for multi-line comments must be provided",
-        );
-      }
 
       if (CLASSIFY_ENABLED && confirmed !== true) {
         appendFileSync(
@@ -147,7 +110,7 @@ server.tool(
 
       // If only line is provided, it's a single-line comment
       // If both startLine and line are provided, it's a multi-line comment
-      const isSingleLine = !startLine;
+      const isSingleLine = startLine === undefined;
 
       const octokit = createOctokit(githubToken).rest;
 
