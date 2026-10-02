@@ -41,7 +41,7 @@ Single entrypoint: `src/entrypoints/run.ts` orchestrates everything — prepare 
 - Runtime is Bun, not Node. Use `bun test`, not `jest`.
 - `moduleResolution: "bundler"` — imports don't need `.js` extensions.
 - GitHub API calls should use retry logic (`src/utils/retry.ts`).
-- MCP servers are auto-installed at runtime to `~/.claude/mcp/github-{type}-server/`.
+- The action's MCP servers run from `$GITHUB_ACTION_PATH/src/mcp/github-*-server.ts`, built by `bunServerArgs()` in `src/mcp/install-mcp-server.ts`. Nothing is installed under `~/.claude/mcp`; to debug one, edit the script in `src/mcp/` and re-run.
 
 ## Security hardening for GitHub Actions
 
