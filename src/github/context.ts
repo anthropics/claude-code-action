@@ -51,6 +51,25 @@ export type ScheduleEvent = {
   };
 };
 
+export type MergeGroupEvent = {
+  action: "checks_requested" | "destroyed";
+  merge_group: {
+    head_sha: string;
+    head_ref: string;
+    base_sha: string;
+    base_ref: string;
+  };
+  repository: {
+    name: string;
+    owner: {
+      login: string;
+    };
+  };
+  sender: {
+    login: string;
+  };
+};
+
 // Event name constants for better maintainability
 const ENTITY_EVENT_NAMES = [
   "issues",
@@ -65,6 +84,7 @@ const AUTOMATION_EVENT_NAMES = [
   "repository_dispatch",
   "schedule",
   "workflow_run",
+  "merge_group",
 ] as const;
 
 // Derive types from constants for better maintainability
@@ -118,14 +138,15 @@ export type ParsedGitHubContext = BaseContext & {
   isPR: boolean;
 };
 
-// Context for automation events (workflow_dispatch, repository_dispatch, schedule, workflow_run)
+// Context for automation events (workflow_dispatch, repository_dispatch, schedule, workflow_run, merge_group)
 export type AutomationContext = BaseContext & {
   eventName: AutomationEventName;
   payload:
     | WorkflowDispatchEvent
     | RepositoryDispatchEvent
     | ScheduleEvent
-    | WorkflowRunEvent;
+    | WorkflowRunEvent
+    | MergeGroupEvent;
 };
 
 // Union type for all contexts
@@ -245,6 +266,13 @@ export function parseGitHubContext(): GitHubContext {
         ...commonFields,
         eventName: "workflow_run",
         payload: context.payload as unknown as WorkflowRunEvent,
+      };
+    }
+    case "merge_group": {
+      return {
+        ...commonFields,
+        eventName: "merge_group",
+        payload: context.payload as unknown as MergeGroupEvent,
       };
     }
     default:
