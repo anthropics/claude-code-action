@@ -30,7 +30,7 @@ For `workflow_run` events, the action checks the repository access of the actor 
 
 ```yaml
 # Preferred — check out the base ref (default).
-- uses: actions/checkout@v6 # no `ref:` → base branch
+- uses: actions/checkout@v7 # no `ref:` → base branch
 - uses: anthropics/claude-code-action@v1
 ```
 
@@ -38,8 +38,8 @@ For `workflow_run` events, the action checks the repository access of the actor 
 # If you need the PR's files locally — check out the base ref at the workspace
 # root (this action expects a git repo there), then check out the head ref into
 # a subdirectory and pass it via --add-dir.
-- uses: actions/checkout@v6 # no `ref:` → base branch at workspace root
-- uses: actions/checkout@v6
+- uses: actions/checkout@v7 # no `ref:` → base branch at workspace root
+- uses: actions/checkout@v7
   with:
     # For workflow_run use: ${{ github.event.workflow_run.head_sha }}
     ref: ${{ github.event.pull_request.head.sha }}
