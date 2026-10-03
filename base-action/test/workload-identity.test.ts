@@ -10,7 +10,7 @@ import {
   rmSync,
   statSync,
 } from "fs";
-import { tmpdir } from "os";
+import { tmpdir, platform } from "os";
 import { join } from "path";
 import {
   isWorkloadIdentityConfigured,
@@ -112,7 +112,9 @@ describe("workload identity federation", () => {
         expect(readFileSync(handle!.tokenFile, "utf-8")).toBe(
           "test-identity-token",
         );
-        expect(statSync(handle!.tokenFile).mode & 0o777).toBe(0o600);
+        if (platform() !== "win32") {
+          expect(statSync(handle!.tokenFile).mode & 0o777).toBe(0o600);
+        }
         expect(setSecretSpy).toHaveBeenCalledWith("test-identity-token");
         // Default audience scopes the JWT to the Claude API token exchange
         expect(getIDTokenSpy).toHaveBeenCalledWith("https://api.anthropic.com");
@@ -156,7 +158,9 @@ describe("workload identity federation", () => {
         expect(process.env.ANTHROPIC_PROFILE).toBe("default");
 
         const profilePath = join(configDir!, "configs", "default.json");
-        expect(statSync(profilePath).mode & 0o777).toBe(0o600);
+        if (platform() !== "win32") {
+          expect(statSync(profilePath).mode & 0o777).toBe(0o600);
+        }
         // Minimal on purpose: the SDK gap-fills the federation fields from
         // the ANTHROPIC_* env vars the action exports.
         expect(JSON.parse(readFileSync(profilePath, "utf-8"))).toEqual({
