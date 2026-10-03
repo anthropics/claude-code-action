@@ -160,6 +160,9 @@ permissions:
 
 jobs:
   claude-ci-helper:
+    # Restrict triggering to repository insiders so an outside comment cannot
+    # start a billable run before the action's write-access check rejects it.
+    if: contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
     steps:
       - uses: anthropics/claude-code-action@v1
