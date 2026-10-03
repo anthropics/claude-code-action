@@ -24,6 +24,10 @@ inputs:
     description: "Additional arguments to pass directly to Claude CLI (e.g., '--max-turns 3 --mcp-config /path/to/config.json')"
     required: false
     default: ""
+  timeout_minutes:
+    description: "Abort the Claude Code SDK session if it runs longer than this many minutes, covering a tool call that never returns (e.g. a stuck WebFetch) as well as the run's own total duration. Unset (default) applies no internal timeout, leaving the surrounding workflow's own timeout-minutes as the only bound, which kills the whole job rather than just this attempt. Set this to a value shorter than the job's timeout-minutes so a hang instead surfaces as a normal step failure, letting a caller's own retry or credential-fallback logic run again within the same job."
+    required: false
+    default: ""
 
   # Authentication settings
   anthropic_api_key:
@@ -191,6 +195,7 @@ runs:
         INPUT_PROMPT_FILE: ${{ inputs.prompt_file }}
         INPUT_SETTINGS: ${{ inputs.settings }}
         INPUT_CLAUDE_ARGS: ${{ inputs.claude_args }}
+        INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
         INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}

@@ -546,6 +546,34 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("timeout handling", () => {
+    test("should leave timeoutMs undefined when timeoutMinutes is not set", () => {
+      const result = parseSdkOptions({});
+
+      expect(result.timeoutMs).toBeUndefined();
+    });
+
+    test("should convert timeoutMinutes to milliseconds", () => {
+      const options: ClaudeOptions = {
+        timeoutMinutes: "15",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.timeoutMs).toBe(15 * 60_000);
+    });
+
+    test("should leave timeoutMs undefined for a non-numeric timeoutMinutes", () => {
+      const options: ClaudeOptions = {
+        timeoutMinutes: "not-a-number",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.timeoutMs).toBeUndefined();
+    });
+  });
+
   describe("environment variables passthrough", () => {
     test("should include OTEL environment variables in sdkOptions.env", () => {
       // Set up test environment variables
