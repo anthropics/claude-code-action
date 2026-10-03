@@ -44,7 +44,10 @@ import { installPlugins } from "../../base-action/src/install-plugins";
 import { preparePrompt } from "../../base-action/src/prepare-prompt";
 import { runClaude } from "../../base-action/src/run-claude";
 import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
-import { setExecutionFileOutputIfPresent } from "../../base-action/src/execution-file";
+import {
+  initializeExecutionFile,
+  setExecutionFileOutputIfPresent,
+} from "../../base-action/src/execution-file";
 
 // Exported for unit testing. `set -o pipefail` makes curl's non-zero exit
 // propagate through the pipe so the install retry logic actually triggers
@@ -148,6 +151,8 @@ async function writeStepSummary(executionFile: string): Promise<void> {
 }
 
 async function run() {
+  // Establish ownership before preparation can fail and invoke recovery.
+  initializeExecutionFile();
   let githubToken: string | undefined;
   let commentId: number | undefined;
   let claudeBranch: string | undefined;
