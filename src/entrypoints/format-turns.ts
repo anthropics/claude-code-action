@@ -212,7 +212,13 @@ export function formatResultContent(content: any): string {
     // Short text results don't need code blocks
     return `**→** ${contentStr}\n\n`;
   } else {
-    return `**Result:**\n\`\`\`${contentType}\n${contentStr}\n\`\`\`\n\n`;
+    // Outrun any backtick fence inside the content so it can't close ours
+    const longestRun = Math.max(
+      0,
+      ...(contentStr.match(/`+/g) ?? []).map((run) => run.length),
+    );
+    const fence = "`".repeat(Math.max(3, longestRun + 1));
+    return `**Result:**\n${fence}${contentType}\n${contentStr}\n${fence}\n\n`;
   }
 }
 
