@@ -16,17 +16,35 @@ export function extractUserRequest(
     return null;
   }
 
-  // Use string operations instead of regex for better performance and security
-  // (avoids potential ReDoS with large comment bodies)
-  const triggerIndex = commentBody
-    .toLowerCase()
-    .indexOf(triggerPhrase.toLowerCase());
-  if (triggerIndex === -1) {
-    return null;
-  }
+  const lowerBody = commentBody.toLowerCase();
+  const lowerTrigger = triggerPhrase.toLowerCase();
 
-  const afterTrigger = commentBody
-    .substring(triggerIndex + triggerPhrase.length)
-    .trim();
-  return afterTrigger || null;
+  let searchStartIndex = 0;
+  while (true) {
+    const triggerIndex = lowerBody.indexOf(lowerTrigger, searchStartIndex);
+    if (triggerIndex === -1) {
+      return null;
+    }
+
+    // Check boundary semantics matching checkContainsTrigger:
+    // (^|\s)triggerPhrase([\s.,!?;:]|$)
+    const prevChar = triggerIndex > 0 ? lowerBody[triggerIndex - 1] : "";
+    const nextChar =
+      triggerIndex + lowerTrigger.length < lowerBody.length
+        ? lowerBody[triggerIndex + lowerTrigger.length]
+        : "";
+
+    const isPrevValid = prevChar === "" || /^\s$/.test(prevChar);
+    const isNextValid = nextChar === "" || /^[\s.,!?;:]$/.test(nextChar);
+
+    if (isPrevValid && isNextValid) {
+      const afterTrigger = commentBody
+        .substring(triggerIndex + triggerPhrase.length)
+        .trim();
+      return afterTrigger || null;
+    }
+
+    // If not a valid match, advance search past the current match
+    searchStartIndex = triggerIndex + 1;
+  }
 }
