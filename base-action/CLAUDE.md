@@ -29,13 +29,21 @@ This is a GitHub Action that allows running Claude Code within GitHub workflows.
 - Uses Bun runtime for development and execution
 - JSON streaming output format for execution logs
 - Composite action pattern to orchestrate multiple steps
-- Provider-agnostic design supporting Anthropic API, AWS Bedrock, and Google Vertex AI
+- Provider-agnostic design supporting Anthropic API, AWS Bedrock, Google Vertex AI, Microsoft Foundry, and OrcaRouter
 
 ## Provider Authentication
 
 1. **Anthropic API** (default): Requires API key via `anthropic_api_key` input
 2. **AWS Bedrock**: Uses OIDC authentication when `use_bedrock: true`
 3. **Google Vertex AI**: Uses OIDC authentication when `use_vertex: true`
+4. **Microsoft Foundry**: Uses OIDC authentication when `use_foundry: true`
+5. **OrcaRouter**: An OpenAI-compatible gateway. Activated by
+   `orcarouter_provider`, `orcarouter_api_key`, or `orcarouter_auth`. The
+   credential seam lives in `src/orcarouter/credentials.ts` and has two
+   adapters — a pasted `sk-orca-...` key, and OAuth 2.0 + PKCE
+   (`orcarouter_stage: connect`). Neither adapter's credential is visible
+   downstream: `resolveOrcaRouter` in `src/orcarouter/provider.ts` is the single
+   entry point.
 
 ## Testing Strategy
 
