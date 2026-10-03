@@ -262,11 +262,15 @@ function ensureClaudePrExcludedFromGit(): void {
  *
  * @param baseBranch - PR base branch name. Must be pre-validated (branch.ts
  *   calls validateBranchName on it before returning).
+ * @param fallbackBranch - Trusted branch to use if the PR base no longer exists.
  * @returns The paths whose working-tree state now comes from the base branch
  *   rather than the PR. Callers that stage files must exclude these, or they
  *   will commit the revert back onto the PR author's branch.
  */
-export function restoreConfigFromBase(baseBranch: string): string[] {
+export function restoreConfigFromBase(
+  baseBranch: string,
+  fallbackBranch?: string,
+): string[] {
   console.log(
     `Restoring ${SENSITIVE_PATHS.join(", ")} from origin/${baseBranch} (PR head is untrusted)`,
   );
@@ -307,24 +311,50 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
 
   // --no-recurse-submodules: explicitly suppress submodule fetching regardless of
   // fetch.recurseSubmodules config. Defense-in-depth alongside the delete above.
-  execFileSync(
-    "git",
-    [
-      "fetch",
-      "origin",
-      baseBranch,
-      ...fetchDepthArgs(1),
-      "--no-recurse-submodules",
-    ],
-    {
-      stdio: "inherit",
-      env: process.env,
-    },
-  );
+  let restoreBranch = baseBranch;
+  try {
+    execFileSync(
+      "git",
+      [
+        "fetch",
+        "origin",
+        baseBranch,
+        ...fetchDepthArgs(1),
+        "--no-recurse-submodules",
+      ],
+      {
+        stdio: "inherit",
+        env: process.env,
+      },
+    );
+  } catch (error) {
+    if (!fallbackBranch || fallbackBranch === baseBranch) {
+      throw error;
+    }
+
+    console.warn(
+      `Failed to fetch origin/${baseBranch}; falling back to origin/${fallbackBranch}`,
+    );
+    execFileSync(
+      "git",
+      [
+        "fetch",
+        "origin",
+        fallbackBranch,
+        ...fetchDepthArgs(1),
+        "--no-recurse-submodules",
+      ],
+      {
+        stdio: "inherit",
+        env: process.env,
+      },
+    );
+    restoreBranch = fallbackBranch;
+  }
 
   for (const p of SENSITIVE_PATHS) {
     try {
-      execFileSync("git", ["checkout", `origin/${baseBranch}`, "--", p], {
+      execFileSync("git", ["checkout", `origin/${restoreBranch}`, "--", p], {
         stdio: "pipe",
       });
     } catch {
