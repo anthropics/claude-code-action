@@ -28,7 +28,10 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     let triggerUser = assigneeTrigger.replace(/^@/, "");
     const assigneeUsername = context.payload.assignee?.login || "";
 
-    if (triggerUser && assigneeUsername === triggerUser) {
+    if (
+      triggerUser &&
+      assigneeUsername.toLowerCase() === triggerUser.toLowerCase()
+    ) {
       console.log(`Issue assigned to trigger user '${triggerUser}'`);
       return true;
     }

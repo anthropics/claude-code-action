@@ -73,6 +73,32 @@ describe("checkContainsTrigger", () => {
   });
 
   describe("assignee trigger", () => {
+    it.each([
+      { trigger: "@ClAuDe-BoT", login: "claude-bot" },
+      { trigger: "claude-bot", login: "ClAuDe-BoT" },
+    ])(
+      "should match assignee usernames regardless of case: %j",
+      ({ trigger, login }) => {
+        const context = {
+          ...mockIssueAssignedContext,
+          inputs: {
+            ...mockIssueAssignedContext.inputs,
+            assigneeTrigger: trigger,
+          },
+          payload: {
+            ...mockIssueAssignedContext.payload,
+            assignee: {
+              ...(mockIssueAssignedContext.payload as IssuesAssignedEvent)
+                .assignee,
+              login,
+            },
+          },
+        } as ParsedGitHubContext;
+
+        expect(checkContainsTrigger(context)).toBe(true);
+      },
+    );
+
     it("should return true when issue is assigned to the trigger user", () => {
       const context = mockIssueAssignedContext;
       expect(checkContainsTrigger(context)).toBe(true);
