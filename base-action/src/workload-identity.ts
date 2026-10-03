@@ -142,9 +142,13 @@ export async function setupWorkloadIdentity(): Promise<
     "claude-workload-identity",
   );
   const tokenFile = join(tokenDir, "identity-token");
+  let stopped = false;
 
   const writeIdentityToken = async () => {
     const identityToken = await fetchIdentityToken(audience);
+    // A refresh can still be awaiting GitHub when the action enters cleanup.
+    // Do not recreate credential material after stop() has removed it.
+    if (stopped) return;
     core.setSecret(identityToken);
     mkdirSync(tokenDir, { recursive: true, mode: 0o700 });
     writeFileSync(tokenFile, identityToken, { mode: 0o600 });
@@ -186,6 +190,7 @@ export async function setupWorkloadIdentity(): Promise<
   return {
     tokenFile,
     stop: () => {
+      stopped = true;
       clearInterval(refreshInterval);
       // RUNNER_TEMP is per-job, not per-step: remove the identity token, the
       // profile, and the cached exchanged credential so they don't outlive
