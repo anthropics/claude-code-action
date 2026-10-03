@@ -21,6 +21,70 @@ export type ClaudeRunResult = {
 const USER_REQUEST_FILENAME = "claude-user-request.txt";
 
 /**
+ * Task types whose completion wakes the main thread for a follow-up turn.
+ * A sub-agent launched with `run_in_background: true` is one of these: the
+ * turn that launched it ends with a `result`, and when the agent finishes
+ * the CLI delivers a `task_notification`, runs another turn and emits a
+ * second `result`. Background shells (`Bash` with `run_in_background`) are
+ * also reported through task frames but may never finish, so they are not
+ * tracked here.
+ */
+const DEFERRING_TASK_TYPES = new Set(["local_agent", "local_workflow"]);
+
+/** `task_updated` patch statuses after which a task is finished. */
+const TERMINAL_TASK_STATUSES = new Set([
+  "completed",
+  "failed",
+  "stopped",
+  "killed",
+]);
+
+/**
+ * Tracks sub-agent tasks the CLI has started but not yet reported finished,
+ * from the `system` task lifecycle frames in the message stream.
+ */
+export class InflightAgentTasks {
+  private readonly taskIds = new Set<string>();
+
+  /** Feed every message from the stream; non-task frames are ignored. */
+  observe(message: SDKMessage): void {
+    if (message.type !== "system" || !("subtype" in message)) {
+      return;
+    }
+    const frame = message as {
+      subtype: string;
+      task_id?: string;
+      task_type?: string;
+      patch?: { status?: string };
+    };
+    if (!frame.task_id) {
+      return;
+    }
+    switch (frame.subtype) {
+      case "task_started":
+        if (frame.task_type && DEFERRING_TASK_TYPES.has(frame.task_type)) {
+          this.taskIds.add(frame.task_id);
+        }
+        break;
+      case "task_notification":
+        this.taskIds.delete(frame.task_id);
+        break;
+      case "task_updated": {
+        const status = frame.patch?.status;
+        if (status && TERMINAL_TASK_STATUSES.has(status)) {
+          this.taskIds.delete(frame.task_id);
+        }
+        break;
+      }
+    }
+  }
+
+  get size(): number {
+    return this.taskIds.size;
+  }
+}
+
+/**
  * Check if a file exists
  */
 async function fileExists(path: string): Promise<boolean> {
@@ -185,10 +249,12 @@ export async function runClaudeWithSdk(
 
   const messages: SDKMessage[] = [];
   let resultMessage: SDKResultMessage | undefined;
+  const inflightAgents = new InflightAgentTasks();
 
   try {
     for await (const message of query({ prompt, options: sdkOptions })) {
       messages.push(message);
+      inflightAgents.observe(message);
 
       const sanitized = sanitizeSdkOutput(message, showFullOutput);
       if (sanitized) {
@@ -197,6 +263,19 @@ export async function runClaudeWithSdk(
 
       if (message.type === "result") {
         resultMessage = message as SDKResultMessage;
+        // A result ends a turn, not necessarily the run. When Claude has
+        // launched a sub-agent in the background, the turn ends while the
+        // agent is still working; the CLI then delivers its completion as a
+        // task_notification, runs a follow-up turn and emits another
+        // result. Stopping at the first one would tear down the agents and
+        // report success with their work (e.g. review comments) never
+        // posted. Keep reading while such agents are in flight.
+        if (inflightAgents.size > 0) {
+          console.log(
+            `Result received while ${inflightAgents.size} background agent task(s) are still running; waiting for the follow-up turn`,
+          );
+          continue;
+        }
         // The SDK's query() iterator should close itself after the
         // result message, but in some workflow contexts (notably
         // pull_request-triggered runs) it stays open indefinitely and
@@ -204,8 +283,8 @@ export async function runClaudeWithSdk(
         // kills the job. This causes the action to "succeed" inside
         // Claude (verdict posted, $cost recorded) but be reported as
         // cancelled with no execution-output.json written. Break
-        // explicitly: by SDK contract no further messages follow a
-        // result, so the break is safe.
+        // explicitly: with no agent task in flight, no further turn is
+        // owed after a result, so the break is safe.
         break;
       }
     }
