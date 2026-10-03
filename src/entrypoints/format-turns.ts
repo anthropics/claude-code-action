@@ -142,14 +142,11 @@ export function detectContentType(content: any): string {
   return "text";
 }
 
-export function formatResultContent(content: any): string {
+export function extractToolResultText(content: any): string {
   if (!content) {
-    return "*(No output)*\n\n";
+    return "";
   }
 
-  let contentStr: string;
-
-  // Check if content is a list with "type": "text" structure
   try {
     let parsedContent: any;
     if (typeof content === "string") {
@@ -169,15 +166,22 @@ export function formatResultContent(content: any): string {
       // file paths and follow-up instructions from the rendered summary. Blocks
       // of other types (for example images) are skipped. Tool output is
       // arbitrary, so `text` is not guaranteed to be a string.
-      contentStr = parsedContent
+      return parsedContent
         .filter((block: any) => block?.type === "text")
         .map((block: any) => String(block?.text || ""))
         .join("\n");
-    } else {
-      contentStr = String(content).trim();
     }
+
+    return String(content).trim();
   } catch {
-    contentStr = String(content).trim();
+    return String(content).trim();
+  }
+}
+
+function normalizeToolResultText(content: any): string {
+  let contentStr = extractToolResultText(content);
+  if (!contentStr) {
+    return "";
   }
 
   // Redact before truncating so a credential cannot be split at the cut and
@@ -187,6 +191,15 @@ export function formatResultContent(content: any): string {
   // Truncate very long results
   if (contentStr.length > 3000) {
     contentStr = contentStr.substring(0, 2997) + "...";
+  }
+
+  return contentStr;
+}
+
+export function formatResultContent(content: any): string {
+  let contentStr = normalizeToolResultText(content);
+  if (!contentStr) {
+    return "*(No output)*\n\n";
   }
 
   // Detect content type
@@ -238,7 +251,8 @@ export function formatToolWithResult(
     const isError = toolResult.is_error || false;
 
     if (isError) {
-      result += `❌ **Error:** \`${content}\`\n\n`;
+      const errorText = normalizeToolResultText(content) || "*(No output)*";
+      result += `❌ **Error:** \`${errorText}\`\n\n`;
     } else {
       result += formatResultContent(content);
     }

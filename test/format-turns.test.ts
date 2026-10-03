@@ -192,6 +192,24 @@ describe("formatToolWithResult", () => {
     expect(result).toContain("❌ **Error:** `Permission denied`");
   });
 
+  test("formats MCP tool error content arrays as text", () => {
+    const toolUse: ToolUse = {
+      type: "tool_use",
+      name: "mcp_tool",
+    };
+
+    const toolResult: ToolResult = {
+      type: "tool_result",
+      content: [{ type: "text", text: "boom" }],
+      is_error: true,
+    };
+
+    const result = formatToolWithResult(toolUse, toolResult);
+
+    expect(result).toContain("❌ **Error:** `boom`");
+    expect(result).not.toContain("[object Object]");
+  });
+
   test("formats tool without parameters", () => {
     const toolUse: ToolUse = {
       type: "tool_use",
