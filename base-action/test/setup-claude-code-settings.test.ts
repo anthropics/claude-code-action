@@ -1,7 +1,10 @@
 #!/usr/bin/env bun
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { setupClaudeCodeSettings } from "../src/setup-claude-code-settings";
+import {
+  setupClaudeCodeSettings,
+  parseSettingsInput,
+} from "../src/setup-claude-code-settings";
 import { tmpdir } from "os";
 import { mkdir, writeFile, readFile, rm } from "fs/promises";
 import { join } from "path";
@@ -95,15 +98,15 @@ describe("setupClaudeCodeSettings", () => {
   });
 
   test("should throw error for invalid JSON string", async () => {
-    expect(() =>
+    expect(
       setupClaudeCodeSettings("{ invalid json", testHomeDir),
-    ).toThrow();
+    ).rejects.toThrow(/Failed to parse inline settings JSON/);
   });
 
   test("should throw error for non-existent file path", async () => {
-    expect(() =>
+    expect(
       setupClaudeCodeSettings("/non/existent/file.json", testHomeDir),
-    ).toThrow();
+    ).rejects.toThrow(/neither valid inline JSON nor an existing file path/);
   });
 
   test("should handle empty string input", async () => {
@@ -146,5 +149,39 @@ describe("setupClaudeCodeSettings", () => {
     expect(settings.existingKey).toBe("existingValue");
     expect(settings.newKey).toBe("newValue");
     expect(settings.model).toBe("claude-opus-4-1-20250805");
+  });
+});
+
+describe("parseSettingsInput", () => {
+  test("should return empty object for empty or whitespace input", async () => {
+    expect(await parseSettingsInput("")).toEqual({});
+    expect(await parseSettingsInput("   ")).toEqual({});
+  });
+
+  test("should parse valid inline JSON object", async () => {
+    const res = await parseSettingsInput('{"model": "test-model"}');
+    expect(res).toEqual({ model: "test-model" });
+  });
+
+  test("should reject inline JSON that is an array", async () => {
+    await expect(parseSettingsInput("[1, 2, 3]")).rejects.toThrow(
+      /Invalid settings format: expected a JSON object dictionary/,
+    );
+  });
+
+  test("should reject file containing invalid JSON", async () => {
+    const invalidFile = join(testSettingsDir, "invalid.json");
+    await writeFile(invalidFile, "not valid json content");
+    await expect(parseSettingsInput(invalidFile)).rejects.toThrow(
+      /Failed to parse settings JSON from file/,
+    );
+  });
+
+  test("should reject file containing non-object JSON", async () => {
+    const nonObjFile = join(testSettingsDir, "array.json");
+    await writeFile(nonObjFile, JSON.stringify([1, 2, 3]));
+    await expect(parseSettingsInput(nonObjFile)).rejects.toThrow(
+      /Invalid settings file format/,
+    );
   });
 });
