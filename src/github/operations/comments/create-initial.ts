@@ -9,44 +9,50 @@ import { appendFileSync } from "fs";
 import { createJobRunLink, createCommentBody } from "./common";
 import {
   isPullRequestReviewCommentEvent,
-  isPullRequestEvent,
   type ParsedGitHubContext,
 } from "../../context";
 import type { Octokit } from "@octokit/rest";
 
-const CLAUDE_APP_BOT_ID = 209825114;
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 export async function createInitialComment(
   octokit: Octokit,
   context: ParsedGitHubContext,
 ) {
   const { owner, repo } = context.repository;
+  const botIdentifier = context.inputs.useStickyComment
+    ? context.inputs.jobId
+    : "";
 
   const jobRunLink = createJobRunLink(owner, repo, context.runId);
-  const initialBody = createCommentBody(jobRunLink);
+  const initialBody = createCommentBody(jobRunLink, "", botIdentifier);
 
   try {
     let response;
 
-    if (
-      context.inputs.useStickyComment &&
-      context.isPR &&
-      isPullRequestEvent(context)
-    ) {
-      const comments = await octokit.rest.issues.listComments({
-        owner,
-        repo,
-        issue_number: context.entityNumber,
-      });
-      const existingComment = comments.data.find((comment) => {
-        const idMatch = comment.user?.id === CLAUDE_APP_BOT_ID;
-        const botNameMatch =
-          comment.user?.type === "Bot" &&
-          comment.user?.login.toLowerCase().includes("claude");
-        const bodyMatch = comment.body === initialBody;
+    if (context.inputs.useStickyComment && context.isPR) {
+      // Use pagination to fetch all comments (handles PRs with 30+ comments)
+      const comments = await octokit.paginate(
+        octokit.rest.issues.listComments,
+        {
+          owner,
+          repo,
+          issue_number: context.entityNumber,
+          per_page: 100,
+        },
+      );
 
-        return idMatch || botNameMatch || bodyMatch;
+      const existingComment = comments.find((comment) => {
+        if (!botIdentifier) return false;
+
+        const headerPattern = new RegExp(
+          `<!--\\s*bot:\\s*${escapeRegex(botIdentifier)}\\s*-->`,
+        );
+        return headerPattern.test(comment.body || "");
       });
+
       if (existingComment) {
         response = await octokit.rest.issues.updateComment({
           owner,
