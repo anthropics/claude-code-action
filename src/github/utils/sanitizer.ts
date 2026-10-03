@@ -65,6 +65,49 @@ export function normalizeHtmlEntities(content: string): string {
   return content;
 }
 
+/**
+ * Reserved XML tags used in prompt construction to structure context and instructions.
+ * User content containing these tags (opening, closing, or self-closing) is escaped
+ * to prevent unintentional prompt delimiter breakout and maintain prompt structure integrity.
+ */
+const RESERVED_PROMPT_TAGS = [
+  "formatted_context",
+  "pr_or_issue_body",
+  "pr_body",
+  "issue_body",
+  "comments",
+  "review_comments",
+  "changed_files",
+  "images_info",
+  "metadata",
+  "trigger_comment",
+  "custom_instructions",
+  "context",
+  "event_type",
+  "is_pr",
+  "trigger_context",
+  "repository",
+  "pr_number",
+  "issue_number",
+  "claude_comment_id",
+  "trigger_username",
+  "trigger_display_name",
+  "trigger_phrase",
+  "analysis",
+] as const;
+
+const RESERVED_TAG_REGEX = new RegExp(
+  `<(/)?\\s*(${RESERVED_PROMPT_TAGS.join("|")})(?=[\\s/>])([^>]*)>`,
+  "gi",
+);
+
+export function escapePromptTags(content: string): string {
+  return content.replace(
+    RESERVED_TAG_REGEX,
+    (_, slash = "", tag, rest = "") => `&lt;${slash}${tag}${rest}&gt;`,
+  );
+}
+
 export function sanitizeContent(content: string): string {
   content = stripHtmlComments(content);
   content = stripInvisibleCharacters(content);
@@ -72,6 +115,7 @@ export function sanitizeContent(content: string): string {
   content = stripMarkdownLinkTitles(content);
   content = stripHiddenAttributes(content);
   content = normalizeHtmlEntities(content);
+  content = escapePromptTags(content);
   content = redactGitHubTokens(content);
   return content;
 }
