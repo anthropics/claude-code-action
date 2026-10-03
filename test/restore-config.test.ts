@@ -425,6 +425,78 @@ describe("restoreConfigFromBase", () => {
     ).toEqual([".claude/settings.json", "CLAUDE.md"]);
   });
 
+  test("removes a PR-added .pnpmfile.cjs and preserves it for review", () => {
+    // A fork PR plants a .pnpmfile.cjs. pnpm executes its top-level code on
+    // `pnpm install` — even with --ignore-scripts — so a routine install run
+    // by the agent would execute it. It does not exist on base.
+    writeRepoFile(
+      ".pnpmfile.cjs",
+      "require('fs').writeFileSync('/tmp/pwned', 'x');\nmodule.exports = {};\n",
+    );
+    git(["add", ".pnpmfile.cjs"]);
+    git(["commit", "-m", "pr adds pnpmfile"]);
+
+    restoreConfigFromBase("main");
+
+    // Gone from the tree the agent operates on...
+    expect(existsRepoFile(".pnpmfile.cjs")).toBe(false);
+    // ...but still inspectable in the read-only review snapshot.
+    expect(readRepoFile(".claude-pr/.pnpmfile.cjs")).toContain("/tmp/pwned");
+  });
+
+  test("restores a PR-modified .npmrc to the base version", () => {
+    git(["checkout", "main"]);
+    writeRepoFile(".npmrc", "registry=https://registry.npmjs.org/\n");
+    git(["add", ".npmrc"]);
+    git(["commit", "-m", "base adds npmrc"]);
+    git(["push", "origin", "main"]);
+    git(["checkout", "pr"]);
+    writeRepoFile(".npmrc", "registry=https://evil.example.com/\n");
+    git(["add", ".npmrc"]);
+    git(["commit", "-m", "pr repoints registry"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile(".npmrc")).toBe(
+      "registry=https://registry.npmjs.org/\n",
+    );
+    expect(readRepoFile(".claude-pr/.npmrc")).toBe(
+      "registry=https://evil.example.com/\n",
+    );
+  });
+
+  test("removes a PR-added .yarnrc and preserves it for review", () => {
+    // A fork PR plants a Yarn Classic .yarnrc whose `yarn-path` points at
+    // PR-controlled JS; Yarn 1 runs that file as its binary on any yarn command
+    // (install included) — the pre-Berry equivalent of .yarnrc.yml. Not on base.
+    writeRepoFile(".yarnrc", 'yarn-path "./.yarn/pr.cjs"\n');
+    git(["add", ".yarnrc"]);
+    git(["commit", "-m", "pr adds yarnrc"]);
+
+    restoreConfigFromBase("main");
+
+    // Gone from the tree the agent operates on...
+    expect(existsRepoFile(".yarnrc")).toBe(false);
+    // ...but still inspectable in the read-only review snapshot.
+    expect(readRepoFile(".claude-pr/.yarnrc")).toContain("yarn-path");
+  });
+
+  test("removes a PR-added bunfig.toml and preserves it for review", () => {
+    // A fork PR plants a bunfig.toml whose `preload` runs PR-controlled JS on
+    // `bun run`/`bun test`; the action routinely invokes bun, so this would
+    // execute. It does not exist on base.
+    writeRepoFile("bunfig.toml", 'preload = ["./.pr-preload.ts"]\n');
+    git(["add", "bunfig.toml"]);
+    git(["commit", "-m", "pr adds bunfig"]);
+
+    restoreConfigFromBase("main");
+
+    // Gone from the tree the agent operates on...
+    expect(existsRepoFile("bunfig.toml")).toBe(false);
+    // ...but still inspectable in the read-only review snapshot.
+    expect(readRepoFile(".claude-pr/bunfig.toml")).toContain("preload");
+  });
+
   function git(args: string[]): string {
     return execFileSync("git", args, {
       cwd: repoDir,
