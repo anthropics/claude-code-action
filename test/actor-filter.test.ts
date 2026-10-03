@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  isAllowedBot,
   parseActorFilter,
   actorMatchesPattern,
   resolveActorName,
@@ -215,5 +216,45 @@ describe("resolveActorName", () => {
     expect(shouldIncludeCommentByActor(actor, [], ["dependabot[bot]"])).toBe(
       false,
     );
+  });
+});
+
+describe("isAllowedBot", () => {
+  test("allows every bot when set to *", () => {
+    expect(isAllowedBot("dependabot[bot]", "*")).toBe(true);
+    expect(isAllowedBot("anything", "  *  ")).toBe(true);
+  });
+
+  test("allows nothing when empty", () => {
+    expect(isAllowedBot("dependabot[bot]", "")).toBe(false);
+    expect(isAllowedBot("dependabot[bot]", "   ")).toBe(false);
+  });
+
+  test("matches with or without the [bot] suffix on either side", () => {
+    expect(isAllowedBot("dependabot[bot]", "dependabot")).toBe(true);
+    expect(isAllowedBot("dependabot", "dependabot[bot]")).toBe(true);
+    expect(isAllowedBot("dependabot[bot]", "dependabot[bot]")).toBe(true);
+    expect(isAllowedBot("dependabot", "dependabot")).toBe(true);
+  });
+
+  test("matches case-insensitively", () => {
+    expect(isAllowedBot("Copilot", "copilot")).toBe(true);
+    expect(isAllowedBot("copilot", "COPILOT[BOT]")).toBe(true);
+  });
+
+  test("handles whitespace and empty entries in the list", () => {
+    expect(isAllowedBot("renovate[bot]", " dependabot , renovate ,, ")).toBe(
+      true,
+    );
+  });
+
+  test("rejects an actor that is not listed", () => {
+    expect(isAllowedBot("renovate[bot]", "dependabot,copilot")).toBe(false);
+  });
+
+  test("does not treat * as a wildcard inside a list", () => {
+    // "*" allows all bots only as the entire value; "*[bot]" is an exact entry
+    // here, unlike actorMatchesPattern which does support it as a wildcard.
+    expect(isAllowedBot("dependabot[bot]", "*[bot]")).toBe(false);
   });
 });
