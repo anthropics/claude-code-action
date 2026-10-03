@@ -18,12 +18,15 @@ const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
 
 describe("restoreConfigFromBase", () => {
   let originalCwd: string;
+  let originalWorkspace: string | undefined;
   let tempDir = "";
   let repoDir: string;
   let remoteDir: string;
 
   beforeEach(() => {
     originalCwd = process.cwd();
+    originalWorkspace = process.env.GITHUB_WORKSPACE;
+    delete process.env.GITHUB_WORKSPACE;
     tempDir = mkdtempSync(join("/tmp", "restore-config-"));
     repoDir = join(tempDir, "repo");
     remoteDir = join(tempDir, "origin.git");
@@ -60,6 +63,11 @@ describe("restoreConfigFromBase", () => {
 
   afterEach(() => {
     process.chdir(originalCwd);
+    if (originalWorkspace === undefined) {
+      delete process.env.GITHUB_WORKSPACE;
+    } else {
+      process.env.GITHUB_WORKSPACE = originalWorkspace;
+    }
     if (tempDir) {
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -423,6 +431,32 @@ describe("restoreConfigFromBase", () => {
     expect(
       git(["diff", "--name-only", "origin/main...HEAD"]).trim().split("\n"),
     ).toEqual([".claude/settings.json", "CLAUDE.md"]);
+  });
+
+  // The restore is a security control: it replaces PR-controlled config with
+  // the base-branch version before the CLI reads it. It located the checkout
+  // through the process working directory, while the rest of the action uses
+  // GITHUB_WORKSPACE, so when the two disagreed the git calls exited 128 with
+  // "not a git repository" and the whole job failed (issue #1591).
+  test("restores the checkout named by GITHUB_WORKSPACE, not the process cwd", () => {
+    process.chdir(tempDir);
+    process.env.GITHUB_WORKSPACE = repoDir;
+
+    const restored = restoreConfigFromBase("main");
+
+    expect(restored).toContain("CLAUDE.md");
+    expect(readFileSync(join(repoDir, "CLAUDE.md"), "utf8")).toBe(
+      "base claude instructions\n",
+    );
+    expect(
+      readFileSync(join(repoDir, ".claude/settings.json"), "utf8"),
+    ).toContain('"base"');
+    // The PR-authored version is snapshotted inside the checkout ...
+    expect(readFileSync(join(repoDir, ".claude-pr/CLAUDE.md"), "utf8")).toBe(
+      "pr claude instructions\n",
+    );
+    // ... and nothing is written next to the unrelated working directory.
+    expect(existsSync(join(tempDir, ".claude-pr"))).toBe(false);
   });
 
   function git(args: string[]): string {
