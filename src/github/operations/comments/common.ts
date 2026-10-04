@@ -14,7 +14,17 @@ export function createJobRunLink(
 
 /** Encode Git-ref path segments without turning `/` into `%2F`. */
 export function encodeBranchNameForUrl(branchName: string): string {
-  return branchName.split("/").map(encodeURIComponent).join("/");
+  // encodeURIComponent deliberately leaves `(` and `)` unescaped, but both
+  // terminate a markdown link destination early (#1710 made them legal in
+  // branch names), so they are escaped explicitly here.
+  return branchName
+    .split("/")
+    .map((segment) =>
+      encodeURIComponent(segment)
+        .replace(/\(/g, "%28")
+        .replace(/\)/g, "%29"),
+    )
+    .join("/");
 }
 
 export function createBranchLink(
