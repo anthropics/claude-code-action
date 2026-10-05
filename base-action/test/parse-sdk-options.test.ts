@@ -42,6 +42,29 @@ describe("parseSdkOptions", () => {
       expect(result.sdkOptions.resume).toBeUndefined();
     });
 
+    test("falls back to --resume from claude_args when no input is set", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--resume abc-123",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.resume).toBe("abc-123");
+      expect(result.sdkOptions.extraArgs?.["resume"]).toBeUndefined();
+    });
+
+    test("the session_id input wins over --resume in claude_args", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--resume from-args",
+        sessionId: "from-input",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.resume).toBe("from-input");
+      expect(result.sdkOptions.extraArgs?.["resume"]).toBeUndefined();
+    });
+
     test("forwards the abort controller to the SDK options", () => {
       const abortController = new AbortController();
 

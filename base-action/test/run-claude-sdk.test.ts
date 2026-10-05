@@ -121,6 +121,45 @@ describe("runClaudeWithSdk", () => {
       }
     });
 
+    test("an aborted run with --json-schema returns cancelled instead of throwing", async () => {
+      const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+
+      tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-cancel-"));
+      process.env.RUNNER_TEMP = tempDir;
+
+      const promptPath = join(tempDir, "prompt.txt");
+      await writeFile(promptPath, "test prompt");
+
+      const abortController = new AbortController();
+      mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+        query: async function* () {
+          yield initMessage;
+          yield {
+            type: "result",
+            subtype: "error_during_execution",
+            is_error: true,
+            num_turns: 1,
+          };
+        },
+      }));
+      abortController.abort();
+
+      try {
+        const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+        const result = await runClaudeWithSdk(promptPath, {
+          sdkOptions: { abortController },
+          showFullOutput: false,
+          hasJsonSchema: true,
+        });
+
+        expect(result.cancelled).toBe(true);
+        expect(result.sessionId).toBe("session-cancel-123");
+      } finally {
+        consoleLogSpy.mockRestore();
+      }
+    });
+
     test("a stream error without an abort still fails hard", async () => {
       const consoleErrorSpy = spyOn(console, "error").mockImplementation(
         () => {},

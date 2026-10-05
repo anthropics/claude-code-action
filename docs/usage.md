@@ -212,9 +212,9 @@ conversation instead of starting fresh, which keeps prior context across runs:
 
 This is useful for scheduled automations that iterate on one long-running
 objective, and for recovering interrupted runs. When a workflow is cancelled
-or times out mid-run, the action aborts the session cleanly, posts the partial
-progress to the tracking comment, and reports the `session_id` output so the
-same run can be resumed later. Store the output somewhere durable between runs
+or times out mid-run, the action aborts the session, posts the partial
+progress to the tracking comment, and reports the `session_id` output, so the
+work is not lost and the run can be continued later. Store the output somewhere durable between runs
 (a repository variable, a gist, a commit) and feed it back in.
 
 ## Structured Outputs

@@ -181,7 +181,7 @@ export async function runClaudeWithSdk(
 
   console.log(`Running Claude with prompt from file: ${promptPath}`);
   // Log SDK options without env (which could contain sensitive data)
-  const { env, extraArgs, ...optionsToLog } = sdkOptions;
+  const { env, extraArgs, abortController, ...optionsToLog } = sdkOptions;
   console.log("SDK options:", JSON.stringify(optionsToLog, null, 2));
 
   const messages: SDKMessage[] = [];
@@ -256,6 +256,21 @@ export async function runClaudeWithSdk(
     throw new Error("No result message received from Claude");
   }
 
+  // A cancelled run that still delivered a failing result keeps its partial
+  // output rather than failing hard: the maxTurns and --json-schema guards
+  // below throw, which would skip the session_id output the cancelled
+  // tracking comment needs for resumption.
+  if (
+    wasCancelled &&
+    !(resultMessage.subtype === "success" && !resultMessage.is_error)
+  ) {
+    result.cancelled = true;
+    core.warning(
+      `Claude run interrupted after a ${resultMessage.subtype} result; treating as cancelled`,
+    );
+    return result;
+  }
+
   if (
     resultMessage.subtype === "success" &&
     !resultMessage.is_error &&
@@ -296,13 +311,6 @@ export async function runClaudeWithSdk(
   }
 
   if (!isSuccess) {
-    if (wasCancelled) {
-      result.cancelled = true;
-      core.warning(
-        `Claude run interrupted after a ${resultMessage.subtype} result; treating as cancelled`,
-      );
-      return result;
-    }
     if (resultMessage.subtype === "success" && resultMessage.is_error) {
       core.error(
         "Claude result reported subtype success with is_error:true (run did not complete successfully)",
