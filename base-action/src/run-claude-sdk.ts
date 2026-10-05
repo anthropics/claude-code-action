@@ -15,6 +15,7 @@ export type ClaudeRunResult = {
   sessionId?: string;
   conclusion: "success" | "failure";
   structuredOutput?: string;
+  cancelled?: boolean;
 };
 
 /** Filename for the user request file, written by prompt generation */
@@ -210,14 +211,23 @@ export async function runClaudeWithSdk(
       }
     }
   } catch (error) {
-    console.error("SDK execution error:", error);
-    await writeExecutionFile(messages);
-    throw new Error(`SDK execution error: ${error}`);
+    // An abort surfaces here as an AbortError from the SDK's stream; the
+    // messages received so far are still worth posting, so fall through to
+    // the partial-result path instead of failing without a session id.
+    if (sdkOptions.abortController?.signal.aborted) {
+      console.log("Claude session aborted mid-stream; keeping partial output");
+    } else {
+      console.error("SDK execution error:", error);
+      await writeExecutionFile(messages);
+      throw new Error(`SDK execution error: ${error}`);
+    }
   }
 
   const result: ClaudeRunResult = {
     conclusion: "failure",
   };
+
+  const wasCancelled = Boolean(sdkOptions.abortController?.signal.aborted);
 
   const executionFile = await writeExecutionFile(messages);
   if (executionFile) {
@@ -234,6 +244,14 @@ export async function runClaudeWithSdk(
   }
 
   if (!resultMessage) {
+    if (wasCancelled) {
+      // The run was interrupted (workflow cancel or timeout) before the SDK
+      // delivered a result. Report a cancelled partial run rather than an
+      // error, so the session id and execution file survive for resumption.
+      result.cancelled = true;
+      core.warning("Claude run was cancelled before a result was produced");
+      return result;
+    }
     core.error("No result message received from Claude");
     throw new Error("No result message received from Claude");
   }
@@ -278,6 +296,13 @@ export async function runClaudeWithSdk(
   }
 
   if (!isSuccess) {
+    if (wasCancelled) {
+      result.cancelled = true;
+      core.warning(
+        `Claude run interrupted after a ${resultMessage.subtype} result; treating as cancelled`,
+      );
+      return result;
+    }
     if (resultMessage.subtype === "success" && resultMessage.is_error) {
       core.error(
         "Claude result reported subtype success with is_error:true (run did not complete successfully)",
