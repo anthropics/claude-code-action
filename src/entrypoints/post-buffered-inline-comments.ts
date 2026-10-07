@@ -15,7 +15,7 @@ import { redactSecrets } from "../github/utils/sanitizer";
 
 const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
 
-type BufferedComment = {
+export type BufferedComment = {
   ts: string;
   path: string;
   line?: number;
@@ -25,6 +25,40 @@ type BufferedComment = {
   body: string;
   confirmed?: boolean;
 };
+
+/**
+ * Parse the buffer file contents into comments, skipping malformed lines.
+ *
+ * The buffer is appended by separate MCP server processes and
+ * removeBufferedComment() deliberately keeps lines it cannot parse, so a
+ * truncated or interleaved line can legitimately be present. One bad line
+ * must not fail the whole post step and cost every valid buffered comment.
+ */
+export function parseBufferedComments(raw: string): BufferedComment[] {
+  const comments: BufferedComment[] = [];
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) {
+      continue;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      console.log(
+        `::warning::Skipping malformed buffered inline comment: ${line.slice(0, 120)}`,
+      );
+      continue;
+    }
+    if (typeof parsed !== "object" || parsed === null) {
+      console.log(
+        `::warning::Skipping non-object buffered inline comment: ${line.slice(0, 120)}`,
+      );
+      continue;
+    }
+    comments.push(parsed as BufferedComment);
+  }
+  return comments;
+}
 
 const CLASSIFICATION_PROMPT = `You are classifying PR inline comments as either REAL code review feedback or TEST/PROBE calls.
 
@@ -153,10 +187,7 @@ async function main() {
     return;
   }
 
-  const comments: BufferedComment[] = raw
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => JSON.parse(line));
+  const comments: BufferedComment[] = parseBufferedComments(raw);
 
   if (comments.length === 0) {
     console.log("No buffered inline comments");
@@ -228,7 +259,9 @@ async function main() {
   console.log(`Posted ${posted}/${toPost.length}`);
 }
 
-main().catch((e) => {
-  console.error("post-buffered-inline-comments failed:", e);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((e) => {
+    console.error("post-buffered-inline-comments failed:", e);
+    process.exit(1);
+  });
+}
