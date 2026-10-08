@@ -130,7 +130,7 @@ AWS Bedrock, GCP Vertex AI, and Microsoft Foundry all support OIDC authenticatio
       --model claude-sonnet-4-5
     # ... other inputs
   env:
-    ANTHROPIC_FOUNDRY_BASE_URL: https://my-resource.services.ai.azure.com
+    ANTHROPIC_FOUNDRY_BASE_URL: https://my-resource.services.ai.azure.com/anthropic
 
 permissions:
   id-token: write # Required for OIDC
