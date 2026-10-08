@@ -128,6 +128,31 @@ function parsePlugins(plugins?: string): string[] {
 }
 
 /**
+ * Derives Skill permission allow rules for explicitly installed plugins.
+ *
+ * Headless runs cannot answer interactive permission prompts, so a plugin
+ * skill whose frontmatter requests extra capabilities (e.g. allowed-tools)
+ * is denied when the model invokes it via the Skill tool. Installing a
+ * plugin through the `plugins` input is an explicit opt-in from the workflow
+ * author, so the plugin's skills are allowed to execute.
+ * @param pluginsInput - Newline-separated list of plugin names (same format as installPlugins)
+ * @returns Array of permission rules like `Skill(plugin-name:*)` (empty array if none provided)
+ * @throws {Error} If any plugin name fails validation
+ */
+export function getPluginSkillAllowRules(pluginsInput?: string): string[] {
+  const plugins = parsePlugins(pluginsInput);
+
+  const names = plugins.map((plugin) => {
+    // Strip the marketplace suffix: "code-review@claude-code-plugins" -> "code-review".
+    // Search from index 1 so a leading "@" in a scoped name is preserved.
+    const atIndex = plugin.indexOf("@", 1);
+    return atIndex === -1 ? plugin : plugin.substring(0, atIndex);
+  });
+
+  return [...new Set(names)].map((name) => `Skill(${name}:*)`);
+}
+
+/**
  * Executes a Claude Code CLI command with proper error handling
  * @param claudeExecutable - Path to the Claude executable
  * @param args - Command arguments to pass to the executable
