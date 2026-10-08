@@ -39,7 +39,7 @@ export async function setupClaudeCodeSettings(
       // First try to parse as JSON
       inputSettings = JSON.parse(settingsInput);
       console.log(`Parsed settings input as JSON`);
-    } catch (e) {
+    } catch (jsonError) {
       // If not JSON, treat as file path
       console.log(
         `Settings input is not JSON, treating as file path: ${settingsInput}`,
@@ -49,6 +49,20 @@ export async function setupClaudeCodeSettings(
         inputSettings = JSON.parse(fileContent);
         console.log(`Successfully read and parsed settings from file`);
       } catch (fileError) {
+        // If the input looks like it was meant to be JSON, provide a better error
+        const trimmed = settingsInput.trim();
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+          const msg =
+            jsonError instanceof Error ? jsonError.message : String(jsonError);
+          console.error(
+            `Settings input appears to be malformed JSON: ${msg}\n` +
+              `Hint: Check for trailing commas, missing quotes, or unescaped characters.`,
+          );
+          throw new Error(
+            `Failed to parse settings as JSON: ${msg}. ` +
+              `Check for trailing commas, missing quotes, or unescaped characters.`,
+          );
+        }
         console.error(`Failed to read or parse settings file: ${fileError}`);
         throw new Error(`Failed to process settings input: ${fileError}`);
       }
