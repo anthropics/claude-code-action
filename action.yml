@@ -228,7 +228,7 @@ runs:
       shell: bash
       run: |
         cd ${GITHUB_ACTION_PATH}
-        bun install --production
+        bun install --production --frozen-lockfile --ignore-scripts
 
     - name: Install subprocess isolation dependencies
       # Install subprocess isolation dependencies when processing content from non-write users.

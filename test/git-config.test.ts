@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { execFileSync } from "child_process";
-import { mkdtempSync, rmSync, statSync } from "fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
@@ -116,7 +116,7 @@ describe("git-config", () => {
   });
 
   describe("replaceCheckoutCredentials", () => {
-    test("removes the checkout extraheader and sets a token remote URL", async () => {
+    test("removes the checkout extraheader and uses a credential helper", async () => {
       expect(gitConfigGetAll(EXTRAHEADER_KEY)).toContain("AUTHORIZATION");
 
       await replaceCheckoutCredentials(
@@ -125,9 +125,14 @@ describe("git-config", () => {
       );
 
       expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe("");
+      // TRI fork: the token is never embedded in the remote URL.
       expect(remoteUrl()).toBe(
-        `https://x-access-token:test-token@${SERVER.host}/test-owner/test-repo.git`,
+        `https://${SERVER.host}/test-owner/test-repo.git`,
       );
+      expect(gitConfigGetAll("credential.helper")).toBe(
+        join(tempDir, ".git-credential-gh-token"),
+      );
+      expect(process.env.GH_TOKEN).toBe("test-token");
       // Only the credential is touched — the git identity is left alone
       expect(gitConfigGetAll("user.name")).toBe("pre-existing");
     });
@@ -157,7 +162,22 @@ describe("git-config", () => {
         replaceCheckoutCredentials("test-token", createMockAutomationContext()),
       ).resolves.toBeUndefined();
 
-      expect(remoteUrl()).toContain("x-access-token:test-token@");
+      expect(remoteUrl()).not.toContain("test-token");
+    });
+
+    test("never writes the token into the repository's git config", async () => {
+      await replaceCheckoutCredentials(
+        "secret-token-value",
+        createMockAutomationContext(),
+      );
+
+      const config = readFileSync(join(repoDir, ".git", "config"), "utf8");
+      expect(config).not.toContain("secret-token-value");
+      const helper = readFileSync(
+        join(tempDir, ".git-credential-gh-token"),
+        "utf8",
+      );
+      expect(helper).not.toContain("secret-token-value");
     });
   });
 
@@ -174,7 +194,10 @@ describe("git-config", () => {
       );
       expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe("");
       expect(remoteUrl()).toBe(
-        `https://x-access-token:test-token@${SERVER.host}/test-owner/test-repo.git`,
+        `https://${SERVER.host}/test-owner/test-repo.git`,
+      );
+      expect(gitConfigGetAll("credential.helper")).toBe(
+        join(tempDir, ".git-credential-gh-token"),
       );
     });
   });

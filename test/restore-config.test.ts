@@ -12,9 +12,28 @@ import {
   writeFileSync,
 } from "fs";
 import { dirname, isAbsolute, join } from "path";
-import { restoreConfigFromBase } from "../src/github/operations/restore-config";
+import {
+  restoreBranchFor,
+  restoreConfigFromBase,
+} from "../src/github/operations/restore-config";
 
 const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
+
+describe("restoreBranchFor (TRI fork)", () => {
+  test("restores from the default branch, not the PR's target", () => {
+    const context = {
+      repository: { default_branch: "main" },
+      payload: { pull_request: { base: { ref: "attacker-controlled" } } },
+    };
+    expect(restoreBranchFor(context)).toBe("main");
+  });
+
+  test("fails closed when the default branch is unknown", () => {
+    expect(() => restoreBranchFor({ repository: {} })).toThrow(
+      "default branch is unknown",
+    );
+  });
+});
 
 describe("restoreConfigFromBase", () => {
   let originalCwd: string;

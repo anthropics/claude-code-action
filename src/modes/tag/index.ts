@@ -63,6 +63,14 @@ export async function prepareTagMode({
     excludeCommentsByActor: context.inputs.excludeCommentsByActor,
   });
 
+  // TRI fork: replace the checkout credential with the action's own BEFORE
+  // setupBranch fetches the PR branch. Without this, the fetch needed
+  // actions/checkout's persisted token (persist-credentials: true), which then
+  // sat in the working tree. With it, callers can check out with
+  // persist-credentials: false. configureGitAuth below repeats this; it is
+  // idempotent.
+  await replaceCheckoutCredentials(githubToken, context);
+
   // Setup branch
   const branchInfo = await setupBranch(octokit, githubData, context);
 

@@ -144,7 +144,7 @@ runs:
       shell: bash
       run: |
         cd ${GITHUB_ACTION_PATH}
-        bun install --production
+        bun install --production --frozen-lockfile --ignore-scripts
 
     - name: Install Claude Code
       shell: bash

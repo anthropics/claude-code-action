@@ -266,6 +266,26 @@ function ensureClaudePrExcludedFromGit(): void {
  *   rather than the PR. Callers that stage files must exclude these, or they
  *   will commit the revert back onto the PR author's branch.
  */
+/**
+ * TRI fork: the branch PR-controlled config is restored from.
+ *
+ * Always the repository's default branch, never the PR's base.ref: a PR can
+ * target any branch, including one its author controls, and that branch's
+ * CLAUDE.md would then be treated as trusted. Throws when the default branch is
+ * unknown, so the run fails rather than reviewing with the PR's own config.
+ */
+export function restoreBranchFor(context: {
+  repository: { default_branch?: string };
+}): string {
+  const branch = context.repository.default_branch;
+  if (!branch) {
+    throw new Error(
+      "Cannot restore config: the repository's default branch is unknown",
+    );
+  }
+  return branch;
+}
+
 export function restoreConfigFromBase(baseBranch: string): string[] {
   console.log(
     `Restoring ${SENSITIVE_PATHS.join(", ")} from origin/${baseBranch} (PR head is untrusted)`,

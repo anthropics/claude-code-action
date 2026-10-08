@@ -71,9 +71,35 @@ describe("Tag Mode", () => {
         login: context.inputs.botName,
         id: parseInt(context.inputs.botId),
       });
-      // configureGitAuth performs the credential replacement itself; the mock
-      // stands in for it here, so the standalone helper is not invoked.
-      expect(replaceCheckoutCredentialsSpy).not.toHaveBeenCalled();
+      // TRI fork: the checkout credential is replaced once up front, before
+      // setupBranch fetches; configureGitAuth (mocked here) repeats it.
+      expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test("replaces the checkout credential before setupBranch fetches", async () => {
+      const order: string[] = [];
+      replaceCheckoutCredentialsSpy.mockImplementation(async () => {
+        order.push("credentials");
+      });
+      const setupSpy = spyOn(branch, "setupBranch").mockImplementation(
+        async () => {
+          order.push("setupBranch");
+          return {
+            baseBranch: "main",
+            claudeBranch: undefined,
+            currentBranch: "main",
+          } as any;
+        },
+      );
+      spies.push(setupSpy);
+
+      await prepareTagMode({
+        context: { ...mockIssueCommentContext },
+        octokit: {} as any,
+        githubToken: "test-token",
+      });
+
+      expect(order.slice(0, 2)).toEqual(["credentials", "setupBranch"]);
     });
 
     test("still replaces the checkout credential when API commit signing is enabled", async () => {
@@ -89,7 +115,8 @@ describe("Tag Mode", () => {
       });
 
       expect(configureGitAuthSpy).not.toHaveBeenCalled();
-      expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledTimes(1);
+      // Once before setupBranch, once on the API-signing path.
+      expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledTimes(2);
       expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledWith(
         "test-token",
         context,
