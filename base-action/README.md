@@ -138,6 +138,7 @@ Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federa
 | `use_bedrock`                    | Use Amazon Bedrock with OIDC authentication                                                                             | No       | `'false'`     |
 | `use_vertex`                     | Use Google Vertex AI with OIDC authentication                                                                           | No       | `'false'`     |
 | `use_foundry`                    | Use Microsoft Foundry with OIDC authentication                                                                          | No       | `'false'`     |
+| `use_aws_platform`               | Use Claude Platform on AWS with OIDC authentication                                                                     | No       | `'false'`     |
 | `use_node_cache`                 | Enable Node.js dependency caching for projects with lock files                                                          | No       | `'false'`     |
 | `path_to_claude_code_executable` | Path to a custom Claude Code executable                                                                                 | No       | `''`          |
 | `path_to_bun_executable`         | Path to a custom Bun executable                                                                                         | No       | `''`          |
