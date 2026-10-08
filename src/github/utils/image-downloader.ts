@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import { tmpdir } from "os";
 import path from "path";
 import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
@@ -100,9 +101,8 @@ export async function downloadCommentImages(
 ): Promise<Map<string, string>> {
   const urlToPathMap = new Map<string, string>();
   const timeoutMs = options.timeoutMs ?? DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS;
-  const downloadsDir = "/tmp/github-images";
-
-  await fs.mkdir(downloadsDir, { recursive: true });
+  const tempRoot = process.env.RUNNER_TEMP || tmpdir();
+  const downloadsDir = await fs.mkdtemp(path.join(tempRoot, "github-images-"));
 
   const commentsWithImages: Array<{
     comment: CommentWithImages;
