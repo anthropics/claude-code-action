@@ -75,6 +75,24 @@ describe("validatePathWithinRepo", () => {
       // (can't realpath a file that doesn't exist yet)
       expect(result).toBe(resolve(repoRoot, "src/newfile.js"));
     });
+
+    it("should handle new files in nested non-existent directories under existing directory", async () => {
+      const result = await validatePathWithinRepo(
+        "src/components/button/index.tsx",
+        repoRoot,
+      );
+      expect(result).toBe(resolve(repoRoot, "src/components/button/index.tsx"));
+    });
+
+    it("should handle new files in deeply nested non-existent directories from repo root", async () => {
+      const result = await validatePathWithinRepo(
+        "deeply/nested/non/existent/dir/file.txt",
+        repoRoot,
+      );
+      expect(result).toBe(
+        resolve(repoRoot, "deeply/nested/non/existent/dir/file.txt"),
+      );
+    });
   });
 
   describe("path traversal attacks", () => {
@@ -111,6 +129,15 @@ describe("validatePathWithinRepo", () => {
     it("should reject absolute paths to sibling directories", async () => {
       await expect(
         validatePathWithinRepo(resolve(outsideDir, "secret.txt"), repoRoot),
+      ).rejects.toThrow(/resolves outside the repository root/);
+    });
+
+    it("should reject non-existent files in nested paths outside the repo", async () => {
+      await expect(
+        validatePathWithinRepo(
+          "../outside/nonexistent/nested/file.txt",
+          repoRoot,
+        ),
       ).rejects.toThrow(/resolves outside the repository root/);
     });
   });
@@ -168,6 +195,39 @@ describe("validatePathWithinRepo", () => {
         await expect(
           validatePathWithinRepo("escape-dir/secret.txt", repoRoot),
         ).rejects.toThrow(/resolves outside the repository root/);
+      } finally {
+        await rm(symlinkPath, { force: true });
+      }
+    });
+
+    it("should reject non-existent files in nested directories through escaping symlinks", async () => {
+      const symlinkPath = resolve(repoRoot, "escape-dir");
+      await symlink(outsideDir, symlinkPath);
+
+      try {
+        await expect(
+          validatePathWithinRepo(
+            "escape-dir/nested/nonexistent/file.txt",
+            repoRoot,
+          ),
+        ).rejects.toThrow(/resolves outside the repository root/);
+      } finally {
+        await rm(symlinkPath, { force: true });
+      }
+    });
+
+    it("should accept non-existent files in nested directories through valid internal directory symlinks", async () => {
+      const symlinkPath = resolve(repoRoot, "src-link");
+      await symlink(resolve(repoRoot, "src"), symlinkPath);
+
+      try {
+        const result = await validatePathWithinRepo(
+          "src-link/nested/nonexistent/file.txt",
+          repoRoot,
+        );
+        expect(result).toBe(
+          resolve(repoRoot, "src-link/nested/nonexistent/file.txt"),
+        );
       } finally {
         await rm(symlinkPath, { force: true });
       }
