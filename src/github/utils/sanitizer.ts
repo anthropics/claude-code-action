@@ -1,3 +1,15 @@
+/**
+ * Removes characters that render as nothing, so text a reader cannot see does
+ * not survive into content we pass on.
+ *
+ * The ranges are enumerated rather than matched as `\p{Cf}`. The format category
+ * is wider than this function wants: it also contains the Arabic number signs
+ * (U+0600-U+0605), the end-of-ayah mark used in Quranic text (U+06DD), the
+ * Syriac abbreviation mark, the Kaithi number sign and the musical beam and
+ * slur symbols. Those are content, not concealment, and a category match would
+ * silently delete them. The bidi marks U+200E and U+200F are left alone for the
+ * same reason, while the overrides and isolates below are not.
+ */
 export function stripInvisibleCharacters(content: string): string {
   content = content.replace(/[\u200B\u200C\u200D\uFEFF]/g, "");
   content = content.replace(
@@ -6,6 +18,8 @@ export function stripInvisibleCharacters(content: string): string {
   );
   content = content.replace(/\u00AD/g, "");
   content = content.replace(/[\u202A-\u202E\u2066-\u2069]/g, "");
+  content = content.replace(/[\u180E\u2060-\u2064\uFFF9-\uFFFB]/g, "");
+  content = content.replace(/[\u{E0000}-\u{E007F}]/gu, "");
   return content;
 }
 
