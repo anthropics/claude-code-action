@@ -2,6 +2,21 @@ import { $ } from "bun";
 import { homedir } from "os";
 import { readFile } from "fs/promises";
 
+// Env vars that resolve a model alias (sonnet/opus/haiku) to a concrete
+// model id or proxy preset. The Agent SDK's top-level call inherits these
+// from process.env, but spawned sub-call subprocesses (Task tool, sub-agents)
+// have historically dropped them and fallen back to the SDK's hardcoded
+// default — e.g. routing to literal `claude-sonnet-4-6` even when the user
+// opted into a non-Anthropic preset via ANTHROPIC_DEFAULT_SONNET_MODEL.
+// Mirroring these into settings.env guarantees the CLI propagates them to
+// every session, including sub-calls, via the documented settings layer.
+// See: https://github.com/anthropics/claude-code-action/issues/1258
+const MODEL_ALIAS_ENV_VARS = [
+  "ANTHROPIC_DEFAULT_SONNET_MODEL",
+  "ANTHROPIC_DEFAULT_OPUS_MODEL",
+  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+] as const;
+
 export async function setupClaudeCodeSettings(
   settingsInput?: string,
   homeDir?: string,
@@ -62,6 +77,31 @@ export async function setupClaudeCodeSettings(
   // Always set enableAllProjectMcpServers to true
   settings.enableAllProjectMcpServers = true;
   console.log(`Updated settings with enableAllProjectMcpServers: true`);
+
+  // Forward model-alias env vars into settings.env so the CLI propagates them
+  // to every session (top-level + sub-calls). User-provided settings.env
+  // entries take precedence; we only fill in keys the user didn't already set.
+  const userEnv =
+    typeof settings.env === "object" && settings.env !== null
+      ? (settings.env as Record<string, string>)
+      : undefined;
+  const mergedEnv: Record<string, string> = { ...(userEnv ?? {}) };
+  const injectedKeys: string[] = [];
+  for (const key of MODEL_ALIAS_ENV_VARS) {
+    const value = process.env[key];
+    if (value && !(key in mergedEnv)) {
+      mergedEnv[key] = value;
+      injectedKeys.push(key);
+    }
+  }
+  if (injectedKeys.length > 0 || userEnv) {
+    settings.env = mergedEnv;
+    if (injectedKeys.length > 0) {
+      console.log(
+        `Forwarded model-alias env vars to settings.env: ${injectedKeys.join(", ")}`,
+      );
+    }
+  }
 
   await $`echo ${JSON.stringify(settings, null, 2)} > ${settingsPath}`.quiet();
   console.log(`Settings saved successfully`);
