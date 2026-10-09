@@ -185,9 +185,13 @@ export async function prepareTagMode({
   // Headless SDK has no prompt handler, so anything that falls through to "ask" is denied.
   claudeArgs += ` --permission-mode acceptEdits --allowedTools "${tagModeTools.join(",")}"`;
 
-  // Append user's claude_args (which may have more --mcp-config flags)
+  // Append user's claude_args (which may have more --mcp-config flags).
+  // Join on a newline, not a space: claude_args may open with a full-line
+  // `#` comment, and stripShellComments only drops a comment that starts
+  // its own line. Joined with a space, that comment would run from the end
+  // of our flags to the end of the block and swallow every user flag (#1892).
   if (userClaudeArgs) {
-    claudeArgs += ` ${userClaudeArgs}`;
+    claudeArgs += `\n${userClaudeArgs}`;
   }
 
   return {
