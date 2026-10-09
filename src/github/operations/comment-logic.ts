@@ -175,7 +175,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
 
   // Add PR link (either from content or provided)
   const prUrl =
-    prLinkFromContent || (prLink ? prLink.match(/\(([^)]+)\)/)?.[1] : "");
+    prLinkFromContent || (prLink ? prLink.match(prLinkPattern)?.[1] : "");
   if (prUrl) {
     links += ` • [Create PR ➔](${prUrl})`;
   }
