@@ -52,6 +52,10 @@ jobs:
 
 ## Inputs
 
+`trace_prompt` defaults to `false`. Set `trace_prompt: "true"` explicitly to print
+the generated tag-mode prompt and user request for debugging. This can expose
+credentials in comments or attached diffs; see [Prompt Tracing](./security.md#prompt-tracing).
+
 | Input                            | Description                                                                                                                                                                                                                            | Required | Default                     |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------- |
 | `anthropic_api_key`              | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                                                                                                                                             | No\*     | -                           |

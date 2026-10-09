@@ -187,6 +187,17 @@ The `show_full_output` option is **disabled by default** for security reasons. W
 
 **These logs are publicly visible in GitHub Actions for public repositories!**
 
+### Prompt Tracing
+
+The generated tag-mode prompt and extracted user request are not printed by default.
+To print them for debugging, explicitly set `trace_prompt: "true"` in the action's
+`with` block. Only the exact value `true` enables tracing. This output includes
+issue/PR bodies, comments, and attached code diffs, which may contain credentials
+that GitHub does not mask. Use it only with non-sensitive input.
+
+Prompt tracing is independent of `show_full_output` and GitHub Actions debug mode;
+neither enables it automatically.
+
 ### Automatic Enabling in Debug Mode
 
 Full output is **automatically enabled** when GitHub Actions debug mode is active (when `ACTIONS_STEP_DEBUG` secret is set to `true`). This helps with debugging but carries the same security risks.
