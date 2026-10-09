@@ -76,12 +76,22 @@ export function buildAllowedToolsString(
   return allAllowedTools;
 }
 
+// Headless CI cannot resume after ending a turn; block interactive-only tools by default.
+const HEADLESS_DISALLOWED_TOOLS = [
+  "WebSearch",
+  "WebFetch",
+  "ScheduleWakeup",
+  "SendMessage",
+  "Monitor",
+  "TaskList",
+];
+
 export function buildDisallowedToolsString(
   customDisallowedTools?: string[],
   allowedTools?: string[],
 ): string {
-  // Tag mode: Disable WebSearch and WebFetch by default for security
-  let disallowedTools = ["WebSearch", "WebFetch"];
+  // Tag/agent mode: disable WebSearch/WebFetch and interactive session tools by default.
+  let disallowedTools = [...HEADLESS_DISALLOWED_TOOLS];
 
   // If user has explicitly allowed some default disallowed tools, remove them
   if (allowedTools && allowedTools.length > 0) {
