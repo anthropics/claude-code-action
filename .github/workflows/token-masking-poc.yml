@@ -1,0 +1,43 @@
+name: Token Masking PoC
+
+# Triggered manually so we control when it runs and don't need Claude API keys.
+on:
+  workflow_dispatch:
+
+jobs:
+  test-masking:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # Step 1: Simulate what setupGitHubToken() does on the OVERRIDE path.
+      # It reads the token from the env var and returns it without calling
+      # core.setSecret(). We replicate that here by reading OVERRIDE_GITHUB_TOKEN
+      # directly (set via env: below) and writing it to GITHUB_OUTPUT without
+      # calling add-mask first — exactly the code path in token.ts:160-164.
+      - name: Simulate setupGitHubToken override path (no add-mask)
+        id: simulate_token
+        env:
+          OVERRIDE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Read the token exactly as token.ts does — no masking applied by us.
+          TOKEN="$OVERRIDE_GITHUB_TOKEN"
+          # Write to step output exactly as run.ts:364 does via core.setOutput().
+          echo "github_token=${TOKEN}" >> "$GITHUB_OUTPUT"
+          echo "Token written to GITHUB_OUTPUT (value intentionally not echoed here)"
+
+      # Step 2: Attempt to echo the step output value — the key question is
+      # whether this shows *** (runner masked it) or the raw token (it didn't).
+      - name: Read back token from step output and attempt to print
+        env:
+          TOKEN_FROM_OUTPUT: ${{ steps.simulate_token.outputs.github_token }}
+        run: |
+          echo "Value from step output: ${TOKEN_FROM_OUTPUT}"
+          echo "Length: ${#TOKEN_FROM_OUTPUT}"
+
+      # Step 3: Also test the action.yml:446 curl pattern — inline expression
+      # in a run: script body without an env: intermediary.
+      - name: Test inline expression in run script (action.yml:446 pattern)
+        run: |
+          echo "Inline expression value: ${{ steps.simulate_token.outputs.github_token }}"
