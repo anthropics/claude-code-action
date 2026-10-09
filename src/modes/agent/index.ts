@@ -128,8 +128,11 @@ export async function prepareAgentMode({
     claudeArgs = `--mcp-config '${escapedOurConfig}'`;
   }
 
-  // Append user's claude_args (which may have more --mcp-config flags)
-  claudeArgs = `${claudeArgs} ${userClaudeArgs}`.trim();
+  // Append user's claude_args (which may have more --mcp-config flags).
+  // Join on a newline, not a space, so a full-line `#` comment at the top of
+  // the user's block still starts its own line and is stripped as a comment
+  // instead of swallowing every flag that follows it (#1892).
+  claudeArgs = `${claudeArgs}\n${userClaudeArgs}`.trim();
 
   return {
     commentId: undefined,
