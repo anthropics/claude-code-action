@@ -235,6 +235,30 @@ describe("generatePrompt", () => {
     );
   });
 
+  test("should generate prompt for issue edited event", async () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issues",
+        eventAction: "edited",
+        isPR: false,
+        issueNumber: "777",
+        baseBranch: "main",
+        claudeBranch: "claude/issue-777-20240101-1200",
+      },
+    };
+
+    const prompt = await generatePrompt(envVars, mockGitHubData, false, "tag");
+
+    expect(prompt).toContain("<event_type>ISSUE_EDITED</event_type>");
+    expect(prompt).toContain("<trigger_context>issue edited</trigger_context>");
+    expect(prompt).toContain(
+      "[Create a PR](https://github.com/owner/repo/compare/main",
+    );
+  });
+
   test("should generate prompt for issue labeled event", async () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
@@ -1022,6 +1046,27 @@ describe("getEventTypeAndContext", () => {
     expect(result.triggerContext).toBe("issue assigned to 'claude-bot'");
   });
 
+  test("should return correct type and context for issue edited", async () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issues",
+        eventAction: "edited",
+        isPR: false,
+        issueNumber: "777",
+        baseBranch: "main",
+        claudeBranch: "claude/issue-777-20240101-1200",
+      },
+    };
+
+    const result = getEventTypeAndContext(envVars);
+
+    expect(result.eventType).toBe("ISSUE_EDITED");
+    expect(result.triggerContext).toBe("issue edited");
+  });
+
   test("should return correct type and context for issue labeled", async () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
@@ -1358,6 +1403,22 @@ describe("prepareContext validation errors", () => {
     expect(() => prepareContext(context, commentId)).toThrow(
       "GITHUB_EVENT_ACTION is required for issues event",
     );
+  });
+
+  test("issues event accepts the edited action", () => {
+    const context = createMockContext({
+      eventName: "issues",
+      eventAction: "edited",
+      isPR: false,
+      payload: { issue: { user: { login: "user1" } } } as any,
+    });
+
+    const result = prepareContext(context, commentId, "main", "claude/issue-1");
+
+    expect(result.eventData.eventName).toBe("issues");
+    if (result.eventData.eventName === "issues") {
+      expect(result.eventData.eventAction).toBe("edited");
+    }
   });
 
   test("issues event rejects an unsupported action", () => {
