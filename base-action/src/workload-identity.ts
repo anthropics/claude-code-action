@@ -32,6 +32,7 @@ const DEFAULT_OIDC_AUDIENCE = "https://api.anthropic.com";
 
 export type WorkloadIdentityHandle = {
   tokenFile: string;
+  readonly isStopped: boolean;
   stop: () => void;
 };
 
@@ -45,10 +46,6 @@ export function isWorkloadIdentityConfigured(): boolean {
     process.env.ANTHROPIC_FEDERATION_RULE_ID?.trim() &&
       process.env.ANTHROPIC_ORGANIZATION_ID?.trim(),
   );
-}
-
-async function fetchIdentityToken(audience: string) {
-  return retryWithBackoff(() => core.getIDToken(audience));
 }
 
 /**
@@ -143,54 +140,103 @@ export async function setupWorkloadIdentity(): Promise<
   );
   const tokenFile = join(tokenDir, "identity-token");
 
+  let isStopped = false;
+  let refreshInterval: ReturnType<typeof setInterval> | undefined;
+  let inFlightRefresh: Promise<void> | undefined;
+  const previousEnv = {
+    ANTHROPIC_IDENTITY_TOKEN_FILE: process.env.ANTHROPIC_IDENTITY_TOKEN_FILE,
+    ANTHROPIC_CONFIG_DIR: process.env.ANTHROPIC_CONFIG_DIR,
+    ANTHROPIC_PROFILE: process.env.ANTHROPIC_PROFILE,
+  };
+
+  const stop = () => {
+    isStopped = true;
+    if (refreshInterval !== undefined) {
+      clearInterval(refreshInterval);
+      refreshInterval = undefined;
+    }
+    // In-flight requests cannot be aborted through getIDToken, but their
+    // continuations are guarded below and cannot recreate these files.
+    rmSync(tokenDir, { recursive: true, force: true });
+  };
+
   const writeIdentityToken = async () => {
-    const identityToken = await fetchIdentityToken(audience);
+    const identityToken = await retryWithBackoff(
+      async () => {
+        if (isStopped) return;
+        const token = await core.getIDToken(audience);
+        if (isStopped) return;
+        return token;
+      },
+      { shouldRetry: () => !isStopped },
+    );
+    if (isStopped || identityToken === undefined) return;
+    // No await between the guard and these synchronous writes: stop() cannot
+    // interleave with directory creation or token publication.
     core.setSecret(identityToken);
     mkdirSync(tokenDir, { recursive: true, mode: 0o700 });
     writeFileSync(tokenFile, identityToken, { mode: 0o600 });
   };
 
   try {
-    await writeIdentityToken();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `Failed to fetch a GitHub Actions OIDC token for workload identity federation: ${message}. Did you remember to add \`id-token: write\` to your workflow permissions?`,
-    );
-  }
-
-  process.env.ANTHROPIC_IDENTITY_TOKEN_FILE = tokenFile;
-  if (
-    process.env.ANTHROPIC_CONFIG_DIR?.trim() ||
-    process.env.ANTHROPIC_PROFILE?.trim()
-  ) {
-    core.warning(
-      "ANTHROPIC_CONFIG_DIR or ANTHROPIC_PROFILE is already set, so the action will not write its own federation profile. Credential caching across the spawned Claude processes follows the existing profile configuration.",
-    );
-  } else {
-    process.env.ANTHROPIC_CONFIG_DIR = writeFederationProfile(tokenDir);
-    process.env.ANTHROPIC_PROFILE = "default";
-  }
-  console.log(
-    `Workload identity federation configured (rule: ${process.env.ANTHROPIC_FEDERATION_RULE_ID}, identity token file: ${tokenFile})`,
-  );
-
-  const refreshInterval = setInterval(() => {
-    writeIdentityToken().catch((error) => {
-      core.warning(
-        `Failed to refresh the GitHub Actions OIDC identity token: ${error instanceof Error ? error.message : String(error)}`,
+    try {
+      await writeIdentityToken();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to fetch a GitHub Actions OIDC token for workload identity federation: ${message}. Did you remember to add \`id-token: write\` to your workflow permissions?`,
       );
-    });
-  }, REFRESH_INTERVAL_MS);
+    }
+
+    process.env.ANTHROPIC_IDENTITY_TOKEN_FILE = tokenFile;
+    if (
+      process.env.ANTHROPIC_CONFIG_DIR?.trim() ||
+      process.env.ANTHROPIC_PROFILE?.trim()
+    ) {
+      core.warning(
+        "ANTHROPIC_CONFIG_DIR or ANTHROPIC_PROFILE is already set, so the action will not write its own federation profile. Credential caching across the spawned Claude processes follows the existing profile configuration.",
+      );
+    } else {
+      process.env.ANTHROPIC_CONFIG_DIR = writeFederationProfile(tokenDir);
+      process.env.ANTHROPIC_PROFILE = "default";
+    }
+    console.log(
+      `Workload identity federation configured (rule: ${process.env.ANTHROPIC_FEDERATION_RULE_ID}, identity token file: ${tokenFile})`,
+    );
+
+    refreshInterval = setInterval(() => {
+      if (isStopped || inFlightRefresh) return;
+      inFlightRefresh = writeIdentityToken()
+        .catch((error) => {
+          if (isStopped) return;
+          core.warning(
+            `Failed to refresh the GitHub Actions OIDC identity token: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        })
+        .finally(() => {
+          inFlightRefresh = undefined;
+        });
+      return inFlightRefresh;
+    }, REFRESH_INTERVAL_MS);
+  } catch (error) {
+    // Setup may fail after publishing the token but before returning a handle.
+    // Roll back here because the caller has no resource to dispose yet.
+    try {
+      stop();
+    } finally {
+      for (const [key, value] of Object.entries(previousEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+    throw error;
+  }
 
   return {
     tokenFile,
-    stop: () => {
-      clearInterval(refreshInterval);
-      // RUNNER_TEMP is per-job, not per-step: remove the identity token, the
-      // profile, and the cached exchanged credential so they don't outlive
-      // this step.
-      rmSync(tokenDir, { recursive: true, force: true });
+    get isStopped() {
+      return isStopped;
     },
+    stop,
   };
 }
