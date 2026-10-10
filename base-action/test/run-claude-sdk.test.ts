@@ -218,7 +218,7 @@ describe("runClaudeWithSdk", () => {
     }
   });
 
-  test("fails closed when a successful result exceeds maxTurns", async () => {
+  test("succeeds when a successful result has num_turns > maxTurns (num_turns != rounds)", async () => {
     const consoleErrorSpy = spyOn(console, "error").mockImplementation(
       () => {},
     );
@@ -261,23 +261,19 @@ describe("runClaudeWithSdk", () => {
     try {
       const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
 
-      await expect(
-        runClaudeWithSdk(promptPath, {
-          sdkOptions: { maxTurns: 60 },
-          showFullOutput: false,
-          hasJsonSchema: false,
-        }),
-      ).rejects.toThrow(
-        "Claude reported a successful result after 73 turns, exceeding the configured maximum of 60",
-      );
+      const result = await runClaudeWithSdk(promptPath, {
+        sdkOptions: { maxTurns: 60 },
+        showFullOutput: false,
+        hasJsonSchema: false,
+      });
+
+      expect(result.conclusion).toBe("success");
 
       const executionFile = join(tempDir, "claude-execution-output.json");
       await expect(readFile(executionFile, "utf-8")).resolves.toBe(
         JSON.stringify([initMessage, successResultMessage], null, 2),
       );
-      expect(coreErrorSpy).toHaveBeenCalledWith(
-        "Claude reported a successful result after 73 turns, exceeding the configured maximum of 60",
-      );
+      expect(coreErrorSpy).not.toHaveBeenCalled();
     } finally {
       consoleErrorSpy.mockRestore();
       consoleLogSpy.mockRestore();
