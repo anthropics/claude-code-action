@@ -14,6 +14,8 @@ export type ClaudeOptions = {
   appendSystemPrompt?: string;
   fallbackModel?: string;
   showFullOutput?: string;
+  sessionId?: string;
+  abortController?: AbortController;
 };
 
 export async function runClaude(

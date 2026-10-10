@@ -65,6 +65,7 @@ jobs:
 | `track_progress`                 | Force tag mode with tracking comments. Only works with specific PR/issue events. Preserves GitHub context                                                                                                                              | No       | `false`                     |
 | `include_fix_links`              | Include 'Fix this' links in PR code review feedback that open Claude Code with context to fix the identified issue                                                                                                                     | No       | `true`                      |
 | `claude_args`                    | Additional [arguments to pass directly to Claude CLI](https://docs.claude.com/en/docs/claude-code/cli-reference#cli-flags) (e.g., `--max-turns 10 --model claude-4-0-sonnet-20250805`)                                                 | No       | ""                          |
+| `session_id`                     | Session ID from a previous run's `session_id` output; resumes that conversation instead of starting a new one. See [Resuming Sessions](#resuming-sessions)                                                                             | No       | ""                          |
 | `base_branch`                    | The base branch to use for creating new branches (e.g., 'main', 'develop')                                                                                                                                                             | No       | -                           |
 | `use_sticky_comment`             | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                                                                                                                                            | No       | `false`                     |
 | `classify_inline_comments`       | Buffer inline comments without `confirmed: true` and classify them (real review vs test/probe) via Haiku before posting after the session ends. Prevents subagent test comments. Set `'false'` to post all inline comments immediately | No       | `true`                      |
@@ -193,6 +194,28 @@ For a comprehensive guide on migrating from v0.x to v1.0, including step-by-step
       Analyze PR #${{ github.event.pull_request.number }} for security issues.
       Focus on the changed files in this PR.
 ```
+
+## Resuming Sessions
+
+Every run exposes the session it used as the `session_id` output. Pass that
+value back in as the `session_id` input and Claude continues the same
+conversation instead of starting fresh, which keeps prior context across runs:
+
+```yaml
+- name: Continue yesterday's triage session
+  uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    prompt: Check for new flaky tests since your last report.
+    session_id: ${{ vars.TRIAGE_SESSION_ID }}
+```
+
+This is useful for scheduled automations that iterate on one long-running
+objective, and for recovering interrupted runs. When a workflow is cancelled
+or times out mid-run, the action aborts the session, posts the partial
+progress to the tracking comment, and reports the `session_id` output, so the
+work is not lost and the run can be continued later. Store the output somewhere durable between runs
+(a repository variable, a gist, a commit) and feed it back in.
 
 ## Structured Outputs
 
