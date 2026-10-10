@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, spyOn, beforeEach, afterEach } from "bun:test";
+import * as core from "@actions/core";
 import { parseSdkOptions } from "../src/parse-sdk-options";
 import type { ClaudeOptions } from "../src/run-claude";
 
@@ -254,6 +255,68 @@ describe("parseSdkOptions", () => {
       expect(result.sdkOptions.allowedTools).toContain("Read");
       expect(result.sdkOptions.allowedTools).toContain("Write");
       expect(result.sdkOptions.allowedTools).toContain("Glob");
+    });
+  });
+
+  describe(":* rules that cannot match joined text", () => {
+    let warningSpy: ReturnType<typeof spyOn>;
+
+    beforeEach(() => {
+      warningSpy = spyOn(core, "warning").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warningSpy.mockRestore();
+    });
+
+    test("should warn when an allowedTools rule has :* directly after a slash", () => {
+      // #1823: `comments/:*` means `comments/ *`, so it never matches
+      // `gh api --method PATCH .../comments/12345`.
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--allowedTools "Bash(gh pr comment:*),Bash(gh api --method PATCH repos/o/r/issues/comments/:*)"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(warningSpy).toHaveBeenCalledTimes(1);
+      const message = warningSpy.mock.calls[0]![0] as string;
+      expect(message).toContain(
+        "Bash(gh api --method PATCH repos/o/r/issues/comments/:*)",
+      );
+      expect(message).toContain(
+        '"Bash(gh api --method PATCH repos/o/r/issues/comments/*)"',
+      );
+      // The rule is still passed through unchanged; this is only a warning.
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(gh pr comment:*)",
+        "Bash(gh api --method PATCH repos/o/r/issues/comments/:*)",
+      ]);
+    });
+
+    test("should warn when a disallowedTools rule has :* directly after =", () => {
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--disallowedTools "Bash(git config --global user.name=:*)"',
+      };
+
+      parseSdkOptions(options);
+
+      expect(warningSpy).toHaveBeenCalledTimes(1);
+      expect(warningSpy.mock.calls[0]![0] as string).toContain(
+        "--disallowedTools",
+      );
+    });
+
+    test("should not warn for :* after a complete word", () => {
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--allowedTools "Bash(gh pr comment:*),Bash(npm run test:*),Bash(./scripts/gh.sh:*),Read(//tmp/**),mcp__github__*,Bash(gh api repos/o/r/issues/comments/*)"',
+      };
+
+      parseSdkOptions(options);
+
+      expect(warningSpy).not.toHaveBeenCalled();
     });
   });
 
