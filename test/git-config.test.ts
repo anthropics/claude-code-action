@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { execFileSync } from "child_process";
-import { mkdtempSync, rmSync, statSync } from "fs";
+import { mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
@@ -45,6 +45,15 @@ function runGit(args: string[], cwd?: string): string {
 function gitConfigGetAll(key: string): string {
   try {
     return runGit(["config", "--local", "--get-all", key]);
+  } catch {
+    return "";
+  }
+}
+
+// Resolved through includes, the way git itself sees the config.
+function gitConfigGetAllEffective(key: string): string {
+  try {
+    return runGit(["config", "--get-all", key]);
   } catch {
     return "";
   }
@@ -148,6 +157,40 @@ describe("git-config", () => {
       expect(gitConfigGetAll("credential.helper")).toBe(helperPath);
       expect(statSync(helperPath).mode & 0o777).toBe(0o700);
       expect(process.env.GH_TOKEN).toBe("helper-token");
+    });
+
+    test("removes the extraheader from the includeIf credentials file actions/checkout v6+ writes", async () => {
+      git(["config", "--local", "--unset-all", EXTRAHEADER_KEY]);
+      // Mimic actions/checkout >= v6: the header lives in a separate file that
+      // repo-local includeIf.gitdir entries pull in for the repo and its worktrees.
+      const gitDir = join(realpathSync(repoDir), ".git");
+      const credentialsPath = join(tempDir, "git-credentials-0123abcd.config");
+      writeFileSync(
+        credentialsPath,
+        `[http "${GITHUB_SERVER_URL}/"]\n\textraheader = AUTHORIZATION: basic checkout\n`,
+      );
+      git([
+        "config",
+        "--local",
+        `includeIf.gitdir:${gitDir}.path`,
+        credentialsPath,
+      ]);
+      git([
+        "config",
+        "--local",
+        `includeIf.gitdir:${gitDir}/worktrees/*.path`,
+        credentialsPath,
+      ]);
+      expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe("");
+      expect(gitConfigGetAllEffective(EXTRAHEADER_KEY)).toContain("checkout");
+
+      await replaceCheckoutCredentials(
+        "test-token",
+        createMockAutomationContext(),
+      );
+
+      expect(gitConfigGetAllEffective(EXTRAHEADER_KEY)).toBe("");
+      expect(remoteUrl()).toContain("x-access-token:test-token@");
     });
 
     test("succeeds when there is no checkout extraheader to remove", async () => {
