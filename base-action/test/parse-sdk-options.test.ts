@@ -138,6 +138,35 @@ describe("parseSdkOptions", () => {
       ]);
     });
 
+    test("an empty --allowedTools does not erase what came before it", () => {
+      // Tag and agent mode prepend their own --allowedTools before the user's
+      // claude_args. shell-quote gives "" for `--allowedTools ""`, which the
+      // parser read as "no value" and wrote null over the accumulated list.
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--allowedTools "Edit,Read,mcp__github_comment__update_claude_comment"' +
+          ' --allowedTools "" --max-turns 10',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Edit",
+        "Read",
+        "mcp__github_comment__update_claude_comment",
+      ]);
+    });
+
+    test("a value-less --allowedTools does not erase what came before it", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--allowedTools "Edit,Read" --allowedTools --max-turns 10',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.allowedTools).toEqual(["Edit", "Read"]);
+    });
+
     test("should preserve unquoted Bash(cmd:*) rules instead of collapsing to bare Bash", () => {
       // Regression: shell-quote tokenizes unquoted `(`/`)` as control ops and
       // `*` as a glob, which were filtered out — collapsing scoped rules like
@@ -441,6 +470,32 @@ describe("parseSdkOptions", () => {
       expect(result.sdkOptions.extraArgs?.["model"]).toBeUndefined();
       expect(result.sdkOptions.model).toBe("claude-3-5-sonnet");
       expect(result.sdkOptions.extraArgs?.["add-dir"]).toBeUndefined();
+    });
+  });
+
+  describe("accumulating flags with an empty occurrence", () => {
+    test("a value-less --mcp-config leaves the earlier config in place", () => {
+      const options: ClaudeOptions = {
+        claudeArgs:
+          `--mcp-config '{"mcpServers":{"github_comment":{"command":"bun"}}}'` +
+          " --mcp-config --max-turns 10",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["mcp-config"]).toBe(
+        '{"mcpServers":{"github_comment":{"command":"bun"}}}',
+      );
+    });
+
+    test("an empty --add-dir leaves the earlier directory in place", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--add-dir /work --add-dir ""',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.additionalDirectories).toEqual(["/work"]);
     });
   });
 
