@@ -404,6 +404,31 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("plugin-dir handling", () => {
+    test("should accumulate multiple plugin-dir flags in extraArgs", () => {
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--plugin-dir "/path/to/plugin-a" --plugin-dir "/path/to/plugin-b"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["plugin-dir"]).toBe(
+        '/path/to/plugin-a\x00/path/to/plugin-b',
+      );
+    });
+
+    test("should preserve a single plugin-dir flag in extraArgs", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--plugin-dir "/path/to/plugin"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["plugin-dir"]).toBe("/path/to/plugin");
+    });
+  });
+
   describe("add-dir handling", () => {
     test("should accumulate multiple add-dir flags into additionalDirectories", () => {
       const options: ClaudeOptions = {
