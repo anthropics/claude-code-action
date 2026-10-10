@@ -469,6 +469,25 @@ describe("checkContainsTrigger", () => {
         expect(checkContainsTrigger(context)).toBe(expected);
       });
     });
+
+    it("should never match if triggerPhrase is empty", () => {
+      const context = {
+        ...mockIssueCommentContext,
+        inputs: {
+          ...mockIssueCommentContext.inputs,
+          triggerPhrase: "", // Empty phrase
+        },
+        payload: {
+          ...mockIssueCommentContext.payload,
+          comment: {
+            ...(mockIssueCommentContext.payload as IssueCommentEvent).comment,
+            body: "This comment has no explicit trigger phrase but shouldn't match anything.",
+          },
+        },
+      } as ParsedGitHubContext;
+
+      expect(checkContainsTrigger(context)).toBe(false);
+    });
   });
 });
 
