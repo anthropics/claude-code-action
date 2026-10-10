@@ -56,6 +56,7 @@ async function run() {
       model: process.env.ANTHROPIC_MODEL,
       pathToClaudeCodeExecutable: claudeExecutable,
       showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
+      timeoutMinutes: process.env.INPUT_TIMEOUT_MINUTES,
     });
 
     // Set outputs for the standalone base-action
