@@ -182,6 +182,97 @@ async function installPlugin(
 }
 
 /**
+ * Marketplace entry from JSON output of `claude plugin marketplace list --json`
+ */
+interface MarketplaceEntry {
+  name: string;
+  source: string;
+  url?: string;
+  installLocation: string;
+}
+
+/**
+ * Executes a Claude Code CLI command and captures stdout
+ * @param claudeExecutable - Path to the Claude executable
+ * @param args - Command arguments
+ * @param errorContext - Context string for error messages
+ * @returns Promise that resolves with the captured stdout
+ */
+async function executeClaudeCommandWithOutput(
+  claudeExecutable: string,
+  args: string[],
+  errorContext: string,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    const childProc: ChildProcess = spawn(claudeExecutable, args, {
+      stdio: ["inherit", "pipe", "inherit"],
+    });
+
+    childProc.stdout?.on("data", (data: Buffer) => {
+      chunks.push(data);
+    });
+
+    childProc.on("close", (code: number | null) => {
+      if (code === 0) {
+        resolve(Buffer.concat(chunks).toString("utf-8"));
+      } else if (code === null) {
+        reject(new Error(`${errorContext}: process terminated by signal`));
+      } else {
+        reject(new Error(`${errorContext} (exit code: ${code})`));
+      }
+    });
+
+    childProc.on("error", (err: Error) => {
+      reject(new Error(`${errorContext}: ${err.message}`));
+    });
+  });
+}
+
+/**
+ * Gets names of currently installed marketplaces
+ * @param claudeExecutable - Path to the Claude executable
+ * @returns Array of installed marketplace names
+ */
+async function getInstalledMarketplaces(
+  claudeExecutable: string,
+): Promise<string[]> {
+  const output = await executeClaudeCommandWithOutput(
+    claudeExecutable,
+    ["plugin", "marketplace", "list", "--json"],
+    "Failed to list installed marketplaces",
+  );
+
+  try {
+    const entries: MarketplaceEntry[] = JSON.parse(output.trim());
+    return entries.map((entry) => entry.name);
+  } catch {
+    console.log(
+      "Warning: Could not parse marketplace list output, proceeding with fresh install",
+    );
+    return [];
+  }
+}
+
+/**
+ * Removes an installed marketplace
+ * @param claudeExecutable - Path to the Claude executable
+ * @param name - The marketplace name to remove
+ */
+async function removeMarketplace(
+  claudeExecutable: string,
+  name: string,
+): Promise<void> {
+  console.log(`Removing existing marketplace: ${name}`);
+
+  return executeClaudeCommand(
+    claudeExecutable,
+    ["plugin", "marketplace", "remove", name],
+    `Failed to remove marketplace '${name}'`,
+  );
+}
+
+/**
  * Adds a Claude Code plugin marketplace
  * @param claudeExecutable - Path to the Claude executable
  * @param marketplace - The marketplace Git URL or local path to add
@@ -221,6 +312,20 @@ export async function installPlugins(
   const marketplaces = parseMarketplaces(marketplacesInput);
 
   if (marketplaces.length > 0) {
+    // Remove all existing marketplaces first to ensure fresh install
+    // This prevents "Marketplace already installed" errors on self-hosted runners
+    console.log("Checking for existing marketplaces to remove...");
+    const existingMarketplaces =
+      await getInstalledMarketplaces(resolvedExecutable);
+    if (existingMarketplaces.length > 0) {
+      console.log(
+        `Found ${existingMarketplaces.length} existing marketplace(s), removing...`,
+      );
+      for (const name of existingMarketplaces) {
+        await removeMarketplace(resolvedExecutable, name);
+      }
+    }
+
     console.log(`Adding ${marketplaces.length} marketplace(s)...`);
     for (const marketplace of marketplaces) {
       await addMarketplace(resolvedExecutable, marketplace);
