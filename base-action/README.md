@@ -142,6 +142,7 @@ Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federa
 | `path_to_claude_code_executable` | Path to a custom Claude Code executable                                                                                 | No       | `''`          |
 | `path_to_bun_executable`         | Path to a custom Bun executable                                                                                         | No       | `''`          |
 | `show_full_output`               | Show full JSON output (⚠️ May expose secrets - see [security docs](../docs/security.md#️-full-output-security-warning)) | No       | `'false'`\*\* |
+| `disallow_unlisted_mcp_tools`    | Disallow the tools of a `--mcp-config` server that `--allowedTools` does not list, so they are not sent to the model    | No       | `'false'`     |
 | `plugins`                        | Newline-separated Claude Code plugin names to install                                                                   | No       | `''`          |
 | `plugin_marketplaces`            | Newline-separated plugin marketplace Git URLs to install                                                                | No       | `''`          |
 
