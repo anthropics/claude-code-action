@@ -83,6 +83,10 @@ inputs:
     description: "Show full JSON output from Claude Code. WARNING: This outputs ALL Claude messages including tool execution results which may contain secrets, API keys, or other sensitive information. These logs are publicly visible in GitHub Actions. Only enable for debugging in non-sensitive environments."
     required: false
     default: "false"
+  disallow_unlisted_mcp_tools:
+    description: "Before Claude starts, connect to each --mcp-config server that --allowedTools names only some tools of, and add its other tools to --disallowedTools, so their definitions are not sent to the model. Servers allowed as a whole (mcp__server) or not named in --allowedTools are left alone"
+    required: false
+    default: "false"
   plugins:
     description: "Newline-separated list of Claude Code plugin names to install (e.g., 'code-review@claude-code-plugins\nfeature-dev@claude-code-plugins')"
     required: false
@@ -194,6 +198,7 @@ runs:
         INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
         INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
         INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}
+        INPUT_DISALLOW_UNLISTED_MCP_TOOLS: ${{ inputs.disallow_unlisted_mcp_tools }}
         INPUT_PLUGINS: ${{ inputs.plugins }}
         INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
 
