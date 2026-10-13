@@ -1,6 +1,7 @@
 import { runClaudeWithSdk } from "./run-claude-sdk";
 import type { ClaudeRunResult } from "./run-claude-sdk";
 import { parseSdkOptions } from "./parse-sdk-options";
+import { disallowUnlistedMcpTools } from "./mcp-tool-filter";
 
 export type ClaudeOptions = {
   claudeArgs?: string;
@@ -14,6 +15,7 @@ export type ClaudeOptions = {
   appendSystemPrompt?: string;
   fallbackModel?: string;
   showFullOutput?: string;
+  disallowUnlistedMcpTools?: string;
 };
 
 export async function runClaude(
@@ -21,5 +23,8 @@ export async function runClaude(
   options: ClaudeOptions,
 ): Promise<ClaudeRunResult> {
   const parsedOptions = parseSdkOptions(options);
+  if (options.disallowUnlistedMcpTools === "true") {
+    await disallowUnlistedMcpTools(parsedOptions.sdkOptions);
+  }
   return runClaudeWithSdk(promptPath, parsedOptions);
 }
