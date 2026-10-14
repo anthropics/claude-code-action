@@ -36,10 +36,11 @@ const server = new McpServer({
 
 server.tool(
   "create_inline_comment",
-  "Create an inline comment on a specific line or lines in a PR file",
+  "Create an inline comment on a PR diff or reply to an existing review comment thread",
   {
     path: z
       .string()
+      .optional()
       .describe("The file path to comment on (e.g., 'src/index.js')"),
     body: z
       .string()
@@ -76,6 +77,13 @@ server.tool(
       .describe(
         "Specific commit SHA to comment on (defaults to latest commit)",
       ),
+    in_reply_to_id: z
+      .number()
+      .nonnegative()
+      .optional()
+      .describe(
+        "Review comment ID to reply to. When provided, posts a thread reply and ignores path/line/startLine/side/commit_id.",
+      ),
     confirmed: z
       .boolean()
       .optional()
@@ -86,7 +94,16 @@ server.tool(
           "never post. Only set true when posting final review comments.",
       ),
   },
-  async ({ path, body, line, startLine, side, commit_id, confirmed }) => {
+  async ({
+    path,
+    body,
+    line,
+    startLine,
+    side,
+    commit_id,
+    in_reply_to_id,
+    confirmed,
+  }) => {
     try {
       const githubToken = process.env.GITHUB_TOKEN;
 
@@ -101,11 +118,21 @@ server.tool(
       // Sanitize the comment body to remove potential prompt injections and redact secrets
       const sanitizedBody = redactSecrets(sanitizeContent(body));
 
-      // Validate that either line or both startLine and line are provided
-      if (!line && !startLine) {
-        throw new Error(
-          "Either 'line' for single-line comments or both 'startLine' and 'line' for multi-line comments must be provided",
-        );
+      const isReply = typeof in_reply_to_id === "number";
+
+      // Validate inline comment inputs when not posting a reply.
+      if (!isReply) {
+        if (!path) {
+          throw new Error(
+            "'path' is required unless 'in_reply_to_id' is provided",
+          );
+        }
+
+        if (!line && !startLine) {
+          throw new Error(
+            "Either 'line' for single-line comments or both 'startLine' and 'line' for multi-line comments must be provided",
+          );
+        }
       }
 
       if (CLASSIFY_ENABLED && confirmed !== true) {
@@ -118,6 +145,7 @@ server.tool(
             startLine,
             side,
             commit_id,
+            in_reply_to_id,
             body: sanitizedBody,
             confirmed,
           }) + "\n",
@@ -131,7 +159,7 @@ server.tool(
                   success: true,
                   buffered: true,
                   message:
-                    "Comment buffered. It will be classified and posted after " +
+                    "Comment/reply buffered. It will be classified and posted after " +
                     "this session completes (real review comments post, " +
                     "test/probe comments are dropped). Set confirmed=true to " +
                     "post immediately. If you are testing whether this tool " +
@@ -145,51 +173,86 @@ server.tool(
         };
       }
 
-      // If only line is provided, it's a single-line comment
-      // If both startLine and line are provided, it's a multi-line comment
-      const isSingleLine = !startLine;
-
       const octokit = createOctokit(githubToken).rest;
 
-      const pr = await octokit.pulls.get({
-        owner,
-        repo,
-        pull_number,
-      });
+      let result:
+        | Awaited<ReturnType<typeof octokit.rest.pulls.createReviewComment>>
+        | Awaited<
+            ReturnType<typeof octokit.rest.pulls.createReplyForReviewComment>
+          >;
 
-      const params: Parameters<
-        typeof octokit.rest.pulls.createReviewComment
-      >[0] = {
-        owner,
-        repo,
-        pull_number,
-        body: sanitizedBody,
-        path,
-        side: side || "RIGHT",
-        commit_id: commit_id || pr.data.head.sha,
-      };
-
-      if (isSingleLine) {
-        // Single-line comment
-        params.line = line;
+      if (isReply) {
+        result = await octokit.rest.pulls.createReplyForReviewComment({
+          owner,
+          repo,
+          pull_number,
+          body: sanitizedBody,
+          comment_id: in_reply_to_id,
+        });
       } else {
-        // Multi-line comment
-        params.start_line = startLine;
-        params.start_side = side || "RIGHT";
-        params.line = line;
-      }
+        const inlinePath = path;
+        if (!inlinePath) {
+          throw new Error(
+            "'path' is required unless 'in_reply_to_id' is provided",
+          );
+        }
 
-      const result = await octokit.rest.pulls.createReviewComment(params);
+        if (!line) {
+          throw new Error(
+            "'line' is required unless 'in_reply_to_id' is provided",
+          );
+        }
+
+        // If only line is provided, it's a single-line comment
+        // If both startLine and line are provided, it's a multi-line comment
+        const isSingleLine = !startLine;
+
+        const pr = await octokit.pulls.get({
+          owner,
+          repo,
+          pull_number,
+        });
+
+        const params: NonNullable<
+          Parameters<typeof octokit.rest.pulls.createReviewComment>[0]
+        > = {
+          owner,
+          repo,
+          pull_number,
+          body: sanitizedBody,
+          path: inlinePath,
+          side: side || "RIGHT",
+          commit_id: commit_id || pr.data.head.sha,
+          line,
+        };
+
+        if (!isSingleLine) {
+          // Multi-line comment
+          params.start_line = startLine;
+          params.start_side = side || "RIGHT";
+        }
+
+        result = await octokit.rest.pulls.createReviewComment(params);
+      }
 
       // The comment is now live. Drop any buffered copy of it so the
       // post-session replay step cannot post it a second time (the model often
       // re-issues a buffered call with confirmed=true after the buffer reply).
       if (CLASSIFY_ENABLED) {
         removeBufferedComment(
-          { path, line, startLine, body: sanitizedBody },
+          { path, line, startLine, in_reply_to_id, body: sanitizedBody },
           BUFFER_PATH,
         );
       }
+
+      const resultPath = "path" in result.data ? result.data.path : path;
+      const resultLine =
+        "line" in result.data
+          ? result.data.line || result.data.original_line
+          : undefined;
+      const message = isReply
+        ? `Reply added successfully to review comment ${in_reply_to_id}`
+        : `Inline comment created successfully on ${path}${startLine ? ` from line ${startLine} to ${line}` : ` at line ${line}`}`;
 
       return {
         content: [
@@ -200,9 +263,9 @@ server.tool(
                 success: true,
                 comment_id: result.data.id,
                 html_url: result.data.html_url,
-                path: result.data.path,
-                line: result.data.line || result.data.original_line,
-                message: `Inline comment created successfully on ${path}${isSingleLine ? ` at line ${line}` : ` from line ${startLine} to ${line}`}`,
+                path: resultPath,
+                line: resultLine,
+                message,
               },
               null,
               2,

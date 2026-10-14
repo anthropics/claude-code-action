@@ -30,6 +30,11 @@ describe("removeBufferedComment", () => {
     side: "RIGHT",
     body: "Comment B",
   };
+  const replyEntry = {
+    ts: "2026-06-13T00:00:02.000Z",
+    in_reply_to_id: 12345,
+    body: "Reply A",
+  };
 
   const writeBuffer = (entries: object[]): void => {
     writeFileSync(
@@ -135,5 +140,19 @@ describe("removeBufferedComment", () => {
     const raw = readFileSync(bufferPath, "utf8");
     expect(raw).toContain("not json");
     expect(raw).not.toContain("Comment A");
+  });
+
+  it("removes a buffered reply by in_reply_to_id and body", () => {
+    writeBuffer([entryA, replyEntry, entryB]);
+
+    removeBufferedComment(
+      {
+        in_reply_to_id: 12345,
+        body: "Reply A",
+      },
+      bufferPath,
+    );
+
+    expect(readBuffer().map((e) => e.body)).toEqual(["Comment A", "Comment B"]);
   });
 });
