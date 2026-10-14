@@ -25,6 +25,24 @@ const ACCUMULATING_FLAGS = new Set([
 // Delimiter used to join accumulated flag values
 const ACCUMULATE_DELIMITER = "\x00";
 
+/**
+ * Parse a maxTurns value into a number, failing loudly on values that would
+ * otherwise silently disable the turn limit. parseInt() returns NaN for
+ * non-numeric input (e.g. a typo in the workflow file), and the SDK serializes
+ * NaN to null in JSON, so the limit would be silently dropped. Rejecting NaN
+ * and negative values here surfaces the mistake instead of running unbounded.
+ */
+function parseMaxTurns(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    throw new Error(
+      `Invalid max_turns value: "${value}". Must be a non-negative integer.`,
+    );
+  }
+  return parsed;
+}
+
 // shell-quote treats ()|&;<> as control operators and splits adjacent text
 // around them into separate tokens (returned as `{op}` objects, which we then
 // dropped). For CLI args these must be literal characters — e.g. unquoted
@@ -315,11 +333,9 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   const sdkOptions: SdkOptions = {
     // Direct options from ClaudeOptions inputs
     model: options.model || modelFromClaudeArgs,
-    maxTurns: options.maxTurns
-      ? parseInt(options.maxTurns, 10)
-      : maxTurnsFromClaudeArgs
-        ? parseInt(maxTurnsFromClaudeArgs, 10)
-        : undefined,
+    maxTurns: parseMaxTurns(
+      options.maxTurns || maxTurnsFromClaudeArgs,
+    ),
     allowedTools:
       mergedAllowedTools.length > 0 ? mergedAllowedTools : undefined,
     disallowedTools:
