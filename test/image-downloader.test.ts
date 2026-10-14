@@ -9,6 +9,7 @@ import {
   setSystemTime,
 } from "bun:test";
 import fs from "fs/promises";
+import path from "path";
 import { downloadCommentImages } from "../src/github/utils/image-downloader";
 import type { CommentWithImages } from "../src/github/utils/image-downloader";
 import type { Octokits } from "../src/github/api/client";
@@ -28,9 +29,15 @@ describe("downloadCommentImages", () => {
   let consoleLogSpy: any;
   let consoleWarnSpy: any;
   let consoleErrorSpy: any;
-  let fsMkdirSpy: any;
+  let fsMkdtempSpy: any;
   let fsWriteFileSpy: any;
   let fetchSpy: any;
+
+  // downloadCommentImages now calls fs.mkdtemp() to get an invocation-unique
+  // directory (that's the fix for #1622: a shared, hardcoded directory let
+  // concurrent runner jobs collide). Mocked to a fixed path so the rest of
+  // these tests can keep asserting on a deterministic prefix.
+  const MOCK_DOWNLOADS_DIR = "/tmp/github-images-mocktest";
 
   beforeEach(() => {
     // Spy on console methods
@@ -39,7 +46,7 @@ describe("downloadCommentImages", () => {
     consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {});
 
     // Spy on fs methods
-    fsMkdirSpy = spyOn(fs, "mkdir").mockResolvedValue(undefined);
+    fsMkdtempSpy = spyOn(fs, "mkdtemp").mockResolvedValue(MOCK_DOWNLOADS_DIR);
     fsWriteFileSpy = spyOn(fs, "writeFile").mockResolvedValue(undefined);
 
     // Set fake system time for consistent filenames
@@ -50,7 +57,7 @@ describe("downloadCommentImages", () => {
     consoleLogSpy.mockRestore();
     consoleWarnSpy.mockRestore();
     consoleErrorSpy.mockRestore();
-    fsMkdirSpy.mockRestore();
+    fsMkdtempSpy.mockRestore();
     fsWriteFileSpy.mockRestore();
     if (fetchSpy) fetchSpy.mockRestore();
     setSystemTime(); // Reset to real time
@@ -72,15 +79,15 @@ describe("downloadCommentImages", () => {
     } as any as Octokits;
   };
 
-  test("should create download directory", async () => {
+  test("should create a per-invocation download directory via mkdtemp", async () => {
     const mockOctokit = createMockOctokit();
     const comments: CommentWithImages[] = [];
 
     await downloadCommentImages(mockOctokit, "owner", "repo", comments);
 
-    expect(fsMkdirSpy).toHaveBeenCalledWith("/tmp/github-images", {
-      recursive: true,
-    });
+    expect(fsMkdtempSpy).toHaveBeenCalledWith(
+      expect.stringContaining("github-images-"),
+    );
   });
 
   test("should handle comments without images", async () => {
@@ -152,20 +159,20 @@ describe("downloadCommentImages", () => {
       signal: expect.any(AbortSignal),
     });
     expect(fsWriteFileSpy).toHaveBeenCalledWith(
-      "/tmp/github-images/image-1704067200000-0.png",
+      "/tmp/github-images-mocktest/image-1704067200000-0.png",
       Buffer.from(mockArrayBuffer),
     );
 
     expect(result.size).toBe(1);
     expect(result.get(imageUrl)).toBe(
-      "/tmp/github-images/image-1704067200000-0.png",
+      "/tmp/github-images-mocktest/image-1704067200000-0.png",
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "Found 1 image(s) in issue_comment 123",
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(`Downloading ${imageUrl}...`);
     expect(consoleLogSpy).toHaveBeenCalledWith(
-      "✓ Saved: /tmp/github-images/image-1704067200000-0.png",
+      "✓ Saved: /tmp/github-images-mocktest/image-1704067200000-0.png",
     );
   });
 
@@ -208,11 +215,11 @@ describe("downloadCommentImages", () => {
     );
 
     expect(fsWriteFileSpy).toHaveBeenCalledWith(
-      "/tmp/github-images/image-1704067200000-0.jpg",
+      "/tmp/github-images-mocktest/image-1704067200000-0.jpg",
       Buffer.from(jpegBytes.buffer),
     );
     expect(result.get(imageUrl)).toBe(
-      "/tmp/github-images/image-1704067200000-0.jpg",
+      "/tmp/github-images-mocktest/image-1704067200000-0.jpg",
     );
   });
 
@@ -256,7 +263,7 @@ describe("downloadCommentImages", () => {
     });
 
     expect(result.get(imageUrl)).toBe(
-      "/tmp/github-images/image-1704067200000-0.jpg",
+      "/tmp/github-images-mocktest/image-1704067200000-0.jpg",
     );
   });
 
@@ -302,7 +309,7 @@ describe("downloadCommentImages", () => {
     });
 
     expect(result.get(imageUrl)).toBe(
-      "/tmp/github-images/image-1704067200000-0.png",
+      "/tmp/github-images-mocktest/image-1704067200000-0.png",
     );
   });
 
@@ -346,7 +353,7 @@ describe("downloadCommentImages", () => {
     });
 
     expect(result.get(imageUrl)).toBe(
-      "/tmp/github-images/image-1704067200000-0.gif",
+      "/tmp/github-images-mocktest/image-1704067200000-0.gif",
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "Found 1 image(s) in issue_body 200",
@@ -393,7 +400,7 @@ describe("downloadCommentImages", () => {
     });
 
     expect(result.get(imageUrl)).toBe(
-      "/tmp/github-images/image-1704067200000-0.webp",
+      "/tmp/github-images-mocktest/image-1704067200000-0.webp",
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "Found 1 image(s) in pr_body 300",
@@ -437,10 +444,10 @@ describe("downloadCommentImages", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(result.size).toBe(2);
     expect(result.get(imageUrl1)).toBe(
-      "/tmp/github-images/image-1704067200000-0.png",
+      "/tmp/github-images-mocktest/image-1704067200000-0.png",
     );
     expect(result.get(imageUrl2)).toBe(
-      "/tmp/github-images/image-1704067200000-1.jpg",
+      "/tmp/github-images-mocktest/image-1704067200000-1.jpg",
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "Found 2 image(s) in issue_comment 999",
@@ -490,10 +497,10 @@ describe("downloadCommentImages", () => {
       signal: expect.any(AbortSignal),
     });
     expect(result.get(imageUrl1)).toBe(
-      "/tmp/github-images/image-1704067200000-0.png",
+      "/tmp/github-images-mocktest/image-1704067200000-0.png",
     );
     expect(result.get(imageUrl2)).toBe(
-      "/tmp/github-images/image-1704067200000-1.png",
+      "/tmp/github-images-mocktest/image-1704067200000-1.png",
     );
   });
 
@@ -533,7 +540,7 @@ describe("downloadCommentImages", () => {
       signal: expect.any(AbortSignal),
     });
     expect(result.get(imageUrl)).toBe(
-      "/tmp/github-images/image-1704067200000-0.png",
+      "/tmp/github-images-mocktest/image-1704067200000-0.png",
     );
   });
 
@@ -698,7 +705,7 @@ describe("downloadCommentImages", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1); // Only downloaded once
     expect(result.size).toBe(1);
     expect(result.get(imageUrl)).toBe(
-      "/tmp/github-images/image-1704067200000-0.png",
+      "/tmp/github-images-mocktest/image-1704067200000-0.png",
     );
   });
 
@@ -937,7 +944,7 @@ describe("downloadCommentImages", () => {
         comments,
       );
       expect(result.get(url)).toBe(
-        `/tmp/github-images/image-${1704067200000 + callIndex}-0${ext}`,
+        `/tmp/github-images-mocktest/image-${1704067200000 + callIndex}-0${ext}`,
       );
 
       // Reset for next iteration
@@ -983,7 +990,7 @@ describe("downloadCommentImages", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(result.size).toBe(1);
     expect(result.get(imageUrl1)).toBe(
-      "/tmp/github-images/image-1704067200000-0.png",
+      "/tmp/github-images-mocktest/image-1704067200000-0.png",
     );
     expect(result.get(imageUrl2)).toBeUndefined();
     expect(consoleWarnSpy).toHaveBeenCalledWith(
@@ -1037,20 +1044,20 @@ describe("downloadCommentImages", () => {
       signal: expect.any(AbortSignal),
     });
     expect(fsWriteFileSpy).toHaveBeenCalledWith(
-      "/tmp/github-images/image-1704067200000-0.png",
+      "/tmp/github-images-mocktest/image-1704067200000-0.png",
       Buffer.from(mockArrayBuffer),
     );
 
     expect(result.size).toBe(1);
     expect(result.get(imageUrl)).toBe(
-      "/tmp/github-images/image-1704067200000-0.png",
+      "/tmp/github-images-mocktest/image-1704067200000-0.png",
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "Found 1 image(s) in issue_comment 777",
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(`Downloading ${imageUrl}...`);
     expect(consoleLogSpy).toHaveBeenCalledWith(
-      "✓ Saved: /tmp/github-images/image-1704067200000-0.png",
+      "✓ Saved: /tmp/github-images-mocktest/image-1704067200000-0.png",
     );
   });
 
@@ -1091,10 +1098,10 @@ describe("downloadCommentImages", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(result.size).toBe(2);
     expect(result.get(imageUrl1)).toBe(
-      "/tmp/github-images/image-1704067200000-0.jpg",
+      "/tmp/github-images-mocktest/image-1704067200000-0.jpg",
     );
     expect(result.get(imageUrl2)).toBe(
-      "/tmp/github-images/image-1704067200000-1.png",
+      "/tmp/github-images-mocktest/image-1704067200000-1.png",
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "Found 2 image(s) in issue_comment 888",
@@ -1140,10 +1147,10 @@ describe("downloadCommentImages", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(result.size).toBe(2);
     expect(result.get(markdownUrl)).toBe(
-      "/tmp/github-images/image-1704067200000-0.png",
+      "/tmp/github-images-mocktest/image-1704067200000-0.png",
     );
     expect(result.get(htmlUrl)).toBe(
-      "/tmp/github-images/image-1704067200000-1.jpg",
+      "/tmp/github-images-mocktest/image-1704067200000-1.jpg",
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "Found 2 image(s) in issue_comment 999",
@@ -1185,7 +1192,7 @@ describe("downloadCommentImages", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1); // Only downloaded once
     expect(result.size).toBe(1);
     expect(result.get(imageUrl)).toBe(
-      "/tmp/github-images/image-1704067200000-0.png",
+      "/tmp/github-images-mocktest/image-1704067200000-0.png",
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "Found 1 image(s) in issue_comment 1000",
@@ -1227,10 +1234,67 @@ describe("downloadCommentImages", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(result.size).toBe(1);
     expect(result.get(imageUrl)).toBe(
-      "/tmp/github-images/image-1704067200000-0.webp",
+      "/tmp/github-images-mocktest/image-1704067200000-0.webp",
     );
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "Found 1 image(s) in issue_comment 1001",
+    );
+  });
+
+  test("should not collide across concurrent invocations even with an identical Date.now()", async () => {
+    // Regression for #1622: two runner jobs downloading images at the same
+    // instant used to share one hardcoded /tmp/github-images directory and
+    // could overwrite each other's files. fs.mkdtemp() is the actual source
+    // of uniqueness now, so this pins Date.now() identically for both calls
+    // (removing it as a source of accidental uniqueness) and instead varies
+    // what the OS-level mkdtemp call returns, the way two real concurrent
+    // processes racing the same mkdtemp template would.
+    fsMkdtempSpy.mockRestore();
+    let mkdtempCallCount = 0;
+    const mkdtempImpl = async (_prefix: string) => {
+      mkdtempCallCount++;
+      return `/tmp/github-images-run${mkdtempCallCount}`;
+    };
+    fsMkdtempSpy = spyOn(fs, "mkdtemp").mockImplementation(mkdtempImpl as any);
+
+    const imageUrl = assetUrl(GUID_1);
+    const signedUrl = signedUrlFor(GUID_1, ".png");
+    const makeOctokit = () => {
+      const octokit = createMockOctokit();
+      // @ts-expect-error Mock implementation doesn't match full type signature
+      octokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+        data: { body_html: `<img src="${signedUrl}">` },
+      });
+      return octokit;
+    };
+
+    fetchSpy = spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response);
+
+    const commentsFor = (id: string): CommentWithImages[] => [
+      {
+        type: "issue_comment",
+        id,
+        body: `Here's an image: ![test](${imageUrl})`,
+      },
+    ];
+
+    // Same mocked Date.now() for both — set once in beforeEach, left untouched
+    // here — simulating two jobs invoked at the exact same instant.
+    const [resultA, resultB] = await Promise.all([
+      downloadCommentImages(makeOctokit(), "owner", "repo", commentsFor("1")),
+      downloadCommentImages(makeOctokit(), "owner", "repo", commentsFor("2")),
+    ]);
+
+    const pathA = resultA.get(imageUrl);
+    const pathB = resultB.get(imageUrl);
+
+    expect(pathA).toBeDefined();
+    expect(pathB).toBeDefined();
+    expect(path.dirname(pathA as string)).not.toBe(
+      path.dirname(pathB as string),
     );
   });
 });

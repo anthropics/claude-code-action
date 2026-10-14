@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import os from "os";
 import path from "path";
 import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
@@ -100,9 +101,15 @@ export async function downloadCommentImages(
 ): Promise<Map<string, string>> {
   const urlToPathMap = new Map<string, string>();
   const timeoutMs = options.timeoutMs ?? DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS;
-  const downloadsDir = "/tmp/github-images";
-
-  await fs.mkdir(downloadsDir, { recursive: true });
+  // A shared, hardcoded directory lets two concurrent invocations on the same
+  // (typically self-hosted) runner collide on the same path — the second job
+  // to write can hand the first job's image to a different repository or
+  // workflow run. A per-invocation directory, created fresh via mkdtemp,
+  // makes that collision impossible regardless of timing.
+  const downloadsBaseDir = process.env.RUNNER_TEMP || os.tmpdir();
+  const downloadsDir = await fs.mkdtemp(
+    path.join(downloadsBaseDir, "github-images-"),
+  );
 
   const commentsWithImages: Array<{
     comment: CommentWithImages;
@@ -261,6 +268,10 @@ export async function downloadCommentImages(
           const fileExtension =
             detectImageExtensionFromBuffer(buffer) ??
             getImageExtension(originalUrl);
+          // Filenames only need to be unique *within* this invocation's
+          // directory now (the mkdtemp above already makes the directory
+          // itself invocation-unique, which is what actually closes the
+          // cross-invocation collision this issue describes).
           const filename = `image-${Date.now()}-${i}${fileExtension}`;
           const localPath = path.join(downloadsDir, filename);
 
