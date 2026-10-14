@@ -2,6 +2,24 @@ import { $ } from "bun";
 import { homedir } from "os";
 import { readFile } from "fs/promises";
 
+function parseSettingsJson(
+  contents: string,
+  source: string,
+): Record<string, unknown> {
+  try {
+    return JSON.parse(contents);
+  } catch (error) {
+    const reason =
+      error instanceof Error ? error.message : "Unknown parse error";
+    throw new Error(`Invalid JSON in ${source}: ${reason}`);
+  }
+}
+
+function isInlineJsonInput(input: string): boolean {
+  const trimmedInput = input.trim();
+  return trimmedInput.startsWith("{") || trimmedInput.startsWith("[");
+}
+
 export async function setupClaudeCodeSettings(
   settingsInput?: string,
   homeDir?: string,
@@ -16,9 +34,12 @@ export async function setupClaudeCodeSettings(
 
   let settings: Record<string, unknown> = {};
   try {
-    const existingSettings = await $`cat ${settingsPath}`.quiet().text();
+    const existingSettings = await readFile(settingsPath, "utf-8");
     if (existingSettings.trim()) {
-      settings = JSON.parse(existingSettings);
+      settings = parseSettingsJson(
+        existingSettings,
+        "the existing Claude settings file",
+      );
       console.log(
         `Found existing settings:`,
         JSON.stringify(settings, null, 2),
@@ -26,8 +47,12 @@ export async function setupClaudeCodeSettings(
     } else {
       console.log(`Settings file exists but is empty`);
     }
-  } catch (e) {
-    console.log(`No existing settings file found, creating new one`);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      console.log(`No existing settings file found, creating new one`);
+    } else {
+      throw error;
+    }
   }
 
   // Handle settings input (either file path or JSON string)
@@ -35,22 +60,26 @@ export async function setupClaudeCodeSettings(
     console.log(`Processing settings input...`);
     let inputSettings: Record<string, unknown> = {};
 
-    try {
-      // First try to parse as JSON
-      inputSettings = JSON.parse(settingsInput);
+    if (isInlineJsonInput(settingsInput)) {
+      inputSettings = parseSettingsJson(settingsInput, "inline settings input");
       console.log(`Parsed settings input as JSON`);
-    } catch (e) {
-      // If not JSON, treat as file path
-      console.log(
-        `Settings input is not JSON, treating as file path: ${settingsInput}`,
-      );
+    } else {
+      console.log(`Treating settings input as a file path: ${settingsInput}`);
       try {
         const fileContent = await readFile(settingsInput, "utf-8");
-        inputSettings = JSON.parse(fileContent);
+        inputSettings = parseSettingsJson(
+          fileContent,
+          "the settings input file",
+        );
         console.log(`Successfully read and parsed settings from file`);
       } catch (fileError) {
-        console.error(`Failed to read or parse settings file: ${fileError}`);
-        throw new Error(`Failed to process settings input: ${fileError}`);
+        if (
+          fileError instanceof Error &&
+          fileError.message.startsWith("Invalid JSON in")
+        ) {
+          throw fileError;
+        }
+        throw new Error(`Failed to read settings input file: ${fileError}`);
       }
     }
 
