@@ -3,6 +3,11 @@ name: Claude Merge Queue Check
 # Runs when pull requests enter a merge queue. To make the queue wait for this
 # check, add the `claude-merge-check` job as a required status check in the
 # target branch's ruleset or branch protection rule.
+#
+# GitHub reads this file from the merge group commit, so a queued pull request
+# that edits it runs its own version. Require a trusted review for changes
+# under .github/workflows/, for example with CODEOWNERS. See "Using this action
+# with merge_group" in docs/security.md.
 on:
   pull_request:
   merge_group:
@@ -16,8 +21,9 @@ jobs:
     if: github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     # Stops a run that stalls from holding up the entries behind it. A timeout
-    # fails the check, which removes the entry from the queue, so allow enough
-    # time for your repository's largest merge groups.
+    # cancels the job, which the queue counts as a failed check and by default
+    # removes the entry, so allow enough time for your repository's largest
+    # merge groups.
     timeout-minutes: 10
     permissions:
       contents: read
@@ -41,11 +47,13 @@ jobs:
       #   sets `ignore`.
       # - rm keeps a committed merge-group.diff symlink from redirecting the
       #   write.
+      # - The full ref name keeps a tag called origin/<branch> from being picked
+      #   instead of the target branch.
       - name: Write the merge group diff
         env:
           BASE_REF: ${{ github.event.merge_group.base_ref }}
         run: |
-          base="origin/${BASE_REF#refs/heads/}"
+          base="refs/remotes/origin/${BASE_REF#refs/heads/}"
           rm -rf merge-group.diff
           git --attr-source="$base" diff --ignore-submodules=none "$base...HEAD" > merge-group.diff
 
@@ -60,6 +68,20 @@ jobs:
           # default branch's copy, as it does when a queued pull request
           # edits it.
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          # GitHub attributes the run to whoever queued the pull request. If an
+          # app such as a merge bot queues them, list it here, or the action
+          # rejects the run and the check fails.
+          # allowed_bots: "my-merge-bot[bot]"
+
+          # Claude pages through a diff that is too large for one read and may
+          # only search or sample it, so a change buried in a very large diff
+          # can get through. Treat this check as a backstop to human review, not
+          # a replacement for it.
+          #
+          # The last paragraph blocks text files that git reports as binary. If
+          # the target branch's own .gitattributes marks files such as lock
+          # files or snapshots -diff or binary, name them there as exceptions,
+          # or every change to them is blocked.
           prompt: |
             REPO: ${{ github.repository }}
             TARGET BRANCH: ${{ github.event.merge_group.base_ref }}
@@ -70,10 +92,23 @@ jobs:
             credentials, debugging code left in, or conflict markers. Do not
             block on style or design preferences.
 
-            The diff names binary files without showing their content. If one
-            looks like it should be text, read it from the working tree.
+            The diff names binary files without showing their content. Block
+            the merge if a file it reports as binary has a name that suggests
+            text, such as source code, a script or a config file, because its
+            content cannot be reviewed here.
+          # --tools sets which built-in tools the session has. --allowedTools
+          # alone would only pre-approve tools and leave the rest, Bash among
+          # them, to the permission mode.
+          #
+          # --restricted keeps the file tools inside the workspace and ignores
+          # settings files, so no hooks run, and --strict-mcp-config skips
+          # .mcp.json. The session also loads no CLAUDE.md or skills and ignores
+          # this action's `settings` input, so put everything the check should
+          # enforce in the prompt.
           claude_args: |
-            --allowedTools "Read,Grep,Glob"
+            --restricted
+            --strict-mcp-config
+            --tools "Read,Grep,Glob"
             --json-schema '{"type":"object","properties":{"block_merge":{"type":"boolean","description":"Whether the merge group contains something that must not merge"},"reason":{"type":"string","description":"One-sentence explanation"}},"required":["block_merge","reason"]}'
 
       - name: Fail the check unless Claude approved the merge group

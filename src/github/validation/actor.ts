@@ -6,8 +6,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { isMergeGroupEvent, type GitHubContext } from "../context";
-import { MERGE_QUEUE_BOT_LOGIN } from "../constants";
+import type { GitHubContext } from "../context";
 
 function isAllowedBot(actor: string, allowedBots: string): boolean {
   const trimmed = allowedBots.trim();
@@ -34,17 +33,6 @@ export async function checkHumanActor(
 ) {
   const allowedBots = githubContext.inputs.allowedBots;
   const actor = githubContext.actor;
-
-  // GitHub attributes merge_group events to its merge queue app rather than
-  // to the person who queued the pull request. Only GitHub creates these
-  // events, and only for a pull request someone allowed to merge it has
-  // added to the queue, so the app needs no allowed_bots entry here.
-  if (isMergeGroupEvent(githubContext) && actor === MERGE_QUEUE_BOT_LOGIN) {
-    console.log(
-      `Actor ${actor} is GitHub's merge queue, skipping human actor check`,
-    );
-    return;
-  }
 
   // Resolve the actor's account type before consulting allowed_bots so the
   // allow-list only ever applies to non-User accounts. Some app actors

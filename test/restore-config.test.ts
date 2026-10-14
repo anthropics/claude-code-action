@@ -385,6 +385,20 @@ describe("restoreConfigFromBase", () => {
     expectNoLinksInSnapshot();
   });
 
+  test.each([
+    ["tag", "refs/tags/origin/main"],
+    ["local branch", "refs/heads/origin/main"],
+  ])("ignores a %s named after the remote-tracking branch", (_kind, ref) => {
+    git(["update-ref", ref, "HEAD"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("CLAUDE.md")).toBe("base claude instructions\n");
+    expect(readRepoFile(".claude/settings.json")).toBe(
+      `${JSON.stringify({ source: "base" })}\n`,
+    );
+  });
+
   test("does not modify an existing .gitignore", () => {
     writeRepoFile(".gitignore", "node_modules\n");
     git(["add", ".gitignore"]);
@@ -603,12 +617,14 @@ describe("resolveRestoreBase", () => {
     );
   });
 
-  test.each(["workflow_dispatch", "schedule", "workflow_run"] as const)(
-    "%s restores nothing",
-    (event) => {
-      const context = createMockAutomationContext({ eventName: event });
+  test.each([
+    "workflow_dispatch",
+    "repository_dispatch",
+    "schedule",
+    "workflow_run",
+  ] as const)("%s restores nothing", (event) => {
+    const context = createMockAutomationContext({ eventName: event });
 
-      expect(resolveRestoreBase(context, "main")).toBeUndefined();
-    },
-  );
+    expect(resolveRestoreBase(context, "main")).toBeUndefined();
+  });
 });

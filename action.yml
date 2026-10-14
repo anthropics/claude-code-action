@@ -28,7 +28,7 @@ inputs:
     required: false
     default: ""
   allowed_bots:
-    description: "Comma-separated list of allowed bot usernames, or '*' to allow all bots. Empty string (default) allows no bots. GitHub's merge queue app is always accepted on merge_group events and needs no entry. WARNING: On public repos with '*', external Apps may be able to invoke this action with prompts they control. See docs/security.md."
+    description: "Comma-separated list of allowed bot usernames, or '*' to allow all bots. Empty string (default) allows no bots. WARNING: On public repos with '*', external Apps may be able to invoke this action with prompts they control. See docs/security.md."
     required: false
     default: ""
   allowed_non_write_users:

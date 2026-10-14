@@ -284,7 +284,8 @@ export function resolveRestoreBase(
 }
 
 /**
- * Restores security-sensitive config paths from the PR base branch.
+ * Restores security-sensitive config paths from the trusted base branch: a
+ * PR's base, or the branch a merge group targets.
  *
  * The CLI's non-interactive mode trusts cwd: it reads `.mcp.json`,
  * `.claude/settings.json`, and `.claude/settings.local.json` from the working
@@ -315,8 +316,10 @@ export function resolveRestoreBase(
  * `bunfig.toml` (e.g. `preload`) from the checkout, so `bunfig.toml` and
  * `.npmrc` there are PR-controlled runtime config too.
  *
- * @param baseBranch - PR base branch name. Must be pre-validated (branch.ts
- *   calls validateBranchName on it before returning).
+ * @param baseBranch - Branch name from resolveRestoreBase. Refs taken from the
+ *   payload and tag mode's base branch (branch.ts) have been through
+ *   validateBranchName. Agent mode's fallback has not: it is the workflow's own
+ *   base_branch input or the repository's default branch.
  * @returns The paths whose working-tree state now comes from the base branch
  *   rather than the PR. Callers that stage files must exclude these, or they
  *   will commit the revert back onto the PR author's branch.
@@ -379,9 +382,13 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
 
   for (const p of SENSITIVE_PATHS) {
     try {
-      execFileSync("git", ["checkout", `origin/${baseBranch}`, "--", p], {
-        stdio: "pipe",
-      });
+      // The full ref name, so a tag or local branch called origin/<base> is
+      // never picked over the remote-tracking branch.
+      execFileSync(
+        "git",
+        ["checkout", `refs/remotes/origin/${baseBranch}`, "--", p],
+        { stdio: "pipe" },
+      );
     } catch {
       // Path doesn't exist on base — it stays deleted.
     }

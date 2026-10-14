@@ -311,7 +311,7 @@ describe("parseGitHubContext", () => {
           base_sha: "def456",
         },
         repository: repositoryPayload,
-        sender: { login: "github-merge-queue[bot]" },
+        sender: { login: "octocat" },
       } as unknown as MergeGroupEvent);
 
       const context = parseGitHubContext();
@@ -569,5 +569,8 @@ describe("type guards", () => {
     ).toBe(true);
     expect(isMergeGroupEvent(workflowDispatchContext)).toBe(false);
     expect(isMergeGroupEvent(issuesContext)).toBe(false);
+    expect(
+      isMergeGroupEvent(createMockContext({ eventName: "pull_request" })),
+    ).toBe(false);
   });
 });

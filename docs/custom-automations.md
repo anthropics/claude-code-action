@@ -59,39 +59,31 @@ on:
 jobs:
   claude-merge-check:
     if: github.event_name == 'merge_group'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - env:
-          BASE_REF: ${{ github.event.merge_group.base_ref }}
-        run: |
-          base="origin/${BASE_REF#refs/heads/}"
-          rm -rf merge-group.diff
-          git --attr-source="$base" diff --ignore-submodules=none "$base...HEAD" > merge-group.diff
+      # The example writes merge-group.diff in an earlier step and fails the
+      # job in a later one unless Claude approves.
       - uses: anthropics/claude-code-action@v1
         with:
           prompt: |
             merge-group.diff contains every change this merge group would bring
-            into ${{ github.event.merge_group.base_ref }}. Look for anything that must not merge.
-          claude_args: '--allowedTools "Read,Grep,Glob"'
+            into the target branch. Decide whether anything in it must not merge.
           github_token: ${{ secrets.GITHUB_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --restricted
+            --strict-mcp-config
+            --tools "Read,Grep,Glob"
 ```
 
-`merge_group` runs in agent mode, so it needs a `prompt` and does not support `track_progress`. GitHub normally attributes these runs to its `github-merge-queue[bot]` app rather than to the person who queued the pull request, and the action accepts that actor for `merge_group` events without an `allowed_bots` entry. See [security](./security.md#using-this-action-with-merge_group) for who can trigger these runs and how to limit what they can reach.
+`merge_group` runs in agent mode, so it needs a `prompt` and does not support `track_progress`. The action step succeeds whatever Claude concludes, and with read-only tools and the default output settings nothing Claude finds shows up in the run. To make the queue wait for a verdict, add a step that fails the job when Claude finds a problem, as the example does with `--json-schema` and `structured_output`, then add the job as a required status check. GitHub also requires a required check to pass on the pull request before it can join the queue; the `pull_request` trigger and job-level `if` above handle this, since a job skipped by `if` reports success.
 
-Pass `github_token: ${{ secrets.GITHUB_TOKEN }}` for merge queue checks. Without it, the action exchanges an OIDC token for a Claude GitHub App token, and that exchange skips the run whenever the workflow file differs from the default branch's copy. In a merge queue that happens every time a queued pull request edits the workflow, and on queues for branches whose copy of the workflow differs, so a required check would never get a verdict. The workflow token is also limited to the job's `permissions:`, which the App token is not.
+GitHub attributes a `merge_group` run to whoever queued the pull request. A person passes the action's bot check, and an app that queues pull requests, such as a merge bot, needs an `allowed_bots` entry (see [access control](./security.md#access-control)).
 
-The merge group commit contains the queued pull requests' changes, so before Claude starts the action restores its configuration files (`.claude/`, `.mcp.json`, `CLAUDE.md` and the others listed in [security](./security.md#which-files-come-from-the-base-branch-on-pull-requests)) from the branch the group merges into, as it does for pull requests. Those paths in the working tree then hold the target branch's versions, so give Claude the changes as a diff. The example writes it before the action runs, which also keeps Bash out of the allowed tools. It diffs against the target branch rather than `merge_group.base_sha` so that the review also covers entries ahead of this one in the queue that have not merged yet.
+Pass `github_token: ${{ secrets.GITHUB_TOKEN }}` for merge queue checks. Without it, the action exchanges an OIDC token for a Claude GitHub App token, and that exchange skips the run whenever the workflow file differs from the default branch's copy. In a merge queue that happens every time a queued pull request edits the workflow, and on queues for branches whose copy of the workflow differs, so a required check would never get a verdict.
 
-By default `git diff` takes `.gitattributes` and `.gitmodules` from the checkout, which here is the queued pull requests' content. `--attr-source` (git 2.41 or later) reads attributes from the target branch instead, so a queued pull request cannot mark a file `-diff` or `binary` to keep its content out of the review, and `--ignore-submodules=none` shows submodule changes whatever `.gitmodules` says. The `rm` stops a committed `merge-group.diff` symlink from redirecting the write.
-
-The action step succeeds whatever Claude concludes. To make the queue wait for a verdict, add a step that fails the job when Claude finds a problem, as the example does with `--json-schema` and `structured_output`, then add the job as a required status check. `timeout-minutes` stops a stalled run from holding up the entries behind it; a timeout fails the check, which removes the entry from the queue, so allow enough time for your largest merge groups. GitHub also requires that check to pass on the pull request before it can join the queue; the `pull_request` trigger and job-level `if` above handle this, since a job skipped by `if` reports success.
+The merge group commit contains the queued pull requests' changes, so before Claude starts the action restores its configuration files from the branch the group merges into, [as it does for pull requests](./security.md#which-files-come-from-the-base-branch-on-pull-requests). Those paths in the working tree then hold the target branch's versions, so give Claude the changes as a diff. The comments in the example explain how it keeps queued changes from shaping that diff and what the `claude_args` above switch off; keep those flags if you adapt it. See [security](./security.md#using-this-action-with-merge_group) for how to limit what these runs can reach.
 
 ## Author-Specific Code Reviews
 
