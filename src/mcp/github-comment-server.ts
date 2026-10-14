@@ -76,11 +76,19 @@ server.tool(
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
+      const status =
+        error && typeof error === "object" && "status" in error
+          ? (error as { status: number }).status
+          : undefined;
+      const helpMessage =
+        status === 403
+          ? " Permission denied. Ensure your workflow has 'pull-requests: write' and 'issues: write' permissions."
+          : "";
       return {
         content: [
           {
             type: "text",
-            text: `Error: ${errorMessage}`,
+            text: `Error: ${errorMessage}${helpMessage}`,
           },
         ],
         error: errorMessage,
