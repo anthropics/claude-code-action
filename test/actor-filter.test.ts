@@ -75,6 +75,25 @@ describe("actorMatchesPattern", () => {
     expect(actorMatchesPattern("User1", "user1")).toBe(false);
     expect(actorMatchesPattern("user1", "User1")).toBe(false);
   });
+
+  // "*[bot]" is the only wildcard the inputs accept. Every other value that
+  // looks like a glob is compared literally, so these cases pin the documented
+  // limitation rather than the shape of a pattern language.
+  test("treats a wildcard other than the literal *[bot] as a plain login", () => {
+    expect(actorMatchesPattern("dependabot[bot]", "*bot*")).toBe(false);
+    expect(actorMatchesPattern("dependabot[bot]", "dep*")).toBe(false);
+    expect(actorMatchesPattern("dependabot[bot]", "*")).toBe(false);
+    expect(actorMatchesPattern("john-doe", "*")).toBe(false);
+  });
+
+  test("matches a login that literally contains the wildcard character", () => {
+    expect(actorMatchesPattern("dep*", "dep*")).toBe(true);
+  });
+
+  test("does not accept a differently cased bot wildcard", () => {
+    expect(actorMatchesPattern("dependabot[bot]", "*[BOT]")).toBe(false);
+    expect(actorMatchesPattern("dependabot[BOT]", "*[bot]")).toBe(false);
+  });
 });
 
 describe("shouldIncludeCommentByActor", () => {
@@ -104,6 +123,21 @@ describe("shouldIncludeCommentByActor", () => {
 
   test("excludes when not in include list", () => {
     expect(shouldIncludeCommentByActor("user3", ["user1", "user2"], [])).toBe(
+      false,
+    );
+  });
+
+  // An exclude entry that cannot match leaves the actor included, so a pattern
+  // the matcher does not understand reads as a filter that is on while nothing
+  // is filtered. This is the asymmetry the input documentation now spells out.
+  test("keeps an actor an unsupported exclude wildcard cannot match", () => {
+    expect(shouldIncludeCommentByActor("dependabot[bot]", [], ["*bot*"])).toBe(
+      true,
+    );
+  });
+
+  test("drops every actor an unsupported include wildcard cannot match", () => {
+    expect(shouldIncludeCommentByActor("dependabot[bot]", ["*bot*"], [])).toBe(
       false,
     );
   });
