@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 import { parse as parseShellArgs } from "shell-quote";
 import type { ClaudeOptions } from "./run-claude";
 import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
@@ -62,7 +63,10 @@ type McpConfig = {
  * Merge multiple MCP config values into a single config.
  * Each config can be a JSON string or a file path.
  * For JSON strings, mcpServers objects are merged.
- * For file paths, they are kept as-is (user's file takes precedence and is used last).
+ * For file paths, the file is read and its mcpServers merged in the same way;
+ * if it can't be read or parsed, it is kept as-is and returned verbatim
+ * (only when no inline JSON was present) so the caller can pass it straight
+ * through to the CLI.
  */
 function mergeMcpConfigs(configValues: string[]): string {
   const merged: McpConfig = { mcpServers: {} };
@@ -84,27 +88,42 @@ function mergeMcpConfigs(configValues: string[]): string {
         lastFilePath = trimmed;
       }
     } else {
-      // It's a file path - store it to handle separately
-      lastFilePath = trimmed;
+      // It's a file path. This action always runs in its own Bun process on
+      // the runner, so the file system is available here and the path is
+      // local to that same runner — read and merge it now. Fall back to
+      // recording it as lastFilePath (today's passthrough behavior) on any
+      // failure: file missing/unreadable, invalid JSON, no mcpServers key, or
+      // an mcpServers value that isn't a plain object (a string or array
+      // would corrupt Object.assign below by spreading per-character/index).
+      // The fallback is a live path, not dead code: tag mode always prepends
+      // the action's own config as inline JSON, but agent mode only prepends
+      // it when at least one built-in server is enabled (see
+      // src/modes/agent/index.ts and src/mcp/install-mcp-server.ts) — so in
+      // agent-mode runs with no built-in servers active, this file-path
+      // branch is the only value present and must still work standalone.
+      try {
+        const fileContents = readFileSync(trimmed, "utf-8");
+        const parsed = JSON.parse(fileContents) as McpConfig;
+        if (
+          parsed.mcpServers &&
+          typeof parsed.mcpServers === "object" &&
+          !Array.isArray(parsed.mcpServers)
+        ) {
+          Object.assign(merged.mcpServers!, parsed.mcpServers);
+        } else {
+          lastFilePath = trimmed;
+        }
+      } catch {
+        lastFilePath = trimmed;
+      }
     }
   }
 
-  // If we have file paths, we need to keep the merged JSON and let the file
-  // be handled separately. Since we can only return one value, merge what we can.
-  // If there's a file path, we need a different approach - read the file at runtime.
-  // For now, if there's a file path, we'll stringify the merged config.
-  // The action prepends its config as JSON, so we can safely merge inline JSON configs.
-
-  // If no inline configs were found (all file paths), return the last file path
+  // If no inline configs were found (all file paths, or a file path that
+  // failed to read/parse), return the last file path.
   if (Object.keys(merged.mcpServers!).length === 0 && lastFilePath) {
     return lastFilePath;
   }
-
-  // Note: If user passes a file path, we cannot merge it at parse time since
-  // we don't have access to the file system here. The action's built-in MCP
-  // servers are always passed as inline JSON, so they will be merged.
-  // If user also passes inline JSON, it will be merged.
-  // If user passes a file path, they should ensure it includes all needed servers.
 
   return JSON.stringify(merged);
 }

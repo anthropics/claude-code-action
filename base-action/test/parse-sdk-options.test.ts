@@ -1,6 +1,9 @@
 #!/usr/bin/env bun
 
 import { describe, test, expect } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { parseSdkOptions } from "../src/parse-sdk-options";
 import type { ClaudeOptions } from "../src/run-claude";
 
@@ -340,7 +343,10 @@ describe("parseSdkOptions", () => {
 
     test("should merge inline JSON configs when file path is also present", () => {
       // When action provides inline JSON and user provides a file path,
-      // the inline JSON configs should be merged (file paths cannot be merged at parse time)
+      // the inline JSON configs should be merged. The file path here is not
+      // merged because /tmp/user-config.json does not exist, so this
+      // exercises the read-failure fallback rather than proving file paths
+      // in general can't be merged (see the "existing file" test below).
       const options: ClaudeOptions = {
         claudeArgs: `--mcp-config '{"mcpServers":{"github_comment":{"command":"node"}}}' --mcp-config '{"mcpServers":{"github_ci":{"command":"node"}}}' --mcp-config /tmp/user-config.json`,
       };
@@ -353,6 +359,144 @@ describe("parseSdkOptions", () => {
       );
       expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
       expect(mcpConfig.mcpServers).toHaveProperty("github_ci");
+    });
+
+    test("should merge an existing mcp-config file's servers with the action's inline config", () => {
+      // Reproduces the real tag-mode shape (issue #1544): the action prepends
+      // its own MCP config as inline JSON, then the user's --mcp-config points
+      // at a real file on disk. Unlike the two tests above (which reference
+      // nonexistent files and fall back to today's file-path passthrough),
+      // this file exists and should be read and merged.
+      const tempDir = mkdtempSync(join(tmpdir(), "mcp-config-test-"));
+      const userConfigPath = join(tempDir, "user-mcp-config.json");
+      try {
+        writeFileSync(
+          userConfigPath,
+          JSON.stringify({
+            mcpServers: {
+              user_server: { command: "custom", args: ["run"] },
+            },
+          }),
+        );
+
+        const actionConfig = JSON.stringify({
+          mcpServers: {
+            github_comment: { command: "node", args: ["server.js"] },
+          },
+        });
+
+        const options: ClaudeOptions = {
+          claudeArgs: `--mcp-config '${actionConfig}' --mcp-config ${userConfigPath}`,
+        };
+
+        const result = parseSdkOptions(options);
+
+        const mcpConfig = JSON.parse(
+          result.sdkOptions.extraArgs?.["mcp-config"] as string,
+        );
+        expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
+        expect(mcpConfig.mcpServers).toHaveProperty("user_server");
+        expect(mcpConfig.mcpServers.user_server.command).toBe("custom");
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    test("should fall back to passthrough when an existing mcp-config file has no mcpServers key", () => {
+      const tempDir = mkdtempSync(join(tmpdir(), "mcp-config-test-"));
+      const userConfigPath = join(tempDir, "no-mcp-servers.json");
+      try {
+        writeFileSync(userConfigPath, JSON.stringify({ notMcpServers: {} }));
+
+        const actionConfig = JSON.stringify({
+          mcpServers: {
+            github_comment: { command: "node", args: ["server.js"] },
+          },
+        });
+
+        const options: ClaudeOptions = {
+          claudeArgs: `--mcp-config '${actionConfig}' --mcp-config ${userConfigPath}`,
+        };
+
+        const result = parseSdkOptions(options);
+
+        const mcpConfig = JSON.parse(
+          result.sdkOptions.extraArgs?.["mcp-config"] as string,
+        );
+        expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
+        expect(Object.keys(mcpConfig.mcpServers)).toHaveLength(1);
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    test("should fall back to passthrough (not corrupt the merge) when an existing mcp-config file's mcpServers is a string", () => {
+      const tempDir = mkdtempSync(join(tmpdir(), "mcp-config-test-"));
+      const userConfigPath = join(tempDir, "string-mcp-servers.json");
+      try {
+        writeFileSync(
+          userConfigPath,
+          JSON.stringify({ mcpServers: "not-an-object" }),
+        );
+
+        const actionConfig = JSON.stringify({
+          mcpServers: {
+            github_comment: { command: "node", args: ["server.js"] },
+          },
+        });
+
+        const options: ClaudeOptions = {
+          claudeArgs: `--mcp-config '${actionConfig}' --mcp-config ${userConfigPath}`,
+        };
+
+        const result = parseSdkOptions(options);
+
+        const mcpConfig = JSON.parse(
+          result.sdkOptions.extraArgs?.["mcp-config"] as string,
+        );
+        expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
+        // The corrupted-merge failure mode spreads the string char-by-char
+        // into numeric keys ("0", "1", ...) - assert none of those exist.
+        expect(mcpConfig.mcpServers).not.toHaveProperty("0");
+        expect(mcpConfig.mcpServers).not.toHaveProperty("1");
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    test("should fall back to passthrough (not corrupt the merge) when an existing mcp-config file's mcpServers is an array", () => {
+      const tempDir = mkdtempSync(join(tmpdir(), "mcp-config-test-"));
+      const userConfigPath = join(tempDir, "array-mcp-servers.json");
+      try {
+        writeFileSync(
+          userConfigPath,
+          JSON.stringify({ mcpServers: ["not", "an", "object"] }),
+        );
+
+        const actionConfig = JSON.stringify({
+          mcpServers: {
+            github_comment: { command: "node", args: ["server.js"] },
+          },
+        });
+
+        const options: ClaudeOptions = {
+          claudeArgs: `--mcp-config '${actionConfig}' --mcp-config ${userConfigPath}`,
+        };
+
+        const result = parseSdkOptions(options);
+
+        const mcpConfig = JSON.parse(
+          result.sdkOptions.extraArgs?.["mcp-config"] as string,
+        );
+        expect(mcpConfig.mcpServers).toHaveProperty("github_comment");
+        // The corrupted-merge failure mode spreads the array by index into
+        // numeric keys ("0", "1", "2") - assert none of those exist.
+        expect(mcpConfig.mcpServers).not.toHaveProperty("0");
+        expect(mcpConfig.mcpServers).not.toHaveProperty("1");
+        expect(mcpConfig.mcpServers).not.toHaveProperty("2");
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
     });
 
     test("should handle mcp-config with other flags", () => {
