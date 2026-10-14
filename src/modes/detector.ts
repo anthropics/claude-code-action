@@ -18,7 +18,12 @@ export function detectMode(context: GitHubContext): AutoDetectedMode {
   }
 
   // If track_progress is set for PR/issue events, force tag mode
-  if (context.inputs.trackProgress && isEntityContext(context)) {
+  // UNLESS a prompt is provided, which explicitly requests agent mode
+  if (
+    context.inputs.trackProgress &&
+    isEntityContext(context) &&
+    !context.inputs.prompt
+  ) {
     if (
       isPullRequestEvent(context) ||
       isIssuesEvent(context) ||

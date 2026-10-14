@@ -8,7 +8,9 @@ import {
 } from "../../github/operations/git-config";
 import { checkHumanActor } from "../../github/validation/actor";
 import type { GitHubContext } from "../../github/context";
+import { isEntityContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
+import { createInitialComment } from "../../github/operations/comments/create-initial";
 
 /**
  * Prepares the agent mode execution context.
@@ -105,6 +107,18 @@ export async function prepareAgentMode({
     process.env.GITHUB_REF_NAME ||
     defaultBranch;
 
+  // Create tracking comment if requested
+  let claudeCommentId: number | undefined = undefined;
+  if (context.inputs.trackProgress && isEntityContext(context)) {
+    try {
+      const commentData = await createInitialComment(octokit.rest, context);
+      claudeCommentId = commentData?.id;
+    } catch (error) {
+      console.error("Failed to create tracking comment:", error);
+      // Continue anyway, it's just a progress tracking comment
+    }
+  }
+
   // Get our GitHub MCP servers config
   const ourMcpConfig = await prepareMcpConfig({
     githubToken,
@@ -112,7 +126,7 @@ export async function prepareAgentMode({
     repo: context.repository.repo,
     branch: currentBranch,
     baseBranch: baseBranch,
-    claudeCommentId: undefined, // No tracking comment in agent mode
+    claudeCommentId, // Pass the tracking comment ID if we created one
     allowedTools,
     mode: "agent",
     context,
@@ -132,7 +146,7 @@ export async function prepareAgentMode({
   claudeArgs = `${claudeArgs} ${userClaudeArgs}`.trim();
 
   return {
-    commentId: undefined,
+    commentId: claudeCommentId,
     branchInfo: {
       baseBranch: baseBranch,
       currentBranch: baseBranch, // Use base branch as current when creating new branch

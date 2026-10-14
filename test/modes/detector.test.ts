@@ -48,6 +48,24 @@ describe("detectMode with enhanced routing", () => {
       expect(detectMode(context)).toBe("tag");
     });
 
+    it("should use agent mode when track_progress is true AND prompt is provided for pull_request.opened", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "pull_request",
+        eventAction: "opened",
+        payload: { pull_request: { number: 1 } } as any,
+        entityNumber: 1,
+        isPR: true,
+        inputs: {
+          ...baseContext.inputs,
+          trackProgress: true,
+          prompt: "review",
+        },
+      };
+
+      expect(detectMode(context)).toBe("agent");
+    });
+
     it("should use tag mode when track_progress is true for pull_request.synchronize", () => {
       const context: GitHubContext = {
         ...baseContext,
