@@ -2,7 +2,7 @@ import { describe, expect, it, beforeAll, afterAll } from "bun:test";
 import { validatePathWithinRepo } from "../src/mcp/path-validation";
 import { resolve } from "path";
 import { mkdir, writeFile, symlink, rm, realpath } from "fs/promises";
-import { tmpdir } from "os";
+import { tmpdir, platform } from "os";
 
 describe("validatePathWithinRepo", () => {
   // Use a real temp directory for tests that need filesystem access
@@ -115,7 +115,7 @@ describe("validatePathWithinRepo", () => {
     });
   });
 
-  describe("symlink attacks", () => {
+  (platform() !== "win32" ? describe : describe.skip)("symlink attacks", () => {
     it("should reject symlinks pointing outside the repo", async () => {
       // Create a symlink inside the repo that points to a file outside
       const symlinkPath = resolve(repoRoot, "evil-link");
