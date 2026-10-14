@@ -1,28 +1,7 @@
 import * as core from "@actions/core";
 import { isWorkflowRunEvent, type GitHubContext } from "../context";
 import type { Octokit } from "@octokit/rest";
-
-/**
- * Check if a bot actor is in the allowed bots list.
- */
-function isAllowedBot(actor: string, allowedBots: string): boolean {
-  const trimmed = allowedBots.trim();
-  if (trimmed === "*") return true;
-  if (!trimmed) return false;
-
-  const allowedList = trimmed
-    .split(",")
-    .map((bot) =>
-      bot
-        .trim()
-        .toLowerCase()
-        .replace(/\[bot\]$/, ""),
-    )
-    .filter((bot) => bot.length > 0);
-
-  const normalizedActor = actor.toLowerCase().replace(/\[bot\]$/, "");
-  return allowedList.includes(normalizedActor);
-}
+import { isAllowedBot } from "../utils/actor-filter";
 
 /**
  * Collect the actors whose repository access should be checked. This is
