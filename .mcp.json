@@ -1,0 +1,96 @@
+{
+  "mcpServers": {
+    "github_comment": {
+      "type": "stdio",
+      "command": "bun",
+      "args": [
+        "--no-env-file",
+        "--config=${CLAUDE_PLUGIN_ROOT}/bunfig.toml",
+        "run",
+        "${CLAUDE_PLUGIN_ROOT}/src/mcp/github-comment-server.ts"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "REPO_OWNER": "${REPO_OWNER}",
+        "REPO_NAME": "${REPO_NAME}",
+        "CLAUDE_COMMENT_ID": "${CLAUDE_COMMENT_ID:-}",
+        "GITHUB_EVENT_NAME": "${GITHUB_EVENT_NAME:-}",
+        "GITHUB_API_URL": "${GITHUB_API_URL:-https://api.github.com}"
+      }
+    },
+    "github_inline_comment": {
+      "type": "stdio",
+      "command": "bun",
+      "args": [
+        "--no-env-file",
+        "--config=${CLAUDE_PLUGIN_ROOT}/bunfig.toml",
+        "run",
+        "${CLAUDE_PLUGIN_ROOT}/src/mcp/github-inline-comment-server.ts"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "REPO_OWNER": "${REPO_OWNER}",
+        "REPO_NAME": "${REPO_NAME}",
+        "PR_NUMBER": "${PR_NUMBER}",
+        "CLASSIFY_INLINE_COMMENTS": "${CLASSIFY_INLINE_COMMENTS:-false}",
+        "GITHUB_API_URL": "${GITHUB_API_URL:-https://api.github.com}"
+      }
+    },
+    "github_file_ops": {
+      "type": "stdio",
+      "command": "bun",
+      "args": [
+        "--no-env-file",
+        "--config=${CLAUDE_PLUGIN_ROOT}/bunfig.toml",
+        "run",
+        "${CLAUDE_PLUGIN_ROOT}/src/mcp/github-file-ops-server.ts"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "REPO_OWNER": "${REPO_OWNER}",
+        "REPO_NAME": "${REPO_NAME}",
+        "BRANCH_NAME": "${BRANCH_NAME}",
+        "BASE_BRANCH": "${BASE_BRANCH:-main}",
+        "REPO_DIR": "${REPO_DIR}",
+        "IS_PR": "${IS_PR:-false}",
+        "GITHUB_EVENT_NAME": "${GITHUB_EVENT_NAME:-}",
+        "GITHUB_API_URL": "${GITHUB_API_URL:-https://api.github.com}"
+      }
+    },
+    "github_ci": {
+      "type": "stdio",
+      "command": "bun",
+      "args": [
+        "--no-env-file",
+        "--config=${CLAUDE_PLUGIN_ROOT}/bunfig.toml",
+        "run",
+        "${CLAUDE_PLUGIN_ROOT}/src/mcp/github-actions-server.ts"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "REPO_OWNER": "${REPO_OWNER}",
+        "REPO_NAME": "${REPO_NAME}",
+        "PR_NUMBER": "${PR_NUMBER}",
+        "RUNNER_TEMP": "${RUNNER_TEMP:-/tmp}"
+      }
+    },
+    "github": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e",
+        "GITHUB_HOST",
+        "ghcr.io/github/github-mcp-server:sha-23fa0dd"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}",
+        "GITHUB_HOST": "${GITHUB_SERVER_URL:-https://github.com}"
+      }
+    }
+  }
+}
