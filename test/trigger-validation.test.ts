@@ -470,6 +470,84 @@ describe("checkContainsTrigger", () => {
       });
     });
   });
+
+  describe("matcher consistency across event types", () => {
+    // The trigger matcher used to be rebuilt independently in each branch.
+    // These pin the invariant that every event type applies the same rule, so a
+    // future change to the pattern cannot reach some branches and miss others.
+    const withTrigger = (
+      base: ParsedGitHubContext,
+      overrides: Partial<ParsedGitHubContext>,
+    ): ParsedGitHubContext => ({
+      ...base,
+      ...overrides,
+      inputs: { ...base.inputs, triggerPhrase: "@claude", prompt: "" },
+    });
+
+    const cases: Array<[string, (body: string) => ParsedGitHubContext]> = [
+      [
+        "issue body",
+        (body) =>
+          withTrigger(mockIssueOpenedContext, {
+            payload: {
+              ...mockIssueOpenedContext.payload,
+              issue: {
+                ...(mockIssueOpenedContext.payload as IssuesEvent).issue,
+                body,
+              },
+            } as IssuesEvent,
+          }),
+      ],
+      [
+        "issue comment",
+        (body) =>
+          withTrigger(mockIssueCommentContext, {
+            payload: {
+              ...mockIssueCommentContext.payload,
+              comment: {
+                ...(mockIssueCommentContext.payload as IssueCommentEvent)
+                  .comment,
+                body,
+              },
+            } as IssueCommentEvent,
+          }),
+      ],
+      [
+        "review body",
+        (body) =>
+          withTrigger(mockPullRequestReviewContext, {
+            payload: {
+              ...mockPullRequestReviewContext.payload,
+              review: {
+                ...(
+                  mockPullRequestReviewContext.payload as PullRequestReviewEvent
+                ).review,
+                body,
+              },
+            } as PullRequestReviewEvent,
+          }),
+      ],
+    ];
+
+    const shouldMatch = [
+      "@claude please look",
+      "hey @claude",
+      "@claude, thoughts?",
+      "@claude",
+    ];
+    const shouldNotMatch = ["email@claude.com", "foo@claudebot", "claude"];
+
+    for (const [name, build] of cases) {
+      it(`matches the trigger phrase the same way in the ${name}`, () => {
+        for (const body of shouldMatch) {
+          expect(checkContainsTrigger(build(body))).toBe(true);
+        }
+        for (const body of shouldNotMatch) {
+          expect(checkContainsTrigger(build(body))).toBe(false);
+        }
+      });
+    }
+  });
 });
 
 describe("escapeRegExp", () => {
