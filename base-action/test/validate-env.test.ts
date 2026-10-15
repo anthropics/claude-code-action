@@ -28,11 +28,62 @@ describe("validateEnvironmentVariables", () => {
     delete process.env.ANTHROPIC_VERTEX_BASE_URL;
     delete process.env.ANTHROPIC_FOUNDRY_RESOURCE;
     delete process.env.ANTHROPIC_FOUNDRY_BASE_URL;
+    delete process.env.ORCAROUTER_API_KEY;
+    delete process.env.INPUT_ORCAROUTER_API_KEY;
+    delete process.env.INPUT_ORCAROUTER_AUTH;
+    delete process.env.INPUT_ORCAROUTER_PROVIDER;
+    delete process.env.ORCAROUTER_AUTH;
+    delete process.env.ORCAROUTER_PROVIDER;
   });
 
   afterEach(() => {
     // Restore the original environment
     process.env = originalEnv;
+  });
+
+  describe("OrcaRouter", () => {
+    test("should pass when an OrcaRouter API key is supplied", () => {
+      process.env.INPUT_ORCAROUTER_API_KEY = "sk-orca-test-key";
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should pass on the account-login entry point", () => {
+      process.env.INPUT_ORCAROUTER_AUTH = "true";
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should pass when the provider flag and a key are both set", () => {
+      process.env.INPUT_ORCAROUTER_PROVIDER = "true";
+      process.env.INPUT_ORCAROUTER_API_KEY = "sk-orca-test-key";
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should fail when the provider is selected without either entry point", () => {
+      process.env.INPUT_ORCAROUTER_PROVIDER = "true";
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "OrcaRouter requires either orcarouter_api_key (an sk-orca-... key) or orcarouter_auth: true (sign in with an OrcaRouter account).",
+      );
+    });
+
+    test("should fail when OrcaRouter is combined with a cloud provider", () => {
+      process.env.INPUT_ORCAROUTER_API_KEY = "sk-orca-test-key";
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.AWS_REGION = "us-east-1";
+      process.env.AWS_ACCESS_KEY_ID = "test-access-key";
+      process.env.AWS_SECRET_ACCESS_KEY = "test-secret-key";
+      expect(() => validateEnvironmentVariables()).toThrow(
+        /Cannot use multiple providers simultaneously/,
+      );
+    });
+
+    test("an ambient ORCAROUTER_API_KEY must not hijack an unrelated run", () => {
+      // Deliberately the bare variable, not the action input: this is what a
+      // user's shell or another tool would export.
+      process.env.ORCAROUTER_API_KEY = "sk-orca-ambient";
+      expect(() => validateEnvironmentVariables()).toThrow(
+        /Either ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, or workload identity federation/,
+      );
+    });
   });
 
   describe("Direct Anthropic API", () => {
@@ -287,7 +338,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.CLOUD_ML_REGION = "us-central1";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY, or the OrcaRouter inputs (orcarouter_api_key / orcarouter_auth).",
       );
     });
 
@@ -301,7 +352,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.ANTHROPIC_FOUNDRY_RESOURCE = "test-resource";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY, or the OrcaRouter inputs (orcarouter_api_key / orcarouter_auth).",
       );
     });
 
@@ -314,7 +365,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.ANTHROPIC_FOUNDRY_RESOURCE = "test-resource";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY, or the OrcaRouter inputs (orcarouter_api_key / orcarouter_auth).",
       );
     });
 
@@ -331,7 +382,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.ANTHROPIC_FOUNDRY_RESOURCE = "test-resource";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY, or the OrcaRouter inputs (orcarouter_api_key / orcarouter_auth).",
       );
     });
   });

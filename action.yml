@@ -101,6 +101,31 @@ inputs:
     required: false
     default: "false"
 
+  # OrcaRouter provider (first-class, OpenAI-compatible gateway)
+  orcarouter_provider:
+    description: "Route inference through OrcaRouter (https://api.orcarouter.ai/v1). Requires orcarouter_api_key or orcarouter_auth."
+    required: false
+    default: "false"
+  orcarouter_api_key:
+    description: "OrcaRouter API key (sk-orca-...). OrcaRouter - API entry point. Find or create keys at https://www.orcarouter.ai/console/token"
+    required: false
+  orcarouter_auth:
+    description: "Use the OrcaRouter - Auth entry point (OAuth 2.0 + PKCE). Set with orcarouter_stage: connect to sign in and store a key, or on its own to reuse the stored login."
+    required: false
+    default: "false"
+  orcarouter_model:
+    description: "Model ID to use with OrcaRouter, in vendor/model form (e.g. openai/gpt-5.5). Must be present in the OrcaRouter model list for this run's entry point; otherwise the selection is cleared."
+    required: false
+    default: ""
+  orcarouter_code:
+    description: "Authorization code shown on the OrcaRouter consent screen, used by orcarouter_stage: connect. A GitHub Actions step cannot rely on an interactive prompt."
+    required: false
+    default: ""
+  orcarouter_stage:
+    description: "Run a standalone OrcaRouter credential command instead of an inference run. One of: connect (sign in and store a key), logout (remove the stored login), status (report the configured entry point, secret masked)."
+    required: false
+    default: ""
+
   claude_args:
     description: "Additional arguments to pass directly to Claude CLI"
     required: false
@@ -344,6 +369,19 @@ runs:
         CLAUDE_CODE_USE_BEDROCK: ${{ inputs.use_bedrock == 'true' && '1' || '' }}
         CLAUDE_CODE_USE_VERTEX: ${{ inputs.use_vertex == 'true' && '1' || '' }}
         CLAUDE_CODE_USE_FOUNDRY: ${{ inputs.use_foundry == 'true' && '1' || '' }}
+
+        # OrcaRouter provider. Authentication lives on www.orcarouter.ai and
+        # inference on api.orcarouter.ai/v1; the origins are never derived from
+        # one another. ORCA_* overrides are for self-hosted deployments.
+        INPUT_ORCAROUTER_PROVIDER: ${{ inputs.orcarouter_provider }}
+        INPUT_ORCAROUTER_API_KEY: ${{ inputs.orcarouter_api_key }}
+        INPUT_ORCAROUTER_AUTH: ${{ inputs.orcarouter_auth }}
+        INPUT_ORCAROUTER_MODEL: ${{ inputs.orcarouter_model }}
+        INPUT_ORCAROUTER_CODE: ${{ inputs.orcarouter_code }}
+        INPUT_ORCAROUTER_STAGE: ${{ inputs.orcarouter_stage }}
+        ORCA_BASE_URL: ${{ env.ORCA_BASE_URL }}
+        ORCA_AUTH_BASE_URL: ${{ env.ORCA_AUTH_BASE_URL }}
+        ORCA_API_BASE_URL: ${{ env.ORCA_API_BASE_URL }}
 
         # AWS configuration
         AWS_REGION: ${{ env.AWS_REGION }}
