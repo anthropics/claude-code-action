@@ -18,9 +18,6 @@ import type { Octokits } from "../github/api/client";
 import {
   parseGitHubContext,
   isEntityContext,
-  isPullRequestEvent,
-  isPullRequestReviewEvent,
-  isPullRequestReviewCommentEvent,
   isWorkflowRunEvent,
 } from "../github/context";
 import type { GitHubContext } from "../github/context";
@@ -28,7 +25,10 @@ import { detectMode } from "../modes/detector";
 import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
 import { checkContainsTrigger } from "../github/validation/trigger";
-import { restoreConfigFromBase } from "../github/operations/restore-config";
+import {
+  restoreBranchFor,
+  restoreConfigFromBase,
+} from "../github/operations/restore-config";
 import { validateBranchName } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
@@ -252,27 +252,16 @@ async function run() {
     validateEnvironmentVariables();
 
     // On PRs, .claude/ and .mcp.json in the checkout are attacker-controlled.
-    // Restore them from the base branch before the CLI reads them.
+    // Restore them before the CLI reads them.
     //
-    // We read pull_request.base.ref from the payload directly because agent
-    // mode's branchInfo.baseBranch defaults to the repo's default branch rather
-    // than the PR's actual target (agent/index.ts). For issue_comment on a PR the payload
-    // lacks base.ref, so we fall back to the mode-provided value — tag mode
-    // fetches it from GraphQL; agent mode on issue_comment is an edge case
-    // that at worst restores from the wrong trusted branch (still secure).
+    // TRI fork: restore from the repository's DEFAULT branch, not the PR's
+    // base.ref. A PR can target any branch, including one its author controls,
+    // and the restore would then treat that branch's CLAUDE.md as trusted. The
+    // default branch is the one reviewed changes land on.
     if (isEntityContext(context) && context.isPR) {
-      let restoreBase = baseBranch;
-      if (
-        isPullRequestEvent(context) ||
-        isPullRequestReviewEvent(context) ||
-        isPullRequestReviewCommentEvent(context)
-      ) {
-        restoreBase = context.payload.pull_request.base.ref;
-        validateBranchName(restoreBase);
-      }
-      if (restoreBase) {
-        restoredConfigPaths = restoreConfigFromBase(restoreBase);
-      }
+      const restoreBase = restoreBranchFor(context);
+      validateBranchName(restoreBase);
+      restoredConfigPaths = restoreConfigFromBase(restoreBase);
     }
 
     await setupClaudeCodeSettings(process.env.INPUT_SETTINGS);

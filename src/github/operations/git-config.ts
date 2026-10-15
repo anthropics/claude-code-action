@@ -105,12 +105,15 @@ export async function replaceCheckoutCredentials(
       : "No existing authentication headers to remove",
   );
 
-  if (process.env.ALLOWED_NON_WRITE_USERS) {
-    // When processing content from non-write users, use a credential helper
-    // instead of embedding the token in the remote URL. The helper script reads
-    // from GH_TOKEN at auth time, so .git/config stays token-free. Written as a
-    // file to avoid shell-escaping the helper body; placed under
-    // GITHUB_ACTION_PATH so it sits alongside the action source.
+  // TRI fork: always use the credential helper rather than embedding the token
+  // in the remote URL. Upstream does this only when ALLOWED_NON_WRITE_USERS is
+  // set; otherwise the token sat in .git/config, inside the working tree Claude
+  // runs in, for the whole job. The helper reads GH_TOKEN at auth time, so
+  // .git/config stays token-free.
+  {
+    // The helper script reads from GH_TOKEN at auth time. Written as a file to
+    // avoid shell-escaping the helper body; placed under GITHUB_ACTION_PATH so
+    // it sits alongside the action source.
     console.log("Configuring git credential helper...");
     process.env.GH_TOKEN = githubToken;
     const helperPath = join(
@@ -126,12 +129,6 @@ export async function replaceCheckoutCredentials(
     await $`git remote set-url origin ${cleanUrl}`;
     await $`git config credential.helper ${helperPath}`;
     console.log("✓ Configured credential helper");
-  } else {
-    // Update the remote URL to include the token for authentication
-    console.log("Updating remote URL with authentication...");
-    const remoteUrl = `https://x-access-token:${githubToken}@${serverUrl.host}/${context.repository.owner}/${context.repository.repo}.git`;
-    await $`git remote set-url origin ${remoteUrl}`;
-    console.log("✓ Updated remote URL with authentication token");
   }
 }
 
