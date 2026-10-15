@@ -363,15 +363,22 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
     rmSync(p, { recursive: true, force: true });
   }
 
+  // Both sides of the refspec are spelled out so that a successful fetch always
+  // leaves baseRef at the branch's tip: a bare name would pick a tag of the same
+  // name on the remote, and would update baseRef only if the configured refspec
+  // covers it. --no-tags keeps the explicit destination from pulling tags in.
+  //
   // --no-recurse-submodules: explicitly suppress submodule fetching regardless of
   // fetch.recurseSubmodules config. Defense-in-depth alongside the delete above.
+  const baseRef = `refs/remotes/origin/${baseBranch}`;
   execFileSync(
     "git",
     [
       "fetch",
       "origin",
-      baseBranch,
+      `+refs/heads/${baseBranch}:${baseRef}`,
       ...fetchDepthArgs(1),
+      "--no-tags",
       "--no-recurse-submodules",
     ],
     {
@@ -380,15 +387,13 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
     },
   );
 
+  // The full ref name, so a tag or local branch called origin/<base> is never
+  // picked over the remote-tracking branch. ^{commit}, because checkout tries
+  // its argument as a branch name first and no ref name can contain "^".
+  const baseCommit = `${baseRef}^{commit}`;
   for (const p of SENSITIVE_PATHS) {
     try {
-      // The full ref name, so a tag or local branch called origin/<base> is
-      // never picked over the remote-tracking branch.
-      execFileSync(
-        "git",
-        ["checkout", `refs/remotes/origin/${baseBranch}`, "--", p],
-        { stdio: "pipe" },
-      );
+      execFileSync("git", ["checkout", baseCommit, "--", p], { stdio: "pipe" });
     } catch {
       // Path doesn't exist on base — it stays deleted.
     }

@@ -75,6 +75,7 @@ jobs:
             --restricted
             --strict-mcp-config
             --tools "Read,Grep,Glob"
+            --settings '{"includeGitInstructions":false}'
 ```
 
 `merge_group` runs in agent mode, so it needs a `prompt` and does not support `track_progress`. The action step succeeds whatever Claude concludes, and with read-only tools and the default output settings nothing Claude finds shows up in the run. To make the queue wait for a verdict, add a step that fails the job when Claude finds a problem, as the example does with `--json-schema` and `structured_output`, then add the job as a required status check. GitHub also requires a required check to pass on the pull request before it can join the queue; the `pull_request` trigger and job-level `if` above handle this, since a job skipped by `if` reports success.

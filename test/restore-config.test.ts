@@ -388,7 +388,17 @@ describe("restoreConfigFromBase", () => {
   test.each([
     ["tag", "refs/tags/origin/main"],
     ["local branch", "refs/heads/origin/main"],
+    ["local branch (full ref name)", "refs/heads/refs/remotes/origin/main"],
   ])("ignores a %s named after the remote-tracking branch", (_kind, ref) => {
+    // Nothing else can supply the base: no local base branch, no
+    // remote-tracking branch yet, and a configured refspec that leaves it out.
+    git(["branch", "-D", "main"]);
+    git(["update-ref", "-d", "refs/remotes/origin/main"]);
+    git([
+      "config",
+      "remote.origin.fetch",
+      "+refs/heads/pr:refs/remotes/origin/pr",
+    ]);
     git(["update-ref", ref, "HEAD"]);
 
     restoreConfigFromBase("main");
@@ -397,6 +407,15 @@ describe("restoreConfigFromBase", () => {
     expect(readRepoFile(".claude/settings.json")).toBe(
       `${JSON.stringify({ source: "base" })}\n`,
     );
+  });
+
+  test("fetches the base branch when the remote has a tag of the same name", () => {
+    git(["push", "origin", "HEAD:refs/tags/main"]);
+    git(["update-ref", "-d", "refs/remotes/origin/main"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("CLAUDE.md")).toBe("base claude instructions\n");
   });
 
   test("does not modify an existing .gitignore", () => {

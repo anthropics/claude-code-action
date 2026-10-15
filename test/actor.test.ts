@@ -185,18 +185,21 @@ describe("checkHumanActor", () => {
       ).resolves.toBeUndefined();
     });
 
-    test("should reject an app that queued the pull request without allowed_bots", async () => {
-      const mockOctokit = createMockOctokit("Bot");
-      const context = createMockAutomationContext({
-        eventName: "merge_group",
-        actor: "merge-bot[bot]",
-        inputs: { allowedBots: "" },
-      });
+    test.each(["merge-bot", "github-merge-queue"])(
+      "should reject %s[bot] without allowed_bots",
+      async (name) => {
+        const mockOctokit = createMockOctokit("Bot");
+        const context = createMockAutomationContext({
+          eventName: "merge_group",
+          actor: `${name}[bot]`,
+          inputs: { allowedBots: "" },
+        });
 
-      await expect(checkHumanActor(mockOctokit, context)).rejects.toThrow(
-        "Workflow initiated by non-human actor: merge-bot (type: Bot). Add bot to allowed_bots list or use '*' to allow all bots.",
-      );
-    });
+        await expect(checkHumanActor(mockOctokit, context)).rejects.toThrow(
+          `Workflow initiated by non-human actor: ${name} (type: Bot). Add bot to allowed_bots list or use '*' to allow all bots.`,
+        );
+      },
+    );
 
     test("should pass for an app that queued the pull request when it is in allowed_bots", async () => {
       const mockOctokit = createMockOctokit("Bot");
