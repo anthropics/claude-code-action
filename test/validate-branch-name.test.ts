@@ -38,6 +38,12 @@ describe("validateBranchName", () => {
       ).not.toThrow();
     });
 
+    it("should accept Renovate branch names containing equals signs", () => {
+      expect(() =>
+        validateBranchName("renovate/npm-handlebars-=4.0.0-4.7.9-vulnerability"),
+      ).not.toThrow();
+    });
+
     it("should accept typical branch name formats", () => {
       expect(() =>
         validateBranchName("claude/issue-123-20250101-1234"),
