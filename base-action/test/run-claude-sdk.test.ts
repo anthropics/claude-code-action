@@ -218,7 +218,69 @@ describe("runClaudeWithSdk", () => {
     }
   });
 
-  test("fails closed when a successful result exceeds maxTurns", async () => {
+  test("does not fail when num_turns exceeds maxTurns but assistant rounds stay within limit", async () => {
+    const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+    process.env.RUNNER_TEMP = tempDir;
+
+    const promptPath = join(tempDir, "prompt.txt");
+    await writeFile(promptPath, "test prompt");
+
+    const initMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "session-123",
+      model: "claude-opus-4-7",
+    };
+
+    const assistantMessages = Array.from({ length: 36 }, (_, index) => ({
+      type: "assistant",
+      message: {
+        id: `msg-${index}`,
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: "working" }],
+      },
+      session_id: "session-123",
+    }));
+
+    const successResultMessage = {
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      duration_ms: 960000,
+      num_turns: 108,
+      total_cost_usd: 0,
+      permission_denials: [],
+    };
+
+    mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+      query: async function* () {
+        yield initMessage;
+        for (const message of assistantMessages) {
+          yield message;
+        }
+        yield successResultMessage;
+      },
+    }));
+
+    try {
+      const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+      await expect(
+        runClaudeWithSdk(promptPath, {
+          sdkOptions: { maxTurns: 80 },
+          showFullOutput: false,
+          hasJsonSchema: false,
+        }),
+      ).resolves.toMatchObject({ conclusion: "success" });
+    } finally {
+      consoleLogSpy.mockRestore();
+    }
+  });
+
+  test("fails closed when assistant rounds exceed maxTurns", async () => {
     const consoleErrorSpy = spyOn(console, "error").mockImplementation(
       () => {},
     );
@@ -241,12 +303,23 @@ describe("runClaudeWithSdk", () => {
       model: "claude-opus-4-7",
     };
 
+    const assistantMessages = Array.from({ length: 61 }, (_, index) => ({
+      type: "assistant",
+      message: {
+        id: `msg-${index}`,
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: "working" }],
+      },
+      session_id: "session-123",
+    }));
+
     const successResultMessage = {
       type: "result",
       subtype: "success",
       is_error: false,
       duration_ms: 960000,
-      num_turns: 73,
+      num_turns: 180,
       total_cost_usd: 0,
       permission_denials: [],
     };
@@ -254,6 +327,9 @@ describe("runClaudeWithSdk", () => {
     mock.module("@anthropic-ai/claude-agent-sdk", () => ({
       query: async function* () {
         yield initMessage;
+        for (const message of assistantMessages) {
+          yield message;
+        }
         yield successResultMessage;
       },
     }));
@@ -268,15 +344,19 @@ describe("runClaudeWithSdk", () => {
           hasJsonSchema: false,
         }),
       ).rejects.toThrow(
-        "Claude reported a successful result after 73 turns, exceeding the configured maximum of 60",
+        "Claude reported a successful result after 61 assistant rounds, exceeding the configured maximum of 60",
       );
 
       const executionFile = join(tempDir, "claude-execution-output.json");
       await expect(readFile(executionFile, "utf-8")).resolves.toBe(
-        JSON.stringify([initMessage, successResultMessage], null, 2),
+        JSON.stringify(
+          [initMessage, ...assistantMessages, successResultMessage],
+          null,
+          2,
+        ),
       );
       expect(coreErrorSpy).toHaveBeenCalledWith(
-        "Claude reported a successful result after 73 turns, exceeding the configured maximum of 60",
+        "Claude reported a successful result after 61 assistant rounds, exceeding the configured maximum of 60",
       );
     } finally {
       consoleErrorSpy.mockRestore();
