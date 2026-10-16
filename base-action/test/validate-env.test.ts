@@ -16,6 +16,7 @@ describe("validateEnvironmentVariables", () => {
     delete process.env.CLAUDE_CODE_USE_BEDROCK;
     delete process.env.CLAUDE_CODE_USE_VERTEX;
     delete process.env.CLAUDE_CODE_USE_FOUNDRY;
+    delete process.env.CLAUDE_CODE_USE_ANTHROPIC_AWS;
     delete process.env.AWS_REGION;
     delete process.env.AWS_ACCESS_KEY_ID;
     delete process.env.AWS_SECRET_ACCESS_KEY;
@@ -28,6 +29,9 @@ describe("validateEnvironmentVariables", () => {
     delete process.env.ANTHROPIC_VERTEX_BASE_URL;
     delete process.env.ANTHROPIC_FOUNDRY_RESOURCE;
     delete process.env.ANTHROPIC_FOUNDRY_BASE_URL;
+    delete process.env.ANTHROPIC_AWS_WORKSPACE_ID;
+    delete process.env.ANTHROPIC_AWS_API_KEY;
+    delete process.env.ANTHROPIC_AWS_BASE_URL;
   });
 
   afterEach(() => {
@@ -275,6 +279,86 @@ describe("validateEnvironmentVariables", () => {
     });
   });
 
+  describe("Claude Platform on AWS", () => {
+    test("should pass when all required variables are provided via SigV4", () => {
+      process.env.CLAUDE_CODE_USE_ANTHROPIC_AWS = "1";
+      process.env.AWS_REGION = "us-east-1";
+      process.env.ANTHROPIC_AWS_WORKSPACE_ID = "wrkspc_test";
+      process.env.AWS_ACCESS_KEY_ID = "test-access-key";
+      process.env.AWS_SECRET_ACCESS_KEY = "test-secret-key";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should pass when ANTHROPIC_AWS_API_KEY is provided instead of SigV4 credentials", () => {
+      process.env.CLAUDE_CODE_USE_ANTHROPIC_AWS = "1";
+      process.env.AWS_REGION = "us-east-1";
+      process.env.ANTHROPIC_AWS_WORKSPACE_ID = "wrkspc_test";
+      process.env.ANTHROPIC_AWS_API_KEY = "test-api-key";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should pass with optional ANTHROPIC_AWS_BASE_URL", () => {
+      process.env.CLAUDE_CODE_USE_ANTHROPIC_AWS = "1";
+      process.env.AWS_REGION = "us-east-1";
+      process.env.ANTHROPIC_AWS_WORKSPACE_ID = "wrkspc_test";
+      process.env.ANTHROPIC_AWS_API_KEY = "test-api-key";
+      process.env.ANTHROPIC_AWS_BASE_URL = "https://test.url";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test("should fail when AWS_REGION is missing", () => {
+      process.env.CLAUDE_CODE_USE_ANTHROPIC_AWS = "1";
+      process.env.ANTHROPIC_AWS_WORKSPACE_ID = "wrkspc_test";
+      process.env.ANTHROPIC_AWS_API_KEY = "test-api-key";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "AWS_REGION is required when using Claude Platform on AWS.",
+      );
+    });
+
+    test("should fail when ANTHROPIC_AWS_WORKSPACE_ID is missing", () => {
+      process.env.CLAUDE_CODE_USE_ANTHROPIC_AWS = "1";
+      process.env.AWS_REGION = "us-east-1";
+      process.env.ANTHROPIC_AWS_API_KEY = "test-api-key";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "ANTHROPIC_AWS_WORKSPACE_ID is required when using Claude Platform on AWS.",
+      );
+    });
+
+    test("should fail when no authentication method is provided", () => {
+      process.env.CLAUDE_CODE_USE_ANTHROPIC_AWS = "1";
+      process.env.AWS_REGION = "us-east-1";
+      process.env.ANTHROPIC_AWS_WORKSPACE_ID = "wrkspc_test";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "Either ANTHROPIC_AWS_API_KEY or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using Claude Platform on AWS.",
+      );
+    });
+
+    test("should fail when only AWS_ACCESS_KEY_ID is provided without secret key or API key", () => {
+      process.env.CLAUDE_CODE_USE_ANTHROPIC_AWS = "1";
+      process.env.AWS_REGION = "us-east-1";
+      process.env.ANTHROPIC_AWS_WORKSPACE_ID = "wrkspc_test";
+      process.env.AWS_ACCESS_KEY_ID = "test-access-key";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "Either ANTHROPIC_AWS_API_KEY or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using Claude Platform on AWS.",
+      );
+    });
+
+    test("should report all missing required variables", () => {
+      process.env.CLAUDE_CODE_USE_ANTHROPIC_AWS = "1";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        /AWS_REGION is required when using Claude Platform on AWS.*ANTHROPIC_AWS_WORKSPACE_ID is required when using Claude Platform on AWS.*Either ANTHROPIC_AWS_API_KEY or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using Claude Platform on AWS/s,
+      );
+    });
+  });
+
   describe("Multiple providers", () => {
     test("should fail when both Bedrock and Vertex are enabled", () => {
       process.env.CLAUDE_CODE_USE_BEDROCK = "1";
@@ -287,7 +371,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.CLOUD_ML_REGION = "us-central1";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY, or CLAUDE_CODE_USE_ANTHROPIC_AWS.",
       );
     });
 
@@ -301,7 +385,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.ANTHROPIC_FOUNDRY_RESOURCE = "test-resource";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY, or CLAUDE_CODE_USE_ANTHROPIC_AWS.",
       );
     });
 
@@ -314,14 +398,29 @@ describe("validateEnvironmentVariables", () => {
       process.env.ANTHROPIC_FOUNDRY_RESOURCE = "test-resource";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY, or CLAUDE_CODE_USE_ANTHROPIC_AWS.",
       );
     });
 
-    test("should fail when all three providers are enabled", () => {
+    test("should fail when Bedrock and Claude Platform on AWS are enabled", () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.CLAUDE_CODE_USE_ANTHROPIC_AWS = "1";
+      // Provide all required vars to isolate the mutual exclusion error
+      process.env.AWS_REGION = "us-east-1";
+      process.env.AWS_ACCESS_KEY_ID = "test-access-key";
+      process.env.AWS_SECRET_ACCESS_KEY = "test-secret-key";
+      process.env.ANTHROPIC_AWS_WORKSPACE_ID = "wrkspc_test";
+
+      expect(() => validateEnvironmentVariables()).toThrow(
+        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY, or CLAUDE_CODE_USE_ANTHROPIC_AWS.",
+      );
+    });
+
+    test("should fail when all four providers are enabled", () => {
       process.env.CLAUDE_CODE_USE_BEDROCK = "1";
       process.env.CLAUDE_CODE_USE_VERTEX = "1";
       process.env.CLAUDE_CODE_USE_FOUNDRY = "1";
+      process.env.CLAUDE_CODE_USE_ANTHROPIC_AWS = "1";
       // Provide all required vars to isolate the mutual exclusion error
       process.env.AWS_REGION = "us-east-1";
       process.env.AWS_ACCESS_KEY_ID = "test-access-key";
@@ -329,9 +428,10 @@ describe("validateEnvironmentVariables", () => {
       process.env.ANTHROPIC_VERTEX_PROJECT_ID = "test-project";
       process.env.CLOUD_ML_REGION = "us-central1";
       process.env.ANTHROPIC_FOUNDRY_RESOURCE = "test-resource";
+      process.env.ANTHROPIC_AWS_WORKSPACE_ID = "wrkspc_test";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+        "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY, or CLAUDE_CODE_USE_ANTHROPIC_AWS.",
       );
     });
   });
