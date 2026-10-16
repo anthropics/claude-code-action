@@ -637,5 +637,62 @@ describe("parseSdkOptions", () => {
         process.env = originalEnv;
       }
     });
+
+    const bedrockEnvKeys = [
+      ["AWS_BEARER_TOKEN_BEDROCK", "bedrock-api-key"],
+      ["ANTHROPIC_BEDROCK_BASE_URL", "https://bedrock-proxy.example.com"],
+    ] as const;
+
+    test.each(
+      bedrockEnvKeys.flatMap(([key]) => [
+        [key, "empty", ""],
+        [key, "whitespace-only", "   "],
+      ]),
+    )("should drop %s from env when it is %s", (key, _label, value) => {
+      const originalEnv = { ...process.env };
+      process.env[key] = value;
+
+      try {
+        const result = parseSdkOptions({});
+
+        expect(result.sdkOptions.env).toBeDefined();
+        expect(key in result.sdkOptions.env!).toBeFalse();
+      } finally {
+        process.env = originalEnv;
+      }
+    });
+
+    test.each(bedrockEnvKeys)(
+      "should keep a non-empty %s in env",
+      (key, value) => {
+        const originalEnv = { ...process.env };
+        process.env[key] = value;
+
+        try {
+          const result = parseSdkOptions({});
+
+          expect(result.sdkOptions.env?.[key]).toBe(value);
+        } finally {
+          process.env = originalEnv;
+        }
+      },
+    );
+
+    test.each(bedrockEnvKeys)(
+      "should not add %s to env when it is unset",
+      (key, _value) => {
+        const originalEnv = { ...process.env };
+        delete process.env[key];
+
+        try {
+          const result = parseSdkOptions({});
+
+          expect(result.sdkOptions.env).toBeDefined();
+          expect(key in result.sdkOptions.env!).toBeFalse();
+        } finally {
+          process.env = originalEnv;
+        }
+      },
+    );
   });
 });
