@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Wrapper around `git push` that only allows `origin <ref>` with no flags.
+# Wrapper around `git push` that only allows `origin <ref>` with no flags and
+# no force.
 # Defends against --receive-pack / --exec RCE and arbitrary-remote exfiltration
 # (H1 #3556799). `git push:*` in allowedTools permits `git push --receive-pack='sh -c ...' ext::sh`
 # which runs arbitrary shell on the Actions runner. This wrapper closes that.
+#
+# A leading `+` is git's refspec force marker, not a flag, and
+# `git check-ref-format --branch` accepts it, so `origin +<ref>` would otherwise
+# slip past the checks below and rewrite the remote branch.
 #
 # Usage:
 #   git-push.sh origin HEAD
@@ -18,6 +23,10 @@ fi
 for arg in "$@"; do
   if [[ "$arg" == -* ]]; then
     echo "Error: flags are not allowed (got: $arg)" >&2
+    exit 1
+  fi
+  if [[ "$arg" == +* ]]; then
+    echo "Error: force refspecs are not allowed (got: $arg)" >&2
     exit 1
   fi
 done
