@@ -10,6 +10,7 @@ import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import {
   fetchGitHubData,
   resolveTriggerTimestamp,
+  extractTriggerEntityId,
   extractOriginalTitle,
   extractOriginalBody,
 } from "../../github/data/fetcher";
@@ -47,6 +48,7 @@ export async function prepareTagMode({
   const commentId = commentData.id;
 
   const triggerTime = await resolveTriggerTimestamp(context, octokit);
+  const triggerEntityId = extractTriggerEntityId(context);
   const originalTitle = extractOriginalTitle(context);
   const originalBody = extractOriginalBody(context);
 
@@ -57,6 +59,7 @@ export async function prepareTagMode({
     isPR: context.isPR,
     triggerUsername: context.actor,
     triggerTime,
+    triggerEntityId,
     originalTitle,
     originalBody,
     includeCommentsByActor: context.inputs.includeCommentsByActor,
