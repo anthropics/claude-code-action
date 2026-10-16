@@ -1,0 +1,147 @@
+name: Claude Merge Queue Check
+
+# Runs when pull requests enter a merge queue. To make the queue wait for this
+# check, add the `claude-merge-check` job as a required status check in the
+# target branch's ruleset or branch protection rule once this file is on that
+# branch.
+#
+# GitHub reads this file from the merge group commit, so a queued pull request
+# that edits it runs its own version. Require a trusted review for changes
+# under .github/workflows/, for example with CODEOWNERS and required code owner
+# reviews. See "Using this action with merge_group" in docs/security.md.
+on:
+  pull_request:
+  merge_group:
+    types: [checks_requested]
+
+jobs:
+  claude-merge-check:
+    # A required check must also pass on the pull request before it can join
+    # the queue. A job skipped by `if` reports success, so the check passes on
+    # the pull request and Claude only runs in the merge queue.
+    if: github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    # Stops a run that stalls from holding up the entries behind it. A timeout
+    # cancels the job, which the queue counts as a failed check and by default
+    # removes the entry, so allow enough time for your repository's largest
+    # merge groups. Any other failure of the review step, such as an Anthropic
+    # API error, fails the check the same way. Queue the pull request again to
+    # retry.
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout merge group
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # Need the target branch to diff against
+
+      # Diff against the target branch rather than merge_group.base_sha so the
+      # review also covers queue entries ahead of this one that have not merged
+      # yet. Writing the diff to a file lets Claude review it without Bash.
+      #
+      # The checkout is the queued pull requests' content, so it should not
+      # decide what the diff shows or where it lands:
+      # - --attr-source (git 2.41+) reads .gitattributes from the target branch,
+      #   so a queued pull request cannot mark a file -diff or binary to keep
+      #   its content out of the diff.
+      # - --ignore-submodules=none shows submodule changes even if .gitmodules
+      #   sets `ignore`.
+      # - rm keeps a committed merge-group.diff symlink from redirecting the
+      #   write.
+      # - The full ref name keeps a tag called origin/<branch> from being picked
+      #   instead of the target branch.
+      # - The trailing -- keeps a committed path named like the revision from
+      #   making the command ambiguous.
+      - name: Write the merge group diff
+        env:
+          BASE_REF: ${{ github.event.merge_group.base_ref }}
+        run: |
+          base="refs/remotes/origin/${BASE_REF#refs/heads/}"
+          rm -rf merge-group.diff
+          git --attr-source="$base" diff --ignore-submodules=none "$base...HEAD" -- > merge-group.diff
+
+      - name: Review the merge group
+        id: review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # The workflow token limits Claude to this job's read-only
+          # permissions. It also avoids the Claude GitHub App's token exchange,
+          # which skips the run whenever this workflow file differs from the
+          # default branch's copy, as it does when a queued pull request
+          # edits it.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # GitHub attributes the run to whoever queued the pull request. If an
+          # app such as a merge bot queues them, list it here, or the action
+          # rejects the run and the check fails.
+          # allowed_bots: "my-merge-bot[bot]"
+
+          # Claude pages through a diff that is too large for one read and may
+          # only search or sample it, so a change buried in a very large diff
+          # can get through. Treat this check as a backstop to human review, not
+          # a replacement for it.
+          #
+          # The last paragraph blocks text files that git reports as binary or
+          # that are Git LFS pointers. If the target branch's own .gitattributes
+          # marks files such as lock files or snapshots -diff or binary, or
+          # keeps them in Git LFS, name them in that paragraph as exceptions, or
+          # every change to them is blocked.
+          prompt: |
+            REPO: ${{ github.repository }}
+            TARGET BRANCH: ${{ github.event.merge_group.base_ref }}
+
+            merge-group.diff contains every change that this merge group would
+            bring into the target branch. Decide whether anything in it must
+            not reach the target branch, such as committed secrets or
+            credentials, debugging code left in, or conflict markers. Do not
+            block on style or design preferences. In the reason, name the file
+            but never quote a secret or credential value.
+
+            The diff names binary files without showing their content, and it
+            shows a file stored in Git LFS only as a pointer that starts with
+            "version https://git-lfs.github.com/spec/v1". Block the merge if a
+            file of either kind has a name that suggests text, such as source
+            code, a script or a config file, because its content cannot be
+            reviewed here.
+          # --tools sets which built-in tools the session has. --allowedTools
+          # alone would only pre-approve tools and leave the rest, Bash among
+          # them, to the permission mode.
+          #
+          # --restricted keeps the file tools inside the workspace and ignores
+          # settings files, so no hooks run, and --strict-mcp-config skips
+          # .mcp.json. The session also loads no CLAUDE.md or skills and ignores
+          # this action's `settings` input, so put everything the check should
+          # enforce in the prompt.
+          #
+          # includeGitInstructions is off because Claude Code otherwise opens
+          # the conversation with `git status` output and the latest commit
+          # subjects, ahead of the prompt. Queued pull requests write both. Only
+          # the last --settings counts, so add any other settings to this JSON.
+          claude_args: |
+            --restricted
+            --strict-mcp-config
+            --tools "Read,Grep,Glob"
+            --settings '{"includeGitInstructions":false}'
+            --json-schema '{"type":"object","properties":{"block_merge":{"type":"boolean","description":"Whether the merge group contains something that must not merge"},"reason":{"type":"string","description":"One-sentence explanation"}},"required":["block_merge","reason"]}'
+
+      - name: Fail the check unless Claude approved the merge group
+        env:
+          RESULT: ${{ steps.review.outputs.structured_output }}
+        run: |
+          if [ -z "$RESULT" ]; then
+            echo "::error::Claude did not return a verdict for this merge group"
+            exit 1
+          fi
+          # The reason can quote text from the diff, so workflow commands are
+          # off while it prints. The token is random and chosen after Claude
+          # has finished, so nothing in the reason can turn them back on.
+          stop_token="$(openssl rand -hex 16)"
+          echo "::stop-commands::$stop_token"
+          echo "Reason: $(jq '.reason' <<<"$RESULT")"
+          echo "::$stop_token::"
+          if [ "$(jq '.block_merge' <<<"$RESULT")" != "false" ]; then
+            echo "::error::Claude blocked this merge group"
+            exit 1
+          fi
