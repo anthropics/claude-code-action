@@ -303,6 +303,15 @@ export function prepareContext(
           baseBranch,
           claudeBranch,
         };
+      } else if (eventAction === "edited") {
+        eventData = {
+          eventName: "issues",
+          eventAction: "edited",
+          isPR: false,
+          issueNumber,
+          baseBranch,
+          claudeBranch,
+        };
       } else {
         throw new Error(`Unsupported issue action: ${eventAction}`);
       }
@@ -366,6 +375,11 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
         return {
           eventType: "ISSUE_CREATED",
           triggerContext: `new issue with '${envVars.triggerPhrase}' in body`,
+        };
+      } else if (eventData.eventAction === "edited") {
+        return {
+          eventType: "ISSUE_EDITED",
+          triggerContext: `issue edited`,
         };
       } else if (eventData.eventAction === "labeled") {
         return {
@@ -732,6 +746,7 @@ Follow these steps:
    - For ISSUE_CREATED: Read the issue body to find the request after the trigger phrase.
    - For ISSUE_ASSIGNED: Read the entire issue body to understand the task.
    - For ISSUE_LABELED: Read the entire issue body to understand the task.
+   - For ISSUE_EDITED: Read the entire issue body to understand the task.
 ${eventData.eventName === "issue_comment" || eventData.eventName === "pull_request_review_comment" || eventData.eventName === "pull_request_review" ? `   - For comment/review events: Your instructions are in the <trigger_comment> tag above.` : ""}${
     eventData.isPR && eventData.baseBranch
       ? `
