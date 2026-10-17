@@ -121,8 +121,14 @@ export async function prepareTagMode({
   );
 
   const userClaudeArgs = process.env.CLAUDE_ARGS || "";
-  const userAllowedMCPTools = parseAllowedTools(userClaudeArgs).filter((tool) =>
-    tool.startsWith("mcp__github_"),
+  // Keep every github server rule the user granted: the bare server-level
+  // shorthand ("mcp__github", which allows all of that server's tools), the
+  // qualified tool names ("mcp__github__get_commit"), and the action's own
+  // servers ("mcp__github_comment", ...). install-mcp-server.ts decides which
+  // servers to start from this list and accepts the same bare name, so
+  // filtering it out would grant Claude tools whose server is never installed.
+  const userAllowedMCPTools = parseAllowedTools(userClaudeArgs).filter(
+    (tool) => tool === "mcp__github" || tool.startsWith("mcp__github_"),
   );
 
   const gitPushWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-push.sh`;
