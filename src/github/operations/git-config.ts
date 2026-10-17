@@ -178,6 +178,50 @@ export async function setupSshSigning(sshSigningKey: string): Promise<void> {
  * Clean up the SSH signing key file
  * Should be called in the post step for security
  */
+/**
+ * Strip the credential this action put in the origin URL.
+ *
+ * replaceCheckoutCredentials() writes the token into the remote URL, and the
+ * composite revokes that token when it minted it. Nothing restored the URL, so
+ * origin kept pointing at a dead credential for the rest of the job and any
+ * later step that talked to origin failed with "Invalid username or token" —
+ * including a second invocation of this action, whose tag-mode setupBranch
+ * fetches before configuring auth of its own.
+ *
+ * Reads the URL back from git rather than rebuilding it, so a remote this
+ * action never touched (an ssh remote, a URL git cannot parse, one with no
+ * userinfo) is left exactly as it is.
+ */
+export async function removeOriginCredentials(): Promise<void> {
+  let currentUrl: string;
+  try {
+    currentUrl = (await $`git remote get-url origin`.text()).trim();
+  } catch {
+    // No origin remote, or not a git repository.
+    return;
+  }
+  if (!currentUrl) {
+    return;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(currentUrl);
+  } catch {
+    // scp-style ssh remotes and the like are not URLs; nothing to strip.
+    return;
+  }
+  if (!parsed.username && !parsed.password) {
+    console.log("No credential in the origin URL to remove");
+    return;
+  }
+
+  parsed.username = "";
+  parsed.password = "";
+  await $`git remote set-url origin ${parsed.toString()}`;
+  console.log("✓ Removed the credential from the origin URL");
+}
+
 export async function cleanupSshSigning(): Promise<void> {
   try {
     await rm(SSH_SIGNING_KEY_PATH, { force: true });
