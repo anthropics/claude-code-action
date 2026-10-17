@@ -1,3 +1,4 @@
+import * as core from "@actions/core";
 import { parse as parseShellArgs } from "shell-quote";
 import type { ClaudeOptions } from "./run-claude";
 import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
@@ -52,6 +53,28 @@ function escapeShellMeta(s: string): string {
 
 function unescapeShellMeta(s: string): string {
   return s.replace(SHELL_META_UNESCAPE_RE, (c) => SHELL_META_UNESCAPE.get(c)!);
+}
+
+// A `:*` suffix is equivalent to a trailing ` *`, so `Bash(prefix:*)` only
+// matches when the command continues with a space. A prefix ending in `/` or
+// `=` is written to be followed directly by more text (an ID, a value), which
+// such a rule silently never matches — e.g. `Bash(gh api .../comments/:*)`
+// denies `gh api .../comments/12345` (#1823).
+const COLON_STAR_AFTER_JOINER_RE = /[/=]:\*\)$/;
+
+function warnOnUnmatchableColonStarRules(
+  flag: "allowedTools" | "disallowedTools",
+  tools: string[],
+): void {
+  for (const tool of tools) {
+    if (!COLON_STAR_AFTER_JOINER_RE.test(tool)) continue;
+    const suggestion = tool.replace(/:\*\)$/, "*)");
+    core.warning(
+      `--${flag} rule "${tool}" only matches commands with a space after the prefix, ` +
+        `because ":*" is equivalent to a trailing " *". ` +
+        `To match text that follows the prefix directly, use "${suggestion}".`,
+    );
+  }
 }
 
 type McpConfig = {
@@ -264,6 +287,9 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   ];
   delete extraArgs["disallowedTools"];
   delete extraArgs["disallowed-tools"];
+
+  warnOnUnmatchableColonStarRules("allowedTools", mergedAllowedTools);
+  warnOnUnmatchableColonStarRules("disallowedTools", mergedDisallowedTools);
 
   // Merge multiple --mcp-config values by combining their mcpServers objects
   // The action prepends its config (github_comment, github_ci, etc.) as inline JSON,
