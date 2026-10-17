@@ -1,14 +1,27 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect, beforeAll } from "bun:test";
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  spyOn,
+} from "bun:test";
+import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
+import os from "os";
+import path from "path";
 import {
   generatePrompt,
   getEventTypeAndContext,
   buildAllowedToolsString,
   buildDisallowedToolsString,
   prepareContext,
+  createPrompt,
 } from "../src/create-prompt";
 import type { PreparedContext } from "../src/create-prompt";
+import type { FetchDataResult } from "../src/github/data/fetcher";
 import { createMockContext } from "./mockContext";
 
 beforeAll(() => {
@@ -1385,5 +1398,154 @@ describe("prepareContext validation errors", () => {
     expect(() => prepareContext(context, commentId)).toThrow(
       "CLAUDE_BRANCH is required for issue_comment event",
     );
+  });
+});
+
+describe("createPrompt", () => {
+  const originalEnv = {
+    RUNNER_TEMP: process.env.RUNNER_TEMP,
+    GITHUB_ENV: process.env.GITHUB_ENV,
+  };
+  let tempDir: string;
+  let consoleLogSpy: ReturnType<typeof spyOn>;
+
+  const issueData: FetchDataResult = {
+    contextData: {
+      title: "Test issue",
+      body: "Issue body",
+      author: { login: "someone" },
+      createdAt: "2024-01-01T00:00:00Z",
+      state: "OPEN",
+      labels: { nodes: [] },
+      comments: { nodes: [] },
+    },
+    comments: [],
+    changedFiles: [],
+    changedFilesWithSHA: [],
+    reviewData: null,
+    imageUrlMap: new Map<string, string>(),
+  };
+
+  const issueCommentContext = (commentBody: string) =>
+    createMockContext({
+      eventName: "issue_comment",
+      eventAction: "created",
+      isPR: false,
+      entityNumber: 1,
+      inputs: { triggerPhrase: "@claude" },
+      payload: {
+        action: "created",
+        issue: { number: 1, title: "Test issue", body: "Issue body" },
+        comment: {
+          id: 55,
+          body: commentBody,
+          user: { login: "someone", id: 9 },
+        },
+      } as any,
+    });
+
+  const readUserRequest = () =>
+    readFile(
+      path.join(tempDir, "claude-prompts", "claude-user-request.txt"),
+      "utf-8",
+    );
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(path.join(os.tmpdir(), "create-prompt-test-"));
+    process.env.RUNNER_TEMP = tempDir;
+    process.env.GITHUB_ENV = path.join(tempDir, "github_env");
+    await writeFile(process.env.GITHUB_ENV, "");
+    consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  afterEach(async () => {
+    consoleLogSpy.mockRestore();
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  test("strips hidden content from the user request file", async () => {
+    // The same hidden channels sanitizeContent removes from the
+    // <trigger_comment> block must not reach the model through the separate
+    // user request block either.
+    const context = issueCommentContext(
+      "@claude summarize this issue <!-- injected --> \u200Bplease ![hidden alt text](https://example.com/image.png)",
+    );
+
+    await createPrompt(
+      1,
+      "main",
+      "claude/issue-1-20240101-1200",
+      issueData,
+      context,
+    );
+
+    const userRequest = await readUserRequest();
+    expect(userRequest).not.toContain("<!--");
+    expect(userRequest).not.toContain("injected");
+    expect(userRequest).not.toContain("\u200B");
+    expect(userRequest).not.toContain("hidden alt text");
+    expect(userRequest).toContain("summarize this issue");
+    expect(userRequest).toContain("please ![](https://example.com/image.png)");
+  });
+
+  test("keeps slash commands intact in the user request file", async () => {
+    const context = issueCommentContext(
+      "@claude /review-pr please check the auth module",
+    );
+
+    await createPrompt(
+      1,
+      "main",
+      "claude/issue-1-20240101-1200",
+      issueData,
+      context,
+    );
+
+    expect(await readUserRequest()).toBe(
+      "/review-pr please check the auth module",
+    );
+  });
+
+  test("sanitizes the issue body before extracting the user request", async () => {
+    const context = createMockContext({
+      eventName: "issues",
+      eventAction: "opened",
+      isPR: false,
+      entityNumber: 1,
+      inputs: { triggerPhrase: "@claude" },
+      payload: {
+        action: "opened",
+        issue: {
+          number: 1,
+          title: "Test issue",
+          body: "@claude fix the login bug <!-- injected -->",
+          user: { login: "someone", id: 9 },
+        },
+      } as any,
+    });
+    const data: FetchDataResult = {
+      ...issueData,
+      contextData: {
+        ...issueData.contextData,
+        body: "@claude fix the login bug <!-- injected -->",
+      },
+    };
+
+    await createPrompt(
+      1,
+      "main",
+      "claude/issue-1-20240101-1200",
+      data,
+      context,
+    );
+
+    expect(await readUserRequest()).toBe("fix the login bug");
   });
 });

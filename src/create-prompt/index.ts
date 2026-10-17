@@ -883,6 +883,11 @@ f. If you are unable to complete certain steps, such as running a linter or test
  * This is used to send the user's actual command/request as a separate
  * content block, enabling slash command processing in the CLI.
  *
+ * The source text is sanitized first so that hidden content stripped from the
+ * <trigger_comment> block of the prompt (HTML comments, invisible characters,
+ * image alt text, hidden attributes) cannot reach the model through this
+ * second content block instead.
+ *
  * @param context - The prepared context containing event data and trigger phrase
  * @param githubData - The fetched GitHub data containing issue/PR body content
  * @returns The extracted user request text (e.g., "/review-pr" or "fix this bug"),
@@ -907,13 +912,16 @@ function extractUserRequestFromContext(
       eventData.eventName === "pull_request_review_comment" ||
       eventData.eventName === "pull_request_review")
   ) {
-    return extractUserRequest(eventData.commentBody, triggerPhrase);
+    return extractUserRequest(
+      sanitizeContent(eventData.commentBody),
+      triggerPhrase,
+    );
   }
 
   // For issue/PR events triggered by body content, extract from the body
   if (githubData.contextData?.body) {
     const request = extractUserRequest(
-      githubData.contextData.body,
+      sanitizeContent(githubData.contextData.body),
       triggerPhrase,
     );
     if (request) {
