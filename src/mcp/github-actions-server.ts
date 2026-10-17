@@ -18,9 +18,11 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const RUNNER_TEMP = process.env.RUNNER_TEMP || "/tmp";
 
 // Job logs are fetched by ID from GitHub-hosted storage; bound the request so a
-// stalled fetch can't hang this MCP call forever. Mirrors the timeout added to
-// fetchImage() in src/github/utils/image-downloader.ts (#1625).
-const DOWNLOAD_JOB_LOG_TIMEOUT_MS = 30_000;
+// stalled fetch can't hang this MCP call forever. The idle timeout restarts
+// whenever data arrives, so a large log on a slow link still finishes; the
+// total timeout stops a download that trickles in without ever going idle.
+const DOWNLOAD_JOB_LOG_IDLE_TIMEOUT_MS = 30_000;
+const DOWNLOAD_JOB_LOG_TOTAL_TIMEOUT_MS = 5 * 60_000;
 
 if (import.meta.main) {
   if (!REPO_OWNER || !REPO_NAME || !PR_NUMBER || !GITHUB_TOKEN) {
@@ -216,20 +218,53 @@ export async function downloadJobLog(
   client: Octokit,
   params: { owner: string; repo: string; job_id: number },
   runnerTemp: string,
-  timeoutMs: number = DOWNLOAD_JOB_LOG_TIMEOUT_MS,
+  idleTimeoutMs: number = DOWNLOAD_JOB_LOG_IDLE_TIMEOUT_MS,
+  totalTimeoutMs: number = DOWNLOAD_JOB_LOG_TOTAL_TIMEOUT_MS,
 ): Promise<{ path: string; size_bytes: number }> {
   const controller = new AbortController();
-  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+  const idleHandle = setTimeout(
+    () =>
+      controller.abort(
+        new Error(
+          `Job log download timed out after ${idleTimeoutMs}ms without receiving data`,
+        ),
+      ),
+    idleTimeoutMs,
+  );
+  const totalHandle = setTimeout(
+    () =>
+      controller.abort(
+        new Error(
+          `Job log download timed out after ${totalTimeoutMs}ms before it finished`,
+        ),
+      ),
+    totalTimeoutMs,
+  );
 
   try {
+    // Octokit's own body parsing turns a failed read, including this abort,
+    // into an empty string, so read the raw stream instead.
     const response = await client.actions.downloadJobLogsForWorkflowRun({
       owner: params.owner,
       repo: params.repo,
       job_id: params.job_id,
-      request: { signal: controller.signal },
+      request: { signal: controller.signal, parseSuccessResponseBody: false },
     });
 
-    const logsText = response.data as unknown as string;
+    const chunks: Uint8Array[] = [];
+    const body = response.data as unknown as ReadableStream<Uint8Array> | null;
+    if (body) {
+      const reader = body.getReader();
+      for (;;) {
+        idleHandle.refresh();
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+    }
+
+    // TextDecoder drops a leading BOM, as Octokit's response.text() did.
+    const logsText = new TextDecoder().decode(Buffer.concat(chunks));
 
     const logsDir = `${runnerTemp}/github-ci-logs`;
     await mkdir(logsDir, { recursive: true });
@@ -242,7 +277,8 @@ export async function downloadJobLog(
       size_bytes: Buffer.byteLength(logsText, "utf-8"),
     };
   } finally {
-    clearTimeout(timeoutHandle);
+    clearTimeout(idleHandle);
+    clearTimeout(totalHandle);
   }
 }
 
