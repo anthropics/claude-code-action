@@ -15,6 +15,7 @@ export type ClaudeRunResult = {
   sessionId?: string;
   conclusion: "success" | "failure";
   structuredOutput?: string;
+  cancelled?: boolean;
 };
 
 /** Filename for the user request file, written by prompt generation */
@@ -180,7 +181,7 @@ export async function runClaudeWithSdk(
 
   console.log(`Running Claude with prompt from file: ${promptPath}`);
   // Log SDK options without env (which could contain sensitive data)
-  const { env, extraArgs, ...optionsToLog } = sdkOptions;
+  const { env, extraArgs, abortController, ...optionsToLog } = sdkOptions;
   console.log("SDK options:", JSON.stringify(optionsToLog, null, 2));
 
   const messages: SDKMessage[] = [];
@@ -210,14 +211,23 @@ export async function runClaudeWithSdk(
       }
     }
   } catch (error) {
-    console.error("SDK execution error:", error);
-    await writeExecutionFile(messages);
-    throw new Error(`SDK execution error: ${error}`);
+    // An abort surfaces here as an AbortError from the SDK's stream; the
+    // messages received so far are still worth posting, so fall through to
+    // the partial-result path instead of failing without a session id.
+    if (sdkOptions.abortController?.signal.aborted) {
+      console.log("Claude session aborted mid-stream; keeping partial output");
+    } else {
+      console.error("SDK execution error:", error);
+      await writeExecutionFile(messages);
+      throw new Error(`SDK execution error: ${error}`);
+    }
   }
 
   const result: ClaudeRunResult = {
     conclusion: "failure",
   };
+
+  const wasCancelled = Boolean(sdkOptions.abortController?.signal.aborted);
 
   const executionFile = await writeExecutionFile(messages);
   if (executionFile) {
@@ -234,8 +244,31 @@ export async function runClaudeWithSdk(
   }
 
   if (!resultMessage) {
+    if (wasCancelled) {
+      // The run was interrupted (workflow cancel or timeout) before the SDK
+      // delivered a result. Report a cancelled partial run rather than an
+      // error, so the session id and execution file survive for resumption.
+      result.cancelled = true;
+      core.warning("Claude run was cancelled before a result was produced");
+      return result;
+    }
     core.error("No result message received from Claude");
     throw new Error("No result message received from Claude");
+  }
+
+  // A cancelled run that still delivered a failing result keeps its partial
+  // output rather than failing hard: the maxTurns and --json-schema guards
+  // below throw, which would skip the session_id output the cancelled
+  // tracking comment needs for resumption.
+  if (
+    wasCancelled &&
+    !(resultMessage.subtype === "success" && !resultMessage.is_error)
+  ) {
+    result.cancelled = true;
+    core.warning(
+      `Claude run interrupted after a ${resultMessage.subtype} result; treating as cancelled`,
+    );
+    return result;
   }
 
   if (

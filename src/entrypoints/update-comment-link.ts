@@ -37,6 +37,8 @@ export type UpdateCommentLinkParams = {
    * commits the revert onto the PR author's branch.
    */
   restoredConfigPaths?: string[];
+  cancelled?: boolean;
+  sessionId?: string;
 };
 
 export async function updateCommentLink(
@@ -51,6 +53,8 @@ export async function updateCommentLink(
     octokit,
     useCommitSigning,
     restoredConfigPaths = [],
+    cancelled,
+    sessionId,
   } = params;
 
   const { owner, repo } = context.repository;
@@ -224,6 +228,8 @@ export async function updateCommentLink(
     branchName: shouldDeleteBranch || !branchLink ? undefined : claudeBranch,
     triggerUsername,
     errorDetails,
+    cancelled,
+    sessionId,
   };
 
   const updatedBody = updateCommentBody(commentInput);
