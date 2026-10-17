@@ -167,6 +167,9 @@ inputs:
     default: ""
 
 outputs:
+  skipped_due_to_workflow_validation_mismatch:
+    description: "True when workflow validation prevents execution before Claude starts"
+    value: ${{ steps.run.outputs.skipped_due_to_workflow_validation_mismatch }}
   conclusion:
     description: "Execution status of Claude Code ('success' or 'failure')"
     value: ${{ steps.run.outputs.conclusion }}
