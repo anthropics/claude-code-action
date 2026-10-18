@@ -116,7 +116,7 @@ export function generateBranchName(
       applyBranchTemplate(template, variables),
     );
 
-    // Some templates could produce empty results- validate
+    // Some templates could produce empty results or only empty path segments.
     if (branchName.trim().length > 0) return branchName;
 
     console.log(
