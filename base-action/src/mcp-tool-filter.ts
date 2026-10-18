@@ -68,16 +68,20 @@ export async function loadMcpServers(
 }
 
 /**
- * Whether allowedTools names some, but not all, of a server's tools.
- * Servers allowed as a whole (`mcp__server` or `mcp__server__*`) and servers
- * that allowedTools does not mention are left alone.
+ * How much of a server allowedTools covers: the whole server (`mcp__server` or
+ * `mcp__server__*`), some of its tools, or none of them.
  */
-function isPartlyAllowed(server: string, allowedTools: string[]): boolean {
+function serverAllowance(
+  server: string,
+  allowedTools: string[],
+): "all" | "some" | "none" {
   const prefix = `mcp__${normalizeMcpName(server)}`;
   if (allowedTools.includes(prefix) || allowedTools.includes(`${prefix}__*`)) {
-    return false;
+    return "all";
   }
-  return allowedTools.some((tool) => tool.startsWith(`${prefix}__`));
+  return allowedTools.some((tool) => tool.startsWith(`${prefix}__`))
+    ? "some"
+    : "none";
 }
 
 /**
@@ -103,7 +107,7 @@ export function findUnlistedMcpTools(
   const mcpRules = allowedTools.filter((tool) => tool.startsWith("mcp__"));
   const unlisted: string[] = [];
   for (const [server, tools] of Object.entries(serverTools)) {
-    if (!isPartlyAllowed(server, allowedTools)) continue;
+    if (serverAllowance(server, allowedTools) !== "some") continue;
     const prefix = `mcp__${normalizeMcpName(server)}`;
     for (const tool of tools) {
       const name = `${prefix}__${normalizeMcpName(tool)}`;
@@ -180,19 +184,18 @@ export async function listMcpServerTools(
 }
 
 /**
- * Add the tools of each --mcp-config server that --allowedTools lists only
- * partly to disallowedTools, so their definitions are not sent to the model.
- * A server that cannot be reached is skipped with a warning.
+ * Add every --mcp-config tool that --allowedTools does not cover to
+ * disallowedTools, so its definition is not sent to the model. A server with no
+ * allowed tools is disallowed as a whole; a server with some is connected to
+ * list its tools, and skipped with a warning if it cannot be reached.
  */
 export async function disallowUnlistedMcpTools(
   sdkOptions: SdkOptions,
   timeoutMs = LIST_TOOLS_TIMEOUT_MS,
 ): Promise<void> {
   const mcpConfig = sdkOptions.extraArgs?.["mcp-config"];
+  if (!mcpConfig) return;
   const allowedTools = sdkOptions.allowedTools ?? [];
-  if (!mcpConfig || !allowedTools.some((tool) => tool.startsWith("mcp__"))) {
-    return;
-  }
 
   let servers: Record<string, McpServerConfig>;
   try {
@@ -204,11 +207,15 @@ export async function disallowUnlistedMcpTools(
     return;
   }
 
+  const unlistedServers = Object.keys(servers)
+    .filter((server) => serverAllowance(server, allowedTools) === "none")
+    .map((server) => `mcp__${normalizeMcpName(server)}`);
+
   const env = sdkOptions.env ?? process.env;
   const serverTools: Record<string, string[]> = {};
   await Promise.all(
     Object.entries(servers)
-      .filter(([server]) => isPartlyAllowed(server, allowedTools))
+      .filter(([server]) => serverAllowance(server, allowedTools) === "some")
       .map(async ([server, config]) => {
         try {
           serverTools[server] = await listMcpServerTools(
@@ -224,14 +231,21 @@ export async function disallowUnlistedMcpTools(
         }
       }),
   );
+  const unlistedTools = findUnlistedMcpTools(allowedTools, serverTools);
 
-  const unlisted = findUnlistedMcpTools(allowedTools, serverTools);
+  if (unlistedServers.length > 0) {
+    console.log(
+      `Disallowed MCP servers that --allowedTools does not name: ${unlistedServers.join(", ")}`,
+    );
+  }
+  if (unlistedTools.length > 0) {
+    console.log(
+      `Disallowed ${unlistedTools.length} MCP tools that --allowedTools does not list: ${unlistedTools.join(", ")}`,
+    );
+  }
+  const unlisted = [...unlistedServers, ...unlistedTools];
   if (unlisted.length === 0) return;
-
   sdkOptions.disallowedTools = [
     ...new Set([...(sdkOptions.disallowedTools ?? []), ...unlisted]),
   ];
-  console.log(
-    `Disallowed ${unlisted.length} MCP tools that --allowedTools does not list: ${unlisted.join(", ")}`,
-  );
 }
