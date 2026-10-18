@@ -55,7 +55,7 @@ describe("findUnlistedMcpTools", () => {
     ]);
   });
 
-  test("leaves servers allowed as a whole or not mentioned alone", () => {
+  test("only lists tools of partly allowed servers", () => {
     expect(
       findUnlistedMcpTools(
         ["mcp__slack", "mcp__jira__*", "Bash(git diff:*)"],
@@ -167,12 +167,43 @@ describe("disallowUnlistedMcpTools", () => {
     }
   });
 
-  test("does nothing without MCP tools in allowedTools", async () => {
+  test("disallows a server with no allowed tools as a whole, without connecting to it", async () => {
+    const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
     const sdkOptions: SdkOptions = {
-      allowedTools: ["Read"],
+      allowedTools: ["Read", "mcp__allowed"],
+      extraArgs: {
+        "mcp-config": JSON.stringify({
+          mcpServers: {
+            "unnamed.server": { command: "/nonexistent/mcp-server" },
+            allowed: { command: "/nonexistent/mcp-server" },
+          },
+        }),
+      },
+    };
+
+    try {
+      await disallowUnlistedMcpTools(sdkOptions);
+      expect(sdkOptions.disallowedTools).toEqual(["mcp__unnamed_server"]);
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      logSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("leaves the tools alone when --mcp-config cannot be read", async () => {
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
+    const sdkOptions: SdkOptions = {
+      allowedTools: ["mcp__tools__read"],
       extraArgs: { "mcp-config": "{ not json" },
     };
-    await disallowUnlistedMcpTools(sdkOptions);
-    expect(sdkOptions.disallowedTools).toBeUndefined();
+    try {
+      await disallowUnlistedMcpTools(sdkOptions);
+      expect(sdkOptions.disallowedTools).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

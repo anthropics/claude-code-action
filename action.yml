@@ -158,7 +158,7 @@ inputs:
     required: false
     default: "false"
   disallow_unlisted_mcp_tools:
-    description: "Before Claude starts, connect to each --mcp-config server that --allowedTools names only some tools of, and add its other tools to --disallowedTools, so their definitions are not sent to the model. Servers allowed as a whole (mcp__server) or not named in --allowedTools are left alone"
+    description: "Before Claude starts, add every --mcp-config tool that --allowedTools does not cover to --disallowedTools, so its definition is not sent to the model. A server with no allowed tools is disallowed as a whole; a server with some is connected to list its tools. Servers allowed as a whole (mcp__server) are left alone"
     required: false
     default: "false"
   plugins:
