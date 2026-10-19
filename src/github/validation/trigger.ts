@@ -125,9 +125,10 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     isIssueCommentEvent(context) ||
     isPullRequestReviewCommentEvent(context)
   ) {
-    const commentBody = isIssueCommentEvent(context)
-      ? context.payload.comment.body
-      : context.payload.comment.body;
+    // Both IssueCommentEvent and PullRequestReviewCommentEvent expose
+    // payload.comment.body, and the enclosing guard has already narrowed the
+    // union to those two.
+    const commentBody = context.payload.comment.body;
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(
       `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
