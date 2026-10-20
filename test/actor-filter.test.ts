@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   parseActorFilter,
   actorMatchesPattern,
+  resolveActorName,
   shouldIncludeCommentByActor,
 } from "../src/github/utils/actor-filter";
 
@@ -168,5 +169,51 @@ describe("shouldIncludeCommentByActor", () => {
     expect(
       shouldIncludeCommentByActor("user1", ["*[bot]"], ["dependabot[bot]"]),
     ).toBe(false);
+  });
+});
+
+describe("resolveActorName", () => {
+  test("appends the [bot] suffix to GraphQL App actors", () => {
+    // GraphQL returns the bare login for bots; REST would say "dependabot[bot]".
+    expect(resolveActorName({ __typename: "Bot", login: "dependabot" })).toBe(
+      "dependabot[bot]",
+    );
+  });
+
+  test("leaves human logins untouched", () => {
+    expect(resolveActorName({ __typename: "User", login: "octocat" })).toBe(
+      "octocat",
+    );
+  });
+
+  test("does not double-suffix a login that already ends with [bot]", () => {
+    expect(
+      resolveActorName({ __typename: "Bot", login: "dependabot[bot]" }),
+    ).toBe("dependabot[bot]");
+  });
+
+  test("maps deleted accounts to ghost", () => {
+    expect(resolveActorName(null)).toBe("ghost");
+    expect(resolveActorName(undefined)).toBe("ghost");
+  });
+
+  test("falls back to the login when __typename is absent", () => {
+    expect(resolveActorName({ login: "octocat" })).toBe("octocat");
+  });
+
+  test("a bot actor matches the *[bot] wildcard once resolved", () => {
+    const actor = resolveActorName({ __typename: "Bot", login: "renovate" });
+
+    expect(actorMatchesPattern(actor, "*[bot]")).toBe(true);
+    // The raw GraphQL login never matches, which is the bug being fixed.
+    expect(actorMatchesPattern("renovate", "*[bot]")).toBe(false);
+  });
+
+  test("a bot actor matches an exact [bot] pattern once resolved", () => {
+    const actor = resolveActorName({ __typename: "Bot", login: "dependabot" });
+
+    expect(shouldIncludeCommentByActor(actor, [], ["dependabot[bot]"])).toBe(
+      false,
+    );
   });
 });

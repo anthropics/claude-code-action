@@ -204,6 +204,9 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   const modelFromClaudeArgs = extraArgs["model"] || undefined;
   delete extraArgs["model"];
 
+  const maxTurnsFromClaudeArgs = extraArgs["max-turns"] || undefined;
+  delete extraArgs["max-turns"];
+
   const additionalDirectories = extraArgs["add-dir"]
     ? extraArgs["add-dir"]
         .split(ACCUMULATE_DELIMITER)
@@ -286,6 +289,10 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   delete env.ACTIONS_ID_TOKEN_REQUEST_URL;
   delete env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
 
+  // Remove ALL_INPUTS as it is only needed during initial setup to determine
+  // input presence (collectActionInputsPresence) and contains serialized workflow inputs.
+  delete env.ALL_INPUTS;
+
   // Build system prompt option - default to claude_code preset
   let systemPrompt: SdkOptions["systemPrompt"];
   if (options.systemPrompt) {
@@ -308,7 +315,11 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   const sdkOptions: SdkOptions = {
     // Direct options from ClaudeOptions inputs
     model: options.model || modelFromClaudeArgs,
-    maxTurns: options.maxTurns ? parseInt(options.maxTurns, 10) : undefined,
+    maxTurns: options.maxTurns
+      ? parseInt(options.maxTurns, 10)
+      : maxTurnsFromClaudeArgs
+        ? parseInt(maxTurnsFromClaudeArgs, 10)
+        : undefined,
     allowedTools:
       mergedAllowedTools.length > 0 ? mergedAllowedTools : undefined,
     disallowedTools:

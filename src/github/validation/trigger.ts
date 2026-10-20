@@ -38,7 +38,10 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   if (isIssuesEvent(context) && context.eventAction === "labeled") {
     const labelName = (context.payload as any).label?.name || "";
 
-    if (labelTrigger && labelName === labelTrigger) {
+    if (
+      labelTrigger &&
+      labelName.toLowerCase() === labelTrigger.toLowerCase()
+    ) {
       console.log(`Issue labeled with trigger label '${labelTrigger}'`);
       return true;
     }

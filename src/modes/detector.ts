@@ -103,6 +103,7 @@ function validateTrackProgressEvent(context: GitHubContext): void {
       "synchronize",
       "ready_for_review",
       "reopened",
+      "labeled",
     ];
     if (!validActions.includes(context.eventAction)) {
       throw new Error(

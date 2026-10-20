@@ -282,6 +282,12 @@ export function isPullRequestReviewCommentEvent(
   return context.eventName === "pull_request_review_comment";
 }
 
+export function isWorkflowRunEvent(
+  context: GitHubContext,
+): context is AutomationContext & { payload: WorkflowRunEvent } {
+  return context.eventName === "workflow_run";
+}
+
 export function isIssuesAssignedEvent(
   context: GitHubContext,
 ): context is ParsedGitHubContext & { payload: IssuesAssignedEvent } {

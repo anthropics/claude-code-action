@@ -521,6 +521,31 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("max turns handling", () => {
+    test("should map --max-turns from claudeArgs to sdkOptions.maxTurns", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--max-turns 60",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.maxTurns).toBe(60);
+      expect(result.sdkOptions.extraArgs?.["max-turns"]).toBeUndefined();
+    });
+
+    test("should prefer the direct maxTurns option", () => {
+      const options: ClaudeOptions = {
+        maxTurns: "25",
+        claudeArgs: "--max-turns 60",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.maxTurns).toBe(25);
+      expect(result.sdkOptions.extraArgs?.["max-turns"]).toBeUndefined();
+    });
+  });
+
   describe("environment variables passthrough", () => {
     test("should include OTEL environment variables in sdkOptions.env", () => {
       // Set up test environment variables
@@ -591,6 +616,23 @@ describe("parseSdkOptions", () => {
         expect(
           result.sdkOptions.env?.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
         ).toBeUndefined();
+      } finally {
+        process.env = originalEnv;
+      }
+    });
+
+    test("should strip ALL_INPUTS from env", () => {
+      const originalEnv = { ...process.env };
+      process.env.ALL_INPUTS = JSON.stringify({
+        anthropic_api_key: "sk-ant-test-key",
+        github_token: "ghp_test_token",
+      });
+
+      try {
+        const options: ClaudeOptions = {};
+        const result = parseSdkOptions(options);
+
+        expect(result.sdkOptions.env?.ALL_INPUTS).toBeUndefined();
       } finally {
         process.env = originalEnv;
       }

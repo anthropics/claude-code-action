@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import type { ParsedGitHubContext } from "../context";
+import { isWorkflowRunEvent, type GitHubContext } from "../context";
 import type { Octokit } from "@octokit/rest";
 
 /**
@@ -25,6 +25,28 @@ function isAllowedBot(actor: string, allowedBots: string): boolean {
 }
 
 /**
+ * Collect the actors whose repository access should be checked. This is
+ * normally just the workflow actor (GITHUB_ACTOR). For workflow_run events
+ * the actor that started the upstream run is checked as well when it
+ * differs, since that is the account the run originates from.
+ */
+function getActorsToCheck(context: GitHubContext): string[] {
+  const actors = [context.actor];
+
+  if (isWorkflowRunEvent(context)) {
+    const runActor = context.payload.workflow_run?.actor?.login;
+    if (runActor && !actors.includes(runActor)) {
+      core.info(
+        `workflow_run was started by ${runActor}; checking permissions for that actor as well`,
+      );
+      actors.push(runActor);
+    }
+  }
+
+  return actors;
+}
+
+/**
  * Check if the actor has write permissions to the repository
  * @param octokit - The Octokit REST client
  * @param context - The GitHub context
@@ -34,11 +56,31 @@ function isAllowedBot(actor: string, allowedBots: string): boolean {
  */
 export async function checkWritePermissions(
   octokit: Octokit,
-  context: ParsedGitHubContext,
+  context: GitHubContext,
   allowedNonWriteUsers?: string,
   githubTokenProvided?: boolean,
 ): Promise<boolean> {
-  const { repository, actor } = context;
+  for (const actor of getActorsToCheck(context)) {
+    const allowed = await checkActorWritePermissions(
+      octokit,
+      context,
+      actor,
+      allowedNonWriteUsers,
+      githubTokenProvided,
+    );
+    if (!allowed) return false;
+  }
+  return true;
+}
+
+async function checkActorWritePermissions(
+  octokit: Octokit,
+  context: GitHubContext,
+  actor: string,
+  allowedNonWriteUsers?: string,
+  githubTokenProvided?: boolean,
+): Promise<boolean> {
+  const { repository } = context;
   const allowedBots = context.inputs.allowedBots ?? "";
 
   try {

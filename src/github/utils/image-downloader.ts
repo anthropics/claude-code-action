@@ -14,6 +14,41 @@ const HTML_IMG_REGEX = new RegExp(
   "gi",
 );
 
+const SIGNED_URL_REGEX =
+  /https:\/\/private-user-images\.githubusercontent\.com\/[^"]+\?jwt=[^"]+/g;
+
+// GitHub identifies an uploaded asset by a GUID that appears both in the
+// user-attachment URL and in the signed download URL rendered in body_html.
+const ASSET_GUID_REGEX =
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+function extractAssetGuid(url: string): string | undefined {
+  return url.match(ASSET_GUID_REGEX)?.[0]?.toLowerCase();
+}
+
+const SIGNED_URL_HOST = "private-user-images.githubusercontent.com";
+
+// Signed download URLs have the shape /<owner-id>/<asset-id>-<guid>.<ext>.
+// The GUID must come from the resolved filename, not from anywhere in the raw
+// string, so text that merely embeds a GUID cannot claim another asset.
+const SIGNED_URL_PATH_REGEX =
+  /^\/[^/]+\/[^/]*-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\.[a-z0-9]+)?$/i;
+
+const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS = 30_000;
+
+function extractSignedUrlAssetGuid(signedUrl: string): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(signedUrl);
+  } catch {
+    return undefined;
+  }
+  if (parsed.host !== SIGNED_URL_HOST) {
+    return undefined;
+  }
+  return parsed.pathname.match(SIGNED_URL_PATH_REGEX)?.[1]?.toLowerCase();
+}
+
 type IssueComment = {
   type: "issue_comment";
   id: string;
@@ -52,13 +87,19 @@ export type CommentWithImages =
   | IssueBody
   | PullRequestBody;
 
+type ImageDownloadOptions = {
+  timeoutMs?: number;
+};
+
 export async function downloadCommentImages(
   octokits: Octokits,
   owner: string,
   repo: string,
   comments: CommentWithImages[],
+  options: ImageDownloadOptions = {},
 ): Promise<Map<string, string>> {
   const urlToPathMap = new Map<string, string>();
+  const timeoutMs = options.timeoutMs ?? DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS;
   const downloadsDir = "/tmp/github-images";
 
   await fs.mkdir(downloadsDir, { recursive: true });
@@ -174,36 +215,41 @@ export async function downloadCommentImages(
       }
 
       // Extract signed URLs from HTML
-      const signedUrlRegex =
-        /https:\/\/private-user-images\.githubusercontent\.com\/[^"]+\?jwt=[^"]+/g;
-      const signedUrls = bodyHtml.match(signedUrlRegex) || [];
+      const signedUrls = bodyHtml.match(SIGNED_URL_REGEX) || [];
+
+      // Index the signed URLs by the asset GUID they reference. The signed
+      // URLs come from a separate render of the body, so their order and
+      // count are not guaranteed to line up with the URLs extracted from the
+      // markdown; pairing by asset identifier keeps each download tied to the
+      // URL it actually belongs to.
+      const signedUrlByGuid = new Map<string, string>();
+      for (const signedUrl of signedUrls) {
+        const guid = extractSignedUrlAssetGuid(signedUrl);
+        if (guid && !signedUrlByGuid.has(guid)) {
+          signedUrlByGuid.set(guid, signedUrl);
+        }
+      }
 
       // Download each image
-      for (let i = 0; i < Math.min(signedUrls.length, urls.length); i++) {
-        const signedUrl = signedUrls[i];
-        const originalUrl = urls[i];
-
-        if (!signedUrl || !originalUrl) {
+      for (const [i, originalUrl] of urls.entries()) {
+        // Check if we've already downloaded this URL
+        if (urlToPathMap.has(originalUrl)) {
           continue;
         }
 
-        // Check if we've already downloaded this URL
-        if (urlToPathMap.has(originalUrl)) {
+        const guid = extractAssetGuid(originalUrl);
+        const signedUrl = guid ? signedUrlByGuid.get(guid) : undefined;
+        if (!signedUrl) {
+          console.warn(
+            `No matching signed URL found for ${originalUrl}, skipping`,
+          );
           continue;
         }
 
         try {
           console.log(`Downloading ${originalUrl}...`);
 
-          const imageResponse = await fetch(signedUrl);
-          if (!imageResponse.ok) {
-            throw new Error(
-              `HTTP ${imageResponse.status}: ${imageResponse.statusText}`,
-            );
-          }
-
-          const arrayBuffer = await imageResponse.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
+          const buffer = await fetchImage(signedUrl, timeoutMs);
 
           // GitHub user-attachment URLs (/user-attachments/assets/<uuid>) carry
           // no file extension, so the URL-based guess silently falls back to
@@ -241,6 +287,37 @@ export async function downloadCommentImages(
   }
 
   return urlToPathMap;
+}
+
+async function fetchImage(url: string, timeoutMs: number): Promise<Buffer> {
+  const controller = new AbortController();
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`Image download timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    const response = await Promise.race([
+      fetch(url, { signal: controller.signal }),
+      timeoutPromise,
+    ]);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const arrayBuffer = await Promise.race([
+      response.arrayBuffer(),
+      timeoutPromise,
+    ]);
+    return Buffer.from(arrayBuffer);
+  } finally {
+    if (timeoutHandle !== undefined) {
+      clearTimeout(timeoutHandle);
+    }
+  }
 }
 
 function getImageExtension(url: string): string {

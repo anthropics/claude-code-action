@@ -12,6 +12,7 @@
 import { readFileSync } from "fs";
 import { parse as parseShellArgs } from "shell-quote";
 import { createOctokit } from "../github/api/client";
+import { redactSecrets } from "../github/utils/sanitizer";
 
 const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
 
@@ -171,7 +172,7 @@ async function postComment(
     owner,
     repo,
     pull_number,
-    body: c.body,
+    body: redactSecrets(c.body),
     path: c.path,
     side: c.side || "RIGHT",
     commit_id: c.commit_id || headSha,

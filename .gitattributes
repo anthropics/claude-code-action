@@ -1,0 +1,3 @@
+# Keep the working tree LF on every platform: Prettier defaults to
+# endOfLine "lf" and several tests match LF-terminated content.
+* text=auto eol=lf

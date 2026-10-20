@@ -12,6 +12,31 @@ export function parseActorFilter(filterString: string): string[] {
 }
 
 /**
+ * Resolves the name to match actor filter patterns against.
+ *
+ * GitHub's GraphQL API returns the bare login for App actors ("dependabot"),
+ * whereas REST and the GitHub UI use a "[bot]" suffix ("dependabot[bot]"). Users
+ * write filter patterns in the suffixed form, both the documented "*[bot]"
+ * wildcard and exact entries like "renovate[bot]", so GraphQL bot logins are
+ * normalized to that form before matching. Without this no "[bot]" pattern can
+ * ever match, because the suffix is simply absent from the data.
+ *
+ * @param author - Comment author; null for deleted ("ghost") accounts
+ * @returns Actor name, "[bot]"-suffixed for App actors
+ */
+export function resolveActorName(
+  author: { login: string; __typename?: string } | null | undefined,
+): string {
+  if (!author) return "ghost";
+
+  if (author.__typename === "Bot" && !author.login.endsWith("[bot]")) {
+    return `${author.login}[bot]`;
+  }
+
+  return author.login;
+}
+
+/**
  * Checks if an actor matches a pattern
  * Supports wildcards: "*[bot]" matches all bots, "dependabot[bot]" matches specific
  * @param actor - Actor username to check

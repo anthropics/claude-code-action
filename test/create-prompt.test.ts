@@ -819,11 +819,46 @@ describe("generatePrompt", () => {
     // Should have commit signing tool instructions
     expect(prompt).toContain("mcp__github_file_ops__commit_files");
     expect(prompt).toContain("mcp__github_file_ops__delete_files");
+    expect(prompt).toContain(
+      'mcp__github_file_ops__delete_files: {"paths": ["path/to/old.js"]',
+    );
+    expect(prompt).not.toContain(
+      'mcp__github_file_ops__delete_files: {"files":',
+    );
     // Comment tool should always be from comment server, not file ops
     expect(prompt).toContain("mcp__github_comment__update_claude_comment");
 
     // Should not have git command instructions
     expect(prompt).not.toContain("Use git commands via the Bash tool");
+
+    // Bash is off unless the user passes --allowedTools through claude_args.
+    // allowed_tools was removed in v1.0 and must not appear as live guidance.
+    expect(prompt).toContain(
+      "Run arbitrary Bash commands (unless explicitly allowed via claude_args with --allowedTools)",
+    );
+    expect(prompt).not.toContain("allowed_tools configuration");
+  });
+
+  test("does not mention allowed_tools when commit signing is off", async () => {
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issue_comment",
+        commentId: "67890",
+        isPR: true,
+        prNumber: "123",
+        commentBody: "@claude fix the bug",
+      },
+    };
+
+    const prompt = await generatePrompt(envVars, mockGitHubData, false, "tag");
+
+    expect(prompt).not.toContain("allowed_tools");
+    expect(prompt).not.toContain(
+      "Run arbitrary Bash commands (unless explicitly allowed",
+    );
   });
 
   describe("simplified prompt (USE_SIMPLE_PROMPT)", () => {
