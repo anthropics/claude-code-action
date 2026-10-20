@@ -1,11 +1,23 @@
 export function stripInvisibleCharacters(content: string): string {
+  // Zero-width characters (joiners, non-joiners, BOM)
   content = content.replace(/[\u200B\u200C\u200D\uFEFF]/g, "");
+  // C0/C1 control characters (preserve \t, \n, \r)
   content = content.replace(
     /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g,
     "",
   );
+  // Soft hyphens
   content = content.replace(/\u00AD/g, "");
+  // Bidirectional override / isolate characters (used in trojan-source attacks)
   content = content.replace(/[\u202A-\u202E\u2066-\u2069]/g, "");
+  // Unicode tag characters (U+E0001-U+E007F) — used to smuggle hidden text
+  // eslint-disable-next-line no-misleading-character-class
+  content = content.replace(/[\uE0001-\uE007F]/g, "");
+  // Variation selectors (U+FE00-FE0F) can alter glyph rendering to confuse
+  // reviewers into misreading code
+  content = content.replace(/[\uFE00-\uFE0F]/g, "");
+  // Interlinear annotation anchors (U+FFF9-FFFB) — obscure but abusable
+  content = content.replace(/[\uFFF9-\uFFFB]/g, "");
   return content;
 }
 
