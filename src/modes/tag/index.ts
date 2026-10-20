@@ -12,6 +12,7 @@ import {
   resolveTriggerTimestamp,
   extractOriginalTitle,
   extractOriginalBody,
+  extractTriggeringReviewId,
 } from "../../github/data/fetcher";
 import { createPrompt } from "../../create-prompt";
 import { isEntityContext } from "../../github/context";
@@ -57,6 +58,7 @@ export async function prepareTagMode({
     isPR: context.isPR,
     triggerUsername: context.actor,
     triggerTime,
+    triggeringReviewId: extractTriggeringReviewId(context),
     originalTitle,
     originalBody,
     includeCommentsByActor: context.inputs.includeCommentsByActor,
