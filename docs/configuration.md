@@ -263,7 +263,7 @@ For provider-specific models:
   with:
     use_bedrock: "true"
     claude_args: |
-      --model anthropic.claude-4-0-sonnet-20250805-v1:0
+      --model "us.anthropic.claude-opus-5-5[1m]"
     # ... other inputs
 
 # Google Vertex AI
