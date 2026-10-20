@@ -51,6 +51,23 @@ export function getAnthropicMessagesUrl(
   return `${resolvedBaseUrl.replace(/\/+$/, "")}/v1/messages`;
 }
 
+function isMiniMaxEndpoint(): boolean {
+  try {
+    const url = new URL(getAnthropicMessagesUrl());
+    return (
+      (url.origin === "https://api.minimax.io" ||
+        url.origin === "https://api.minimax.cn") &&
+      url.pathname === "/anthropic/v1/messages" &&
+      !url.search &&
+      !url.hash &&
+      !url.username &&
+      !url.password
+    );
+  } catch {
+    return false;
+  }
+}
+
 function stripShellComments(input: string): string {
   return input
     .split("\n")
@@ -89,7 +106,7 @@ export function getClassificationModel(): string {
     }
   }
 
-  return "claude-haiku-4-5";
+  return isMiniMaxEndpoint() ? "MiniMax-M3.1-Flash" : "claude-haiku-4-5";
 }
 
 export async function classifyComments(
@@ -108,6 +125,8 @@ export async function classifyComments(
     bodies.map((b, i) => `${i + 1}. ${JSON.stringify(b)}`).join("\n");
 
   try {
+    const model = getClassificationModel();
+    const isFlash = model === "MiniMax-M3.1-Flash";
     const res = await fetch(getAnthropicMessagesUrl(), {
       method: "POST",
       headers: {
@@ -116,8 +135,13 @@ export async function classifyComments(
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: getClassificationModel(),
-        max_tokens: 1024,
+        model,
+        // Flash always thinks; allow room for reasoning and the JSON verdicts.
+        max_tokens: isFlash ? 4096 : 1024,
+        ...(isFlash && {
+          thinking: { type: "adaptive" },
+          output_config: { effort: "low" },
+        }),
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -279,7 +303,9 @@ async function main() {
   console.log(`Posted ${posted}/${toPost.length}`);
 }
 
-main().catch((e) => {
-  console.error("post-buffered-inline-comments failed:", e);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((e) => {
+    console.error("post-buffered-inline-comments failed:", e);
+    process.exit(1);
+  });
+}
