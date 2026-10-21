@@ -185,6 +185,9 @@ outputs:
   session_id:
     description: "The Claude Code session ID that can be used with --resume to continue this conversation"
     value: ${{ steps.run.outputs.session_id }}
+  claude_comment_id:
+    description: "The ID of the tracking comment Claude wrote its progress into (empty when no comment was created)"
+    value: ${{ steps.run.outputs.claude_comment_id }}
 
 runs:
   using: "composite"
