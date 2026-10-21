@@ -139,7 +139,20 @@ runs:
       shell: bash
       run: |
         cd ${GITHUB_ACTION_PATH}
-        bun install --production
+        for attempt in 1 2 3; do
+          echo "Installing dependencies (attempt $attempt)..."
+          if command -v timeout &> /dev/null; then
+            timeout --foreground --kill-after=10 120 bun install --production --omit=optional && break
+          else
+            bun install --production --omit=optional && break
+          fi
+          if [ $attempt -eq 3 ]; then
+            echo "Failed to install dependencies after 3 attempts"
+            exit 1
+          fi
+          echo "bun install failed, retrying in 5 seconds..."
+          sleep 5
+        done
 
     - name: Install Claude Code
       shell: bash
