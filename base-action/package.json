@@ -15,7 +15,7 @@
     "shell-quote": "^1.8.4"
   },
   "devDependencies": {
-    "@types/bun": "^1.2.12",
+    "@types/bun": "^1.4.3",
     "@types/node": "^20.0.0",
     "@types/shell-quote": "^1.7.5",
     "prettier": "3.5.3",
