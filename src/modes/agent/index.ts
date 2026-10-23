@@ -7,8 +7,51 @@ import {
   setupSshSigning,
 } from "../../github/operations/git-config";
 import { checkHumanActor } from "../../github/validation/actor";
+import { isEntityContext } from "../../github/context";
 import type { GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
+
+const PULL_REQUEST_REVIEW_COMMAND = /(^|\s)\/(code-review|review-pr)(\s|$)/;
+
+export function scopePullRequestReviewPrompt(
+  prompt: string,
+  changedFiles: string[],
+): string {
+  const files = [...new Set(changedFiles)].filter(Boolean).sort();
+  if (!PULL_REQUEST_REVIEW_COMMAND.test(prompt) || files.length === 0) {
+    return prompt;
+  }
+
+  return `${prompt}
+
+The pull request review scope is limited to these changed files:
+${files.map((file) => `- ${file}`).join("\n")}
+
+Review only these files. You may read other files for context, but do not report findings for files outside this list or for unchanged code.`;
+}
+
+async function getPullRequestChangedFiles(
+  context: GitHubContext,
+  octokit: Octokits,
+  prompt: string,
+): Promise<string[]> {
+  if (
+    !isEntityContext(context) ||
+    !context.isPR ||
+    !PULL_REQUEST_REVIEW_COMMAND.test(prompt)
+  ) {
+    return [];
+  }
+
+  const files = await octokit.rest.paginate(octokit.rest.pulls.listFiles, {
+    owner: context.repository.owner,
+    repo: context.repository.repo,
+    pull_number: context.entityNumber,
+    per_page: 100,
+  });
+
+  return files.map((file) => file.filename);
+}
 
 /**
  * Prepares the agent mode execution context.
@@ -82,10 +125,16 @@ export async function prepareAgentMode({
   await rm(promptDir, { recursive: true, force: true });
   await mkdir(promptDir, { recursive: true });
 
-  // Write the prompt file - use the user's prompt directly
-  const promptContent =
+  // Keep built-in PR review commands scoped to the files in the PR.
+  const prompt =
     context.inputs.prompt ||
     `Repository: ${context.repository.owner}/${context.repository.repo}`;
+  const changedFiles = await getPullRequestChangedFiles(
+    context,
+    octokit,
+    prompt,
+  );
+  const promptContent = scopePullRequestReviewPrompt(prompt, changedFiles);
 
   await writeFile(`${promptDir}/claude-prompt.txt`, promptContent);
 
