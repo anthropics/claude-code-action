@@ -9,6 +9,8 @@
 import { $ } from "bun";
 import { execFileSync } from "child_process";
 import type { ParsedGitHubContext } from "../context";
+import { isPullRequestEvent } from "../context";
+import { retryWithBackoff } from "../../utils/retry";
 import type { GitHubPullRequest } from "../types";
 import type { Octokits } from "../api/client";
 import type { FetchDataResult } from "../data/fetcher";
@@ -203,30 +205,41 @@ export async function setupBranch(
         );
       }
 
-      const headRepo = prData.headRepository
-        ? {
+      if (isPullRequestEvent(context)) {
+        const eventSha = context.payload.pull_request.head.sha;
+        if (eventSha !== headSha) {
+          throw new Error(
+            `PR #${entityNumber} was updated after the trigger (${eventSha} -> ${headSha}). Push again or mention Claude to run on the latest version.`,
+          );
+        }
+      } else if (triggerTime) {
+        if (!prData.headRepository) {
+          throw new Error(
+            `PR #${entityNumber}: head repository is not available, cannot pin the PR version`,
+          );
+        }
+        const pushedAt = await headPushedAt(
+          octokits,
+          {
             owner: prData.headRepository.owner.login,
             repo: prData.headRepository.name,
-          }
-        : { owner, repo };
-      const pushedAt = await headPushedAt(
-        octokits,
-        headRepo,
-        branchName,
-        headSha,
-      );
-      if (
-        triggerTime &&
-        new Date(pushedAt).getTime() >= new Date(triggerTime).getTime()
-      ) {
-        throw new Error(
-          `PR #${entityNumber} was updated after the trigger (${pushedAt} >= ${triggerTime}). Mention Claude again to run on the latest version.`,
+          },
+          branchName,
+          headSha,
         );
+        if (new Date(pushedAt).getTime() >= new Date(triggerTime).getTime()) {
+          throw new Error(
+            `PR #${entityNumber} was updated after the trigger (${pushedAt} >= ${triggerTime}). Mention Claude again to run on the latest version.`,
+          );
+        }
       }
 
-      console.log(`PR #${entityNumber}: pinning to ${headSha}`);
+      const localBranch = prData.isCrossRepository
+        ? `pr-${entityNumber}`
+        : branchName;
+      console.log(`PR #${entityNumber}: pinning ${localBranch} to ${headSha}`);
       execGit(["fetch", "origin", ...depthArgs, headSha]);
-      execGit(["checkout", "-B", branchName, headSha, "--"]);
+      execGit(["checkout", "-B", localBranch, headSha, "--"]);
 
       const checkedOut = execFileSync("git", ["rev-parse", "HEAD"], {
         encoding: "utf8",
@@ -245,7 +258,7 @@ export async function setupBranch(
 
       return {
         baseBranch,
-        currentBranch: branchName,
+        currentBranch: localBranch,
       };
     }
   }
@@ -379,22 +392,19 @@ async function headPushedAt(
   branchName: string,
   headSha: string,
 ): Promise<string> {
-  const { data } = await octokits.rest.request(
-    "GET /repos/{owner}/{repo}/activity",
-    {
+  const { data } = await retryWithBackoff(() =>
+    octokits.rest.request("GET /repos/{owner}/{repo}/activity", {
       owner: headRepo.owner,
       repo: headRepo.repo,
       ref: `refs/heads/${branchName}`,
-      per_page: 100,
-    },
+      per_page: 1,
+    }),
   );
-  const hit = (data as Array<{ after: string; timestamp: string }>).find(
-    (a) => a.after === headSha,
-  );
-  if (!hit) {
+  const latest = (data as Array<{ after: string; timestamp: string }>)[0];
+  if (!latest || latest.after !== headSha) {
     throw new Error(
       `Could not determine when ${headSha} was pushed to ${headRepo.owner}/${headRepo.repo}:${branchName}`,
     );
   }
-  return hit.timestamp;
+  return latest.timestamp;
 }
