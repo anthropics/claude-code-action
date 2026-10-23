@@ -156,6 +156,7 @@ export async function setupBranch(
   octokits: Octokits,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
+  triggerTime?: string,
 ): Promise<BranchInfo> {
   const { owner, repo } = context.repository;
   const entityNumber = context.entityNumber;
@@ -177,6 +178,7 @@ export async function setupBranch(
       console.log("This is an open PR, checking out PR branch...");
 
       const branchName = prData.headRefName;
+      const headSha = prData.headRefOid;
 
       // Determine optimal fetch depth based on PR commit count, with a minimum
       // of 20. Only applied to a checkout that is already shallow — see
@@ -195,25 +197,45 @@ export async function setupBranch(
 
       // Validate branch names before use to prevent command injection
       validateBranchName(branchName);
-
-      // For cross-repository (fork) PRs, fetch via the pull ref since the
-      // branch only exists on the fork's remote, not on origin.
-      if (prData.isCrossRepository) {
-        console.log(
-          `PR #${entityNumber} is from a fork, fetching via refs/pull/${entityNumber}/head...`,
+      if (!/^[0-9a-f]{40}$/.test(headSha)) {
+        throw new Error(
+          `Unexpected head SHA for PR #${entityNumber}: ${headSha}`,
         );
-        execGit([
-          "fetch",
-          "origin",
-          ...depthArgs,
-          `pull/${entityNumber}/head:${branchName}`,
-        ]);
-      } else {
-        // Execute git commands to checkout PR branch (dynamic depth based on PR size)
-        // Using execFileSync instead of shell template literals for security
-        execGit(["fetch", "origin", ...depthArgs, branchName]);
       }
-      execGit(["checkout", branchName, "--"]);
+
+      const headRepo = prData.headRepository
+        ? {
+            owner: prData.headRepository.owner.login,
+            repo: prData.headRepository.name,
+          }
+        : { owner, repo };
+      const pushedAt = await headPushedAt(
+        octokits,
+        headRepo,
+        branchName,
+        headSha,
+      );
+      if (
+        triggerTime &&
+        new Date(pushedAt).getTime() >= new Date(triggerTime).getTime()
+      ) {
+        throw new Error(
+          `PR #${entityNumber} was updated after the trigger (${pushedAt} >= ${triggerTime}). Mention Claude again to run on the latest version.`,
+        );
+      }
+
+      console.log(`PR #${entityNumber}: pinning to ${headSha}`);
+      execGit(["fetch", "origin", ...depthArgs, headSha]);
+      execGit(["checkout", "-B", branchName, headSha, "--"]);
+
+      const checkedOut = execFileSync("git", ["rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).trim();
+      if (checkedOut !== headSha) {
+        throw new Error(
+          `PR #${entityNumber}: checked out ${checkedOut}, expected ${headSha}`,
+        );
+      }
 
       console.log(`Successfully checked out PR branch for PR #${entityNumber}`);
 
@@ -349,4 +371,30 @@ export async function setupBranch(
     console.error("Error in branch setup:", error);
     process.exit(1);
   }
+}
+
+async function headPushedAt(
+  octokits: Octokits,
+  headRepo: { owner: string; repo: string },
+  branchName: string,
+  headSha: string,
+): Promise<string> {
+  const { data } = await octokits.rest.request(
+    "GET /repos/{owner}/{repo}/activity",
+    {
+      owner: headRepo.owner,
+      repo: headRepo.repo,
+      ref: `refs/heads/${branchName}`,
+      per_page: 100,
+    },
+  );
+  const hit = (data as Array<{ after: string; timestamp: string }>).find(
+    (a) => a.after === headSha,
+  );
+  if (!hit) {
+    throw new Error(
+      `Could not determine when ${headSha} was pushed to ${headRepo.owner}/${headRepo.repo}:${branchName}`,
+    );
+  }
+  return hit.timestamp;
 }

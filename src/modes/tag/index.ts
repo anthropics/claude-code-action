@@ -64,7 +64,12 @@ export async function prepareTagMode({
   });
 
   // Setup branch
-  const branchInfo = await setupBranch(octokit, githubData, context);
+  const branchInfo = await setupBranch(
+    octokit,
+    githubData,
+    context,
+    triggerTime,
+  );
 
   // Configure git authentication
   // SSH signing takes precedence if provided
