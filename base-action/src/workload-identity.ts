@@ -145,6 +145,10 @@ export async function setupWorkloadIdentity(): Promise<
 
   const writeIdentityToken = async () => {
     const identityToken = await fetchIdentityToken(audience);
+    // getIDToken() already masks the JWT. Mask again so every refresh is
+    // covered even if the token is fetched another way. The runner then
+    // refuses to publish a job output that contains the token or an encoded
+    // form of it; pass structured_output_file through an artifact instead.
     core.setSecret(identityToken);
     mkdirSync(tokenDir, { recursive: true, mode: 0o700 });
     writeFileSync(tokenFile, identityToken, { mode: 0o600 });

@@ -202,6 +202,12 @@ However, tools from these servers still need to be explicitly allowed via `claud
 
 ## Troubleshooting
 
+### Why is `structured_output` empty in a later job?
+
+GitHub drops a **job** output that contains a masked secret and logs `Skip output '<name>' since it may contain secret`. The step output in the same job is still set. Workload identity federation masks the GitHub OIDC JWT (and each refresh of it) for the rest of the job, and the runner also matches encoded forms of every mask. A review that quotes a bearer token or other registered secret will trip the check even when an earlier log line was not redacted, because the job-output check runs after post steps.
+
+Use the value in the same job, or upload `structured_output_file` as an artifact and download it in the next job. See [Passing structured output to another job](./usage.md#passing-structured-output-to-another-job).
+
 ### How can I debug what Claude is doing?
 
 Check the GitHub Action log for Claude's run for the full execution trace.
