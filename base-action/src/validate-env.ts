@@ -1,11 +1,24 @@
 /**
  * Validates the environment variables required for running Claude Code
- * based on the selected provider (Anthropic API, AWS Bedrock, Google Vertex AI, or Microsoft Foundry)
+ * based on the selected provider (Anthropic API, AWS Bedrock, Google Vertex AI,
+ * Microsoft Foundry, or OrcaRouter)
  */
+import { isOrcaRouterEnabled } from "./orcarouter/provider";
+
 export function validateEnvironmentVariables() {
   const useBedrock = process.env.CLAUDE_CODE_USE_BEDROCK === "1";
   const useVertex = process.env.CLAUDE_CODE_USE_VERTEX === "1";
   const useFoundry = process.env.CLAUDE_CODE_USE_FOUNDRY === "1";
+  // OrcaRouter is an OpenAI-compatible gateway reached with an Anthropic-shaped
+  // wire API, so it is a provider choice in its own right rather than a custom
+  // base URL on the direct Anthropic path. Activation lives in one place so the
+  // action never routes a run through OrcaRouter by accident.
+  const useOrcaRouter = isOrcaRouterEnabled(process.env);
+  const orcaRouterApiKey = process.env.INPUT_ORCAROUTER_API_KEY?.trim();
+  const orcaRouterAuth = (
+    process.env.INPUT_ORCAROUTER_AUTH ?? ""
+  ).toLowerCase();
+  const hasOrcaRouterAuth = orcaRouterAuth === "true" || orcaRouterAuth === "1";
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
   const claudeCodeOAuthToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
   const federationRuleId = process.env.ANTHROPIC_FEDERATION_RULE_ID;
@@ -20,14 +33,31 @@ export function validateEnvironmentVariables() {
   const errors: string[] = [];
 
   // Check for mutual exclusivity between providers
-  const activeProviders = [useBedrock, useVertex, useFoundry].filter(Boolean);
+  const activeProviders = [
+    useBedrock,
+    useVertex,
+    useFoundry,
+    useOrcaRouter,
+  ].filter(Boolean);
   if (activeProviders.length > 1) {
     errors.push(
-      "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, or CLAUDE_CODE_USE_FOUNDRY.",
+      "Cannot use multiple providers simultaneously. Please set only one of: CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY, or the OrcaRouter inputs (orcarouter_api_key / orcarouter_auth).",
     );
   }
 
-  if (!useBedrock && !useVertex && !useFoundry) {
+  if (useOrcaRouter) {
+    if (!useBedrock && !useVertex && !useFoundry) {
+      // Either entry point is sufficient: an existing key, or the PKCE connect
+      // flow. Validation cannot see whether a login is already stored on disk,
+      // so a run that reaches here without a credential fails later with the
+      // actionable message produced by provider resolution.
+      if (!orcaRouterApiKey && !hasOrcaRouterAuth) {
+        errors.push(
+          "OrcaRouter requires either orcarouter_api_key (an sk-orca-... key) or orcarouter_auth: true (sign in with an OrcaRouter account).",
+        );
+      }
+    }
+  } else if (!useBedrock && !useVertex && !useFoundry) {
     if (!anthropicApiKey && !claudeCodeOAuthToken && !hasWorkloadIdentity) {
       if (hasPartialWorkloadIdentity) {
         errors.push(
