@@ -30,6 +30,7 @@ export type UpdateCommentLinkParams = {
   outputFile?: string;
   prepareSuccess: boolean;
   prepareError?: string;
+  runError?: string;
   useCommitSigning: boolean;
   /**
    * Paths restored from the PR base branch by restoreConfigFromBase. The
@@ -182,6 +183,9 @@ export async function updateCommentLink(
   if (!params.prepareSuccess && params.prepareError) {
     actionFailed = true;
     errorDetails = params.prepareError;
+  } else if (!params.claudeSuccess && params.runError) {
+    actionFailed = true;
+    errorDetails = params.runError;
   } else {
     // Check for existence of output file and parse it if available
     try {
@@ -271,6 +275,7 @@ async function run() {
       outputFile: process.env.OUTPUT_FILE,
       prepareSuccess: process.env.PREPARE_SUCCESS !== "false",
       prepareError: process.env.PREPARE_ERROR,
+      runError: process.env.RUN_ERROR,
       useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
     });
 
