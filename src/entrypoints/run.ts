@@ -39,7 +39,10 @@ import { redactSecrets } from "../github/utils/sanitizer";
 import { setupWorkloadIdentity } from "../../base-action/src/workload-identity";
 import type { WorkloadIdentityHandle } from "../../base-action/src/workload-identity";
 import { validateEnvironmentVariables } from "../../base-action/src/validate-env";
-import { setupClaudeCodeSettings } from "../../base-action/src/setup-claude-code-settings";
+import {
+  prependSettingsArgToClaudeArgs,
+  setupClaudeCodeSettings,
+} from "../../base-action/src/setup-claude-code-settings";
 import { installPlugins } from "../../base-action/src/install-plugins";
 import { preparePrompt } from "../../base-action/src/prepare-prompt";
 import { runClaude } from "../../base-action/src/run-claude";
@@ -275,7 +278,9 @@ async function run() {
       }
     }
 
-    await setupClaudeCodeSettings(process.env.INPUT_SETTINGS);
+    const settingsPath = await setupClaudeCodeSettings(
+      process.env.INPUT_SETTINGS,
+    );
 
     await installPlugins(
       process.env.INPUT_PLUGIN_MARKETPLACES,
@@ -292,7 +297,10 @@ async function run() {
     });
 
     const claudeResult: ClaudeRunResult = await runClaude(promptConfig.path, {
-      claudeArgs: prepareResult.claudeArgs,
+      claudeArgs: prependSettingsArgToClaudeArgs(
+        prepareResult.claudeArgs,
+        settingsPath,
+      ),
       appendSystemPrompt: process.env.APPEND_SYSTEM_PROMPT,
       model: process.env.ANTHROPIC_MODEL,
       pathToClaudeCodeExecutable: claudeExecutable,
