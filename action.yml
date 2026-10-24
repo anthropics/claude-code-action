@@ -233,7 +233,10 @@ runs:
           echo "Subprocess isolation opted out via CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=0"
           exit 0
         fi
-        if command -v apt-get >/dev/null && command -v sudo >/dev/null; then
+        if command -v bwrap >/dev/null && bwrap --version >/dev/null 2>&1 && \
+           command -v socat >/dev/null && socat -V >/dev/null 2>&1; then
+          echo "Subprocess isolation dependencies are already available; skipping apt-get"
+        elif command -v apt-get >/dev/null && command -v sudo >/dev/null; then
           for i in 1 2 3; do
             sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat && break
             echo "apt-get attempt $i failed, retrying..."
