@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import {
   configureGitAuth,
+  removeOriginCredentials,
   replaceCheckoutCredentials,
 } from "../src/github/operations/git-config";
 import { GITHUB_SERVER_URL } from "../src/github/api/config";
@@ -158,6 +159,44 @@ describe("git-config", () => {
       ).resolves.toBeUndefined();
 
       expect(remoteUrl()).toContain("x-access-token:test-token@");
+    });
+  });
+
+  describe("removeOriginCredentials", () => {
+    test("takes the token back out of the origin URL", async () => {
+      await replaceCheckoutCredentials(
+        "test-token",
+        createMockAutomationContext(),
+      );
+      expect(remoteUrl()).toContain("x-access-token:test-token@");
+
+      await removeOriginCredentials();
+
+      expect(remoteUrl()).toBe(
+        `https://${SERVER.host}/test-owner/test-repo.git`,
+      );
+    });
+
+    test("leaves a URL that carries no credential alone", async () => {
+      const before = remoteUrl();
+
+      await removeOriginCredentials();
+
+      expect(remoteUrl()).toBe(before);
+    });
+
+    test("leaves an ssh remote alone", async () => {
+      git(["remote", "set-url", "origin", `git@${SERVER.host}:test/repo.git`]);
+
+      await removeOriginCredentials();
+
+      expect(remoteUrl()).toBe(`git@${SERVER.host}:test/repo.git`);
+    });
+
+    test("succeeds when there is no origin remote", async () => {
+      git(["remote", "remove", "origin"]);
+
+      await expect(removeOriginCredentials()).resolves.toBeUndefined();
     });
   });
 
