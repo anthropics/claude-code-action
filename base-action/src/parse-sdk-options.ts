@@ -293,6 +293,19 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   // input presence (collectActionInputsPresence) and contains serialized workflow inputs.
   delete env.ALL_INPUTS;
 
+  // action.yml maps these even when the workflow does not set them. The AWS
+  // SDK picks bearer auth when AWS_BEARER_TOKEN_BEDROCK exists at all, so an
+  // empty value breaks SigV4 calls such as inference profile lookups. An empty
+  // base URL should likewise leave Claude Code on its regional defaults.
+  for (const key of [
+    "AWS_BEARER_TOKEN_BEDROCK",
+    "ANTHROPIC_BEDROCK_BASE_URL",
+  ]) {
+    if (env[key]?.trim() === "") {
+      delete env[key];
+    }
+  }
+
   // Build system prompt option - default to claude_code preset
   let systemPrompt: SdkOptions["systemPrompt"];
   if (options.systemPrompt) {
