@@ -7,6 +7,7 @@ import type {
   PullRequestReviewEvent,
   PullRequestReviewCommentEvent,
   WorkflowRunEvent,
+  MergeGroupEvent,
 } from "@octokit/webhooks-types";
 import { CLAUDE_APP_BOT_ID, CLAUDE_BOT_LOGIN } from "./constants";
 // Custom types for GitHub Actions events that aren't webhooks
@@ -65,6 +66,7 @@ const AUTOMATION_EVENT_NAMES = [
   "repository_dispatch",
   "schedule",
   "workflow_run",
+  "merge_group",
 ] as const;
 
 // Derive types from constants for better maintainability
@@ -118,14 +120,15 @@ export type ParsedGitHubContext = BaseContext & {
   isPR: boolean;
 };
 
-// Context for automation events (workflow_dispatch, repository_dispatch, schedule, workflow_run)
+// Context for automation events (workflow_dispatch, repository_dispatch, schedule, workflow_run, merge_group)
 export type AutomationContext = BaseContext & {
   eventName: AutomationEventName;
   payload:
     | WorkflowDispatchEvent
     | RepositoryDispatchEvent
     | ScheduleEvent
-    | WorkflowRunEvent;
+    | WorkflowRunEvent
+    | MergeGroupEvent;
 };
 
 // Union type for all contexts
@@ -247,6 +250,13 @@ export function parseGitHubContext(): GitHubContext {
         payload: context.payload as unknown as WorkflowRunEvent,
       };
     }
+    case "merge_group": {
+      return {
+        ...commonFields,
+        eventName: "merge_group",
+        payload: context.payload as unknown as MergeGroupEvent,
+      };
+    }
     default:
       throw new Error(`Unsupported event type: ${context.eventName}`);
   }
@@ -286,6 +296,12 @@ export function isWorkflowRunEvent(
   context: GitHubContext,
 ): context is AutomationContext & { payload: WorkflowRunEvent } {
   return context.eventName === "workflow_run";
+}
+
+export function isMergeGroupEvent(
+  context: GitHubContext,
+): context is AutomationContext & { payload: MergeGroupEvent } {
+  return context.eventName === "merge_group";
 }
 
 export function isIssuesAssignedEvent(
