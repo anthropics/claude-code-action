@@ -1,4 +1,5 @@
 import { $ } from "bun";
+import * as core from "@actions/core";
 import { homedir } from "os";
 import { readFile } from "fs/promises";
 
@@ -15,19 +16,29 @@ export async function setupClaudeCodeSettings(
   await $`mkdir -p ${home}/.claude`.quiet();
 
   let settings: Record<string, unknown> = {};
+  let existingSettings: string | undefined;
   try {
-    const existingSettings = await $`cat ${settingsPath}`.quiet().text();
+    existingSettings = await readFile(settingsPath, "utf-8");
+  } catch (e) {
+    console.log(`No existing settings file found, creating new one`);
+  }
+
+  if (existingSettings !== undefined) {
     if (existingSettings.trim()) {
-      settings = JSON.parse(existingSettings);
-      console.log(
-        `Found existing settings:`,
-        JSON.stringify(settings, null, 2),
-      );
+      try {
+        settings = JSON.parse(existingSettings);
+        console.log(
+          `Found existing settings:`,
+          JSON.stringify(settings, null, 2),
+        );
+      } catch (e) {
+        core.warning(
+          `Existing settings file ${settingsPath} contains invalid JSON and will be overwritten: ${e instanceof Error ? e.message : e}`,
+        );
+      }
     } else {
       console.log(`Settings file exists but is empty`);
     }
-  } catch (e) {
-    console.log(`No existing settings file found, creating new one`);
   }
 
   // Handle settings input (either file path or JSON string)
@@ -40,6 +51,12 @@ export async function setupClaudeCodeSettings(
       inputSettings = JSON.parse(settingsInput);
       console.log(`Parsed settings input as JSON`);
     } catch (e) {
+      // Input that looks like JSON but fails to parse is a syntax error, not a path
+      if (/^\s*[{[]/.test(settingsInput)) {
+        throw new Error(
+          `Invalid JSON in settings input: ${e instanceof Error ? e.message : e}`,
+        );
+      }
       // If not JSON, treat as file path
       console.log(
         `Settings input is not JSON, treating as file path: ${settingsInput}`,
@@ -50,7 +67,9 @@ export async function setupClaudeCodeSettings(
         console.log(`Successfully read and parsed settings from file`);
       } catch (fileError) {
         console.error(`Failed to read or parse settings file: ${fileError}`);
-        throw new Error(`Failed to process settings input: ${fileError}`);
+        throw new Error(
+          `Failed to process settings input ${settingsInput}: ${fileError}`,
+        );
       }
     }
 

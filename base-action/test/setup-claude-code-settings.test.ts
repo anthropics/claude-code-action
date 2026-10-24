@@ -100,6 +100,33 @@ describe("setupClaudeCodeSettings", () => {
     ).toThrow();
   });
 
+  test("should report JSON syntax error instead of treating invalid JSON as a file path", async () => {
+    await expect(
+      setupClaudeCodeSettings('{ "model": ', testHomeDir),
+    ).rejects.toThrow(/Invalid JSON in settings input/);
+  });
+
+  test("should warn and overwrite when existing settings file has invalid JSON", async () => {
+    await mkdir(join(testHomeDir, ".claude"), { recursive: true });
+    await writeFile(settingsPath, "{ invalid json");
+
+    const stdout: string[] = [];
+    const originalWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = ((chunk: string | Uint8Array) => {
+      stdout.push(String(chunk));
+      return true;
+    }) as typeof process.stdout.write;
+    try {
+      await setupClaudeCodeSettings(undefined, testHomeDir);
+    } finally {
+      process.stdout.write = originalWrite;
+    }
+
+    expect(stdout.join("")).toContain("::warning::Existing settings file");
+    const settings = JSON.parse(await readFile(settingsPath, "utf-8"));
+    expect(settings.enableAllProjectMcpServers).toBe(true);
+  });
+
   test("should throw error for non-existent file path", async () => {
     expect(() =>
       setupClaudeCodeSettings("/non/existent/file.json", testHomeDir),
