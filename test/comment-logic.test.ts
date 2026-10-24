@@ -251,6 +251,24 @@ describe("updateCommentBody", () => {
       expect(result).toContain("[Create a PR](not-a-valid-url-at-all)");
       expect(result).toContain("This PR was created.");
     });
+
+    it("keeps the full provided PR link when its URL contains parentheses", () => {
+      // Same shape update-comment-link.ts builds: encodeURIComponent leaves
+      // "(" and ")" unescaped, so the prefilled PR body's markdown link puts
+      // a balanced "(...)" inside the compare URL.
+      const prBody = encodeURIComponent(
+        "This PR addresses issue #12\n\nGenerated with [Claude Code](https://claude.ai/code)",
+      );
+      const prUrl = `https://github.com/owner/repo/compare/main...claude/issue-12-20240101-1200?quick_pull=1&title=Issue%20%2312&body=${prBody}`;
+      const input = {
+        ...baseInput,
+        currentBody: "Claude Code is working…\n\nI've made changes.",
+        prLink: `\n[Create a PR](${prUrl})`,
+      };
+
+      const result = updateCommentBody(input);
+      expect(result).toContain(`• [Create PR ➔](${prUrl})`);
+    });
   });
 
   describe("execution details", () => {
