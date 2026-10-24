@@ -18,6 +18,8 @@ export type CommentUpdateInput = {
   branchName?: string;
   triggerUsername?: string;
   errorDetails?: string;
+  cancelled?: boolean;
+  sessionId?: string;
 };
 
 export function ensureProperlyEncodedUrl(url: string): string | null {
@@ -114,7 +116,13 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   // Build the header
   let header = "";
 
-  if (actionFailed) {
+  if (input.cancelled) {
+    header = "**Claude's run was cancelled";
+    if (durationStr) {
+      header += ` after ${durationStr}`;
+    }
+    header += "**";
+  } else if (actionFailed) {
     header = "**Claude encountered an error";
     if (durationStr) {
       header += ` after ${durationStr}`;
@@ -186,6 +194,14 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   // Add error details if available. The message may embed runtime credentials
   // (e.g. a token in a git remote URL) that are not registered as workflow
   // secrets, so redact known formats before posting.
+  if (input.cancelled) {
+    newBody +=
+      "\n\nThis run was interrupted before completion; partial progress is in the job log.";
+    if (input.sessionId) {
+      newBody += ` To continue it, re-run the workflow with \`session_id: ${input.sessionId}\`.`;
+    }
+  }
+
   if (actionFailed && errorDetails) {
     newBody += `\n\n\`\`\`\n${redactSecrets(errorDetails)}\n\`\`\``;
   }

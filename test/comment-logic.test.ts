@@ -14,6 +14,52 @@ describe("updateCommentBody", () => {
     triggerUsername: undefined,
   };
 
+  describe("cancelled runs", () => {
+    it("uses the cancelled header and includes the resume hint with a session id", () => {
+      const result = updateCommentBody({
+        ...baseInput,
+        actionFailed: true,
+        executionDetails: { duration_ms: 65000 },
+        cancelled: true,
+        sessionId: "session-abc-123",
+      });
+
+      expect(result).toContain("**Claude's run was cancelled after 1m 5s**");
+      expect(result).toContain(
+        "This run was interrupted before completion; partial progress is in the job log.",
+      );
+      expect(result).toContain(
+        "re-run the workflow with `session_id: session-abc-123`.",
+      );
+      expect(result).not.toContain("Claude encountered an error");
+    });
+
+    it("omits the resume hint when no session id was captured", () => {
+      const result = updateCommentBody({
+        ...baseInput,
+        actionFailed: true,
+        cancelled: true,
+      });
+
+      expect(result).toContain("**Claude's run was cancelled**");
+      expect(result).toContain(
+        "This run was interrupted before completion; partial progress is in the job log.",
+      );
+      expect(result).not.toContain("session_id:");
+    });
+
+    it("keeps the success header when the run was not cancelled", () => {
+      const result = updateCommentBody({
+        ...baseInput,
+        triggerUsername: "trigger-user",
+        cancelled: false,
+      });
+
+      expect(result).toContain("**Claude finished @trigger-user's task**");
+      expect(result).not.toContain("cancelled");
+    });
+  });
+
   describe("working message replacement", () => {
     it("includes success message header with duration", () => {
       const input = {

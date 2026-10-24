@@ -5,6 +5,74 @@ import { parseSdkOptions } from "../src/parse-sdk-options";
 import type { ClaudeOptions } from "../src/run-claude";
 
 describe("parseSdkOptions", () => {
+  describe("session resume", () => {
+    test("passes a valid session id through as resume", () => {
+      const options: ClaudeOptions = {
+        sessionId: "9b2f1c4e-8a7d-4f3e-b1c0-5d6e7f8a9b0c",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.resume).toBe(
+        "9b2f1c4e-8a7d-4f3e-b1c0-5d6e7f8a9b0c",
+      );
+    });
+
+    test("trims surrounding whitespace from the session id", () => {
+      const result = parseSdkOptions({ sessionId: "  session-123\n" });
+
+      expect(result.sdkOptions.resume).toBe("session-123");
+    });
+
+    test("rejects a session id with shell metacharacters", () => {
+      expect(() => parseSdkOptions({ sessionId: "abc; rm -rf /" })).toThrow(
+        /Invalid session_id/,
+      );
+    });
+
+    test("rejects an empty-after-trim session id", () => {
+      expect(() => parseSdkOptions({ sessionId: "   " })).toThrow(
+        /Invalid session_id/,
+      );
+    });
+
+    test("leaves resume unset when no session id is provided", () => {
+      const result = parseSdkOptions({});
+
+      expect(result.sdkOptions.resume).toBeUndefined();
+    });
+
+    test("falls back to --resume from claude_args when no input is set", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--resume abc-123",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.resume).toBe("abc-123");
+      expect(result.sdkOptions.extraArgs?.["resume"]).toBeUndefined();
+    });
+
+    test("the session_id input wins over --resume in claude_args", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--resume from-args",
+        sessionId: "from-input",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.resume).toBe("from-input");
+      expect(result.sdkOptions.extraArgs?.["resume"]).toBeUndefined();
+    });
+
+    test("forwards the abort controller to the SDK options", () => {
+      const abortController = new AbortController();
+
+      const result = parseSdkOptions({ abortController });
+
+      expect(result.sdkOptions.abortController).toBe(abortController);
+    });
+  });
   describe("allowedTools merging", () => {
     test("should extract allowedTools from claudeArgs", () => {
       const options: ClaudeOptions = {

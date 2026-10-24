@@ -311,6 +311,24 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     };
   }
 
+  // Resume a previous session when a session id was provided. The id is
+  // passed to the CLI as an argument, so reject anything that is not a plain
+  // opaque token to fail fast on typos and template errors. --resume in
+  // claude_args is extracted and dropped, mirroring model and max-turns, so
+  // the session_id input (which wins) is never duplicated into the CLI.
+  const resumeFromClaudeArgs = extraArgs["resume"] || undefined;
+  delete extraArgs["resume"];
+  let resume: SdkOptions["resume"];
+  if (options.sessionId) {
+    const sessionId = options.sessionId.trim();
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(sessionId)) {
+      throw new Error(
+        `Invalid session_id: ${JSON.stringify(sessionId.slice(0, 32))} (expected the session UUID from a previous run's session_id output)`,
+      );
+    }
+    resume = sessionId;
+  }
+
   // Build SDK options - use merged tools from both direct options and claudeArgs
   const sdkOptions: SdkOptions = {
     // Direct options from ClaudeOptions inputs
@@ -326,6 +344,8 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
       mergedDisallowedTools.length > 0 ? mergedDisallowedTools : undefined,
     systemPrompt,
     fallbackModel: options.fallbackModel,
+    resume: resume ?? resumeFromClaudeArgs,
+    abortController: options.abortController,
     pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
     additionalDirectories:
       additionalDirectories.length > 0 ? additionalDirectories : undefined,
