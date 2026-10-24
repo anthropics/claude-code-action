@@ -100,8 +100,11 @@ outputs:
     description: "Path to the JSON file containing Claude Code execution log"
     value: ${{ steps.run_claude.outputs.execution_file }}
   structured_output:
-    description: "JSON string containing all structured output fields when --json-schema is provided in claude_args (use fromJSON() or jq to parse)"
+    description: "JSON string of the --json-schema result. Later steps in the same job can read it with fromJSON(steps.id.outputs.structured_output). GitHub may refuse to publish this value as a job output when it contains a masked secret (Skip output ... may contain secret). For another job, upload structured_output_file as an artifact."
     value: ${{ steps.run_claude.outputs.structured_output }}
+  structured_output_file:
+    description: "Absolute path of a file containing the same JSON as structured_output. Upload the file as an artifact to pass the JSON to a later job."
+    value: ${{ steps.run_claude.outputs.structured_output_file }}
   session_id:
     description: "The Claude Code session ID that can be used with --resume to continue this conversation"
     value: ${{ steps.run_claude.outputs.session_id }}

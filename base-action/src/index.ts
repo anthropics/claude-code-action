@@ -7,6 +7,7 @@ import { setupClaudeCodeSettings } from "./setup-claude-code-settings";
 import { validateEnvironmentVariables } from "./validate-env";
 import { installPlugins } from "./install-plugins";
 import { setExecutionFileOutputIfPresent } from "./execution-file";
+import { publishStructuredOutput } from "./structured-output-file";
 import { setupWorkloadIdentity } from "./workload-identity";
 import type { WorkloadIdentityHandle } from "./workload-identity";
 
@@ -67,7 +68,7 @@ async function run() {
       core.setOutput("session_id", result.sessionId);
     }
     if (result.structuredOutput) {
-      core.setOutput("structured_output", result.structuredOutput);
+      await publishStructuredOutput(result.structuredOutput);
     }
   } catch (error) {
     setExecutionFileOutputIfPresent();
