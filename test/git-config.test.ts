@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import {
   configureGitAuth,
+  gitCredentialHelperValue,
   replaceCheckoutCredentials,
 } from "../src/github/operations/git-config";
 import { GITHUB_SERVER_URL } from "../src/github/api/config";
@@ -182,6 +183,34 @@ describe("git-config", () => {
   function git(args: string[]): void {
     runGit(args, repoDir);
   }
+});
+
+describe("gitCredentialHelperValue", () => {
+  const windowsHelperPath =
+    "D:\\a\\_actions\\anthropics\\claude-code-action\\abc123\\.git-credential-gh-token";
+  const posixHelperPath =
+    "/home/runner/work/_actions/anthropics/claude-code-action/abc123/.git-credential-gh-token";
+
+  test("rewrites a Windows helper path to forward slashes so git's shell can invoke it", () => {
+    const value = gitCredentialHelperValue(windowsHelperPath, "win32");
+    expect(value).not.toContain("\\");
+    expect(value).toBe(
+      "D:/a/_actions/anthropics/claude-code-action/abc123/.git-credential-gh-token",
+    );
+  });
+
+  test("leaves a POSIX helper path unchanged", () => {
+    expect(gitCredentialHelperValue(posixHelperPath, "linux")).toBe(
+      posixHelperPath,
+    );
+  });
+
+  test("does not touch backslashes on a non-Windows platform", () => {
+    const quirkyPosixPath = "/home/runner/a\\b/.git-credential-gh-token";
+    expect(gitCredentialHelperValue(quirkyPosixPath, "linux")).toBe(
+      quirkyPosixPath,
+    );
+  });
 });
 
 function restoreEnv(name: string, value: string | undefined): void {
