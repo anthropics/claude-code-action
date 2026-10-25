@@ -1,17 +1,11 @@
 #!/usr/bin/env bun
 
 import * as core from "@actions/core";
-import { writeFile } from "fs/promises";
+import { chmod, mkdtemp, writeFile } from "fs/promises";
 import { join } from "path";
 
 const STRUCTURED_OUTPUT_FILENAME = "claude-structured-output.json";
-
-export function getStructuredOutputFilePath(): string | undefined {
-  if (!process.env.RUNNER_TEMP) {
-    return undefined;
-  }
-  return join(process.env.RUNNER_TEMP, STRUCTURED_OUTPUT_FILENAME);
-}
+const STRUCTURED_OUTPUT_DIRECTORY_PREFIX = "claude-structured-output-";
 
 /**
  * Publishes structured JSON for later steps.
@@ -26,8 +20,8 @@ export async function publishStructuredOutput(
 ): Promise<void> {
   core.setOutput("structured_output", structuredOutput);
 
-  const outputFile = getStructuredOutputFilePath();
-  if (!outputFile) {
+  const runnerTemp = process.env.RUNNER_TEMP;
+  if (!runnerTemp) {
     core.warning(
       "Failed to write structured output file: RUNNER_TEMP is not set",
     );
@@ -35,7 +29,16 @@ export async function publishStructuredOutput(
   }
 
   try {
+    // Use a new private directory for every invocation. A job can invoke the
+    // action more than once, so a fixed filename would let a later invocation
+    // overwrite a file that an earlier step still needs to upload.
+    const outputDirectory = await mkdtemp(
+      join(runnerTemp, STRUCTURED_OUTPUT_DIRECTORY_PREFIX),
+    );
+    await chmod(outputDirectory, 0o700);
+    const outputFile = join(outputDirectory, STRUCTURED_OUTPUT_FILENAME);
     await writeFile(outputFile, structuredOutput, { mode: 0o600 });
+    await chmod(outputFile, 0o600);
     core.setOutput("structured_output_file", outputFile);
   } catch (error) {
     core.warning(`Failed to write structured output file: ${error}`);

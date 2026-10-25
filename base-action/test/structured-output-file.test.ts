@@ -4,7 +4,7 @@ import * as core from "@actions/core";
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { mkdtemp, readFile, rm, stat } from "fs/promises";
 import { tmpdir } from "os";
-import { join } from "path";
+import { basename, dirname, join } from "path";
 import { publishStructuredOutput } from "../src/structured-output-file";
 
 describe("publishStructuredOutput", () => {
@@ -35,17 +35,54 @@ describe("publishStructuredOutput", () => {
     try {
       await publishStructuredOutput(structuredOutput);
 
-      const outputFile = join(tempDir, "claude-structured-output.json");
       expect(setOutputSpy).toHaveBeenCalledWith(
         "structured_output",
         structuredOutput,
       );
-      expect(setOutputSpy).toHaveBeenCalledWith(
-        "structured_output_file",
-        outputFile,
+      const outputFileCall = setOutputSpy.mock.calls.find(
+        ([name]) => name === "structured_output_file",
+      );
+      const outputFile = outputFileCall?.[1];
+      if (typeof outputFile !== "string") {
+        throw new Error("structured_output_file was not set to a path");
+      }
+
+      expect(basename(outputFile)).toBe("claude-structured-output.json");
+      expect(dirname(outputFile)).toStartWith(
+        join(tempDir, "claude-structured-output-"),
       );
       expect(await readFile(outputFile, "utf8")).toBe(structuredOutput);
       expect((await stat(outputFile)).mode & 0o777).toBe(0o600);
+      expect((await stat(dirname(outputFile))).mode & 0o777).toBe(0o700);
+    } finally {
+      setOutputSpy.mockRestore();
+    }
+  });
+
+  test("uses a distinct file for each invocation", async () => {
+    const setOutputSpy = spyOn(core, "setOutput").mockImplementation(() => {});
+    tempDir = await mkdtemp(join(tmpdir(), "claude-structured-output-"));
+    process.env.RUNNER_TEMP = tempDir;
+
+    try {
+      await publishStructuredOutput('{"run":1}');
+      await publishStructuredOutput('{"run":2}');
+
+      const outputFiles = setOutputSpy.mock.calls
+        .filter(([name]) => name === "structured_output_file")
+        .map(([, value]) => value);
+      expect(outputFiles).toHaveLength(2);
+      const [firstOutputFile, secondOutputFile] = outputFiles;
+      if (
+        typeof firstOutputFile !== "string" ||
+        typeof secondOutputFile !== "string"
+      ) {
+        throw new Error("structured_output_file was not set to a path");
+      }
+
+      expect(firstOutputFile).not.toBe(secondOutputFile);
+      expect(await readFile(firstOutputFile, "utf8")).toBe('{"run":1}');
+      expect(await readFile(secondOutputFile, "utf8")).toBe('{"run":2}');
     } finally {
       setOutputSpy.mockRestore();
     }
