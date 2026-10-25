@@ -218,6 +218,78 @@ describe("runClaudeWithSdk", () => {
     }
   });
 
+  test("reports the session error, not the schema error, when is_error is true and --json-schema is set", async () => {
+    const consoleErrorSpy = spyOn(console, "error").mockImplementation(
+      () => {},
+    );
+    const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+    const coreErrorSpy = spyOn(
+      await import("@actions/core"),
+      "error",
+    ).mockImplementation(() => {});
+
+    tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+    process.env.RUNNER_TEMP = tempDir;
+
+    const promptPath = join(tempDir, "prompt.txt");
+    await writeFile(promptPath, "test prompt");
+
+    const initMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "session-123",
+      model: "claude-sonnet-5",
+    };
+
+    // The failure shape reported in #1720: the session errors out without
+    // producing structured_output, while subtype still reads "success".
+    const errorResultMessage = {
+      type: "result",
+      subtype: "success",
+      is_error: true,
+      duration_ms: 220,
+      num_turns: 1,
+      total_cost_usd: 0,
+      permission_denials: [],
+      errors: ["upstream session failure"],
+    };
+
+    mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+      query: async function* () {
+        yield initMessage;
+        yield errorResultMessage;
+      },
+    }));
+
+    try {
+      const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+      await expect(
+        runClaudeWithSdk(promptPath, {
+          sdkOptions: {},
+          showFullOutput: false,
+          hasJsonSchema: true,
+        }),
+      ).rejects.toThrow("result is_error:true");
+
+      // The session-level diagnostics must survive the --json-schema path.
+      expect(coreErrorSpy).toHaveBeenCalledWith(
+        "Claude result reported subtype success with is_error:true (run did not complete successfully)",
+      );
+      expect(coreErrorSpy).toHaveBeenCalledWith(
+        "Execution failed: upstream session failure",
+      );
+      // The schema message would misattribute the failure to the schema.
+      for (const call of coreErrorSpy.mock.calls) {
+        expect(String(call[0])).not.toContain("--json-schema was provided");
+      }
+    } finally {
+      consoleErrorSpy.mockRestore();
+      consoleLogSpy.mockRestore();
+      coreErrorSpy.mockRestore();
+    }
+  });
+
   test("fails closed when a successful result exceeds maxTurns", async () => {
     const consoleErrorSpy = spyOn(console, "error").mockImplementation(
       () => {},
