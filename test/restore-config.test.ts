@@ -394,6 +394,20 @@ describe("restoreConfigFromBase", () => {
     expect(countClaudePrExcludeEntries()).toBe(1);
   });
 
+  test("leaves sensitive paths deleted when fetching the base fails", () => {
+    git(["remote", "remove", "origin"]);
+
+    const restoredPaths = restoreConfigFromBase("main");
+    expect(restoredPaths).toContain(".claude");
+    expect(restoredPaths).toContain("CLAUDE.md");
+    expect(existsRepoFile("CLAUDE.md")).toBe(false);
+    expect(existsRepoFile(".claude/settings.json")).toBe(false);
+    expect(existsRepoFile(".claude-pr/CLAUDE.md")).toBe(true);
+    expect(readRepoFile(".claude-pr/CLAUDE.md")).toBe(
+      "pr claude instructions\n",
+    );
+  });
+
   test("leaves a full checkout unshallow so base..HEAD stays scoped to the PR", () => {
     // The damage only shows up once base has moved on since the PR branched:
     // the merge base is then an older commit that a depth-limited fetch of base
