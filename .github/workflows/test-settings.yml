@@ -12,11 +12,16 @@ permissions:
   contents: read
   id-token: write
 
+# Pin the model so these tests don't depend on the CLI's default model,
+# which can change with each Claude Code release.
+env:
+  ANTHROPIC_MODEL: claude-opus-5
+
 jobs:
   test-settings-inline-allow:
     # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-firewall
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -29,6 +34,7 @@ jobs:
           anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
           anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          claude_args: "--permission-mode auto"
           settings: |
             {
               "permissions": {
@@ -69,7 +75,7 @@ jobs:
   test-settings-inline-deny:
     # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-firewall
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -82,6 +88,7 @@ jobs:
           anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
           anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          claude_args: "--permission-mode auto"
           settings: |
             {
               "permissions": {
@@ -105,7 +112,7 @@ jobs:
   test-settings-file-allow:
     # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-firewall
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -128,6 +135,7 @@ jobs:
           anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
           anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          claude_args: "--permission-mode auto"
           settings: "test-settings.json"
 
       - name: Verify echo worked
@@ -163,7 +171,7 @@ jobs:
   test-settings-file-deny:
     # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-firewall
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -186,6 +194,7 @@ jobs:
           anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
           anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          claude_args: "--permission-mode auto"
           settings: "test-settings.json"
 
       - name: Verify echo was denied
