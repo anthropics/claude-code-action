@@ -48,19 +48,19 @@ export function stripHiddenAttributes(content: string): string {
 }
 
 export function normalizeHtmlEntities(content: string): string {
-  content = content.replace(/&#(\d+);/g, (_, dec) => {
-    const num = parseInt(dec, 10);
-    if (num >= 32 && num <= 126) {
-      return String.fromCharCode(num);
+  const decodeNumericEntity = (num: number): string => {
+    if (num > 0x10ffff) {
+      return "";
     }
-    return "";
+    const character = String.fromCodePoint(num);
+    return /\p{C}/u.test(character) ? "" : character;
+  };
+
+  content = content.replace(/&#(\d+);/g, (_, dec) => {
+    return decodeNumericEntity(parseInt(dec, 10));
   });
   content = content.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
-    const num = parseInt(hex, 16);
-    if (num >= 32 && num <= 126) {
-      return String.fromCharCode(num);
-    }
-    return "";
+    return decodeNumericEntity(parseInt(hex, 16));
   });
   return content;
 }
