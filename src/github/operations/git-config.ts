@@ -124,7 +124,11 @@ export async function replaceCheckoutCredentials(
     );
     const cleanUrl = `https://${serverUrl.host}/${context.repository.owner}/${context.repository.repo}.git`;
     await $`git remote set-url origin ${cleanUrl}`;
-    await $`git config credential.helper ${helperPath}`;
+    const gitCredentialHelperPath =
+      process.platform === "win32"
+        ? helperPath.replaceAll("\\", "/")
+        : helperPath;
+    await $`git config credential.helper ${gitCredentialHelperPath}`;
     console.log("✓ Configured credential helper");
   } else {
     // Update the remote URL to include the token for authentication
