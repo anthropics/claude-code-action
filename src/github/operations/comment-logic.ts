@@ -1,6 +1,6 @@
 import { GITHUB_SERVER_URL } from "../api/config";
 import { redactSecrets } from "../utils/sanitizer";
-import { encodeBranchNameForUrl } from "./comments/common";
+import { encodeBranchNameForUrl, extractBotHeader } from "./comments/common";
 
 export type ExecutionDetails = {
   total_cost_usd?: number;
@@ -81,10 +81,18 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     errorDetails,
   } = input;
 
+  // Extract and preserve bot header for sticky comment identification
+  const botHeader = extractBotHeader(originalBody);
+
   // Extract content from the original comment body
   // First, remove the "Claude Code is working…" or "Claude Code is working..." message
   const workingPattern = /Claude Code is working[…\.]{1,3}(?:\s*<img[^>]*>)?/i;
   let bodyContent = originalBody.replace(workingPattern, "").trim();
+
+  // Remove bot header from body content since we'll prepend it at the end
+  if (botHeader) {
+    bodyContent = bodyContent.replace(/^<!--\s*bot:\s*\S+\s*-->\n?/, "").trim();
+  }
 
   // Check if there's a PR link in the content
   let prLinkFromContent = "";
@@ -202,6 +210,11 @@ export function updateCommentBody(input: CommentUpdateInput): string {
 
   // Add the cleaned body content
   newBody += bodyContent;
+
+  // Prepend bot header if it existed in the original comment
+  if (botHeader) {
+    return (botHeader + newBody).trim();
+  }
 
   return newBody.trim();
 }
