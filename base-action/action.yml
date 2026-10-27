@@ -84,7 +84,7 @@ inputs:
     required: false
     default: "false"
   plugins:
-    description: "Newline-separated list of Claude Code plugin names to install (e.g., 'code-review@claude-code-plugins\nfeature-dev@claude-code-plugins')"
+    description: "Newline-separated list of Claude Code plugin names to install (e.g., 'code-review@claude-plugins-official\nfeature-dev@claude-plugins-official')"
     required: false
     default: ""
   plugin_marketplaces:
