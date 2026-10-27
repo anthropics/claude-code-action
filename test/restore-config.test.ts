@@ -12,7 +12,11 @@ import {
   writeFileSync,
 } from "fs";
 import { dirname, isAbsolute, join } from "path";
-import { restoreConfigFromBase } from "../src/github/operations/restore-config";
+import {
+  resolveRestoreBase,
+  restoreConfigFromBase,
+} from "../src/github/operations/restore-config";
+import { createMockAutomationContext, createMockContext } from "./mockContext";
 
 const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
 
@@ -381,6 +385,39 @@ describe("restoreConfigFromBase", () => {
     expectNoLinksInSnapshot();
   });
 
+  test.each([
+    ["tag", "refs/tags/origin/main"],
+    ["local branch", "refs/heads/origin/main"],
+    ["local branch (full ref name)", "refs/heads/refs/remotes/origin/main"],
+  ])("ignores a %s named after the remote-tracking branch", (_kind, ref) => {
+    // Nothing else can supply the base: no local base branch, no
+    // remote-tracking branch yet, and a configured refspec that leaves it out.
+    git(["branch", "-D", "main"]);
+    git(["update-ref", "-d", "refs/remotes/origin/main"]);
+    git([
+      "config",
+      "remote.origin.fetch",
+      "+refs/heads/pr:refs/remotes/origin/pr",
+    ]);
+    git(["update-ref", ref, "HEAD"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("CLAUDE.md")).toBe("base claude instructions\n");
+    expect(readRepoFile(".claude/settings.json")).toBe(
+      `${JSON.stringify({ source: "base" })}\n`,
+    );
+  });
+
+  test("fetches the base branch when the remote has a tag of the same name", () => {
+    git(["push", "origin", "HEAD:refs/tags/main"]);
+    git(["update-ref", "-d", "refs/remotes/origin/main"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("CLAUDE.md")).toBe("base claude instructions\n");
+  });
+
   test("does not modify an existing .gitignore", () => {
     writeRepoFile(".gitignore", "node_modules\n");
     git(["add", ".gitignore"]);
@@ -529,4 +566,84 @@ describe("restoreConfigFromBase", () => {
     const gitPath = git(["rev-parse", "--git-path", "info/exclude"]).trim();
     return isAbsolute(gitPath) ? gitPath : join(repoDir, gitPath);
   }
+});
+
+describe("resolveRestoreBase", () => {
+  const pullRequestPayload = { pull_request: { base: { ref: "release/1.x" } } };
+
+  test.each([
+    "pull_request",
+    "pull_request_review",
+    "pull_request_review_comment",
+  ] as const)("%s restores from the PR's base ref in the payload", (event) => {
+    const context = createMockContext({
+      eventName: event,
+      isPR: true,
+      payload: pullRequestPayload as any,
+    });
+
+    expect(resolveRestoreBase(context, "main")).toBe("release/1.x");
+  });
+
+  test("rejects an invalid PR base ref", () => {
+    const context = createMockContext({
+      eventName: "pull_request",
+      isPR: true,
+      payload: { pull_request: { base: { ref: "-x" } } } as any,
+    });
+
+    expect(() => resolveRestoreBase(context, "main")).toThrow(
+      "Branch names cannot start with a dash",
+    );
+  });
+
+  test("issue_comment on a PR falls back to the mode's base branch", () => {
+    const context = createMockContext({
+      eventName: "issue_comment",
+      isPR: true,
+    });
+
+    expect(resolveRestoreBase(context, "develop")).toBe("develop");
+    expect(resolveRestoreBase(context, undefined)).toBeUndefined();
+  });
+
+  test("issue events that are not on a PR restore nothing", () => {
+    const context = createMockContext({ eventName: "issues", isPR: false });
+
+    expect(resolveRestoreBase(context, "main")).toBeUndefined();
+  });
+
+  test("merge_group restores from the branch the group merges into", () => {
+    const context = createMockAutomationContext({
+      eventName: "merge_group",
+      payload: {
+        action: "checks_requested",
+        merge_group: { base_ref: "refs/heads/release/1.x" },
+      } as any,
+    });
+
+    expect(resolveRestoreBase(context, "main")).toBe("release/1.x");
+  });
+
+  test("validates the merge group base ref after stripping refs/heads/", () => {
+    const context = createMockAutomationContext({
+      eventName: "merge_group",
+      payload: { merge_group: { base_ref: "refs/heads/-x" } } as any,
+    });
+
+    expect(() => resolveRestoreBase(context, "main")).toThrow(
+      "Branch names cannot start with a dash",
+    );
+  });
+
+  test.each([
+    "workflow_dispatch",
+    "repository_dispatch",
+    "schedule",
+    "workflow_run",
+  ] as const)("%s restores nothing", (event) => {
+    const context = createMockAutomationContext({ eventName: event });
+
+    expect(resolveRestoreBase(context, "main")).toBeUndefined();
+  });
 });

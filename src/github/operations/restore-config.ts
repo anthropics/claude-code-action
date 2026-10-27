@@ -13,6 +13,15 @@ import {
   writeFileSync,
 } from "fs";
 import { dirname, join, posix, relative, sep } from "path";
+import {
+  isEntityContext,
+  isMergeGroupEvent,
+  isPullRequestEvent,
+  isPullRequestReviewCommentEvent,
+  isPullRequestReviewEvent,
+  type GitHubContext,
+} from "../context";
+import { validateBranchName } from "./branch";
 import { fetchDepthArgs } from "./fetch-depth";
 
 // Paths that are both PR-controllable and read from cwd at CLI startup.
@@ -229,7 +238,54 @@ function ensureClaudePrExcludedFromGit(): void {
 }
 
 /**
- * Restores security-sensitive config paths from the PR base branch.
+ * Picks the trusted branch to restore SENSITIVE_PATHS from, or returns
+ * undefined when the event does not check out pull request content.
+ *
+ * Pull request events read pull_request.base.ref from the payload directly
+ * because agent mode's branchInfo.baseBranch defaults to the repo's default
+ * branch rather than the PR's actual target (agent/index.ts). For
+ * issue_comment on a PR the payload lacks base.ref, so this falls back to the
+ * mode-provided value. Tag mode fetches it from GraphQL; agent mode on
+ * issue_comment is an edge case that at worst restores from the wrong trusted
+ * branch (still secure).
+ *
+ * A merge group's head commit carries the queued pull requests' changes, so
+ * it restores from the branch the group merges into.
+ *
+ * @param modeBaseBranch - The base branch the mode's prepare step returned.
+ */
+export function resolveRestoreBase(
+  context: GitHubContext,
+  modeBaseBranch: string | undefined,
+): string | undefined {
+  if (isEntityContext(context) && context.isPR) {
+    if (
+      isPullRequestEvent(context) ||
+      isPullRequestReviewEvent(context) ||
+      isPullRequestReviewCommentEvent(context)
+    ) {
+      const restoreBase = context.payload.pull_request.base.ref;
+      validateBranchName(restoreBase);
+      return restoreBase;
+    }
+    return modeBaseBranch;
+  }
+
+  if (isMergeGroupEvent(context)) {
+    const restoreBase = context.payload.merge_group.base_ref.replace(
+      /^refs\/heads\//,
+      "",
+    );
+    validateBranchName(restoreBase);
+    return restoreBase;
+  }
+
+  return undefined;
+}
+
+/**
+ * Restores security-sensitive config paths from the trusted base branch: a
+ * PR's base, or the branch a merge group targets.
  *
  * The CLI's non-interactive mode trusts cwd: it reads `.mcp.json`,
  * `.claude/settings.json`, and `.claude/settings.local.json` from the working
@@ -260,8 +316,10 @@ function ensureClaudePrExcludedFromGit(): void {
  * `bunfig.toml` (e.g. `preload`) from the checkout, so `bunfig.toml` and
  * `.npmrc` there are PR-controlled runtime config too.
  *
- * @param baseBranch - PR base branch name. Must be pre-validated (branch.ts
- *   calls validateBranchName on it before returning).
+ * @param baseBranch - Branch name from resolveRestoreBase. Refs taken from the
+ *   payload and tag mode's base branch (branch.ts) have been through
+ *   validateBranchName. Agent mode's fallback has not: it is the workflow's own
+ *   base_branch input or the repository's default branch.
  * @returns The paths whose working-tree state now comes from the base branch
  *   rather than the PR. Callers that stage files must exclude these, or they
  *   will commit the revert back onto the PR author's branch.
@@ -305,15 +363,22 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
     rmSync(p, { recursive: true, force: true });
   }
 
+  // Both sides of the refspec are spelled out so that a successful fetch always
+  // leaves baseRef at the branch's tip: a bare name would pick a tag of the same
+  // name on the remote, and would update baseRef only if the configured refspec
+  // covers it. --no-tags keeps the explicit destination from pulling tags in.
+  //
   // --no-recurse-submodules: explicitly suppress submodule fetching regardless of
   // fetch.recurseSubmodules config. Defense-in-depth alongside the delete above.
+  const baseRef = `refs/remotes/origin/${baseBranch}`;
   execFileSync(
     "git",
     [
       "fetch",
       "origin",
-      baseBranch,
+      `+refs/heads/${baseBranch}:${baseRef}`,
       ...fetchDepthArgs(1),
+      "--no-tags",
       "--no-recurse-submodules",
     ],
     {
@@ -322,11 +387,13 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
     },
   );
 
+  // The full ref name, so a tag or local branch called origin/<base> is never
+  // picked over the remote-tracking branch. ^{commit}, because checkout tries
+  // its argument as a branch name first and no ref name can contain "^".
+  const baseCommit = `${baseRef}^{commit}`;
   for (const p of SENSITIVE_PATHS) {
     try {
-      execFileSync("git", ["checkout", `origin/${baseBranch}`, "--", p], {
-        stdio: "pipe",
-      });
+      execFileSync("git", ["checkout", baseCommit, "--", p], { stdio: "pipe" });
     } catch {
       // Path doesn't exist on base — it stays deleted.
     }
