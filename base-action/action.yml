@@ -84,7 +84,7 @@ inputs:
     required: false
     default: "false"
   plugins:
-    description: "Newline-separated list of Claude Code plugin names to install (e.g., 'code-review@claude-code-plugins\nfeature-dev@claude-code-plugins')"
+    description: "Newline-separated list of Claude Code plugin names to install (e.g., 'code-review@claude-plugins-official\nfeature-dev@claude-plugins-official')"
     required: false
     default: ""
   plugin_marketplaces:
@@ -147,7 +147,7 @@ runs:
         PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
       run: |
         if [ -z "$PATH_TO_CLAUDE_CODE_EXECUTABLE" ]; then
-          CLAUDE_CODE_VERSION="2.1.311"
+          CLAUDE_CODE_VERSION="2.1.312"
           echo "Installing Claude Code v${CLAUDE_CODE_VERSION}..."
           for attempt in 1 2 3; do
             echo "Installation attempt $attempt..."
