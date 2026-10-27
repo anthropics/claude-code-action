@@ -234,8 +234,9 @@ runs:
           exit 0
         fi
         if command -v apt-get >/dev/null && command -v sudo >/dev/null; then
+          # Treat transient update failures as errors so this loop retries them.
           for i in 1 2 3; do
-            sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat && break
+            sudo apt-get update -qq -o APT::Update::Error-Mode=any && sudo apt-get install -y --no-install-recommends bubblewrap socat && break
             echo "apt-get attempt $i failed, retrying..."
             sleep 5
           done
