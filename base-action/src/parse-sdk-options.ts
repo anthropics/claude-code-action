@@ -9,6 +9,8 @@ export type ParsedSdkOptions = {
   sdkOptions: SdkOptions;
   showFullOutput: boolean;
   hasJsonSchema: boolean;
+  /** Milliseconds after which `runClaudeWithSdk` aborts the SDK session, or undefined for no internal bound (`timeout_minutes` input unset). */
+  timeoutMs?: number;
 };
 
 // Flags that should accumulate multiple values instead of overwriting
@@ -347,9 +349,17 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   // Remove setting-sources from extraArgs to avoid passing it twice
   delete extraArgs["setting-sources"];
 
+  const timeoutMinutes = options.timeoutMinutes
+    ? parseInt(options.timeoutMinutes, 10)
+    : undefined;
+
   return {
     sdkOptions,
     showFullOutput,
     hasJsonSchema,
+    timeoutMs:
+      timeoutMinutes !== undefined && !Number.isNaN(timeoutMinutes)
+        ? timeoutMinutes * 60_000
+        : undefined,
   };
 }
