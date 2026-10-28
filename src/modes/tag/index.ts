@@ -68,33 +68,7 @@ export async function prepareTagMode({
     excludeCommentsByActor: context.inputs.excludeCommentsByActor,
   });
 
-  // Setup branch
-  const editedAt =
-    context.eventAction === "edited" &&
-    (isIssueCommentEvent(context) || isPullRequestReviewCommentEvent(context))
-      ? context.payload.comment.updated_at
-      : undefined;
-  let branchInfo;
-  try {
-    branchInfo = await setupBranch(
-      octokit,
-      githubData,
-      context,
-      editedAt || triggerTime,
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await updateClaudeComment(octokit.rest, {
-      owner: context.repository.owner,
-      repo: context.repository.repo,
-      commentId,
-      body: message,
-      isPullRequestReviewComment: isPullRequestReviewCommentEvent(context),
-    }).catch((e) => console.error(`Failed to update tracking comment: ${e}`));
-    throw error;
-  }
-
-  // Configure git authentication
+  // Configure git authentication before setupBranch, which may fetch the PR branch.
   // SSH signing takes precedence if provided
   const useSshSigning = !!context.inputs.sshSigningKey;
   const useApiCommitSigning = context.inputs.useCommitSigning && !useSshSigning;
@@ -137,6 +111,32 @@ export async function prepareTagMode({
       console.error("Failed to configure git credentials:", error);
       throw error;
     }
+  }
+
+  // Setup branch
+  const editedAt =
+    context.eventAction === "edited" &&
+    (isIssueCommentEvent(context) || isPullRequestReviewCommentEvent(context))
+      ? context.payload.comment.updated_at
+      : undefined;
+  let branchInfo;
+  try {
+    branchInfo = await setupBranch(
+      octokit,
+      githubData,
+      context,
+      editedAt || triggerTime,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await updateClaudeComment(octokit.rest, {
+      owner: context.repository.owner,
+      repo: context.repository.repo,
+      commentId,
+      body: message,
+      isPullRequestReviewComment: isPullRequestReviewCommentEvent(context),
+    }).catch((e) => console.error(`Failed to update tracking comment: ${e}`));
+    throw error;
   }
 
   // Create prompt file
