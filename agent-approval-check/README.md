@@ -71,7 +71,7 @@ jobs:
 | ---------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `required_approvals`   | `2`                            | Distinct human approvals needed.                                                                                                      |
 | `agent_emails`         | `noreply@anthropic.com`        | Committer emails that mark a commit agent-authored.                                                                                   |
-| `agent_logins`         | `claude[bot],claude-code[bot]` | Logins treated as agents (PR author or approving reviewer).                                                                           |
+| `agent_logins`         | `claude[bot],claude-code[bot]` | Logins treated as agents: PR author, approving reviewer, or the login in a `<id>+<login>@users.noreply.github.com` committer address. |
 | `excluded_approvers`   | _(empty)_                      | Logins whose approvals never count.                                                                                                   |
 | `exempt_head_branches` | _(empty)_                      | Head-branch globs that auto-pass. ⚠️ Leave empty — branch names are attacker-controlled, so this is not a safe place to encode trust. |
 | `exempt_path_prefixes` | _(empty)_                      | PRs touching only these prefixes auto-pass.                                                                                           |
