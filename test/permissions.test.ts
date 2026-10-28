@@ -76,6 +76,7 @@ describe("checkWritePermissions", () => {
       allowedBots: "",
       allowedNonWriteUsers: "",
       trackProgress: false,
+      tokenOnly: false,
       includeFixLinks: true,
       includeCommentsByActor: "",
       excludeCommentsByActor: "",
