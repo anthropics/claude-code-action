@@ -1,5 +1,5 @@
 import fetch, { type RequestInit, type Response } from "node-fetch";
-import { GITHUB_API_URL } from "../github/api/config";
+import { buildBranchRefUrl } from "./git-ref-url";
 import { retryWithBackoff, type RetryOptions } from "../utils/retry";
 
 type GitHubFetch = (
@@ -44,7 +44,7 @@ export async function updateGitReference({
   fetchFn = fetch,
   retryOptions,
 }: UpdateGitReferenceOptions): Promise<void> {
-  const updateRefUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/refs/heads/${branch}`;
+  const updateRefUrl = buildBranchRefUrl(owner, repo, branch);
 
   await retryWithBackoff(
     async () => {
