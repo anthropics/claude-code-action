@@ -514,18 +514,150 @@ describe("restoreConfigFromBase", () => {
     expect(restoredPaths).toContain("src/app/AGENTS.md");
   });
 
+  test("restores the trusted target of a nested AGENTS symlink chain", () => {
+    git(["checkout", "main"]);
+    writeRepoFile("docs/instructions.md", "base linked instructions\n");
+    symlinkRepoFile("links/agent-instructions", "../docs/instructions.md");
+    symlinkRepoFile("packages/app/AGENTS.md", "../../links/agent-instructions");
+    git(["add", "."]);
+    git(["commit", "-m", "add linked base instructions"]);
+    recreatePrFromMain();
+
+    writeRepoFile("docs/instructions.md", "pr-controlled instructions\n");
+    git(["add", "docs/instructions.md"]);
+    git(["commit", "-m", "change linked instruction target"]);
+
+    const restoredPaths = restoreConfigFromBase("main");
+
+    expect(lstatRepoFile("packages/app/AGENTS.md").isSymbolicLink()).toBe(true);
+    expect(lstatRepoFile("links/agent-instructions").isSymbolicLink()).toBe(
+      true,
+    );
+    expect(readRepoFile("packages/app/AGENTS.md")).toBe(
+      "base linked instructions\n",
+    );
+    expect(readRepoFile("docs/instructions.md")).toBe(
+      "base linked instructions\n",
+    );
+    expect(readRepoFile(".claude-pr/docs/instructions.md")).toBe(
+      "pr-controlled instructions\n",
+    );
+    expect(restoredPaths).toEqual(
+      expect.arrayContaining([
+        "packages/app/AGENTS.md",
+        "links/agent-instructions",
+        "docs/instructions.md",
+      ]),
+    );
+  });
+
+  test("fails closed on a trusted instruction symlink cycle", () => {
+    git(["checkout", "main"]);
+    symlinkRepoFile("packages/app/AGENTS.md", "../../links/agent-instructions");
+    symlinkRepoFile("links/agent-instructions", "../packages/app/AGENTS.md");
+    git(["add", "."]);
+    git(["commit", "-m", "add cyclic base instructions"]);
+    recreatePrFromMain();
+
+    expect(() => restoreConfigFromBase("main")).toThrow(/symlink cycle/i);
+    expect(existsRepoFile("packages/app/AGENTS.md")).toBe(false);
+  });
+
+  test("fails closed when a trusted instruction symlink escapes the repository", () => {
+    const outsideFile = writeOutsideFile(
+      "instructions.md",
+      "outside sentinel\n",
+    );
+    git(["checkout", "main"]);
+    symlinkRepoFile("packages/AGENTS.md", "../../outside/instructions.md");
+    git(["add", "packages/AGENTS.md"]);
+    git(["commit", "-m", "add escaping base instructions"]);
+    recreatePrFromMain();
+
+    expect(() => restoreConfigFromBase("main")).toThrow(
+      /escapes the repository/i,
+    );
+    expect(readFileSync(outsideFile, "utf8")).toBe("outside sentinel\n");
+    expect(existsRepoFile("packages/AGENTS.md")).toBe(false);
+  });
+
+  test("fails closed when a trusted instruction symlink enters a gitlink", () => {
+    const submoduleDir = join(tempDir, "target-submodule");
+    mkdirSync(submoduleDir, { recursive: true });
+    gitAt(submoduleDir, ["init"]);
+    gitAt(submoduleDir, ["config", "user.email", "test@example.com"]);
+    gitAt(submoduleDir, ["config", "user.name", "Test User"]);
+    writeFileAt(submoduleDir, "instructions.md", "submodule instructions\n");
+    gitAt(submoduleDir, ["add", "."]);
+    gitAt(submoduleDir, ["commit", "-m", "add target instructions"]);
+
+    git(["checkout", "main"]);
+    git([
+      "-c",
+      "protocol.file.allow=always",
+      "submodule",
+      "add",
+      submoduleDir,
+      "vendor/trusted",
+    ]);
+    symlinkRepoFile("packages/AGENTS.md", "../vendor/trusted/instructions.md");
+    git(["add", "."]);
+    git(["commit", "-m", "link instructions into submodule"]);
+    recreatePrFromMain();
+
+    expect(() => restoreConfigFromBase("main")).toThrow(/enters gitlink/i);
+    expect(existsRepoFile("packages/AGENTS.md")).toBe(false);
+  });
+
+  test("fails closed when a populated gitlink contains AGENTS instructions", () => {
+    const submoduleDir = join(tempDir, "instruction-submodule");
+    mkdirSync(submoduleDir, { recursive: true });
+    gitAt(submoduleDir, ["init"]);
+    gitAt(submoduleDir, ["config", "user.email", "test@example.com"]);
+    gitAt(submoduleDir, ["config", "user.name", "Test User"]);
+    writeFileAt(submoduleDir, "nested/AGENTS.md", "submodule instructions\n");
+    gitAt(submoduleDir, ["add", "."]);
+    gitAt(submoduleDir, ["commit", "-m", "add submodule instructions"]);
+
+    git([
+      "-c",
+      "protocol.file.allow=always",
+      "submodule",
+      "add",
+      submoduleDir,
+      "vendor/untrusted",
+    ]);
+    git(["commit", "-m", "add populated instruction submodule"]);
+
+    expect(() => restoreConfigFromBase("main")).toThrow(
+      /populated gitlink.*AGENTS\.md/i,
+    );
+    expect(readRepoFile("vendor/untrusted/nested/AGENTS.md")).toBe(
+      "submodule instructions\n",
+    );
+    expect(readRepoFile("CLAUDE.md")).toBe("pr claude instructions\n");
+  });
+
   function git(args: string[]): string {
+    return gitAt(repoDir, args);
+  }
+
+  function gitAt(cwd: string, args: string[]): string {
     return execFileSync("git", args, {
-      cwd: repoDir,
+      cwd,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     });
   }
 
-  function writeRepoFile(path: string, contents: string): void {
-    const fullPath = join(repoDir, path);
+  function writeFileAt(root: string, path: string, contents: string): void {
+    const fullPath = join(root, path);
     mkdirSync(dirname(fullPath), { recursive: true });
     writeFileSync(fullPath, contents);
+  }
+
+  function writeRepoFile(path: string, contents: string): void {
+    writeFileAt(repoDir, path, contents);
   }
 
   function readRepoFile(path: string): string {
@@ -603,6 +735,10 @@ describe("restoreConfigFromBase", () => {
     symlinkRepoFile(".claude/CLAUDE.md", "../AGENTS.md");
     git(["add", "AGENTS.md", "CLAUDE.md", ".claude/CLAUDE.md"]);
     git(["commit", "-m", "add symlinked claude files"]);
+    recreatePrFromMain();
+  }
+
+  function recreatePrFromMain(): void {
     git(["push", "origin", "main"]);
     git(["branch", "-D", "pr"]);
     git(["checkout", "-b", "pr"]);

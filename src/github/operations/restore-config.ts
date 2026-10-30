@@ -5,6 +5,7 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   readlinkSync,
   realpathSync,
@@ -37,6 +38,15 @@ export const SENSITIVE_PATHS = [
 const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
 const AGENT_INSTRUCTION_FILE_NAMES = new Set(["AGENTS.md", "AGENTS.local.md"]);
 const AGENT_SNAPSHOT_SUFFIX = ".pr-snapshot";
+const GITLINK_MODE = "160000";
+const SYMLINK_MODE = "120000";
+
+type GitTreeEntry = {
+  mode: string;
+  type: string;
+  objectId: string;
+  path: string;
+};
 
 function isSameOrInside(child: string, parent: string): boolean {
   return child === parent || child.startsWith(`${parent}${sep}`);
@@ -87,21 +97,39 @@ function listTrackedPaths(): TrackedPaths {
 // paths leaves nested instructions controlled by the PR. Read names from Git
 // trees rather than the filesystem: this includes files deleted by either side
 // and excludes directory entries that merely have an instruction-file name.
-function listNestedAgentInstructionFiles(treeish: string): string[] {
-  const entries = execFileSync("git", ["ls-tree", "-r", "-z", treeish], {
-    encoding: "utf8",
-    maxBuffer: Infinity,
-  })
+function listTreeEntries(treeish: string): GitTreeEntry[] {
+  const records = execFileSync(
+    "git",
+    ["ls-tree", "-r", "-t", "-z", "--full-tree", treeish],
+    {
+      encoding: "utf8",
+      maxBuffer: Infinity,
+    },
+  )
     .split("\0")
     .filter(Boolean);
 
+  return records.map((record) => {
+    const tab = record.indexOf("\t");
+    if (tab === -1) {
+      throw new Error("Git returned an invalid ls-tree record");
+    }
+    const [mode, type, objectId] = record.slice(0, tab).split(" ");
+    const path = record.slice(tab + 1);
+    if (!mode || !type || !objectId || !path) {
+      throw new Error("Git returned an incomplete ls-tree record");
+    }
+    return { mode, type, objectId, path };
+  });
+}
+
+function listNestedAgentInstructionFiles(entries: GitTreeEntry[]): string[] {
   const paths: string[] = [];
   for (const entry of entries) {
-    const tab = entry.indexOf("\t");
-    if (tab === -1 || !entry.slice(0, tab).includes(" blob ")) {
+    if (entry.type !== "blob") {
       continue;
     }
-    const repoPath = entry.slice(tab + 1);
+    const repoPath = entry.path;
     if (
       repoPath.includes("/") &&
       AGENT_INSTRUCTION_FILE_NAMES.has(posix.basename(repoPath))
@@ -110,6 +138,153 @@ function listNestedAgentInstructionFiles(treeish: string): string[] {
     }
   }
   return paths;
+}
+
+function resolveBaseInstructionPaths(
+  baseRef: string,
+  entries: GitTreeEntry[],
+  instructionPaths: string[],
+): string[] {
+  const byPath = new Map(entries.map((entry) => [entry.path, entry]));
+  const gitlinks = entries
+    .filter((entry) => entry.mode === GITLINK_MODE)
+    .map((entry) => entry.path);
+  const protectedPaths = new Set(instructionPaths);
+  const resolved = new Set<string>();
+  const visiting = new Set<string>();
+
+  const visit = (repoPath: string): void => {
+    if (resolved.has(repoPath)) {
+      return;
+    }
+    if (visiting.has(repoPath)) {
+      throw new Error(
+        `Trusted base instruction symlink cycle includes ${JSON.stringify(repoPath)}`,
+      );
+    }
+
+    const entry = byPath.get(repoPath);
+    if (!entry || entry.type !== "blob") {
+      throw new Error(
+        `Trusted base instruction target ${JSON.stringify(repoPath)} is not a blob`,
+      );
+    }
+    if (entry.mode !== SYMLINK_MODE) {
+      resolved.add(repoPath);
+      return;
+    }
+
+    visiting.add(repoPath);
+    const target = execFileSync("git", ["cat-file", "blob", entry.objectId], {
+      encoding: "utf8",
+      maxBuffer: Infinity,
+    });
+    if (
+      target.length === 0 ||
+      target.includes("\0") ||
+      posix.isAbsolute(target)
+    ) {
+      throw new Error(
+        `Trusted base instruction link ${JSON.stringify(repoPath)} has an unsafe target`,
+      );
+    }
+    const targetPath = posix.normalize(
+      posix.join(posix.dirname(repoPath), target),
+    );
+    if (
+      targetPath === "." ||
+      targetPath === ".." ||
+      targetPath.startsWith("../") ||
+      targetPath.split("/").includes(".git") ||
+      targetPath === ".claude-pr" ||
+      targetPath.startsWith(".claude-pr/")
+    ) {
+      throw new Error(
+        `Trusted base instruction link ${JSON.stringify(repoPath)} escapes the repository or enters a reserved path`,
+      );
+    }
+    const gitlink = gitlinks.find(
+      (path) => targetPath === path || targetPath.startsWith(`${path}/`),
+    );
+    if (gitlink) {
+      throw new Error(
+        `Trusted base instruction link ${JSON.stringify(repoPath)} enters gitlink ${JSON.stringify(gitlink)}`,
+      );
+    }
+
+    const targetEntry = byPath.get(targetPath);
+    if (!targetEntry || targetEntry.type !== "blob") {
+      throw new Error(
+        `Trusted base instruction link ${JSON.stringify(repoPath)} targets missing or non-blob path ${JSON.stringify(targetPath)}`,
+      );
+    }
+    protectedPaths.add(targetPath);
+    visit(targetPath);
+    visiting.delete(repoPath);
+    resolved.add(repoPath);
+  };
+
+  for (const instructionPath of instructionPaths) {
+    visit(instructionPath);
+  }
+  if (protectedPaths.size > 0) {
+    console.log(
+      `Validated trusted instruction symlinks from ${baseRef}: ${protectedPaths.size} protected paths`,
+    );
+  }
+  return [...protectedPaths];
+}
+
+function assertPopulatedGitlinksContainNoAgentInstructions(
+  entries: GitTreeEntry[],
+): void {
+  const scan = (absoluteDir: string, gitlinkPath: string, relativeDir = "") => {
+    for (const name of readdirSync(absoluteDir)) {
+      if (name === ".git") {
+        continue;
+      }
+      const relativePath = relativeDir ? `${relativeDir}/${name}` : name;
+      const absolutePath = join(absoluteDir, name);
+      const stats = lstatSync(absolutePath);
+      if (AGENT_INSTRUCTION_FILE_NAMES.has(name) && !stats.isDirectory()) {
+        throw new Error(
+          `Refusing to continue: populated gitlink ${JSON.stringify(gitlinkPath)} contains instruction file ${JSON.stringify(relativePath)}`,
+        );
+      }
+      if (stats.isDirectory() && !stats.isSymbolicLink()) {
+        scan(absolutePath, gitlinkPath, relativePath);
+      }
+    }
+  };
+
+  for (const entry of entries) {
+    if (entry.mode !== GITLINK_MODE) {
+      continue;
+    }
+    if (AGENT_INSTRUCTION_FILE_NAMES.has(posix.basename(entry.path))) {
+      throw new Error(
+        `Refusing to continue: gitlink ${JSON.stringify(entry.path)} has an instruction-file name`,
+      );
+    }
+    let absolutePath = process.cwd();
+    let populated = true;
+    for (const component of entry.path.split("/")) {
+      absolutePath = join(absolutePath, component);
+      const stats = lstatSync(absolutePath, { throwIfNoEntry: false });
+      if (!stats) {
+        populated = false;
+        break;
+      }
+      if (!stats.isDirectory() || stats.isSymbolicLink()) {
+        throw new Error(
+          `Refusing to inspect populated gitlink ${JSON.stringify(entry.path)} through a non-directory or symlink`,
+        );
+      }
+    }
+    if (populated) {
+      scan(absolutePath, entry.path);
+    }
+  }
 }
 
 function isCoveredBySensitivePath(repoPath: string): boolean {
@@ -350,9 +525,11 @@ function ensureClaudePrExcludedFromGit(): void {
  *   will commit the revert back onto the PR author's branch.
  */
 export function restoreConfigFromBase(baseBranch: string): string[] {
-  const prInstructionPaths = listNestedAgentInstructionFiles("HEAD").filter(
-    (repoPath) => !isCoveredBySensitivePath(repoPath),
-  );
+  const headTreeEntries = listTreeEntries("HEAD");
+  assertPopulatedGitlinksContainNoAgentInstructions(headTreeEntries);
+  const prInstructionPaths = listNestedAgentInstructionFiles(
+    headTreeEntries,
+  ).filter((repoPath) => !isCoveredBySensitivePath(repoPath));
   const preFetchPaths = uniquePaths([
     ...SENSITIVE_PATHS,
     ...prInstructionPaths,
@@ -424,13 +601,20 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
     },
   );
 
+  const baseRef = `origin/${baseBranch}`;
+  const baseTreeEntries = listTreeEntries(baseRef);
   const baseInstructionPaths = listNestedAgentInstructionFiles(
-    `origin/${baseBranch}`,
+    baseTreeEntries,
+  ).filter((repoPath) => !isCoveredBySensitivePath(repoPath));
+  const baseProtectedPaths = resolveBaseInstructionPaths(
+    baseRef,
+    baseTreeEntries,
+    baseInstructionPaths,
   ).filter((repoPath) => !isCoveredBySensitivePath(repoPath));
   const restoredPaths = uniquePaths([
     ...SENSITIVE_PATHS,
     ...prInstructionPaths,
-    ...baseInstructionPaths,
+    ...baseProtectedPaths,
     ...removedInstructionParents,
   ]);
 
@@ -438,7 +622,14 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
   // that obstruction itself before checkout, never a child reached through it.
   // Report the parent as restored too so auto-commit excludes the resulting
   // type change rather than pushing it back to the contributor's branch.
-  for (const p of baseInstructionPaths) {
+  for (const p of baseProtectedPaths) {
+    const destination = snapshotPath(p);
+    if (
+      lstatSync(p, { throwIfNoEntry: false }) &&
+      !lstatSync(destination, { throwIfNoEntry: false })
+    ) {
+      snapshotSensitivePath(p, destination, workTreeRealPath, tracked);
+    }
     const removedParent = removeInstructionPathSafely(
       p,
       workTreeRealPath,
@@ -452,7 +643,7 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
     ensureClaudePrExcludedFromGit();
   }
 
-  for (const p of uniquePaths([...SENSITIVE_PATHS, ...baseInstructionPaths])) {
+  for (const p of uniquePaths([...SENSITIVE_PATHS, ...baseProtectedPaths])) {
     try {
       execFileSync(
         "git",
