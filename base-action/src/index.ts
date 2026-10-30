@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import * as core from "@actions/core";
+import { $ } from "bun";
 import { preparePrompt } from "./prepare-prompt";
 import { runClaude } from "./run-claude";
 import { setupClaudeCodeSettings } from "./setup-claude-code-settings";
@@ -9,6 +10,14 @@ import { installPlugins } from "./install-plugins";
 import { setExecutionFileOutputIfPresent } from "./execution-file";
 import { setupWorkloadIdentity } from "./workload-identity";
 import type { WorkloadIdentityHandle } from "./workload-identity";
+
+async function configureGitCredentials(token: string): Promise<void> {
+  // Configure a global git credential helper so that git clone operations
+  // (e.g. when installing plugin marketplaces from private repos) can
+  // authenticate using the provided GitHub token.
+  process.env.GH_TOKEN = token;
+  await $`git config --global credential.helper '!f() { echo "username=x-access-token"; echo "password=$GH_TOKEN"; }; f'`;
+}
 
 async function run() {
   let workloadIdentity: WorkloadIdentityHandle | undefined;
@@ -31,6 +40,13 @@ async function run() {
       process.env.INPUT_SETTINGS,
       undefined, // homeDir
     );
+
+    // Configure git credentials before installing plugins so that private
+    // marketplace repositories can be cloned successfully.
+    const githubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+    if (githubToken) {
+      await configureGitCredentials(githubToken);
+    }
 
     // Install Claude Code plugins if specified
     await installPlugins(
