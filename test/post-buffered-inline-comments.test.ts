@@ -67,7 +67,7 @@ describe("post-buffered-inline-comments", () => {
 
   for (const baseUrl of [
     "https://api.minimax.io/anthropic",
-    " https://api.minimax.cn/anthropic/// ",
+    " https://api.minimaxi.com/anthropic/// ",
   ]) {
     test(`defaults to Flash at ${baseUrl}`, async () => {
       process.env.ANTHROPIC_BASE_URL = baseUrl;

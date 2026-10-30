@@ -183,7 +183,7 @@ jobs:
 
 ## Inline Comment Classification with MiniMax
 
-The buffered inline comment classifier uses `ANTHROPIC_BASE_URL` for its Messages endpoint. For MiniMax, set it to `https://api.minimax.io/anthropic` (international) or `https://api.minimax.cn/anthropic` (China), and pass your API key through `anthropic_api_key`.
+The buffered inline comment classifier uses `ANTHROPIC_BASE_URL` for its Messages endpoint. For MiniMax, set it to `https://api.minimax.io/anthropic` (international) or `https://api.minimaxi.com/anthropic` (China), and pass your API key through `anthropic_api_key`.
 
 The classifier uses `ANTHROPIC_MODEL` when set, otherwise the `--model` value in `claude_args`. Without either override, the official MiniMax endpoints default to `MiniMax-M3.1-Flash`. Set `ANTHROPIC_MODEL` to `MiniMax-M3` to choose the other current model. Explicit model IDs, including saved or custom IDs, are passed through unchanged. Custom gateways retain their existing default unless a model is explicitly configured.
 

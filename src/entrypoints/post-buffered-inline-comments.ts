@@ -56,7 +56,7 @@ function isMiniMaxEndpoint(): boolean {
     const url = new URL(getAnthropicMessagesUrl());
     return (
       (url.origin === "https://api.minimax.io" ||
-        url.origin === "https://api.minimax.cn") &&
+        url.origin === "https://api.minimaxi.com") &&
       url.pathname === "/anthropic/v1/messages" &&
       !url.search &&
       !url.hash &&
