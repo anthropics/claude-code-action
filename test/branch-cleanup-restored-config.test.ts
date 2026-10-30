@@ -217,6 +217,32 @@ describe("auto-commit with restored config paths", () => {
     expect(remoteHead).toBe(git("rev-parse", "HEAD"));
     expect(result.branchLink).toContain(BRANCH);
   });
+
+  test("treats dynamic instruction paths as literal pathspecs", async () => {
+    const instructionPath = "src/[review]/AGENTS.md";
+    write(instructionPath, "PR-authored instructions\n");
+    git("add", instructionPath);
+    git("commit", "-qm", "add nested instructions");
+
+    // Simulate restoring the base, where this instruction file is absent.
+    rmSync(join(workDir, instructionPath));
+    write("src/[review]/fix.ts", "export const fixed = true;\n");
+
+    await checkAndCommitOrDeleteBranch(
+      mockOctokit,
+      "owner",
+      "repo",
+      BRANCH,
+      "main",
+      false,
+      [instructionPath],
+    );
+
+    expect(filesInHeadCommit()).toEqual(["src/[review]/fix.ts"]);
+    expect(git("status", "--short", "--", instructionPath)).toContain(
+      instructionPath,
+    );
+  });
 });
 
 describe("without restored config paths (the issue path)", () => {

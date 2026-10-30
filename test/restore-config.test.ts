@@ -425,6 +425,95 @@ describe("restoreConfigFromBase", () => {
     ).toEqual([".claude/settings.json", "CLAUDE.md"]);
   });
 
+  test("restores nested AGENTS files by name", () => {
+    git(["checkout", "main"]);
+    writeRepoFile("packages/app/AGENTS.local.md", "base nested agents\n");
+    writeRepoFile("legacy/AGENTS.md", "base-only instructions\n");
+    writeRepoFile("packages/app/CLAUDE.md", "base nested claude\n");
+    writeRepoFile("docs/AGENTS.md/readme.txt", "base directory contents\n");
+    git([
+      "add",
+      "-f",
+      "packages/app/AGENTS.local.md",
+      "legacy/AGENTS.md",
+      "packages/app/CLAUDE.md",
+      "docs/AGENTS.md/readme.txt",
+    ]);
+    git(["commit", "-m", "add base instruction files"]);
+    git(["push", "origin", "main"]);
+
+    git(["checkout", "pr"]);
+    writeRepoFile("packages/app/CLAUDE.md", "pr nested claude\n");
+    writeRepoFile("packages/app/AGENTS.local.md", "pr nested agents\n");
+    writeRepoFile("pr-only/AGENTS.md", "pr-only agents\n");
+    writeRepoFile("docs/AGENTS.md/readme.txt", "pr directory contents\n");
+    git([
+      "add",
+      "-f",
+      "packages/app/CLAUDE.md",
+      "packages/app/AGENTS.local.md",
+      "pr-only/AGENTS.md",
+      "docs/AGENTS.md/readme.txt",
+    ]);
+    git(["commit", "-m", "change instruction files"]);
+
+    const restoredPaths = restoreConfigFromBase("main");
+
+    expect(readRepoFile("packages/app/AGENTS.local.md")).toBe(
+      "base nested agents\n",
+    );
+    expect(readRepoFile("legacy/AGENTS.md")).toBe("base-only instructions\n");
+    expect(readRepoFile("packages/app/CLAUDE.md")).toBe("pr nested claude\n");
+    expect(existsRepoFile("pr-only/AGENTS.md")).toBe(false);
+    expect(readRepoFile("docs/AGENTS.md/readme.txt")).toBe(
+      "pr directory contents\n",
+    );
+    expect(
+      readRepoFile(".claude-pr/packages/app/AGENTS.local.md.pr-snapshot"),
+    ).toBe("pr nested agents\n");
+    expect(existsRepoFile(".claude-pr/packages/app/CLAUDE.md")).toBe(false);
+    expect(readRepoFile(".claude-pr/pr-only/AGENTS.md.pr-snapshot")).toBe(
+      "pr-only agents\n",
+    );
+    expect(existsRepoFile(".claude-pr/pr-only/AGENTS.md")).toBe(false);
+    expect(restoredPaths).toEqual(
+      expect.arrayContaining([
+        "packages/app/AGENTS.local.md",
+        "legacy/AGENTS.md",
+        "pr-only/AGENTS.md",
+      ]),
+    );
+  });
+
+  test("does not restore a nested instruction through a symlinked parent", () => {
+    git(["checkout", "main"]);
+    writeRepoFile("src/app/AGENTS.md", "base nested agents\n");
+    git(["add", "src/app/AGENTS.md"]);
+    git(["commit", "-m", "add nested base instructions"]);
+    git(["push", "origin", "main"]);
+
+    git(["checkout", "pr"]);
+    const outsideDir = join(tempDir, "outside", "app");
+    mkdirSync(outsideDir, { recursive: true });
+    writeFileSync(join(outsideDir, "sentinel.txt"), "outside sentinel\n");
+    symlinkRepoFile("src/app", outsideDir);
+    git(["add", "src/app"]);
+    git(["commit", "-m", "replace instruction parent with symlink"]);
+
+    const restoredPaths = restoreConfigFromBase("main");
+
+    expect(lstatRepoFile("src/app").isDirectory()).toBe(true);
+    expect(lstatRepoFile("src/app").isSymbolicLink()).toBe(false);
+    expect(readRepoFile("src/app/AGENTS.md")).toBe("base nested agents\n");
+    expect(readFileSync(join(outsideDir, "sentinel.txt"), "utf8")).toBe(
+      "outside sentinel\n",
+    );
+    expect(existsSync(join(outsideDir, "AGENTS.md"))).toBe(false);
+    expectPlaceholder(".claude-pr/src/app");
+    expect(restoredPaths).toContain("src/app");
+    expect(restoredPaths).toContain("src/app/AGENTS.md");
+  });
+
   function git(args: string[]): string {
     return execFileSync("git", args, {
       cwd: repoDir,
