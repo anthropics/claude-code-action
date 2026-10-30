@@ -124,6 +124,30 @@ describe("restoreConfigFromBase", () => {
     }
   });
 
+  test("restores AGENTS.md from the PR base branch", () => {
+    // Claude reads AGENTS.md when CLAUDE.md is absent. A PR can rewrite it;
+    // restore must replace it with the base-branch version like CLAUDE.md.
+    git(["checkout", "main"]);
+    writeRepoFile("AGENTS.md", "base agents instructions\n");
+    git(["add", "AGENTS.md"]);
+    git(["commit", "-m", "base agents"]);
+    git(["push", "origin", "main"]);
+
+    git(["checkout", "pr"]);
+    // Drop CLAUDE.md so the CLI would fall through to AGENTS.md.
+    rmSync(join(repoDir, "CLAUDE.md"), { force: true });
+    writeRepoFile("AGENTS.md", "untrusted pr agents instructions\n");
+    git(["add", "-A"]);
+    git(["commit", "-m", "pr agents"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("AGENTS.md")).toBe("base agents instructions\n");
+    expect(readRepoFile(".claude-pr/AGENTS.md")).toBe(
+      "untrusted pr agents instructions\n",
+    );
+  });
+
   test("restores symlinked CLAUDE.md paths from the PR base branch", () => {
     setupSymlinkedMainBranch();
 
