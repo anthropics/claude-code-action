@@ -3,6 +3,14 @@ import { GITHUB_SERVER_URL } from "../api/config";
 import { encodeBranchNameForUrl } from "./comments/common";
 import { $ } from "bun";
 
+/** Critical failure: Claude's local commit was not published remotely. */
+export class BranchPublicationError extends Error {
+  constructor(public readonly branch: string) {
+    super(`Failed to push Claude changes to remote branch ${branch}`);
+    this.name = "BranchPublicationError";
+  }
+}
+
 export async function checkAndCommitOrDeleteBranch(
   octokit: Octokits,
   owner: string,
@@ -99,8 +107,14 @@ export async function checkAndCommitOrDeleteBranch(
               const commitMessage = `Auto-commit: Save uncommitted changes from Claude\n\nRun ID: ${runId}`;
               await $`git commit -m ${commitMessage}`;
 
-              // Push the changes
-              await $`git push origin ${claudeBranch}`;
+              // Push the changes. Unlike metadata errors, a failed push
+              // means Claude's code was not published: do not report success.
+              try {
+                await $`git push origin ${claudeBranch}`;
+              } catch (pushError) {
+                console.error("Failed to push Claude changes:", pushError);
+                throw new BranchPublicationError(claudeBranch);
+              }
 
               console.log(
                 "✅ Successfully committed and pushed uncommitted changes",
@@ -116,6 +130,7 @@ export async function checkAndCommitOrDeleteBranch(
               shouldDeleteBranch = true;
             }
           } catch (gitError) {
+            if (gitError instanceof BranchPublicationError) throw gitError;
             console.error("Error checking/committing changes:", gitError);
             // If we can't check git status, assume the branch might have changes
             const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${encodeBranchNameForUrl(claudeBranch)}`;
@@ -133,6 +148,7 @@ export async function checkAndCommitOrDeleteBranch(
         branchLink = `\n[View branch](${branchUrl})`;
       }
     } catch (error) {
+      if (error instanceof BranchPublicationError) throw error;
       console.error("Error comparing commits on Claude branch:", error);
       // If we can't compare but the branch exists remotely, include the branch link
       const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${encodeBranchNameForUrl(claudeBranch)}`;

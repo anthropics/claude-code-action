@@ -32,6 +32,7 @@ import { restoreConfigFromBase } from "../github/operations/restore-config";
 import { validateBranchName } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
+import { BranchPublicationError } from "../github/operations/branch-cleanup";
 import { formatTurnsFromData } from "./format-turns";
 import type { Turn } from "./format-turns";
 import { redactSecrets } from "../github/utils/sanitizer";
@@ -354,7 +355,12 @@ async function run() {
           restoredConfigPaths,
         });
       } catch (error) {
-        console.error("Error updating comment with job link:", error);
+        if (error instanceof BranchPublicationError) {
+          core.setFailed(`Action failed: ${redactSecrets(error.message)}`);
+          core.setOutput("conclusion", "failure");
+        } else {
+          console.error("Error updating comment with job link:", error);
+        }
       }
     }
 
