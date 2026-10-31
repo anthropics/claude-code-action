@@ -269,11 +269,11 @@ describe("runClaudeWithSdk", () => {
           hasJsonSchema: false,
         }),
       ).rejects.toThrow(
-        "Claude execution failed: the maximum number of turns was reached (error_max_turns)",
+        "Claude execution failed: the maximum of 60 turns was reached (error_max_turns)",
       );
 
       expect(coreErrorSpy).toHaveBeenCalledWith(
-        "Execution failed: the maximum number of turns was reached (error_max_turns)",
+        "Execution failed: the maximum of 60 turns was reached (error_max_turns)",
       );
     } finally {
       consoleErrorSpy.mockRestore();

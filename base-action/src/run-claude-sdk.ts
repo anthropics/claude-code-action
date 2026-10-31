@@ -290,7 +290,7 @@ export async function runClaudeWithSdk(
         : "errors" in resultMessage && resultMessage.errors.length > 0
           ? resultMessage.errors.join(", ")
           : resultMessage.subtype === "error_max_turns"
-            ? "the maximum number of turns was reached (error_max_turns)"
+            ? `the maximum of ${sdkOptions.maxTurns ?? "configured"} turns was reached (error_max_turns)`
             : `unknown error (subtype: ${resultMessage.subtype})`;
     core.error(`Execution failed: ${failureDetail}`);
     throw new Error(`Claude execution failed: ${failureDetail}`);
