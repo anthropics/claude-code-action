@@ -161,4 +161,88 @@ describe("setupGitHubToken", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(3);
     expect(warningSpy).not.toHaveBeenCalled();
   });
+
+  test("reports the HTTP status without exposing a non-JSON error page", async () => {
+    fetchSpy.mockImplementation(
+      async () =>
+        new Response("<html>gateway failure</html>", {
+          status: 502,
+          statusText: "Bad Gateway",
+        }),
+    );
+
+    await expect(setupGitHubToken()).rejects.toThrow(
+      "App token exchange failed: 502 Bad Gateway",
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "App token exchange failed: 502 Bad Gateway",
+    );
+  });
+
+  test("reports the HTTP status for an empty error response", async () => {
+    fetchSpy.mockImplementation(
+      async () =>
+        new Response("", {
+          status: 503,
+          statusText: "Service Unavailable",
+        }),
+    );
+
+    await expect(setupGitHubToken()).rejects.toThrow(
+      "App token exchange failed: 503 Service Unavailable",
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  test("ignores malformed JSON error fields instead of throwing a type error", async () => {
+    fetchSpy.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ message: { error: "unauthorized" } }), {
+          status: 401,
+          statusText: "Unauthorized",
+        }),
+    );
+
+    await expect(setupGitHubToken()).rejects.toThrow(
+      "App token exchange failed: 401 Unauthorized",
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(warningSpy).not.toHaveBeenCalled();
+  });
+
+  test("ignores a JSON null error body instead of throwing a type error", async () => {
+    fetchSpy.mockImplementation(
+      async () =>
+        new Response("null", {
+          status: 500,
+          statusText: "Internal Server Error",
+        }),
+    );
+
+    await expect(setupGitHubToken()).rejects.toThrow(
+      "App token exchange failed: 500 Internal Server Error",
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  test("skips a plain-text workflow validation response without retrying", async () => {
+    const message =
+      "Workflow validation failed: workflow not on default branch";
+    fetchSpy.mockImplementation(
+      async () =>
+        new Response(message, {
+          status: 401,
+          statusText: "Unauthorized",
+        }),
+    );
+
+    await expect(setupGitHubToken()).rejects.toBeInstanceOf(
+      WorkflowValidationSkipError,
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(warningSpy).toHaveBeenCalledWith(
+      `Skipping action due to workflow validation: ${message}`,
+    );
+  });
 });
