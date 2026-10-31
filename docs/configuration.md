@@ -181,6 +181,16 @@ jobs:
   - `workflows: read` or `workflows: write`
 - Standard permissions (`contents: write`, `pull_requests: write`, `issues: write`) are always included and do not need to be specified
 
+## Inline Comment Classification with MiniMax
+
+The buffered inline comment classifier uses `ANTHROPIC_BASE_URL` for its Messages endpoint. For MiniMax, set it to `https://api.minimax.io/anthropic` (international) or `https://api.minimaxi.com/anthropic` (China), and pass your API key through `anthropic_api_key`.
+
+The classifier uses `ANTHROPIC_MODEL` when set, otherwise the `--model` value in `claude_args`. Without either override, the official MiniMax endpoints default to `MiniMax-M3.1-Flash`. Set `ANTHROPIC_MODEL` to `MiniMax-M3` to choose the other current model. Explicit model IDs, including saved or custom IDs, are passed through unchanged. Custom gateways retain their existing default unless a model is explicitly configured.
+
+For Flash classification, the request uses adaptive thinking, low effort, and a 4,096-token output limit to leave room for reasoning before the JSON verdicts. Other models keep the existing classification request parameters. This classifier configuration does not change the main agent's model selection; configure that explicitly through `ANTHROPIC_MODEL` or `claude_args` as well.
+
+See the [MiniMax Anthropic-compatible API documentation](https://platform.minimax.io/docs/api-reference/text-anthropic-api) for model and parameter support.
+
 ## Custom Environment Variables
 
 You can pass custom environment variables to Claude Code execution using the `settings` input. This is useful for CI/test setups that require specific environment variables:
