@@ -283,18 +283,17 @@ export async function runClaudeWithSdk(
         "Claude result reported subtype success with is_error:true (run did not complete successfully)",
       );
     }
-    if ("errors" in resultMessage && resultMessage.errors) {
-      core.error(`Execution failed: ${resultMessage.errors.join(", ")}`);
-    }
-    throw new Error(
-      `Claude execution failed: ${
-        resultMessage.subtype === "success" && resultMessage.is_error
-          ? "result is_error:true"
-          : "errors" in resultMessage && resultMessage.errors
-            ? resultMessage.errors.join(", ")
-            : "unknown error"
-      }`,
-    );
+    // A turn limit arrives with an empty errors array, so the join alone is blank.
+    const failureDetail =
+      resultMessage.subtype === "success" && resultMessage.is_error
+        ? "result is_error:true"
+        : "errors" in resultMessage && resultMessage.errors.length > 0
+          ? resultMessage.errors.join(", ")
+          : resultMessage.subtype === "error_max_turns"
+            ? `the maximum of ${sdkOptions.maxTurns ?? "configured"} turns was reached (error_max_turns)`
+            : `unknown error (subtype: ${resultMessage.subtype})`;
+    core.error(`Execution failed: ${failureDetail}`);
+    throw new Error(`Claude execution failed: ${failureDetail}`);
   }
 
   return result;
