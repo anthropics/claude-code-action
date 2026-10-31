@@ -218,6 +218,70 @@ describe("runClaudeWithSdk", () => {
     }
   });
 
+  test("names the turn limit when a run fails with error_max_turns and no errors", async () => {
+    const consoleErrorSpy = spyOn(console, "error").mockImplementation(
+      () => {},
+    );
+    const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+    const coreErrorSpy = spyOn(
+      await import("@actions/core"),
+      "error",
+    ).mockImplementation(() => {});
+
+    tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+    process.env.RUNNER_TEMP = tempDir;
+
+    const promptPath = join(tempDir, "prompt.txt");
+    await writeFile(promptPath, "test prompt");
+
+    const initMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "session-123",
+      model: "claude-opus-5",
+    };
+
+    const turnLimitResultMessage = {
+      type: "result",
+      subtype: "error_max_turns",
+      is_error: true,
+      duration_ms: 60000,
+      num_turns: 61,
+      total_cost_usd: 0,
+      permission_denials: [],
+      errors: [],
+    };
+
+    mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+      query: async function* () {
+        yield initMessage;
+        yield turnLimitResultMessage;
+      },
+    }));
+
+    try {
+      const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+      await expect(
+        runClaudeWithSdk(promptPath, {
+          sdkOptions: { maxTurns: 60 },
+          showFullOutput: false,
+          hasJsonSchema: false,
+        }),
+      ).rejects.toThrow(
+        "Claude execution failed: the maximum number of turns was reached (error_max_turns)",
+      );
+
+      expect(coreErrorSpy).toHaveBeenCalledWith(
+        "Execution failed: the maximum number of turns was reached (error_max_turns)",
+      );
+    } finally {
+      consoleErrorSpy.mockRestore();
+      consoleLogSpy.mockRestore();
+      coreErrorSpy.mockRestore();
+    }
+  });
+
   test("fails closed when a successful result exceeds maxTurns", async () => {
     const consoleErrorSpy = spyOn(console, "error").mockImplementation(
       () => {},
