@@ -1,0 +1,21 @@
+import os
+import anthropic
+
+
+
+["ANTHROPIC_FEDERATION_RULE_ID"] = "fdrl_011zan5XjYQNgX2GMypDhNXY"
+["ANTHROPIC_SERVICE_ACCOUNT_ID"] = "svac_011wYPKELCJQP74FhYq4cvWo"
+["ANTHROPIC_ORGANIZATION_ID"] = "61ed26f9-9aca-4f9a-b8ae-9d1c7c1c7094"
+
+
+
+
+client = anthropic.Anthropic()
+
+message = client.messages.create(
+    model="claude-opus-5",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello, Claude"}],
+)
+
+print(next(block.text for block in message.content if block.type == "text"))
