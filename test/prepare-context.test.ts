@@ -198,6 +198,40 @@ describe("parseEnvVarsWithContext", () => {
       }
     });
 
+    test("should parse issue edited event correctly", () => {
+      const editedContext = createMockContext({
+        ...mockIssueOpenedContext,
+        eventAction: "edited",
+        inputs: {
+          ...mockIssueOpenedContext.inputs,
+          prompt: "Please re-read the issue",
+          trackProgress: true,
+        },
+      });
+
+      const result = prepareContext(
+        editedContext,
+        "12345",
+        "main",
+        "claude/issue-42-20240101-1200",
+      );
+
+      expect(result.eventData.eventName).toBe("issues");
+      expect(result.eventData.isPR).toBe(false);
+      if (
+        result.eventData.eventName === "issues" &&
+        result.eventData.eventAction === "edited"
+      ) {
+        expect(result.eventData.issueNumber).toBe("42");
+        expect(result.eventData.baseBranch).toBe("main");
+        expect(result.eventData.claudeBranch).toBe(
+          "claude/issue-42-20240101-1200",
+        );
+      } else {
+        throw new Error("expected an issues edited event");
+      }
+    });
+
     test("should parse issue assigned event correctly", () => {
       const result = prepareContext(
         mockIssueAssignedContext,
