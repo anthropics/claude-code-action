@@ -33,9 +33,9 @@ jobs:
           #   --model claude-4-0-sonnet-20250805
 
           # Optional: add custom plugin marketplaces
-          # plugin_marketplaces: "https://github.com/user/marketplace1.git\nhttps://github.com/user/marketplace2.git"
+          # plugin_marketplaces: "https://github.com/anthropics/claude-plugins-official.git\nhttps://github.com/user/marketplace.git"
           # Optional: install Claude Code plugins
-          # plugins: "code-review@claude-code-plugins\nfeature-dev@claude-code-plugins"
+          # plugins: "code-review@claude-plugins-official\nfeature-dev@claude-plugins-official"
 
           # Optional: add custom trigger phrase (default: @claude)
           # trigger_phrase: "/claude"
