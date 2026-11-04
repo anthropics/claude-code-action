@@ -25,6 +25,41 @@ const WORKFLOW_VALIDATION_ERROR_CODES = new Set([
   "workflow_not_found_on_default_branch",
 ]);
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseAppTokenExchangeError(
+  body: string,
+): AppTokenExchangeErrorResponse {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    const plainText = body.slice(0, 500).trim();
+    return plainText.toLowerCase().startsWith("workflow validation failed")
+      ? { message: plainText }
+      : {};
+  }
+
+  if (!isRecord(parsed)) return {};
+
+  const error = isRecord(parsed.error) ? parsed.error : {};
+  const details = isRecord(error.details) ? error.details : {};
+  return {
+    message: typeof parsed.message === "string" ? parsed.message : undefined,
+    error: {
+      message: typeof error.message === "string" ? error.message : undefined,
+      details: {
+        error_code:
+          typeof details.error_code === "string"
+            ? details.error_code
+            : undefined,
+      },
+    },
+  };
+}
+
 function getAppTokenExchangeErrorMessage(
   responseJson: AppTokenExchangeErrorResponse,
 ): string {
@@ -123,8 +158,13 @@ async function exchangeForAppToken(
   );
 
   if (!response.ok) {
-    const responseJson =
-      (await response.json()) as AppTokenExchangeErrorResponse;
+    let body = "";
+    try {
+      body = await response.text();
+    } catch {
+      // The HTTP status still describes the failure if the body cannot be read.
+    }
+    const responseJson = parseAppTokenExchangeError(body);
 
     if (isWorkflowValidationError(response.status, responseJson)) {
       const message = getAppTokenExchangeErrorMessage(responseJson);
@@ -136,10 +176,11 @@ async function exchangeForAppToken(
     }
 
     const message = getAppTokenExchangeErrorMessage(responseJson);
-    console.error(
-      `App token exchange failed: ${response.status} ${response.statusText} - ${message}`,
-    );
-    throw new Error(message);
+    const status = `App token exchange failed: ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`;
+    const failure =
+      message === "Unknown error" ? status : `${status} - ${message}`;
+    console.error(failure);
+    throw new Error(failure);
   }
 
   const appTokenData = (await response.json()) as {
