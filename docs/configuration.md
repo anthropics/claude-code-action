@@ -243,6 +243,30 @@ Claude does **not** have access to execute arbitrary Bash commands by default. I
 
 **Note**: The base GitHub tools are always included. Use `--allowedTools` to add additional tools (including specific Bash commands), and `--disallowedTools` to prevent specific tools from being used.
 
+### Keeping Unused MCP Tools Out of Context
+
+`--allowedTools` only decides which tools Claude may run. Every tool an MCP server exposes is still sent to the model with each request unless it is in `--disallowedTools`, so a server with dozens of tools adds thousands of input tokens to every turn even if Claude may use only one of them.
+
+Set `disallow_unlisted_mcp_tools: "true"` to have the action fill that list for you. Before Claude starts, every `--mcp-config` tool that `--allowedTools` does not cover is added to `--disallowedTools`:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    disallow_unlisted_mcp_tools: "true"
+    claude_args: |
+      --mcp-config /tmp/mcp-config.json
+      --allowedTools "mcp__github__get_file_contents,mcp__github__pull_request_read"
+```
+
+If `/tmp/mcp-config.json` defines a `github` server (see [Passing Secrets to MCP Servers](#passing-secrets-to-mcp-servers)), every other `mcp__github__*` tool is disallowed, so only the two allowed tools reach the model.
+
+- Wildcard entries such as `mcp__github__get_*` keep every tool they match.
+- A server that `--allowedTools` does not name at all is disallowed as a whole (`mcp__<server>`), without connecting to it.
+- A server that `--allowedTools` names some tools of is connected to list its tools. If it cannot be reached within 30 seconds, it is skipped with a warning and its tools stay enabled: disallowing the whole server would also block the tools you allowed.
+- Servers allowed as a whole (`mcp__github` or `mcp__github__*`) are left alone.
+- Only servers passed with `--mcp-config` are checked, not `.mcp.json` or plugin servers.
+- A disallowed tool cannot be used even with `--permission-mode bypassPermissions`, so list every tool the job needs in `--allowedTools`.
+
 ## Custom Model
 
 Specify a Claude model using `claude_args`:
