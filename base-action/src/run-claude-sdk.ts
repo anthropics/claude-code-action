@@ -255,6 +255,29 @@ export async function runClaudeWithSdk(
     resultMessage.subtype === "success" && !resultMessage.is_error;
   result.conclusion = isSuccess ? "success" : "failure";
 
+  // Report session-level failure before the structured-output check. A failed
+  // session cannot produce structured_output, so checking --json-schema first
+  // would throw a message blaming the schema and discard the real error.
+  if (!isSuccess) {
+    if (resultMessage.subtype === "success" && resultMessage.is_error) {
+      core.error(
+        "Claude result reported subtype success with is_error:true (run did not complete successfully)",
+      );
+    }
+    if ("errors" in resultMessage && resultMessage.errors) {
+      core.error(`Execution failed: ${resultMessage.errors.join(", ")}`);
+    }
+    throw new Error(
+      `Claude execution failed: ${
+        resultMessage.subtype === "success" && resultMessage.is_error
+          ? "result is_error:true"
+          : "errors" in resultMessage && resultMessage.errors
+            ? resultMessage.errors.join(", ")
+            : "unknown error"
+      }`,
+    );
+  }
+
   // Handle structured output
   if (hasJsonSchema) {
     if (
@@ -275,26 +298,6 @@ export async function runClaudeWithSdk(
         `--json-schema was provided but Claude did not return structured_output. Result subtype: ${resultMessage.subtype}`,
       );
     }
-  }
-
-  if (!isSuccess) {
-    if (resultMessage.subtype === "success" && resultMessage.is_error) {
-      core.error(
-        "Claude result reported subtype success with is_error:true (run did not complete successfully)",
-      );
-    }
-    if ("errors" in resultMessage && resultMessage.errors) {
-      core.error(`Execution failed: ${resultMessage.errors.join(", ")}`);
-    }
-    throw new Error(
-      `Claude execution failed: ${
-        resultMessage.subtype === "success" && resultMessage.is_error
-          ? "result is_error:true"
-          : "errors" in resultMessage && resultMessage.errors
-            ? resultMessage.errors.join(", ")
-            : "unknown error"
-      }`,
-    );
   }
 
   return result;
