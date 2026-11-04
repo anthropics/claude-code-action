@@ -32,7 +32,7 @@ import { restoreConfigFromBase } from "../github/operations/restore-config";
 import { validateBranchName } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
-import { formatTurnsFromData } from "./format-turns";
+import { formatTurnsFromData, truncateStepSummary } from "./format-turns";
 import type { Turn } from "./format-turns";
 import { redactSecrets } from "../github/utils/sanitizer";
 // Base-action imports (used directly instead of subprocess)
@@ -127,7 +127,7 @@ async function writeStepSummary(executionFile: string): Promise<void> {
   try {
     const fileContent = readFileSync(executionFile, "utf-8");
     const data: Turn[] = JSON.parse(fileContent);
-    const markdown = formatTurnsFromData(data);
+    const markdown = truncateStepSummary(formatTurnsFromData(data));
     await appendFile(summaryFile, markdown);
     console.log("Successfully formatted Claude Code report");
   } catch (error) {
@@ -140,7 +140,7 @@ async function writeStepSummary(executionFile: string): Promise<void> {
       fallback += "```json\n";
       fallback += redactSecrets(readFileSync(executionFile, "utf-8"));
       fallback += "\n```\n";
-      await appendFile(summaryFile, fallback);
+      await appendFile(summaryFile, truncateStepSummary(fallback));
     } catch {
       console.error("Failed to write raw output to step summary");
     }
