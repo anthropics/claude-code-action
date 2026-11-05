@@ -372,6 +372,23 @@ Many individual input parameters have been consolidated into `claude_args` or `s
 | `direct_prompt`       | Use `prompt` input instead                                      |
 | `override_prompt`     | Use `prompt` with GitHub context variables                      |
 
+## Caching the Claude Code Binary
+
+By default the action downloads the Claude Code binary with `install.sh` on every run. Set `cache_claude_code: "true"` to save the installed binary with `actions/cache` and restore it on later runs:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    cache_claude_code: "true"
+    # ... other inputs
+```
+
+- The cache key is the pinned Claude Code version plus the runner OS and architecture, so upgrading the action starts a new cache entry.
+- A restored binary is used only if its SHA-256 matches the release manifest and `claude --version` reports the pinned version. Otherwise the action discards it and installs Claude Code as usual.
+- The binary is saved only on a cache miss, so an existing entry is never saved again.
+- GitHub scopes caches by branch. Runs on a pull request can restore entries saved on the base branch, so run the workflow once on the default branch to warm the cache for every pull request.
+- The input is ignored when `path_to_claude_code_executable` is set.
+
 ## Custom Executables for Specialized Environments
 
 For specialized environments like Nix, custom container setups, or other package management systems where the default installation doesn't work, you can provide your own executables:

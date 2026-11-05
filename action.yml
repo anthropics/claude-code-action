@@ -145,6 +145,10 @@ inputs:
     description: "Optional path to a custom Claude Code executable. If provided, skips automatic installation and uses this executable instead. WARNING: Using an older version may cause problems if the action begins taking advantage of new Claude Code features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
     required: false
     default: ""
+  cache_claude_code:
+    description: "Cache the Claude Code native binary with actions/cache and reuse it on later runs instead of downloading it with install.sh every time. A restored binary is used only if it matches the release manifest checksum and the pinned version; otherwise Claude Code is installed as usual. Ignored when path_to_claude_code_executable is set."
+    required: false
+    default: "false"
   path_to_bun_executable:
     description: "Optional path to a custom Bun executable. If provided, skips automatic Bun installation and uses this executable instead. WARNING: Using an incompatible version may cause problems if the action requires specific Bun features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
     required: false
@@ -273,6 +277,84 @@ runs:
         echo "/usr/bin" >> "$GITHUB_PATH"
         echo "/bin" >> "$GITHUB_PATH"
 
+    # Opt-in cache for the Claude Code binary that run.ts would otherwise install with install.sh.
+    # The version comes from run.ts so a version bump changes the cache key with no extra edit.
+    # The cache is restored and saved in separate steps and saved only on a miss, so an existing
+    # key is never re-saved (the duplicate-save 409 retries that led to disabling setup-bun's cache, #1259).
+    - name: Resolve Claude Code cache key
+      id: claude-cache-key
+      if: inputs.cache_claude_code == 'true' && inputs.path_to_claude_code_executable == '' && runner.os != 'Windows'
+      shell: bash
+      run: |
+        version=$(sed -n 's/^ *const claudeCodeVersion = "\([0-9][0-9.]*\)";.*/\1/p' "${GITHUB_ACTION_PATH}/src/entrypoints/run.ts" | head -1)
+        if [ -z "$version" ]; then
+          echo "::warning::Could not read the Claude Code version from run.ts; installing without the cache."
+          exit 0
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "path=$HOME/.local/share/claude/versions/$version" >> "$GITHUB_OUTPUT"
+
+    - name: Restore Claude Code from cache
+      id: claude-cache-restore
+      if: steps.claude-cache-key.outputs.version != ''
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.claude-cache-key.outputs.path }}
+        key: claude-code-${{ steps.claude-cache-key.outputs.version }}-${{ runner.os }}-${{ runner.arch }}
+
+    # install.sh verifies the download against the release manifest; do the same for a restored binary.
+    - name: Verify cached Claude Code
+      id: claude-cache
+      if: steps.claude-cache-restore.outputs.cache-hit == 'true'
+      continue-on-error: true
+      shell: bash
+      env:
+        CLAUDE_CODE_PATH: ${{ steps.claude-cache-key.outputs.path }}
+        CLAUDE_CODE_VERSION: ${{ steps.claude-cache-key.outputs.version }}
+        CLAUDE_CODE_RELEASES_URL: https://downloads.claude.ai/claude-code-releases
+      run: |
+        discard() {
+          echo "::warning::Not using the cached Claude Code binary ($1); installing it instead."
+          rm -f "$CLAUDE_CODE_PATH"
+          exit 0
+        }
+        [ -f "$CLAUDE_CODE_PATH" ] || discard "binary is missing"
+        case "$(uname -s)" in
+          Darwin) os=darwin ;;
+          Linux) os=linux ;;
+          *) discard "unsupported OS" ;;
+        esac
+        case "$(uname -m)" in
+          x86_64|amd64) arch=x64 ;;
+          arm64|aarch64) arch=arm64 ;;
+          *) discard "unsupported architecture" ;;
+        esac
+        platform="$os-$arch"
+        # Same musl detection as install.sh
+        if [ "$os" = "linux" ] && { [ -f /lib/libc.musl-x86_64.so.1 ] || [ -f /lib/libc.musl-aarch64.so.1 ] || ldd /bin/ls 2>&1 | grep -q musl; }; then
+          platform="$platform-musl"
+        fi
+        manifest=$(curl -fsSL --max-time 30 "$CLAUDE_CODE_RELEASES_URL/$CLAUDE_CODE_VERSION/manifest.json") \
+          || discard "could not download the release manifest"
+        manifest=$(printf '%s' "$manifest" | tr -d '\n\r\t')
+        pattern="\"$platform\"[[:space:]]*:[[:space:]]*[{][^{}]*\"checksum\"[[:space:]]*:[[:space:]]*\"([a-f0-9]{64})\""
+        [[ $manifest =~ $pattern ]] || discard "no checksum for $platform in the release manifest"
+        expected="${BASH_REMATCH[1]}"
+        if command -v sha256sum >/dev/null 2>&1; then
+          actual=$(sha256sum "$CLAUDE_CODE_PATH" | cut -d' ' -f1)
+        else
+          actual=$(shasum -a 256 "$CLAUDE_CODE_PATH" | cut -d' ' -f1)
+        fi
+        [ "$actual" = "$expected" ] || discard "checksum does not match the release manifest"
+        chmod +x "$CLAUDE_CODE_PATH"
+        version=$("$CLAUDE_CODE_PATH" --version 2>/dev/null | awk '{print $1}' || true)
+        [ "$version" = "$CLAUDE_CODE_VERSION" ] || discard "reports version '$version'"
+        mkdir -p "$HOME/.local/bin"
+        ln -sf "$CLAUDE_CODE_PATH" "$HOME/.local/bin/claude"
+        echo "Using cached Claude Code $CLAUDE_CODE_VERSION"
+        echo "path=$HOME/.local/bin/claude" >> "$GITHUB_OUTPUT"
+
     - name: Run Claude Code Action
       id: run
       shell: bash
@@ -326,7 +408,7 @@ runs:
         DISPLAY_REPORT: ${{ inputs.display_report }}
         INPUT_PLUGINS: ${{ inputs.plugins }}
         INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
-        PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
+        PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable || steps.claude-cache.outputs.path }}
 
         # Model configuration
         NODE_VERSION: ${{ env.NODE_VERSION }}
@@ -390,6 +472,14 @@ runs:
         OTEL_METRIC_EXPORT_INTERVAL: ${{ env.OTEL_METRIC_EXPORT_INTERVAL }}
         OTEL_LOGS_EXPORT_INTERVAL: ${{ env.OTEL_LOGS_EXPORT_INTERVAL }}
         OTEL_RESOURCE_ATTRIBUTES: ${{ env.OTEL_RESOURCE_ATTRIBUTES }}
+
+    - name: Save Claude Code to cache
+      if: always() && steps.claude-cache-restore.outcome == 'success' && steps.claude-cache-restore.outputs.cache-hit != 'true'
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.claude-cache-key.outputs.path }}
+        key: claude-code-${{ steps.claude-cache-key.outputs.version }}-${{ runner.os }}-${{ runner.arch }}
 
     - name: Re-prepend system bin dirs to PATH
       if: ${{ always() && inputs.allowed_non_write_users != '' && runner.os != 'Windows' }}
