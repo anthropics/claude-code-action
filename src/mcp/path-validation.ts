@@ -30,26 +30,37 @@ export async function validatePathWithinRepo(
   try {
     resolvedPath = await realpath(initialPath);
   } catch {
-    // File doesn't exist yet - fall back to checking the parent directory
-    // This handles the case where we're creating a new file
-    const parentDir = resolve(initialPath, "..");
-    try {
-      const resolvedParent = await realpath(parentDir);
+    // File doesn't exist yet - walk up to find the closest existing ancestor directory
+    // This handles the case where we're creating a new file in existing or nested non-existent directories
+    let currentDir = resolve(initialPath, "..");
+    while (true) {
+      let resolvedAncestor: string | null = null;
+      try {
+        resolvedAncestor = await realpath(currentDir);
+      } catch {
+        // Ancestor directory does not exist yet; move up to parent
+        const parentDir = resolve(currentDir, "..");
+        if (parentDir === currentDir) {
+          // Reached filesystem root without finding an existing ancestor
+          break;
+        }
+        currentDir = parentDir;
+        continue;
+      }
+
       if (
-        resolvedParent !== resolvedRoot &&
-        !resolvedParent.startsWith(resolvedRoot + sep)
+        resolvedAncestor !== resolvedRoot &&
+        !resolvedAncestor.startsWith(resolvedRoot + sep)
       ) {
         throw new Error(
           `Path '${filePath}' resolves outside the repository root`,
         );
       }
-      // Parent is valid, return the initial path since file doesn't exist yet
+      // Ancestor is valid and within repo root; return initialPath since file doesn't exist yet
       return initialPath;
-    } catch {
-      throw new Error(
-        `Path '${filePath}' resolves outside the repository root`,
-      );
     }
+
+    throw new Error(`Path '${filePath}' resolves outside the repository root`);
   }
 
   // Path must be within repo root (or be the root itself)
