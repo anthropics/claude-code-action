@@ -236,6 +236,32 @@ describe("detectMode with enhanced routing", () => {
 
       expect(detectMode(context)).toBe("agent");
     });
+
+    it("should throw error when track_progress is used with merge_group", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "merge_group",
+        eventAction: "checks_requested",
+        payload: {} as any,
+        inputs: { ...baseContext.inputs, trackProgress: true },
+      };
+
+      expect(() => detectMode(context)).toThrow(
+        /track_progress is only supported /,
+      );
+    });
+
+    it("should use agent mode for merge_group without track_progress", () => {
+      const context: GitHubContext = {
+        ...baseContext,
+        eventName: "merge_group",
+        eventAction: "checks_requested",
+        payload: {} as any,
+        inputs: { ...baseContext.inputs, prompt: "Check the merge group" },
+      };
+
+      expect(detectMode(context)).toBe("agent");
+    });
   });
 
   describe("Custom prompt injection in tag mode", () => {
