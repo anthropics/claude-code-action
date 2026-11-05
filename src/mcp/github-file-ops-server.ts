@@ -2,7 +2,7 @@
 // GitHub File Operations MCP Server
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { readFile, stat } from "fs/promises";
+import { readFile, lstat, readlink } from "fs/promises";
 import { resolve } from "path";
 import { constants } from "fs";
 import fetch from "node-fetch";
@@ -171,7 +171,7 @@ async function getOrCreateBranchRef(
 // Get the appropriate Git file mode for a file
 async function getFileMode(filePath: string): Promise<string> {
   try {
-    const fileStat = await stat(filePath);
+    const fileStat = await lstat(filePath);
     if (fileStat.isFile()) {
       // Check if execute bit is set for user
       if (fileStat.mode & constants.S_IXUSR) {
@@ -188,7 +188,7 @@ async function getFileMode(filePath: string): Promise<string> {
       return "100644";
     }
   } catch (error) {
-    // If we can't stat the file, default to regular file
+    // If we can't lstat the file, default to regular file
     console.warn(
       `Could not determine file mode for ${filePath}, using default: ${error}`,
     );
@@ -220,7 +220,7 @@ server.tool(
           // Use the original filePath (normalized) for the git path, not the symlink-resolved path
           const normalizedPath = resolve(resolvedRepoDir, filePath);
           const relativePath = normalizedPath.slice(resolvedRepoDir.length + 1);
-          return { fullPath, relativePath };
+          return { fullPath, normalizedPath, relativePath };
         }),
       );
 
@@ -251,59 +251,71 @@ server.tool(
 
       // 3. Create tree entries for all files
       const treeEntries = await Promise.all(
-        validatedFiles.map(async ({ fullPath, relativePath }) => {
-          // Get the proper file mode based on file permissions
-          const fileMode = await getFileMode(fullPath);
+        validatedFiles.map(
+          async ({ fullPath, normalizedPath, relativePath }) => {
+            // Get the proper file mode based on file permissions
+            const fileMode = await getFileMode(normalizedPath);
 
-          // Check if the file is binary by inspecting its contents. An
-          // extension allowlist used to decide this, which corrupted every
-          // binary type that wasn't on the list.
-          const fileContent = await readFile(fullPath);
-
-          if (isBinaryContent(fileContent)) {
-            // For binary files, create a blob first using the Blobs API
-            // (supports the encoding parameter)
-            const blobUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs`;
-            const blobResponse = await fetch(blobUrl, {
-              method: "POST",
-              headers: {
-                Accept: "application/vnd.github+json",
-                Authorization: `Bearer ${githubToken}`,
-                "X-GitHub-Api-Version": "2022-11-28",
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                content: fileContent.toString("base64"),
-                encoding: "base64",
-              }),
-            });
-
-            if (!blobResponse.ok) {
-              const errorText = await blobResponse.text();
-              throw new Error(
-                `Failed to create blob for ${relativePath}: ${blobResponse.status} - ${errorText}`,
-              );
+            if (fileMode === "120000") {
+              const symlinkTarget = await readlink(normalizedPath);
+              return {
+                path: relativePath,
+                mode: fileMode,
+                type: "blob",
+                content: symlinkTarget,
+              };
             }
 
-            const blobData = (await blobResponse.json()) as { sha: string };
+            // Check if the file is binary by inspecting its contents. An
+            // extension allowlist used to decide this, which corrupted every
+            // binary type that wasn't on the list.
+            const fileContent = await readFile(fullPath);
 
-            // Return tree entry with blob SHA
-            return {
-              path: relativePath,
-              mode: fileMode,
-              type: "blob",
-              sha: blobData.sha,
-            };
-          } else {
-            // For text files, include content directly in tree
-            return {
-              path: relativePath,
-              mode: fileMode,
-              type: "blob",
-              content: fileContent.toString("utf-8"),
-            };
-          }
-        }),
+            if (isBinaryContent(fileContent)) {
+              // For binary files, create a blob first using the Blobs API
+              // (supports the encoding parameter)
+              const blobUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs`;
+              const blobResponse = await fetch(blobUrl, {
+                method: "POST",
+                headers: {
+                  Accept: "application/vnd.github+json",
+                  Authorization: `Bearer ${githubToken}`,
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  content: fileContent.toString("base64"),
+                  encoding: "base64",
+                }),
+              });
+
+              if (!blobResponse.ok) {
+                const errorText = await blobResponse.text();
+                throw new Error(
+                  `Failed to create blob for ${relativePath}: ${blobResponse.status} - ${errorText}`,
+                );
+              }
+
+              const blobData = (await blobResponse.json()) as { sha: string };
+
+              // Return tree entry with blob SHA
+              return {
+                path: relativePath,
+                mode: fileMode,
+                type: "blob",
+                sha: blobData.sha,
+              };
+            } else {
+              // For text files, include content directly in tree
+              return {
+                path: relativePath,
+                mode: fileMode,
+                type: "blob",
+                content: fileContent.toString("utf-8"),
+              };
+            }
+          },
+        ),
       );
 
       // 4. Create a new tree
