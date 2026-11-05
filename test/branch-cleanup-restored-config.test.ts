@@ -44,7 +44,15 @@ function write(relative: string, contents: string) {
 const mockOctokit = {
   rest: {
     repos: {
-      getBranch: async () => ({ data: {} }),
+      getBranch: async () => ({
+        data: {
+          commit: {
+            sha: git("ls-remote", "origin", `refs/heads/${BRANCH}`).split(
+              /\s/,
+            )[0],
+          },
+        },
+      }),
       compareCommitsWithBasehead: async () => ({
         data: { total_commits: 0 },
       }),
