@@ -1,12 +1,18 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect, beforeAll } from "bun:test";
+import { describe, test, expect, beforeAll, spyOn } from "bun:test";
+import * as core from "@actions/core";
+import { mkdtemp, readFile, rm } from "fs/promises";
+import { join } from "path";
+import { tmpdir } from "os";
+import type { IssueCommentEvent } from "@octokit/webhooks-types";
 import {
   generatePrompt,
   getEventTypeAndContext,
   buildAllowedToolsString,
   buildDisallowedToolsString,
   prepareContext,
+  createPrompt,
 } from "../src/create-prompt";
 import type { PreparedContext } from "../src/create-prompt";
 import { createMockContext } from "./mockContext";
@@ -125,6 +131,106 @@ describe("generatePrompt", () => {
     },
     imageUrlMap: new Map<string, string>(),
   };
+
+  test.each([undefined, "", "false", "TRUE", "1", "true"])(
+    "prints prompt payloads only with explicit trace_prompt=true (input: %s)",
+    async (traceInput) => {
+      const keys = [
+        "RUNNER_TEMP",
+        "INPUT_TRACE_PROMPT",
+        "INPUT_SHOW_FULL_OUTPUT",
+        "ACTIONS_STEP_DEBUG",
+      ] as const;
+      const originalEnv = Object.fromEntries(
+        keys.map((key) => [key, process.env[key]]),
+      );
+      const temp = await mkdtemp(join(tmpdir(), "prompt-tracing-"));
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      const exportVariable = spyOn(core, "exportVariable").mockImplementation(
+        () => {},
+      );
+      try {
+        process.env.RUNNER_TEMP = temp;
+        if (traceInput === undefined) {
+          delete process.env.INPUT_TRACE_PROMPT;
+        } else {
+          process.env.INPUT_TRACE_PROMPT = traceInput;
+        }
+        // Other debug settings must not enable prompt tracing implicitly.
+        process.env.INPUT_SHOW_FULL_OUTPUT = "true";
+        process.env.ACTIONS_STEP_DEBUG = "true";
+        const request = "Inspect synthetic-request-sentinel";
+        const diff = "+const credential = 'synthetic-diff-sentinel';";
+        const context = createMockContext({
+          isPR: true,
+          inputs: { triggerPhrase: "@claude" },
+          payload: {
+            comment: {
+              id: 123,
+              body: `@claude ${request}`,
+              user: { login: "testuser", id: 456 },
+            },
+          } as IssueCommentEvent,
+        });
+        const data = {
+          ...mockGitHubData,
+          reviewData: {
+            nodes: [
+              {
+                ...mockGitHubData.reviewData.nodes[0]!,
+                comments: {
+                  nodes: [
+                    {
+                      id: "review-comment",
+                      databaseId: "321",
+                      author: { login: "security-bot" },
+                      createdAt: "2023-01-01T02:00:00Z",
+                      body: "Remove this credential",
+                      path: "config.ts",
+                      line: 1,
+                      diffHunk: diff,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        };
+        await createPrompt(999, "main", "feature", data, context);
+        const prompt = await readFile(
+          join(temp, "claude-prompts/claude-prompt.txt"),
+          "utf8",
+        );
+        const userRequest = await readFile(
+          join(temp, "claude-prompts/claude-user-request.txt"),
+          "utf8",
+        );
+        // Suppressing console output must preserve the files Claude consumes.
+        expect(prompt).toContain(diff);
+        expect(prompt).toContain(request);
+        expect(userRequest).toBe(request);
+        if (traceInput === "true") {
+          expect(log).toHaveBeenCalledWith("===== FINAL PROMPT =====");
+          expect(log).toHaveBeenCalledWith(prompt);
+          expect(log).toHaveBeenCalledWith("===== USER REQUEST =====");
+          expect(log).toHaveBeenCalledWith(userRequest);
+        } else {
+          expect(log).not.toHaveBeenCalled();
+        }
+      } finally {
+        log.mockRestore();
+        exportVariable.mockRestore();
+        for (const key of keys) {
+          if (originalEnv[key] === undefined) {
+            delete process.env[key];
+          } else {
+            process.env[key] = originalEnv[key];
+          }
+        }
+        await rm(temp, { recursive: true, force: true });
+      }
+    },
+  );
 
   test("should generate prompt for issue_comment event", async () => {
     const envVars: PreparedContext = {

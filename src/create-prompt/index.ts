@@ -960,10 +960,14 @@ export async function createPrompt(
       "tag",
     );
 
-    // Log the final prompt to console
-    console.log("===== FINAL PROMPT =====");
-    console.log(promptContent);
-    console.log("=======================");
+    // Prompt content can include credentials in comments and diff context.
+    // Require explicit opt-in, independently of SDK output/debug settings.
+    const tracePrompt = process.env.INPUT_TRACE_PROMPT === "true";
+    if (tracePrompt) {
+      console.log("===== FINAL PROMPT =====");
+      console.log(promptContent);
+      console.log("=======================");
+    }
 
     // Write the prompt file
     await writeFile(`${promptDir}/claude-prompt.txt`, promptContent);
@@ -976,9 +980,11 @@ export async function createPrompt(
     );
     if (userRequest) {
       await writeFile(`${promptDir}/${USER_REQUEST_FILENAME}`, userRequest);
-      console.log("===== USER REQUEST =====");
-      console.log(userRequest);
-      console.log("========================");
+      if (tracePrompt) {
+        console.log("===== USER REQUEST =====");
+        console.log(userRequest);
+        console.log("========================");
+      }
     }
 
     // NOTE: these env var exports are dead — nothing reads ALLOWED_TOOLS / DISALLOWED_TOOLS.

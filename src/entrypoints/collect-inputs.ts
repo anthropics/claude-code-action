@@ -31,6 +31,7 @@ export function collectActionInputsPresence(): string {
     classify_inline_comments: "true",
     use_commit_signing: "false",
     ssh_signing_key: "",
+    trace_prompt: "false",
   };
 
   const allInputsJson = process.env.ALL_INPUTS;
