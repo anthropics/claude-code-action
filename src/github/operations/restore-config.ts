@@ -266,6 +266,36 @@ function ensureClaudePrExcludedFromGit(): void {
  *   rather than the PR. Callers that stage files must exclude these, or they
  *   will commit the revert back onto the PR author's branch.
  */
+/**
+ * Builds an agent-facing notice describing which paths were just reverted to
+ * the base branch, so the CLI's system prompt can carry it.
+ *
+ * restoreConfigFromBase() runs before the CLI starts and never informs the
+ * agent it happened: it only logs to the raw Action run log and returns the
+ * path list to the (separate) auto-commit exclusion logic in
+ * branch-cleanup.ts. Without this notice, the agent's own Bash/Read tool
+ * calls observe deleted/modified paths relative to HEAD with no explanation
+ * available anywhere in its context — indistinguishable, from inside the
+ * session, from filesystem corruption. See #1738.
+ *
+ * @param restoredPaths - Return value of restoreConfigFromBase(); empty when
+ *   it did not run (not a PR context) or restored nothing.
+ * @returns Empty string when there is nothing to report.
+ */
+export function describeRestoredPaths(restoredPaths: string[]): string {
+  if (restoredPaths.length === 0) {
+    return "";
+  }
+  return (
+    `Note: this is a pull request, so ${restoredPaths.join(", ")} were replaced with their versions ` +
+    "from the base branch before you started (PR-authored versions are untrusted config/hooks). " +
+    "If \`git status\`/\`git diff\` show these paths as modified or deleted relative to HEAD, or a " +
+    "listing is missing files a PR commit added under them, that is this intentional revert — not a " +
+    "checkout or filesystem problem. The PR-authored versions are preserved, unexecuted, under " +
+    "\`.claude-pr/\` for reference. Every other path reflects the actual PR HEAD."
+  );
+}
+
 export function restoreConfigFromBase(baseBranch: string): string[] {
   console.log(
     `Restoring ${SENSITIVE_PATHS.join(", ")} from origin/${baseBranch} (PR head is untrusted)`,
