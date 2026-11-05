@@ -9,7 +9,7 @@ describe("action metadata", () => {
     );
 
     expect(metadata).toMatch(
-      /^  conclusion:\n    description: .+\n    value: \$\{\{ steps\.run\.outputs\.conclusion \}\}$/m,
+      /^  conclusion:\r?\n\s*description: .+\r?\n\s*value: \$\{\{ steps\.run\.outputs\.conclusion \}\}/m,
     );
   });
 });
