@@ -9,7 +9,17 @@ import { createMockContext } from "./mockContext";
 const octokits = {
   rest: {
     repos: { get: async () => ({ data: { default_branch: "main" } }) },
-    git: { getRef: async () => ({ data: { object: { sha: "abc1234" } } }) },
+    git: {
+      getRef: async () => ({
+        data: {
+          object: {
+            sha: execFileSync("git", ["rev-parse", "HEAD"], {
+              encoding: "utf8",
+            }).trim(),
+          },
+        },
+      }),
+    },
   },
 } as any;
 
