@@ -70,8 +70,8 @@ export function sanitizeContent(content: string): string {
   content = stripInvisibleCharacters(content);
   content = stripMarkdownImageAltText(content);
   content = stripMarkdownLinkTitles(content);
-  content = stripHiddenAttributes(content);
   content = normalizeHtmlEntities(content);
+  content = stripHiddenAttributes(content);
   content = redactGitHubTokens(content);
   return content;
 }
