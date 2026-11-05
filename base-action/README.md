@@ -455,7 +455,7 @@ Use provider-specific model names based on your chosen provider:
   uses: anthropics/claude-code-base-action@beta
   with:
     prompt: "Your prompt here"
-    claude_args: "--model anthropic.claude-3-7-sonnet-20250219-v1:0"
+    claude_args: "--model us.anthropic.claude-opus-5-5[1m]"
     use_bedrock: "true"
 
 # For Google Vertex AI (requires OIDC authentication)
@@ -490,7 +490,7 @@ This example shows how to use OIDC authentication with AWS Bedrock:
     prompt: "Your prompt here"
     use_bedrock: "true"
     claude_args: |
-      --model "anthropic.claude-3-7-sonnet-20250219-v1:0"
+      --model "us.anthropic.claude-opus-5-5[1m]"
       --allowedTools "Bash(git:*),Read,Glob,Grep"
 ```
 
