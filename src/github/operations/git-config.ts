@@ -14,6 +14,9 @@ import { GITHUB_SERVER_URL } from "../api/config";
 
 const SSH_SIGNING_KEY_PATH = join(homedir(), ".ssh", "claude_signing_key");
 
+// Matches include.path and includeIf.<condition>.path (git lowercases the section name).
+const INCLUDE_PATH_KEY_PATTERN = "^include(if\\..+)?\\.path$";
+
 type GitUser = {
   login: string;
   id: number;
@@ -60,12 +63,16 @@ export async function configureGitAuth(
  * actions/checkout < v6 stored the header directly in the repo-local config,
  * where `git config --unset-all` removes it. Since v6.0.0 (backported to
  * v5.0.1 and v4.3.1) the header is written to a separate file under
- * RUNNER_TEMP that the repo config pulls in via `include.path`; `--unset-all`
- * on the local config cannot touch an include-provided value, so the removal
- * was a silent no-op and the checkout credential (typically the workflow
- * GITHUB_TOKEN) stayed usable by git for the rest of the job. Clear the
- * header from the local config AND from every included file so it can no
- * longer authenticate while Claude runs.
+ * RUNNER_TEMP that the repo config pulls in through `includeIf.gitdir:<dir>.path`
+ * entries (one for the repo, one for its worktrees, and container-path twins);
+ * `--unset-all` on the local config cannot touch an include-provided value, so
+ * the removal was a silent no-op and the checkout credential (typically the
+ * workflow GITHUB_TOKEN) stayed usable by git for the rest of the job. Because
+ * an Authorization header outranks credentials embedded in the remote URL,
+ * pushes then went out as GITHUB_TOKEN and never triggered other workflows.
+ * Clear the header from the local config AND from every file that any
+ * `include.path` or `includeIf.*.path` entry references so it can no longer
+ * authenticate while Claude runs.
  */
 export async function replaceCheckoutCredentials(
   githubToken: string,
@@ -84,10 +91,12 @@ export async function replaceCheckoutCredentials(
     // No extraheader in the local config (expected on the v6+ include layout).
   }
   try {
-    const includePaths =
-      await $`git config --local --get-all include.path`.text();
-    for (const includePath of includePaths.split("\n")) {
-      const path = includePath.trim();
+    // -z separates entries with NUL and the key from its value with a newline,
+    // so include paths containing spaces or newlines survive the round trip.
+    const includeEntries =
+      await $`git config --local -z --get-regexp ${INCLUDE_PATH_KEY_PATTERN}`.text();
+    for (const entry of includeEntries.split("\0")) {
+      const path = entry.slice(entry.indexOf("\n") + 1).trim();
       if (!path) continue;
       try {
         await $`git config --file ${path} --unset-all ${extraheaderKey}`;
@@ -97,13 +106,24 @@ export async function replaceCheckoutCredentials(
       }
     }
   } catch {
-    // No include.path entries in the local config.
+    // No include.path or includeIf.*.path entries in the local config.
   }
   console.log(
     removedHeader
       ? "✓ Removed existing authentication headers"
       : "No existing authentication headers to remove",
   );
+
+  // Resolve through every include so a layout this code does not know about
+  // is reported instead of silently authenticating Claude's pushes.
+  const remainingHeaders = await $`git config --get-all ${extraheaderKey}`
+    .nothrow()
+    .text();
+  if (remainingHeaders.trim()) {
+    console.warn(
+      `A ${extraheaderKey} credential still resolves after cleanup; git may authenticate with it instead of the action token`,
+    );
+  }
 
   if (process.env.ALLOWED_NON_WRITE_USERS) {
     // When processing content from non-write users, use a credential helper
