@@ -152,34 +152,37 @@ function parseClaudeArgsToExtraArgs(
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg?.startsWith("--")) {
-      const flag = arg.slice(2);
-      const nextArg = args[i + 1];
+    if (!arg?.startsWith("--")) continue;
+    const flag = arg.slice(2);
 
-      // Check if next arg is a value (not another flag)
-      if (nextArg && !nextArg.startsWith("--")) {
-        // For accumulating flags, consume all consecutive non-flag values
-        // This handles: --allowed-tools "Tool1" "Tool2" "Tool3"
-        if (ACCUMULATING_FLAGS.has(flag)) {
-          const values: string[] = [];
-          while (i + 1 < args.length && !args[i + 1]?.startsWith("--")) {
-            i++;
-            values.push(args[i]!);
-          }
-          const joinedValues = values.join(ACCUMULATE_DELIMITER);
-          if (result[flag]) {
-            result[flag] =
-              `${result[flag]}${ACCUMULATE_DELIMITER}${joinedValues}`;
-          } else {
-            result[flag] = joinedValues;
-          }
-        } else {
-          result[flag] = nextArg;
-          i++; // Skip the value
-        }
-      } else {
-        result[flag] = null; // Boolean flag
+    // An accumulating flag is never a boolean, so decide it before the
+    // has-a-value test below. shell-quote hands back "" for `--allowedTools ""`,
+    // which that test reads as "no value", and the null it then wrote threw away
+    // everything earlier occurrences had collected — including the --allowedTools
+    // and --mcp-config that tag and agent mode put in front of the user's
+    // claude_args. Consume all consecutive non-flag values and drop the empty
+    // ones; an occurrence that contributes nothing leaves the flag as it was.
+    if (ACCUMULATING_FLAGS.has(flag)) {
+      const values: string[] = [];
+      while (i + 1 < args.length && !args[i + 1]?.startsWith("--")) {
+        i++;
+        if (args[i]) values.push(args[i]!);
       }
+      if (values.length === 0) continue;
+      const joinedValues = values.join(ACCUMULATE_DELIMITER);
+      result[flag] = result[flag]
+        ? `${result[flag]}${ACCUMULATE_DELIMITER}${joinedValues}`
+        : joinedValues;
+      continue;
+    }
+
+    const nextArg = args[i + 1];
+    // Check if next arg is a value (not another flag)
+    if (nextArg && !nextArg.startsWith("--")) {
+      result[flag] = nextArg;
+      i++; // Skip the value
+    } else {
+      result[flag] = null; // Boolean flag
     }
   }
 
