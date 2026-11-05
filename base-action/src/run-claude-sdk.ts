@@ -164,7 +164,7 @@ function sanitizeSdkOutput(
  */
 export async function runClaudeWithSdk(
   promptPath: string,
-  { sdkOptions, showFullOutput, hasJsonSchema }: ParsedSdkOptions,
+  { sdkOptions, showFullOutput, hasJsonSchema, timeoutMs }: ParsedSdkOptions,
 ): Promise<ClaudeRunResult> {
   // Create prompt configuration - may be a string or multi-block message
   const prompt = await createPromptConfig(promptPath, showFullOutput);
@@ -186,6 +186,18 @@ export async function runClaudeWithSdk(
   const messages: SDKMessage[] = [];
   let resultMessage: SDKResultMessage | undefined;
 
+  // Bounds the whole session, not just the result-message-then-hang case the break below already handles: a tool call that never returns (a stuck WebFetch, confirmed directly against a real run: 30-second tool_progress heartbeats on the same tool_use_id for over three hours) leaves the for-await below waiting on a message that never arrives, with nothing internal to time it out. Unset (timeoutMs undefined, the `timeout_minutes` input's default) applies no bound here, matching the previous behaviour exactly; the caller's own surrounding job timeout-minutes remains the only backstop in that case.
+  let timedOut = false;
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  if (timeoutMs !== undefined) {
+    const abortController = sdkOptions.abortController ?? new AbortController();
+    sdkOptions.abortController = abortController;
+    timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      abortController.abort();
+    }, timeoutMs);
+  }
+
   try {
     for await (const message of query({ prompt, options: sdkOptions })) {
       messages.push(message);
@@ -197,22 +209,27 @@ export async function runClaudeWithSdk(
 
       if (message.type === "result") {
         resultMessage = message as SDKResultMessage;
-        // The SDK's query() iterator should close itself after the
-        // result message, but in some workflow contexts (notably
-        // pull_request-triggered runs) it stays open indefinitely and
-        // the for-await hangs until the workflow's timeout-minutes
-        // kills the job. This causes the action to "succeed" inside
-        // Claude (verdict posted, $cost recorded) but be reported as
-        // cancelled with no execution-output.json written. Break
-        // explicitly: by SDK contract no further messages follow a
-        // result, so the break is safe.
+        // The SDK's query() iterator should close itself after the result message, but in some workflow contexts (notably pull_request-triggered runs) it stays open indefinitely and the for-await hangs until the workflow's timeout-minutes kills the job. This causes the action to "succeed" inside Claude (verdict posted, $cost recorded) but be reported as cancelled with no execution-output.json written. Break explicitly: by SDK contract no further messages follow a result, so the break is safe.
         break;
       }
     }
   } catch (error) {
+    if (timedOut) {
+      console.error(
+        `Claude Code session aborted: exceeded timeout_minutes (${String(timeoutMs)}ms) before producing a result`,
+      );
+      await writeExecutionFile(messages);
+      throw new Error(
+        `Claude Code session aborted after exceeding timeout_minutes (${String(timeoutMs)}ms)`,
+      );
+    }
     console.error("SDK execution error:", error);
     await writeExecutionFile(messages);
     throw new Error(`SDK execution error: ${error}`);
+  } finally {
+    if (timeoutHandle !== undefined) {
+      clearTimeout(timeoutHandle);
+    }
   }
 
   const result: ClaudeRunResult = {

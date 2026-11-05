@@ -284,4 +284,116 @@ describe("runClaudeWithSdk", () => {
       coreErrorSpy.mockRestore();
     }
   });
+
+  test("aborts and fails closed when the session never produces a result within timeoutMs", async () => {
+    const consoleErrorSpy = spyOn(console, "error").mockImplementation(
+      () => {},
+    );
+    const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+    process.env.RUNNER_TEMP = tempDir;
+
+    const promptPath = join(tempDir, "prompt.txt");
+    await writeFile(promptPath, "test prompt");
+
+    const initMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "session-123",
+      model: "claude-sonnet-5",
+    };
+
+    // Mimics a stuck tool call (e.g. WebFetch): query() yields once, then a message that never arrives on its own, only rejecting once the caller's own AbortController fires. That is exactly the shape a real hang has, and it is what lets this test assert the timer/abort wiring without waiting real time.
+    mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+      query: async function* ({
+        options,
+      }: {
+        options: { abortController?: AbortController };
+      }) {
+        yield initMessage;
+        await new Promise((_resolve, reject) => {
+          options.abortController?.signal.addEventListener("abort", () => {
+            reject(new Error("The operation was aborted"));
+          });
+        });
+      },
+    }));
+
+    try {
+      const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+      await expect(
+        runClaudeWithSdk(promptPath, {
+          sdkOptions: {},
+          showFullOutput: false,
+          hasJsonSchema: false,
+          timeoutMs: 10,
+        }),
+      ).rejects.toThrow("exceeding timeout_minutes");
+
+      const executionFile = join(tempDir, "claude-execution-output.json");
+      await expect(readFile(executionFile, "utf-8")).resolves.toBe(
+        JSON.stringify([initMessage], null, 2),
+      );
+    } finally {
+      consoleErrorSpy.mockRestore();
+      consoleLogSpy.mockRestore();
+    }
+  });
+
+  test("does not construct an AbortController when timeoutMs is unset", async () => {
+    const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+
+    tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+    process.env.RUNNER_TEMP = tempDir;
+
+    const promptPath = join(tempDir, "prompt.txt");
+    await writeFile(promptPath, "test prompt");
+
+    const initMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "session-123",
+      model: "claude-sonnet-5",
+    };
+    const resultMessage = {
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      duration_ms: 434,
+      num_turns: 1,
+      total_cost_usd: 1.23,
+      permission_denials: [],
+    };
+
+    let observedAbortController: AbortController | undefined;
+    mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+      query: async function* ({
+        options,
+      }: {
+        options: { abortController?: AbortController };
+      }) {
+        observedAbortController = options.abortController;
+        yield initMessage;
+        yield resultMessage;
+      },
+    }));
+
+    try {
+      const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+      await expect(
+        runClaudeWithSdk(promptPath, {
+          sdkOptions: {},
+          showFullOutput: false,
+          hasJsonSchema: false,
+        }),
+      ).resolves.toMatchObject({ conclusion: "success" });
+
+      expect(observedAbortController).toBeUndefined();
+    } finally {
+      consoleLogSpy.mockRestore();
+    }
+  });
 });
