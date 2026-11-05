@@ -4,6 +4,9 @@
  * classifies each as "real review" vs "test/probe" using Haiku, and posts
  * only the real ones. Calls with confirmed=false are never posted.
  *
+ * The classification request honors ANTHROPIC_BASE_URL and
+ * ANTHROPIC_CUSTOM_HEADERS, so it reaches the same gateway as the main run.
+ *
  * If the Anthropic API is unavailable (Bedrock/Vertex users without a direct
  * key), falls back to posting everything with confirmed !== false. This
  * preserves backward compatibility — before this change, all unconfirmed
@@ -12,6 +15,10 @@
 import { readFileSync } from "fs";
 import { createOctokit } from "../github/api/client";
 import { redactSecrets } from "../github/utils/sanitizer";
+import {
+  messagesUrl,
+  parseCustomHeaders,
+} from "../utils/anthropic-messages-request";
 
 const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
 
@@ -57,9 +64,10 @@ async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
     bodies.map((b, i) => `${i + 1}. ${JSON.stringify(b)}`).join("\n");
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch(messagesUrl(process.env.ANTHROPIC_BASE_URL), {
       method: "POST",
       headers: {
+        ...parseCustomHeaders(process.env.ANTHROPIC_CUSTOM_HEADERS),
         "content-type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
