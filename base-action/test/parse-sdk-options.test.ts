@@ -280,7 +280,19 @@ describe("parseSdkOptions", () => {
       expect(result.sdkOptions.disallowedTools).toEqual(["Bash", "Write"]);
     });
   });
+  describe("plugin-dir accumulation", () => {
+    test("should preserve repeated --plugin-dir flags", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: "--plugin-dir ./plugin-a --plugin-dir ./plugin-b",
+      };
 
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["plugin-dir"]).toBe(
+        "./plugin-a\x00./plugin-b",
+      );
+    });
+  });
   describe("mcp-config merging", () => {
     test("should pass through single mcp-config in extraArgs", () => {
       const options: ClaudeOptions = {
