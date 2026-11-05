@@ -184,11 +184,17 @@ async function run() {
       throw error;
     }
 
-    octokit = createOctokit(githubToken);
-
     // Set GITHUB_TOKEN and GH_TOKEN in process env for downstream usage
     process.env.GITHUB_TOKEN = githubToken;
     process.env.GH_TOKEN = githubToken;
+
+    if (context.inputs.tokenOnly) {
+      console.log("token_only is set, exiting after minting the GitHub token");
+      core.setOutput("github_token", githubToken);
+      return;
+    }
+
+    octokit = createOctokit(githubToken);
 
     // Check write permissions for entity contexts, and for workflow_run
     // events, whose upstream run may have been started by an actor without
