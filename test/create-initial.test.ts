@@ -1,16 +1,8 @@
-import {
-  describe,
-  test,
-  expect,
-  jest,
-  beforeEach,
-  afterEach,
-  spyOn,
-} from "bun:test";
+import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
-import type { Octokit } from "@octokit/rest";
+import { Octokit } from "@octokit/rest";
 import { createInitialComment } from "../src/github/operations/comments/create-initial";
 import type { ParsedGitHubContext } from "../src/github/context";
 import { mockPullRequestOpenedContext } from "./mockContext";
@@ -28,11 +20,11 @@ function humanComment(index: number) {
   };
 }
 
-// 35 comments: more than one default page (30), with the existing Claude
-// sticky comment sitting on the second page.
-function commentsWithStickyOnSecondPage() {
-  const comments = Array.from({ length: 35 }, (_, i) => humanComment(i));
-  comments[32] = {
+function commentsWithStickyAt(position: number) {
+  const comments = Array.from({ length: position + 2 }, (_, i) =>
+    humanComment(i),
+  );
+  comments[position - 1] = {
     id: STICKY_COMMENT_ID,
     body: "Claude Code is working…",
     user: { id: CLAUDE_APP_BOT_ID, login: "claude[bot]", type: "Bot" },
@@ -41,23 +33,56 @@ function commentsWithStickyOnSecondPage() {
 }
 
 function createMockOctokit(comments: ReturnType<typeof humanComment>[]) {
-  return {
-    paginate: jest.fn().mockResolvedValue(comments),
-    rest: {
-      issues: {
-        listComments: jest.fn(),
-        updateComment: jest
-          .fn()
-          .mockResolvedValue({ data: { id: STICKY_COMMENT_ID } }),
-        createComment: jest
-          .fn()
-          .mockResolvedValue({ data: { id: NEW_COMMENT_ID } }),
-      },
-      pulls: {
-        createReplyForReviewComment: jest.fn(),
+  const requests: { method: string; url: URL }[] = [];
+  const octokit = new Octokit({
+    request: {
+      fetch: async (input: string | URL | Request, init?: RequestInit) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        const method = init?.method ?? "GET";
+        requests.push({ method, url });
+        const headers = new Headers({ "content-type": "application/json" });
+
+        if (
+          method === "GET" &&
+          url.pathname === "/repos/test-owner/test-repo/issues/456/comments"
+        ) {
+          const page = Number(url.searchParams.get("page") ?? 1);
+          const perPage = Number(url.searchParams.get("per_page") ?? 30);
+          if (page * perPage < comments.length) {
+            const nextPage = new URL(url);
+            nextPage.searchParams.set("page", String(page + 1));
+            headers.set("link", `<${nextPage}>; rel="next"`);
+          }
+          return new Response(
+            JSON.stringify(
+              comments.slice((page - 1) * perPage, page * perPage),
+            ),
+            { headers },
+          );
+        }
+        if (
+          method === "PATCH" &&
+          url.pathname ===
+            `/repos/test-owner/test-repo/issues/comments/${STICKY_COMMENT_ID}`
+        ) {
+          return new Response(JSON.stringify({ id: STICKY_COMMENT_ID }), {
+            headers,
+          });
+        }
+        if (
+          method === "POST" &&
+          url.pathname === "/repos/test-owner/test-repo/issues/456/comments"
+        ) {
+          return new Response(JSON.stringify({ id: NEW_COMMENT_ID }), {
+            status: 201,
+            headers,
+          });
+        }
+        throw new Error(`Unexpected request: ${method} ${url}`);
       },
     },
-  };
+  });
+  return { octokit, requests };
 }
 
 describe("createInitialComment with use_sticky_comment", () => {
@@ -89,57 +114,59 @@ describe("createInitialComment with use_sticky_comment", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  test("updates an existing sticky comment beyond the first page of comments", async () => {
-    const octokit = createMockOctokit(commentsWithStickyOnSecondPage());
+  test.each([33, 103])(
+    "updates the existing sticky comment at position %i",
+    async (position) => {
+      const { octokit, requests } = createMockOctokit(
+        commentsWithStickyAt(position),
+      );
 
-    const result = await createInitialComment(
-      octokit as unknown as Octokit,
-      stickyContext,
+      const result = await createInitialComment(octokit, stickyContext);
+
+      const listRequests = requests.filter(({ method }) => method === "GET");
+      expect(
+        listRequests.map(({ url }) => url.searchParams.get("page")),
+      ).toEqual(position > 100 ? [null, "2"] : [null]);
+      expect(requests.filter(({ method }) => method === "PATCH")).toHaveLength(
+        1,
+      );
+      expect(requests.filter(({ method }) => method === "POST")).toHaveLength(
+        0,
+      );
+      expect(result.id).toBe(STICKY_COMMENT_ID);
+      expect(await readFile(githubOutputPath, "utf-8")).toBe(
+        `claude_comment_id=${STICKY_COMMENT_ID}\n`,
+      );
+    },
+  );
+
+  test("creates a new comment when no sticky comment exists", async () => {
+    const { octokit, requests } = createMockOctokit(
+      Array.from({ length: 105 }, (_, i) => humanComment(i)),
     );
 
-    expect(octokit.paginate).toHaveBeenCalledWith(
-      octokit.rest.issues.listComments,
-      {
-        owner: "test-owner",
-        repo: "test-repo",
-        issue_number: 456,
-        per_page: 100,
-      },
-    );
-    expect(octokit.rest.issues.updateComment).toHaveBeenCalledTimes(1);
-    expect(octokit.rest.issues.updateComment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        owner: "test-owner",
-        repo: "test-repo",
-        comment_id: STICKY_COMMENT_ID,
-      }),
-    );
-    expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
-    expect(result.id).toBe(STICKY_COMMENT_ID);
+    const result = await createInitialComment(octokit, stickyContext);
+
+    expect(requests.map(({ method }) => method)).toEqual([
+      "GET",
+      "GET",
+      "POST",
+    ]);
+    expect(result.id).toBe(NEW_COMMENT_ID);
     expect(await readFile(githubOutputPath, "utf-8")).toBe(
-      `claude_comment_id=${STICKY_COMMENT_ID}\n`,
+      `claude_comment_id=${NEW_COMMENT_ID}\n`,
     );
   });
 
-  test("creates a new comment when no sticky comment exists", async () => {
-    const octokit = createMockOctokit(
-      Array.from({ length: 35 }, (_, i) => humanComment(i)),
-    );
+  test("creates a new comment without listing comments when sticky mode is disabled", async () => {
+    const { octokit, requests } = createMockOctokit(commentsWithStickyAt(33));
 
-    const result = await createInitialComment(
-      octokit as unknown as Octokit,
-      stickyContext,
-    );
+    const result = await createInitialComment(octokit, {
+      ...stickyContext,
+      inputs: { ...stickyContext.inputs, useStickyComment: false },
+    });
 
-    expect(octokit.rest.issues.updateComment).not.toHaveBeenCalled();
-    expect(octokit.rest.issues.createComment).toHaveBeenCalledTimes(1);
-    expect(octokit.rest.issues.createComment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        owner: "test-owner",
-        repo: "test-repo",
-        issue_number: 456,
-      }),
-    );
+    expect(requests.map(({ method }) => method)).toEqual(["POST"]);
     expect(result.id).toBe(NEW_COMMENT_ID);
   });
 });

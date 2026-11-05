@@ -14,7 +14,12 @@ import {
   extractOriginalBody,
 } from "../../github/data/fetcher";
 import { createPrompt } from "../../create-prompt";
-import { isEntityContext } from "../../github/context";
+import {
+  isEntityContext,
+  isIssueCommentEvent,
+  isPullRequestReviewCommentEvent,
+} from "../../github/context";
+import { updateClaudeComment } from "../../github/operations/comments/update-claude-comment";
 import type { GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
 import { parseAllowedTools } from "../agent/parse-tools";
@@ -64,7 +69,30 @@ export async function prepareTagMode({
   });
 
   // Setup branch
-  const branchInfo = await setupBranch(octokit, githubData, context);
+  const editedAt =
+    context.eventAction === "edited" &&
+    (isIssueCommentEvent(context) || isPullRequestReviewCommentEvent(context))
+      ? context.payload.comment.updated_at
+      : undefined;
+  let branchInfo;
+  try {
+    branchInfo = await setupBranch(
+      octokit,
+      githubData,
+      context,
+      editedAt || triggerTime,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await updateClaudeComment(octokit.rest, {
+      owner: context.repository.owner,
+      repo: context.repository.repo,
+      commentId,
+      body: message,
+      isPullRequestReviewComment: isPullRequestReviewCommentEvent(context),
+    }).catch((e) => console.error(`Failed to update tracking comment: ${e}`));
+    throw error;
+  }
 
   // Configure git authentication
   // SSH signing takes precedence if provided

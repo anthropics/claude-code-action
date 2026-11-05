@@ -6,7 +6,9 @@ on:
 
 jobs:
   triage-issue:
-    runs-on: ubuntu-latest
+    # This job calls Claude, so it runs on GitHub's egress-firewall runner, which
+    # filters the job's outbound network traffic (allow list: .github/egress-firewall.yaml).
+    runs-on: ubuntu-24.04-firewall
     timeout-minutes: 10
     permissions:
       contents: read
@@ -33,5 +35,9 @@ jobs:
           anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
           anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          # --permission-mode auto: a tool call that needs permission and is outside the allowed-tools list in
+          # .claude/commands/label-issue.md runs only if Claude Code's safety review passes it. Tools in
+          # --disallowedTools never run. --model is set because Claude Code's default model changes between releases.
+          claude_args: '--model claude-opus-5 --permission-mode auto --disallowedTools "WebFetch,WebSearch,Write,Edit,MultiEdit,NotebookEdit"'
           allowed_non_write_users: "*" # Required for issue triage workflow, if users without repo write access create issues
           github_token: ${{ secrets.GITHUB_TOKEN }}
