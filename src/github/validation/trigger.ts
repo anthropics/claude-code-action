@@ -47,15 +47,16 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     }
   }
 
+  // Compile the regex once for checking the trigger phrase
+  // If triggerPhrase is empty, use a regex that never matches anything
+  const regex = triggerPhrase
+    ? new RegExp(`(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`, "i")
+    : /(?!)/;
+
   // Check for issue body and title trigger on issue creation
   if (isIssuesEvent(context) && context.eventAction === "opened") {
     const issueBody = context.payload.issue.body || "";
     const issueTitle = context.payload.issue.title || "";
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
-      "i",
-    );
 
     // Check in body
     if (regex.test(issueBody)) {
@@ -78,11 +79,6 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   if (isPullRequestEvent(context)) {
     const prBody = context.payload.pull_request.body || "";
     const prTitle = context.payload.pull_request.title || "";
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
-      "i",
-    );
 
     // Check in body
     if (regex.test(prBody)) {
@@ -107,11 +103,6 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     (context.eventAction === "submitted" || context.eventAction === "edited")
   ) {
     const reviewBody = context.payload.review.body || "";
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
-      "i",
-    );
     if (regex.test(reviewBody)) {
       console.log(
         `Pull request review contains exact trigger phrase '${triggerPhrase}'`,
@@ -125,14 +116,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     isIssueCommentEvent(context) ||
     isPullRequestReviewCommentEvent(context)
   ) {
-    const commentBody = isIssueCommentEvent(context)
-      ? context.payload.comment.body
-      : context.payload.comment.body;
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
-      "i",
-    );
+    const commentBody = context.payload.comment.body || "";
     if (regex.test(commentBody)) {
       console.log(`Comment contains exact trigger phrase '${triggerPhrase}'`);
       return true;
