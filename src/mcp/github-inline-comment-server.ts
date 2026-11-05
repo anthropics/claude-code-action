@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createOctokit } from "../github/api/client";
 import { redactSecrets, sanitizeContent } from "../github/utils/sanitizer";
 import { removeBufferedComment } from "./inline-comment-buffer";
+import { validateCommentLines } from "./inline-comment-validation";
 
 // Get repository and PR information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -102,11 +103,7 @@ server.tool(
       const sanitizedBody = redactSecrets(sanitizeContent(body));
 
       // Validate that either line or both startLine and line are provided
-      if (!line && !startLine) {
-        throw new Error(
-          "Either 'line' for single-line comments or both 'startLine' and 'line' for multi-line comments must be provided",
-        );
-      }
+      validateCommentLines(line, startLine);
 
       if (CLASSIFY_ENABLED && confirmed !== true) {
         appendFileSync(
@@ -147,7 +144,7 @@ server.tool(
 
       // If only line is provided, it's a single-line comment
       // If both startLine and line are provided, it's a multi-line comment
-      const isSingleLine = !startLine;
+      const { isSingleLine } = validateCommentLines(line, startLine);
 
       const octokit = createOctokit(githubToken).rest;
 
