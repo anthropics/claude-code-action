@@ -11,6 +11,8 @@ import { prepareAgentMode } from "../../src/modes/agent";
 import { createMockAutomationContext } from "../mockContext";
 import * as core from "@actions/core";
 import * as gitConfig from "../../src/github/operations/git-config";
+import * as mcp from "../../src/mcp/install-mcp-server";
+import { parseSdkOptions } from "../../base-action/src/parse-sdk-options";
 
 describe("Agent Mode", () => {
   let exportVariableSpy: any;
@@ -113,6 +115,57 @@ describe("Agent Mode", () => {
       process.env.GITHUB_HEAD_REF = originalHeadRef;
     if (originalRefName !== undefined)
       process.env.GITHUB_REF_NAME = originalRefName;
+  });
+
+  test("keeps every flag when claude_args opens with a comment line (#1892)", async () => {
+    const context = createMockAutomationContext({
+      eventName: "workflow_dispatch",
+    });
+
+    // A server config forces the action's own --mcp-config flag ahead of the
+    // user's block, which is the join that used to swallow the flags.
+    const prepareMcpConfigSpy = spyOn(
+      mcp,
+      "prepareMcpConfig",
+    ).mockResolvedValue(
+      JSON.stringify({ mcpServers: { github_ci: { command: "node" } } }),
+    );
+    const originalClaudeArgs = process.env.CLAUDE_ARGS;
+    process.env.CLAUDE_ARGS = [
+      "# The action defaults to Sonnet.",
+      "--model opus",
+      "--max-turns 120",
+      "--strict-mcp-config",
+    ].join("\n");
+
+    const user = { login: "test-user", id: 12345, type: "User" };
+    const mockOctokit = {
+      rest: {
+        users: {
+          getAuthenticated: mock(() => Promise.resolve({ data: user })),
+          getByUsername: mock(() => Promise.resolve({ data: user })),
+        },
+      },
+    } as any;
+
+    try {
+      const result = await prepareAgentMode({
+        context,
+        octokit: mockOctokit,
+        githubToken: "test-token",
+      });
+
+      expect(result.claudeArgs).toStartWith("--mcp-config ");
+
+      const { sdkOptions } = parseSdkOptions({ claudeArgs: result.claudeArgs });
+      expect(sdkOptions.model).toBe("opus");
+      expect(sdkOptions.maxTurns).toBe(120);
+      expect(sdkOptions.extraArgs).toMatchObject({ "strict-mcp-config": null });
+    } finally {
+      prepareMcpConfigSpy.mockRestore();
+      if (originalClaudeArgs === undefined) delete process.env.CLAUDE_ARGS;
+      else process.env.CLAUDE_ARGS = originalClaudeArgs;
+    }
   });
 
   test("prepare falls back to repository.default_branch when not 'main'", async () => {

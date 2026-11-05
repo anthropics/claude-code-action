@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import { prepareTagMode } from "../../src/modes/tag";
 import { mockIssueCommentContext } from "../mockContext";
+import { parseSdkOptions } from "../../base-action/src/parse-sdk-options";
 import * as actor from "../../src/github/validation/actor";
 import * as createInitial from "../../src/github/operations/comments/create-initial";
 import * as fetcher from "../../src/github/data/fetcher";
@@ -94,6 +95,40 @@ describe("Tag Mode", () => {
         "test-token",
         context,
       );
+    });
+
+    test("keeps every flag when claude_args opens with a comment line (#1892)", async () => {
+      const originalClaudeArgs = process.env.CLAUDE_ARGS;
+      process.env.CLAUDE_ARGS = [
+        "# The action defaults to Sonnet.",
+        "--model opus",
+        "--max-turns 120",
+        "--strict-mcp-config",
+      ].join("\n");
+
+      try {
+        const result = await prepareTagMode({
+          context: { ...mockIssueCommentContext },
+          octokit: {} as any,
+          githubToken: "test-token",
+        });
+
+        expect(result.claudeArgs).toStartWith("--mcp-config ");
+
+        const { sdkOptions } = parseSdkOptions({
+          claudeArgs: result.claudeArgs,
+        });
+        expect(sdkOptions.model).toBe("opus");
+        expect(sdkOptions.maxTurns).toBe(120);
+        expect(sdkOptions.extraArgs).toMatchObject({
+          "permission-mode": "acceptEdits",
+          "strict-mcp-config": null,
+        });
+        expect(sdkOptions.allowedTools).toContain("Read");
+      } finally {
+        if (originalClaudeArgs === undefined) delete process.env.CLAUDE_ARGS;
+        else process.env.CLAUDE_ARGS = originalClaudeArgs;
+      }
     });
   });
 });
