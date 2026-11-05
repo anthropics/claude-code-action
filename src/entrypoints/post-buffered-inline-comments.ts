@@ -15,6 +15,10 @@ import { redactSecrets } from "../github/utils/sanitizer";
 
 const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
 
+// Summary line for the batched review. event=COMMENT requires a non-empty body,
+// and this is what appears above the grouped inline comments on the PR.
+export const REVIEW_BODY = "Claude finished reviewing this pull request.";
+
 type BufferedComment = {
   ts: string;
   path: string;
@@ -109,6 +113,70 @@ async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
   }
 }
 
+/**
+ * Build the `comments[]` payload for a single batched review.
+ *
+ * Exported for testing: the review payload uses a different shape from
+ * createReviewComment (no commit_id/pull_number per entry, and multi-line
+ * hunks use start_line + line), so the mapping is worth pinning down.
+ */
+export function buildReviewComments(
+  comments: BufferedComment[],
+): Array<Record<string, unknown>> {
+  return comments.map((c) => {
+    const side = c.side || "RIGHT";
+    const entry: Record<string, unknown> = {
+      path: c.path,
+      body: redactSecrets(c.body),
+      side,
+    };
+    if (c.startLine) {
+      entry.start_line = c.startLine;
+      entry.start_side = side;
+    }
+    entry.line = c.line;
+    return entry;
+  });
+}
+
+/**
+ * Whether a failed createReview definitively means nothing was created.
+ *
+ * 4xx responses (except 408/429) are request-validation failures: GitHub
+ * rejected the payload and committed nothing, so replaying individually is
+ * safe. Transport errors, timeouts and 5xx are ambiguous — the review may have
+ * been created even though the response was lost — so those must be reconciled
+ * before any replay, or duplicate comments get posted.
+ */
+export function isDeterministicRejection(error: unknown): boolean {
+  const status = (error as { status?: number } | null)?.status;
+  if (typeof status !== "number") return false;
+  if (status === 408 || status === 429) return false;
+  return status >= 400 && status < 500;
+}
+
+/**
+ * Look for a review we already created for this commit, so an ambiguous
+ * failure does not cause every comment to be posted twice.
+ */
+async function reviewAlreadyPosted(
+  octokit: ReturnType<typeof createOctokit>["rest"],
+  owner: string,
+  repo: string,
+  pull_number: number,
+  headSha: string,
+): Promise<boolean> {
+  const { data } = await octokit.pulls.listReviews({
+    owner,
+    repo,
+    pull_number,
+    per_page: 100,
+  });
+  return data.some(
+    (r) => r.commit_id === headSha && (r.body ?? "").includes(REVIEW_BODY),
+  );
+}
+
 async function postComment(
   octokit: ReturnType<typeof createOctokit>["rest"],
   owner: string,
@@ -117,7 +185,11 @@ async function postComment(
   headSha: string,
   c: BufferedComment,
 ): Promise<boolean> {
-  const params: Parameters<typeof octokit.rest.pulls.createReviewComment>[0] = {
+  // octokit here is already the `.rest` client (see main), so members are
+  // reached as octokit.pulls.*, matching pulls.get / createReview elsewhere in
+  // this file. (@octokit/rest also self-references as .rest, so the previous
+  // octokit.rest.pulls.* worked too; this is only for consistency.)
+  const params: Parameters<typeof octokit.pulls.createReviewComment>[0] = {
     owner,
     repo,
     pull_number,
@@ -134,7 +206,7 @@ async function postComment(
     params.line = c.line;
   }
   try {
-    await octokit.rest.pulls.createReviewComment(params);
+    await octokit.pulls.createReviewComment(params);
     return true;
   } catch (e) {
     console.log(
@@ -144,7 +216,7 @@ async function postComment(
   }
 }
 
-async function main() {
+export async function main() {
   let raw: string;
   try {
     raw = readFileSync(BUFFER_PATH, "utf8");
@@ -218,6 +290,68 @@ async function main() {
   const headSha = pr.data.head.sha;
 
   console.log(`Posting ${toPost.length} classified-as-real comment(s)`);
+
+  // Post as one review so the PR shows a single "reviewed" entry containing
+  // every inline comment, rather than one standalone review per comment.
+  try {
+    await octokit.pulls.createReview({
+      owner,
+      repo,
+      pull_number,
+      commit_id: headSha,
+      event: "COMMENT",
+      // Required by the API whenever event is COMMENT: a review submitted with
+      // event=COMMENT and no body is rejected with 422. The typings mark body
+      // optional, so this is not caught at compile time.
+      body: REVIEW_BODY,
+      comments: buildReviewComments(toPost) as never,
+    });
+    console.log(`Posted ${toPost.length}/${toPost.length} in a single review`);
+    return;
+  } catch (e) {
+    // createReview is atomic: one unmappable line (e.g. outside the diff, or
+    // stale after a force-push) rejects the whole batch. Rather than drop every
+    // comment, fall back to posting them individually — the pre-batch
+    // behaviour — so partial delivery still beats none.
+    //
+    // But only when the failure definitively means nothing was created. A lost
+    // response or a 5xx may follow a review GitHub already committed, and
+    // replaying then double-posts every comment. For those, reconcile against
+    // the API first and skip the replay if the review is already there.
+    const message = e instanceof Error ? e.message : String(e);
+
+    if (!isDeterministicRejection(e)) {
+      let alreadyPosted: boolean;
+      try {
+        alreadyPosted = await reviewAlreadyPosted(
+          octokit,
+          owner,
+          repo,
+          pull_number,
+          headSha,
+        );
+      } catch (checkError) {
+        // Cannot confirm either way. Posting nothing is recoverable by re-running;
+        // double-posting N comments onto a PR is not, so do not replay.
+        console.log(
+          `::warning::Batched review failed (${message}) and the follow-up check also failed (${checkError instanceof Error ? checkError.message : String(checkError)}) — not replaying, to avoid duplicate comments`,
+        );
+        return;
+      }
+
+      if (alreadyPosted) {
+        console.log(
+          `Batched review failed (${message}) but the review exists on the PR — not replaying`,
+        );
+        return;
+      }
+    }
+
+    console.log(
+      `::warning::Batched review failed (${message}) — falling back to individual comments`,
+    );
+  }
+
   let posted = 0;
   for (const c of toPost) {
     if (await postComment(octokit, owner, repo, pull_number, headSha, c)) {
@@ -228,7 +362,11 @@ async function main() {
   console.log(`Posted ${posted}/${toPost.length}`);
 }
 
-main().catch((e) => {
-  console.error("post-buffered-inline-comments failed:", e);
-  process.exit(1);
-});
+// Guarded so the module can be imported by tests without running the posting
+// flow, matching the other entrypoints (prepare.ts, run.ts, ...).
+if (import.meta.main) {
+  main().catch((e) => {
+    console.error("post-buffered-inline-comments failed:", e);
+    process.exit(1);
+  });
+}
