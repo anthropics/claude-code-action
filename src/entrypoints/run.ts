@@ -45,6 +45,7 @@ import { preparePrompt } from "../../base-action/src/prepare-prompt";
 import { runClaude } from "../../base-action/src/run-claude";
 import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
 import { setExecutionFileOutputIfPresent } from "../../base-action/src/execution-file";
+import { runOrcaRouterCli } from "../../base-action/src/orcarouter/setup-cli";
 
 // Exported for unit testing. `set -o pipefail` makes curl's non-zero exit
 // propagate through the pipe so the install retry logic actually triggers
@@ -244,6 +245,18 @@ async function run() {
     process.env.INPUT_ACTION_INPUTS_PRESENT = actionInputsPresent;
     process.env.CLAUDE_CODE_ACTION = "1";
     process.env.DETAILED_PERMISSION_MESSAGES = "1";
+
+    // Standalone OrcaRouter credential commands (connect / logout / status)
+    // short-circuit the rest of the run. They are only reachable when the action
+    // is invoked with one of those flags, so an ordinary run is unaffected. The
+    // dispatch happens before credential validation because `--connect` exists
+    // precisely to obtain a credential that validation would otherwise reject.
+    const orcaCommand = await runOrcaRouterCli();
+    if (orcaCommand !== null) {
+      core.setOutput("conclusion", orcaCommand === 0 ? "success" : "failure");
+      if (orcaCommand !== 0) process.exitCode = 1;
+      return;
+    }
 
     // When workload identity federation is configured, fetch the GitHub OIDC
     // identity token and expose it to the CLI before validating auth env vars.

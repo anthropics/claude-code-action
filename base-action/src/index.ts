@@ -9,10 +9,21 @@ import { installPlugins } from "./install-plugins";
 import { setExecutionFileOutputIfPresent } from "./execution-file";
 import { setupWorkloadIdentity } from "./workload-identity";
 import type { WorkloadIdentityHandle } from "./workload-identity";
+import { runOrcaRouterCli } from "./orcarouter/setup-cli";
 
 async function run() {
   let workloadIdentity: WorkloadIdentityHandle | undefined;
   try {
+    // Standalone OrcaRouter credential commands (connect / logout / status)
+    // short-circuit the normal run. They are only reachable when the step is
+    // invoked with one of those flags, so an ordinary run is unaffected.
+    const orcaCommand = await runOrcaRouterCli();
+    if (orcaCommand !== null) {
+      core.setOutput("conclusion", orcaCommand === 0 ? "success" : "failure");
+      if (orcaCommand !== 0) process.exit(orcaCommand);
+      return;
+    }
+
     // When workload identity federation is configured, fetch the GitHub OIDC
     // identity token and expose it to the CLI before validating auth env vars.
     workloadIdentity = await setupWorkloadIdentity();
