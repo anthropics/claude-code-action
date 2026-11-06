@@ -248,6 +248,66 @@ run: |
 
 **Note**: Due to GitHub Actions limitations, composite actions cannot expose dynamic outputs. All fields are bundled in the single `structured_output` JSON string.
 
+### Passing structured output to another job
+
+Read `structured_output` from later steps in the **same** job. Do not publish that string as a job output (`jobs.<job_id>.outputs`).
+
+At the end of the job, after every step and post step, the runner compares each job output with every value registered as a secret. If the output contains any of those values, or an encoded form of one, GitHub drops the whole output and logs:
+
+```text
+Skip output '<name>' since it may contain secret.
+```
+
+The step output is left intact. A following step in the same job can still read it, and a log line printed before the matching secret was registered is not redacted. The check that drops the job output runs later, so it sees masks the log line never did.
+
+Workload identity federation is one way those masks get registered. Fetching the GitHub OIDC token (`core.getIDToken` in `base-action/src/workload-identity.ts`) registers the JWT, and the action registers it again on every refresh. Refreshes run every four minutes during the step and stop in the step's `finally` block; they do not continue into post steps. The masked values are the full JWTs, not empty or short strings. The runner ignores an empty mask. When `github_token` is omitted, the minted GitHub App token is masked too. A token you pass in, including `github.token`, is already masked by the runner. This action's post steps do not register further secrets. A later step, another action's post step, or a log line that is itself an `::add-mask::` workflow command can.
+
+The matcher requires the full secret (or the full encoded form: Base64 at byte offsets 0, 1, and 2, plus JSON and URI escapes). A short overlap with ordinary prose does not match. The OIDC JWT changes on every fetch, so a match that repeats for every rerun of one pull request is a stable registered value inside the JSON, such as a repository secret quoted by the review. Sign-in and JWT reviews hit this when they quote a bearer token that is also masked. Comparing the JSON only to `${{ github.token }}` does not cover other masks or their encoded forms. Pretty-printing or line-wrapping the log can hide a contiguous match that is still present in the original output.
+
+Masking stays on. Unmasking the OIDC token would print the credential in the log.
+
+Pass the JSON to a later job as a file. The action writes it to `structured_output_file` (mode `0600` under `RUNNER_TEMP`). The output is the path, which GitHub will publish.
+
+```yaml
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    outputs:
+      structured_output_file: ${{ steps.chief.outputs.structured_output_file }}
+    steps:
+      - id: chief
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          prompt: "Review this pull request."
+          claude_args: |
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string"},"report_markdown":{"type":"string"}},"required":["verdict","report_markdown"]}'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude-structured-output
+          path: ${{ steps.chief.outputs.structured_output_file }}
+
+  consume:
+    needs: review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: claude-structured-output
+
+      - run: jq -r '.verdict' claude-structured-output.json
+```
+
+`structured_output_file` on the job output is only the path from the first runner. The artifact is what crosses the job boundary. To keep the JSON inside one job, read `steps.<id>.outputs.structured_output` directly and give it to the shell through `env:` so the script text does not have to quote it:
+
+```yaml
+- env:
+    STRUCTURED_OUTPUT: ${{ steps.chief.outputs.structured_output }}
+  run: printf '%s' "$STRUCTURED_OUTPUT" | jq -r '.verdict'
+```
+
 ### Complete Example
 
 See `examples/test-failure-analysis.yml` for a working example that:

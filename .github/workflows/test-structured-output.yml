@@ -295,6 +295,101 @@ jobs:
 
           echo "✅ Execution file format correct"
 
+  test-cross-job-output-producer:
+    name: Test Structured Output Across Jobs (producer)
+    # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04-firewall
+    outputs:
+      structured_output: ${{ steps.test.outputs.structured_output }}
+      structured_output_file: ${{ steps.test.outputs.structured_output_file }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Produce structured output
+        id: test
+        uses: ./base-action
+        with:
+          prompt: |
+            Run: echo "cross-job structured output test"
+
+            Return EXACTLY:
+            - verdict: "artifact-delivered"
+            - marker: "cross-job-structured-output-marker"
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          claude_args: |
+            --permission-mode auto
+            --allowedTools Bash
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string"},"marker":{"type":"string"}},"required":["verdict","marker"]}'
+
+      # Job outputs are checked after all steps have completed. Registering this
+      # harmless marker after the action deterministically reproduces the masked
+      # job-output path without exposing a credential.
+      - name: Mask the test marker
+        env:
+          STRUCTURED_OUTPUT: ${{ steps.test.outputs.structured_output }}
+        run: |
+          MARKER=$(printf '%s' "$STRUCTURED_OUTPUT" | jq -er '.marker')
+          if [ "$MARKER" != "cross-job-structured-output-marker" ]; then
+            echo "❌ Structured output did not contain the expected marker"
+            exit 1
+          fi
+          echo "::add-mask::$MARKER"
+
+      - name: Upload structured output file
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: structured-output-across-jobs
+          path: ${{ steps.test.outputs.structured_output_file }}
+          if-no-files-found: error
+          retention-days: 1
+
+  test-cross-job-output-consumer:
+    name: Test Structured Output Across Jobs (consumer)
+    needs: test-cross-job-output-producer
+    # Keep the same fork guard as the producer, which requires workload identity.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify safe job output and masked direct output
+        env:
+          STRUCTURED_OUTPUT: ${{ needs.test-cross-job-output-producer.outputs.structured_output }}
+          STRUCTURED_OUTPUT_FILE: ${{ needs.test-cross-job-output-producer.outputs.structured_output_file }}
+        run: |
+          if [ -n "$STRUCTURED_OUTPUT" ]; then
+            echo "❌ Expected the masked structured_output job output to be omitted"
+            exit 1
+          fi
+          if [ -z "$STRUCTURED_OUTPUT_FILE" ]; then
+            echo "❌ structured_output_file job output was not published"
+            exit 1
+          fi
+
+      - name: Download structured output file
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: structured-output-across-jobs
+          path: structured-output
+
+      - name: Verify artifact-delivered structured output
+        run: |
+          OUTPUT_FILE=structured-output/claude-structured-output.json
+          if [ ! -f "$OUTPUT_FILE" ]; then
+            echo "❌ Structured output artifact did not contain $OUTPUT_FILE"
+            exit 1
+          fi
+          if ! jq -e '
+            .verdict == "artifact-delivered" and
+            .marker == "cross-job-structured-output-marker"
+          ' "$OUTPUT_FILE" > /dev/null; then
+            echo "❌ Structured output artifact did not contain the expected JSON"
+            exit 1
+          fi
+          echo "✅ Structured output artifact is available in the dependent job"
+
   test-summary:
     name: Summary
     runs-on: ubuntu-latest
@@ -304,6 +399,8 @@ jobs:
       - test-edge-cases
       - test-name-sanitization
       - test-execution-file-structure
+      - test-cross-job-output-producer
+      - test-cross-job-output-consumer
     if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     steps:
       - name: Generate Summary
@@ -319,6 +416,8 @@ jobs:
           echo "| Edge Cases | ${{ needs.test-edge-cases.result == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Name Sanitization | ${{ needs.test-name-sanitization.result == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Execution File | ${{ needs.test-execution-file-structure.result == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cross-job Producer | ${{ needs.test-cross-job-output-producer.result == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cross-job Consumer | ${{ needs.test-cross-job-output-consumer.result == 'success' && '✅ PASS' || '❌ FAIL' }} |" >> $GITHUB_STEP_SUMMARY
 
           # Check if all passed
           ALL_PASSED=${{
@@ -326,7 +425,9 @@ jobs:
             needs.test-complex-types.result == 'success' &&
             needs.test-edge-cases.result == 'success' &&
             needs.test-name-sanitization.result == 'success' &&
-            needs.test-execution-file-structure.result == 'success'
+            needs.test-execution-file-structure.result == 'success' &&
+            needs.test-cross-job-output-producer.result == 'success' &&
+            needs.test-cross-job-output-consumer.result == 'success'
           }}
 
           if [ "$ALL_PASSED" = "true" ]; then

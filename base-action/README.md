@@ -151,12 +151,13 @@ Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federa
 
 ## Outputs
 
-| Output              | Description                                                                                       |
-| ------------------- | ------------------------------------------------------------------------------------------------- |
-| `conclusion`        | Execution status of Claude Code ('success' or 'failure')                                          |
-| `execution_file`    | Path to the JSON file containing Claude Code execution log                                        |
-| `structured_output` | JSON string containing structured output fields when `--json-schema` is provided in `claude_args` |
-| `session_id`        | The Claude Code session ID that can be used with `--resume` to continue this conversation         |
+| Output                   | Description                                                                                                                                                                                                                                                     |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `conclusion`             | Execution status of Claude Code ('success' or 'failure')                                                                                                                                                                                                        |
+| `execution_file`         | Path to the JSON file containing Claude Code execution log                                                                                                                                                                                                      |
+| `structured_output`      | JSON string containing structured output fields when `--json-schema` is provided in `claude_args`. Read it from later steps in the same job. GitHub may drop it as a job output when the JSON contains a masked secret; upload `structured_output_file` instead |
+| `structured_output_file` | Absolute path to a file containing the same JSON as `structured_output`. Upload this file as an artifact to pass the result to a later job                                                                                                                      |
+| `session_id`             | The Claude Code session ID that can be used with `--resume` to continue this conversation                                                                                                                                                                       |
 
 ## Environment Variables
 
@@ -410,8 +411,10 @@ jobs:
 ```
 
 For typed automation output, prefer passing `--json-schema` in `claude_args`
-and reading `steps.<id>.outputs.structured_output` instead of parsing the full
-execution log.
+and reading `steps.<id>.outputs.structured_output` from a later step in the
+same job. To pass the JSON to another job, upload
+`steps.<id>.outputs.structured_output_file` as an artifact. GitHub drops a
+job output whose value contains a masked secret.
 
 Check out additional examples in [`./examples`](./examples).
 
