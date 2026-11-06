@@ -28,6 +28,7 @@ export function collectActionInputsPresence(): string {
     github_token: "",
     max_turns: "",
     use_sticky_comment: "false",
+    suppress_completion_mention: "false",
     classify_inline_comments: "true",
     use_commit_signing: "false",
     ssh_signing_key: "",
