@@ -27,7 +27,7 @@ export async function checkAndCommitOrDeleteBranch(
   // .claude/settings.json. Excluding those there would silently drop the work.
   const pathspecArgs =
     restoredConfigPaths.length > 0
-      ? ["--", ".", ...restoredConfigPaths.map((p) => `:(exclude)${p}`)]
+      ? ["--", ".", ...restoredConfigPaths.map((p) => `:(exclude,literal)${p}`)]
       : [];
 
   if (pathspecArgs.length > 0) {
