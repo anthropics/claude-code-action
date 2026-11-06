@@ -265,6 +265,83 @@ describe("Agent Mode", () => {
     expect(result.claudeArgs).not.toContain("--mcp-config");
   });
 
+  describe("comment actor filters", () => {
+    const mockOctokit = {
+      rest: {
+        users: {
+          getByUsername: mock(() =>
+            Promise.resolve({
+              data: { login: "test-user", id: 12345, type: "User" },
+            }),
+          ),
+        },
+      },
+    } as any;
+    let warningSpy: any;
+
+    beforeEach(() => {
+      warningSpy = spyOn(core, "warning").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warningSpy?.mockRestore();
+    });
+
+    test("warns that exclude_comments_by_actor has no effect", async () => {
+      const context = createMockAutomationContext({
+        eventName: "workflow_dispatch",
+        inputs: { excludeCommentsByActor: "*[bot]" },
+      });
+
+      await prepareAgentMode({
+        context,
+        octokit: mockOctokit,
+        githubToken: "test-token",
+      });
+
+      expect(warningSpy).toHaveBeenCalledTimes(1);
+      const message = warningSpy.mock.calls[0][0];
+      expect(message).toContain("exclude_comments_by_actor has no effect");
+      expect(message).not.toContain("include_comments_by_actor");
+    });
+
+    test("names both inputs when both are set", async () => {
+      const context = createMockAutomationContext({
+        eventName: "workflow_dispatch",
+        inputs: {
+          includeCommentsByActor: "octocat",
+          excludeCommentsByActor: "*[bot]",
+        },
+      });
+
+      await prepareAgentMode({
+        context,
+        octokit: mockOctokit,
+        githubToken: "test-token",
+      });
+
+      expect(warningSpy).toHaveBeenCalledTimes(1);
+      expect(warningSpy.mock.calls[0][0]).toContain(
+        "include_comments_by_actor and exclude_comments_by_actor have no effect",
+      );
+    });
+
+    test("does not warn when neither input is set", async () => {
+      const context = createMockAutomationContext({
+        eventName: "workflow_dispatch",
+        inputs: { includeCommentsByActor: " ", excludeCommentsByActor: "" },
+      });
+
+      await prepareAgentMode({
+        context,
+        octokit: mockOctokit,
+        githubToken: "test-token",
+      });
+
+      expect(warningSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe("git credential configuration", () => {
     const mockOctokit = {
       rest: {

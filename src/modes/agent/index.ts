@@ -1,3 +1,4 @@
+import * as core from "@actions/core";
 import { mkdir, rm, writeFile } from "fs/promises";
 import { prepareMcpConfig } from "../../mcp/install-mcp-server";
 import { parseAllowedTools } from "./parse-tools";
@@ -28,6 +29,23 @@ export async function prepareAgentMode({
 }) {
   // Check if actor is human (prevents bot-triggered loops)
   await checkHumanActor(octokit.rest, context);
+
+  // The actor filters only apply to the comments tag mode fetches into the
+  // prompt. Agent mode passes the user's prompt through unchanged, so say so
+  // instead of letting a workflow assume its filter is in effect.
+  const actorFilterInputs = [
+    ["include_comments_by_actor", context.inputs.includeCommentsByActor],
+    ["exclude_comments_by_actor", context.inputs.excludeCommentsByActor],
+  ]
+    .filter(([, value]) => value?.trim())
+    .map(([name]) => name);
+  if (actorFilterInputs.length > 0) {
+    core.warning(
+      `${actorFilterInputs.join(" and ")} ${actorFilterInputs.length > 1 ? "have" : "has"} no effect in agent mode (when \`prompt\` is set). ` +
+        "These filters only apply to the comments the action adds to the prompt in tag mode; " +
+        "comments Claude reads itself with gh or the GitHub MCP tools are not filtered.",
+    );
+  }
 
   // Configure git authentication for agent mode (same as tag mode)
   // SSH signing takes precedence if provided
