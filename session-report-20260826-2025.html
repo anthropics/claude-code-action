@@ -1,0 +1,950 @@
+<title>Session Report</title>
+<style>
+  :root {
+    --bg: #fbfaf9;
+    --fg: #1a1a19;
+    --dim: #6b6b68;
+    --line: #e3e0dc;
+    --card: #fff;
+    --accent: #c2410c;
+    --good: #15803d;
+    --bad: #b91c1c;
+    --info: #1d4ed8;
+    --goodbg: #f0fdf4;
+    --badbg: #fef2f2;
+    --infobg: #eff6ff;
+    --barc: #d97757;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1a1a19;
+      --fg: #eeece8;
+      --dim: #9a9791;
+      --line: #332f2c;
+      --card: #232120;
+      --accent: #e8845c;
+      --good: #4ade80;
+      --bad: #f87171;
+      --info: #93c5fd;
+      --goodbg: #14261a;
+      --badbg: #2a1615;
+      --infobg: #141f2e;
+      --barc: #d97757;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1a1a19;
+    --fg: #eeece8;
+    --dim: #9a9791;
+    --line: #332f2c;
+    --card: #232120;
+    --accent: #e8845c;
+    --good: #4ade80;
+    --bad: #f87171;
+    --info: #93c5fd;
+    --goodbg: #14261a;
+    --badbg: #2a1615;
+    --infobg: #141f2e;
+    --barc: #d97757;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font:
+      15px/1.55 ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      sans-serif;
+  }
+  .wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 40px 22px 72px;
+  }
+  h1 {
+    font-size: 26px;
+    margin: 0 0 4px;
+    letter-spacing: -0.02em;
+  }
+  .sub {
+    color: var(--dim);
+    font-size: 13px;
+    margin-bottom: 28px;
+  }
+  .hero {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 22px;
+    margin-bottom: 26px;
+  }
+  .big {
+    font-size: 42px;
+    font-weight: 650;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .big small {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--dim);
+    margin-left: 8px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+    margin-top: 20px;
+  }
+  .stat {
+    border-left: 2px solid var(--line);
+    padding-left: 12px;
+  }
+  .stat .v {
+    font-size: 19px;
+    font-weight: 600;
+  }
+  .stat .l {
+    font-size: 11px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--dim);
+    margin: 34px 0 10px;
+    font-weight: 600;
+  }
+  .scroll {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--card);
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13px;
+    min-width: 620px;
+  }
+  th {
+    text-align: left;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--dim);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    font-weight: 600;
+  }
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  tr:last-child td {
+    border-bottom: 0;
+  }
+  .k {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 12px;
+  }
+  .n {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .dim {
+    color: var(--dim);
+  }
+  .b {
+    width: 1%;
+  }
+  .bar {
+    color: var(--barc);
+    letter-spacing: -2px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .take {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 9px;
+    margin-bottom: 8px;
+    border: 1px solid var(--line);
+  }
+  .take .fig {
+    font-size: 20px;
+    font-weight: 650;
+    min-width: 74px;
+    font-variant-numeric: tabular-nums;
+  }
+  .take .txt {
+    font-size: 13.5px;
+  }
+  .take.bad {
+    background: var(--badbg);
+  }
+  .take.bad .fig {
+    color: var(--bad);
+  }
+  .take.good {
+    background: var(--goodbg);
+  }
+  .take.good .fig {
+    color: var(--good);
+  }
+  .take.info {
+    background: var(--infobg);
+  }
+  .take.info .fig {
+    color: var(--info);
+  }
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--card);
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 10px;
+    font-size: 13.5px;
+  }
+  .callout b {
+    color: var(--accent);
+  }
+  code {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 12px;
+    background: var(--bg);
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+  }
+  .note {
+    font-size: 12px;
+    color: var(--dim);
+    margin-top: 26px;
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+  }
+  .p {
+    max-width: 430px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+</style>
+<div class="wrap">
+  <h1>Claude Code session report</h1>
+  <div class="sub">
+    2026-08-12 &rarr; 2026-08-19 &middot; 7-day window &middot; 188 transcripts,
+    18,827 records, 0 parse errors
+  </div>
+
+  <div class="hero">
+    <div class="big">
+      11,701,881<small>billed tokens (fresh + cache-write + output)</small>
+    </div>
+    <div class="grid">
+      <div class="stat">
+        <div class="v">97.8%</div>
+        <div class="l">cache hit rate</div>
+      </div>
+      <div class="stat">
+        <div class="v">428,148,404</div>
+        <div class="l">cache reads (36.6&times; billed)</div>
+      </div>
+      <div class="stat">
+        <div class="v">1,918,429</div>
+        <div class="l">output tokens</div>
+      </div>
+      <div class="stat">
+        <div class="v">82</div>
+        <div class="l">sessions</div>
+      </div>
+      <div class="stat">
+        <div class="v">2,953</div>
+        <div class="l">model calls</div>
+      </div>
+      <div class="stat">
+        <div class="v">0</div>
+        <div class="l">subagent calls</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Takeaways</h2>
+  <div class="take good">
+    <div class="fig">97.8%</div>
+    <div class="txt">
+      <b>Cache hit rate</b> is excellent &mdash; 428,148,404 tokens served from
+      cache, 36.6&times; the billed volume. Only 14,298 tokens were read fully
+      fresh all week.
+    </div>
+  </div>
+  <div class="take bad">
+    <div class="fig">8.0%</div>
+    <div class="txt">
+      A single prompt, <b>&ldquo;does it all work, make it better&rdquo;</b>,
+      cost 938K tokens &mdash; 8% of the week from four words of direction.
+    </div>
+  </div>
+  <div class="take bad">
+    <div class="fig">25.7%</div>
+    <div class="txt">
+      Four terse continuation prompts (<b
+        >&ldquo;continue&rdquo;, &ldquo;howd it go&rdquo;, &ldquo;keep
+        working&rdquo;, &ldquo;make it better&rdquo;</b
+      >) together consumed 3.0M tokens &mdash; over a quarter of everything
+      billed.
+    </div>
+  </div>
+  <div class="take info">
+    <div class="fig">61.0%</div>
+    <div class="txt">
+      <b>Opus 5</b> carried 61% of billed tokens; Haiku 4.5 took 27% and Sonnet
+      5 just 9.5%.
+    </div>
+  </div>
+  <div class="take good">
+    <div class="fig">0</div>
+    <div class="txt">
+      <b>No subagent calls</b> in the entire window &mdash; consistent with your
+      standing &ldquo;handle work inline&rdquo; rule, and it keeps cost
+      attribution simple.
+    </div>
+  </div>
+
+  <h2>By project</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Project</th>
+          <th class="n">Billed</th>
+          <th class="n">Share</th>
+          <th></th>
+          <th class="n">Output</th>
+          <th class="n">Calls</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="k">Users/NoOne</td>
+          <td class="n">2,778,170</td>
+          <td class="n">23.7%</td>
+          <td class="b"><span class="bar">████████████</span></td>
+          <td class="n dim">442,018</td>
+          <td class="n dim">633</td>
+        </tr>
+        <tr>
+          <td class="k">
+            Users/NoOne/Downloads/anthropic/cloud/claude/new/ses
+          </td>
+          <td class="n">2,464,083</td>
+          <td class="n">21.1%</td>
+          <td class="b"><span class="bar">███████████</span></td>
+          <td class="n dim">422,766</td>
+          <td class="n dim">777</td>
+        </tr>
+        <tr>
+          <td class="k">Users/NoOne/Documents/GitHub/claude/code/action</td>
+          <td class="n">2,297,522</td>
+          <td class="n">19.6%</td>
+          <td class="b"><span class="bar">██████████</span></td>
+          <td class="n dim">327,845</td>
+          <td class="n dim">744</td>
+        </tr>
+        <tr>
+          <td class="k">WWWWOPPPS/emberfall/godot/general/discussion/56c9e3</td>
+          <td class="n">2,273,961</td>
+          <td class="n">19.4%</td>
+          <td class="b"><span class="bar">██████████</span></td>
+          <td class="n dim">513,752</td>
+          <td class="n dim">359</td>
+        </tr>
+        <tr>
+          <td class="k">WINDOWS/system32</td>
+          <td class="n">549,261</td>
+          <td class="n">4.7%</td>
+          <td class="b"><span class="bar">██</span></td>
+          <td class="n dim">117,914</td>
+          <td class="n dim">138</td>
+        </tr>
+        <tr>
+          <td class="k">BASTIAN/SIGNED/MYTHOS/5/BASTIAN/150</td>
+          <td class="n">335,082</td>
+          <td class="n">2.9%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">57,420</td>
+          <td class="n dim">134</td>
+        </tr>
+        <tr>
+          <td class="k">Users/NoOne/AppData/Local/Temp</td>
+          <td class="n">320,895</td>
+          <td class="n">2.7%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">740</td>
+          <td class="n dim">22</td>
+        </tr>
+        <tr>
+          <td class="k">WWWWOPPPS</td>
+          <td class="n">303,885</td>
+          <td class="n">2.6%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">26,108</td>
+          <td class="n dim">90</td>
+        </tr>
+        <tr>
+          <td class="k">Users/NoOne/Downloads/Claude/work//claude</td>
+          <td class="n">241,605</td>
+          <td class="n">2.1%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">9,580</td>
+          <td class="n dim">21</td>
+        </tr>
+        <tr>
+          <td class="k">Flawed/FLAWED/FLAWED</td>
+          <td class="n">137,417</td>
+          <td class="n">1.2%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">286</td>
+          <td class="n dim">6</td>
+        </tr>
+        <tr>
+          <td class="k">Users/NoOne/claude</td>
+          <td class="n">0</td>
+          <td class="n">0.0%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">0</td>
+          <td class="n dim">12</td>
+        </tr>
+        <tr>
+          <td class="k">
+            Users/NoOne/Desktop/claude/clean/baseline/20260718/2
+          </td>
+          <td class="n">0</td>
+          <td class="n">0.0%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">0</td>
+          <td class="n dim">5</td>
+        </tr>
+        <tr>
+          <td class="k">Users/NoOne/Downloads/bed</td>
+          <td class="n">0</td>
+          <td class="n">0.0%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">0</td>
+          <td class="n dim">7</td>
+        </tr>
+        <tr>
+          <td class="k">Users/NoOne/Downloads/Claude/work</td>
+          <td class="n">0</td>
+          <td class="n">0.0%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">0</td>
+          <td class="n dim">1</td>
+        </tr>
+        <tr>
+          <td class="k">
+            Users/NoOne/Downloads/emberfall/godot//claude/worktr
+          </td>
+          <td class="n">0</td>
+          <td class="n">0.0%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">0</td>
+          <td class="n dim">2</td>
+        </tr>
+        <tr>
+          <td class="k">WWWWOPPPS/dist</td>
+          <td class="n">0</td>
+          <td class="n">0.0%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">0</td>
+          <td class="n dim">2</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>By model</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th class="n">Billed</th>
+          <th class="n">Share</th>
+          <th></th>
+          <th class="n">Output</th>
+          <th class="n">Calls</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="k">claude-opus-5</td>
+          <td class="n">7,142,441</td>
+          <td class="n">61.0%</td>
+          <td class="b">
+            <span class="bar">███████████████████████████████</span>
+          </td>
+          <td class="n dim">1,366,828</td>
+          <td class="n dim">1507</td>
+        </tr>
+        <tr>
+          <td class="k">claude-haiku-4-5-20251001</td>
+          <td class="n">3,197,822</td>
+          <td class="n">27.3%</td>
+          <td class="b"><span class="bar">██████████████</span></td>
+          <td class="n dim">418,757</td>
+          <td class="n dim">1209</td>
+        </tr>
+        <tr>
+          <td class="k">claude-sonnet-5</td>
+          <td class="n">1,106,053</td>
+          <td class="n">9.5%</td>
+          <td class="b"><span class="bar">█████</span></td>
+          <td class="n dim">132,622</td>
+          <td class="n dim">161</td>
+        </tr>
+        <tr>
+          <td class="k">claude-sonnet-4-5-20250929</td>
+          <td class="n">61,384</td>
+          <td class="n">0.5%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">122</td>
+          <td class="n dim">2</td>
+        </tr>
+        <tr>
+          <td class="k">claude-opus-4-5-20251101</td>
+          <td class="n">61,336</td>
+          <td class="n">0.5%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">82</td>
+          <td class="n dim">2</td>
+        </tr>
+        <tr>
+          <td class="k">claude-opus-4-7</td>
+          <td class="n">42,670</td>
+          <td class="n">0.4%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">6</td>
+          <td class="n dim">1</td>
+        </tr>
+        <tr>
+          <td class="k">claude-opus-4-6</td>
+          <td class="n">30,687</td>
+          <td class="n">0.3%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">4</td>
+          <td class="n dim">1</td>
+        </tr>
+        <tr>
+          <td class="k">claude-sonnet-4-6</td>
+          <td class="n">29,977</td>
+          <td class="n">0.3%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">4</td>
+          <td class="n dim">1</td>
+        </tr>
+        <tr>
+          <td class="k">claude-opus-4-8</td>
+          <td class="n">29,511</td>
+          <td class="n">0.3%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">4</td>
+          <td class="n dim">1</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Most expensive prompts</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Prompt</th>
+          <th class="n">Tokens</th>
+          <th class="n">Share</th>
+          <th></th>
+          <th class="n">Project</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="k p" title="does it all work, make it better">
+            does it all work, make it better
+          </td>
+          <td class="n">938,549</td>
+          <td class="n">8.02%</td>
+          <td class="b"><span class="bar">████</span></td>
+          <td class="k dim">Users/NoOne</td>
+        </tr>
+        <tr>
+          <td
+            class="k p"
+            title="make the plan . and no.the model. keep working."
+          >
+            make the plan . and no.the model. keep working.
+          </td>
+          <td class="n">830,186</td>
+          <td class="n">7.09%</td>
+          <td class="b"><span class="bar">████</span></td>
+          <td class="k dim">WWWWOPPPS/emberfall/godot/</td>
+        </tr>
+        <tr>
+          <td class="k p" title="howd it go">howd it go</td>
+          <td class="n">650,860</td>
+          <td class="n">5.56%</td>
+          <td class="b"><span class="bar">███</span></td>
+          <td class="k dim">WWWWOPPPS/emberfall/godot/</td>
+        </tr>
+        <tr>
+          <td class="k p" title="continue">continue</td>
+          <td class="n">593,431</td>
+          <td class="n">5.07%</td>
+          <td class="b"><span class="bar">███</span></td>
+          <td class="k dim">Users/NoOne</td>
+        </tr>
+        <tr>
+          <td
+            class="k p"
+            title="Base directory for this skill: C:\Users\NoOne\AppData\Local\Temp\claude\bundled-skills\2.1.233\82c46f2cd49b51e54bbd7e3447994a1e\claude-api # Building LLM-Powered Applications with Claude This skill helps you build LLM-"
+          >
+            Base directory for this skill:
+            C:\Users\NoOne\AppData\Local\Temp\claude\bundled-skills\2.1
+          </td>
+          <td class="n">522,496</td>
+          <td class="n">4.47%</td>
+          <td class="b"><span class="bar">██</span></td>
+          <td class="k dim">Users/NoOne/Downloads/anth</td>
+        </tr>
+        <tr>
+          <td class="k p" title="set it all up">set it all up</td>
+          <td class="n">441,267</td>
+          <td class="n">3.77%</td>
+          <td class="b"><span class="bar">██</span></td>
+          <td class="k dim">Users/NoOne/Documents/GitH</td>
+        </tr>
+        <tr>
+          <td
+            class="k p"
+            title="Base directory for this skill: C:\Users\NoOne\AppData\Roaming\Claude\local-agent-mode-sessions\skills-plugin\a2bf5bfb-dfc1-42c9-b4dc-e87f49e2563e\faa7706b-6375-49ae-b55e-73ef5ee7c1e8\skills\session-report # Session Repo"
+          >
+            Base directory for this skill:
+            C:\Users\NoOne\AppData\Roaming\Claude\local-agent-mode-sess
+          </td>
+          <td class="n">327,975</td>
+          <td class="n">2.80%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">Users/NoOne/Documents/GitH</td>
+        </tr>
+        <tr>
+          <td
+            class="k p"
+            title="u excited to get workin on some terrain and decking out the game ?"
+          >
+            u excited to get workin on some terrain and decking out the game ?
+          </td>
+          <td class="n">323,604</td>
+          <td class="n">2.77%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">WWWWOPPPS/emberfall/godot/</td>
+        </tr>
+        <tr>
+          <td class="k p" title="yes please. list and private updates after">
+            yes please. list and private updates after
+          </td>
+          <td class="n">248,534</td>
+          <td class="n">2.12%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">Users/NoOne/Documents/GitH</td>
+        </tr>
+        <tr>
+          <td
+            class="k p"
+            title="# Update Config Skill Modify Claude Code configuration by updating settings.json files. ## When Hooks Are Required (Not Memory) If the user wants something to happen automatically in response to an EVENT, they need a "
+          >
+            # Update Config Skill Modify Claude Code configuration by updating
+            settings.json files. ##
+          </td>
+          <td class="n">241,006</td>
+          <td class="n">2.06%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">WINDOWS/system32</td>
+        </tr>
+        <tr>
+          <td class="k p" title="shud b clean now">shud b clean now</td>
+          <td class="n">194,637</td>
+          <td class="n">1.66%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">Users/NoOne/Documents/GitH</td>
+        </tr>
+        <tr>
+          <td
+            class="k p"
+            title='@"C:\Qwen-Fable\Codex\QWEN STUFF\Nothing_GUI_v5_Working\superpowers\skills\using-git-worktrees\SKILL.md" '
+          >
+            @&quot;C:\Qwen-Fable\Codex\QWEN
+            STUFF\Nothing_GUI_v5_Working\superpowers\skills\using-git-workt
+          </td>
+          <td class="n">184,284</td>
+          <td class="n">1.57%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">Users/NoOne/Downloads/Clau</td>
+        </tr>
+        <tr>
+          <td
+            class="k p"
+            title='"C:\Users\NoOne\Downloads\emberfall-godot" u work here. no where else. do not touch a nother file on my pc.'
+          >
+            &quot;C:\Users\NoOne\Downloads\emberfall-godot&quot; u work here. no
+            where else. do not touch a noth
+          </td>
+          <td class="n">180,070</td>
+          <td class="n">1.54%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">WWWWOPPPS/emberfall/godot/</td>
+        </tr>
+        <tr>
+          <td
+            class="k p"
+            title="The dev server failed to start with the following error: ``` The dev server exited during startup (code 1). Fix the error in the output below, then start the server again. Output: &gt; anthropic-mcp-server@1.0.0 dev &gt; ts-"
+          >
+            The dev server failed to start with the following error: ``` The dev
+            server exited during
+          </td>
+          <td class="n">169,761</td>
+          <td class="n">1.45%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">WWWWOPPPS</td>
+        </tr>
+        <tr>
+          <td
+            class="k p"
+            title="Help me fix these Claude Code settings issues. For each issue: briefly explain what the fix will do, then ask me to confirm before running any shell command that deletes files, modifies global config, or changes my inst"
+          >
+            Help me fix these Claude Code settings issues. For each issue:
+            briefly explain what the fi
+          </td>
+          <td class="n">161,422</td>
+          <td class="n">1.38%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">Users/NoOne/Documents/GitH</td>
+        </tr>
+        <tr>
+          <td
+            class="k p"
+            title="It understood correctly — tell it to go ahead and update api_handler.py. That's exactly the fix. One small thing to correct before it writes the code: its example collapsed the spacing. It shows User: and Assistant: on "
+          >
+            It understood correctly — tell it to go ahead and update
+            api_handler.py. That's exactly th
+          </td>
+          <td class="n">159,649</td>
+          <td class="n">1.36%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">Users/NoOne/Downloads/anth</td>
+        </tr>
+        <tr>
+          <td
+            class="k p"
+            title='ok good keepp mythos we need to fix aquick thing in "C:\Users\NoOne\Downloads\Slotary Auto Seller" the zoho link goes to like zmail instead of my real email, also if it can target a specifc chrome profile thatd help'
+          >
+            ok good keepp mythos we need to fix aquick thing in
+            &quot;C:\Users\NoOne\Downloads\Slotary Auto
+          </td>
+          <td class="n">146,000</td>
+          <td class="n">1.25%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">Users/NoOne</td>
+        </tr>
+        <tr>
+          <td class="k p" title="god, make it f work man . keep going">
+            god, make it f work man . keep going
+          </td>
+          <td class="n">134,361</td>
+          <td class="n">1.15%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">Users/NoOne</td>
+        </tr>
+        <tr>
+          <td class="k p" title="try keep goin">try keep goin</td>
+          <td class="n">128,209</td>
+          <td class="n">1.10%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">Users/NoOne</td>
+        </tr>
+        <tr>
+          <td
+            class="k p"
+            title="is ther ea fuckin plugin or connector for zoho and u"
+          >
+            is ther ea fuckin plugin or connector for zoho and u
+          </td>
+          <td class="n">126,051</td>
+          <td class="n">1.08%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="k dim">Users/NoOne</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Heaviest sessions</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Session</th>
+          <th class="n">Billed</th>
+          <th class="n">Share</th>
+          <th></th>
+          <th class="n">Output</th>
+          <th class="n">Calls</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="k">Users/NoOne / d93b7979</td>
+          <td class="n">2,449,821</td>
+          <td class="n">20.9%</td>
+          <td class="b"><span class="bar">██████████</span></td>
+          <td class="n dim">432,913</td>
+          <td class="n dim">571</td>
+        </tr>
+        <tr>
+          <td class="k">WWWWOPPPS/emberfall/godot/gene / 0b978363</td>
+          <td class="n">2,273,961</td>
+          <td class="n">19.4%</td>
+          <td class="b"><span class="bar">██████████</span></td>
+          <td class="n dim">513,752</td>
+          <td class="n dim">359</td>
+        </tr>
+        <tr>
+          <td class="k">Users/NoOne/Downloads/anthropi / 05cef371</td>
+          <td class="n">1,454,391</td>
+          <td class="n">12.4%</td>
+          <td class="b"><span class="bar">██████</span></td>
+          <td class="n dim">298,223</td>
+          <td class="n dim">446</td>
+        </tr>
+        <tr>
+          <td class="k">Users/NoOne/Documents/GitHub/c / d984c0b4</td>
+          <td class="n">1,230,164</td>
+          <td class="n">10.5%</td>
+          <td class="b"><span class="bar">█████</span></td>
+          <td class="n dim">211,264</td>
+          <td class="n dim">318</td>
+        </tr>
+        <tr>
+          <td class="k">Users/NoOne/Documents/GitHub/c / b44b61c7</td>
+          <td class="n">767,197</td>
+          <td class="n">6.6%</td>
+          <td class="b"><span class="bar">███</span></td>
+          <td class="n dim">99,525</td>
+          <td class="n dim">365</td>
+        </tr>
+        <tr>
+          <td class="k">WINDOWS/system32 / 5f3c7fcd</td>
+          <td class="n">549,261</td>
+          <td class="n">4.7%</td>
+          <td class="b"><span class="bar">██</span></td>
+          <td class="n dim">117,914</td>
+          <td class="n dim">135</td>
+        </tr>
+        <tr>
+          <td class="k">Users/NoOne/Downloads/anthropi / 2f7f8e04</td>
+          <td class="n">437,132</td>
+          <td class="n">3.7%</td>
+          <td class="b"><span class="bar">██</span></td>
+          <td class="n dim">92,743</td>
+          <td class="n dim">196</td>
+        </tr>
+        <tr>
+          <td class="k">BASTIAN/SIGNED/MYTHOS/5/BASTIA / 2aab2cf8</td>
+          <td class="n">335,082</td>
+          <td class="n">2.9%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">57,420</td>
+          <td class="n dim">134</td>
+        </tr>
+        <tr>
+          <td class="k">WWWWOPPPS / f8376570</td>
+          <td class="n">303,885</td>
+          <td class="n">2.6%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">26,108</td>
+          <td class="n dim">89</td>
+        </tr>
+        <tr>
+          <td class="k">Users/NoOne/Downloads/Claude/w / a413e33b</td>
+          <td class="n">241,605</td>
+          <td class="n">2.1%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">9,580</td>
+          <td class="n dim">20</td>
+        </tr>
+        <tr>
+          <td class="k">Users/NoOne / 3e528c35</td>
+          <td class="n">209,508</td>
+          <td class="n">1.8%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">7,635</td>
+          <td class="n dim">42</td>
+        </tr>
+        <tr>
+          <td class="k">Users/NoOne/Downloads/anthropi / 04f565c3</td>
+          <td class="n">174,246</td>
+          <td class="n">1.5%</td>
+          <td class="b"><span class="bar">█</span></td>
+          <td class="n dim">27,492</td>
+          <td class="n dim">105</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>What to change</h2>
+  <div class="callout">
+    <b>Front-load the ask.</b> &ldquo;does it all work, make it better&rdquo;
+    and &ldquo;make the plan . and no.the model. keep working.&rdquo; are 15% of
+    the week between them. Terse prompts do not save tokens &mdash; they shift
+    cost into exploration, because scope has to be rediscovered every turn.
+  </div>
+  <div class="callout">
+    <b>Cache is not your problem.</b> At 97.8% hit and 36.6&times;
+    reads-to-billed, there is nothing to win by restructuring context. Spend
+    optimisation effort on prompt scope instead.
+  </div>
+  <div class="callout">
+    <b>Check the model split.</b> Opus 5 handled 61% of billed tokens. Where
+    that work was mechanical (formatting, file moves, log reading), Haiku 4.5
+    &mdash; already 27% of volume &mdash; absorbs it far cheaper.
+  </div>
+  <div class="callout">
+    <b>Four projects, 84% of spend.</b> <code>C--Users-NoOne</code>, the
+    cloud-session dir, <code>claude-code-action</code>, and
+    <code>emberfall-godot</code> dominate. The
+    <code>emberfall-godot</code> figure is 19.4% from a
+    <em>single session</em> &mdash; worth knowing what that one was.
+  </div>
+
+  <div class="note">
+    Billed = fresh input + cache writes + output; cache reads are listed
+    separately because they price differently. Prompt costs attribute every
+    model call to the preceding user message, so a prompt figure includes all
+    follow-up turns it triggered. Window covers transcripts under
+    <code>~/.claude/projects</code> modified in the last 7 days, counting only
+    events timestamped inside the window. Built without the skill's bundled
+    analyzer/template, which are missing from the plugin install.
+  </div>
+</div>
