@@ -212,12 +212,7 @@ export async function setupBranch(
             `PR #${entityNumber} was updated after the trigger (${eventSha} -> ${headSha}). Push again or mention Claude to run on the latest version.`,
           );
         }
-      } else if (triggerTime) {
-        if (!prData.headRepository) {
-          throw new Error(
-            `PR #${entityNumber}: head repository is not available, cannot pin the PR version`,
-          );
-        }
+      } else if (triggerTime && prData.headRepository) {
         const pushedAt = await headPushedAt(
           octokits,
           {
@@ -238,7 +233,27 @@ export async function setupBranch(
         ? `pr-${entityNumber}`
         : branchName;
       console.log(`PR #${entityNumber}: pinning ${localBranch} to ${headSha}`);
-      execGit(["fetch", "origin", ...depthArgs, headSha]);
+
+      // GitHub omits headRepository when the action token cannot read a private
+      // fork. The base repository still exposes the PR head ref, so fetch it
+      // there and verify that it resolves to the SHA returned by GraphQL before
+      // checking anything out.
+      const fetchRef = prData.headRepository
+        ? headSha
+        : `refs/pull/${entityNumber}/head`;
+      execGit(["fetch", "origin", ...depthArgs, fetchRef]);
+
+      if (!prData.headRepository) {
+        const fetchedSha = execFileSync("git", ["rev-parse", "FETCH_HEAD"], {
+          encoding: "utf8",
+        }).trim();
+        if (fetchedSha !== headSha) {
+          throw new Error(
+            `PR #${entityNumber} was updated while its head was being fetched (${headSha} -> ${fetchedSha}). Mention Claude again to run on the latest version.`,
+          );
+        }
+      }
+
       execGit(["checkout", "-B", localBranch, headSha, "--"]);
 
       const checkedOut = execFileSync("git", ["rev-parse", "HEAD"], {
