@@ -223,6 +223,7 @@ export async function updateCommentLink(
     prLink,
     branchName: shouldDeleteBranch || !branchLink ? undefined : claudeBranch,
     triggerUsername,
+    suppressCompletionMention: context.inputs.suppressCompletionMention,
     errorDetails,
   };
 

@@ -73,6 +73,69 @@ describe("updateCommentBody", () => {
     });
   });
 
+  describe("completion mention", () => {
+    for (const [name, triggerUsername, currentBody, username] of [
+      [
+        "explicit username",
+        "trigger-user",
+        "Thanks @reviewer and @trigger-user",
+        "trigger-user",
+      ],
+      [
+        "username extracted from body",
+        undefined,
+        "Thanks @reviewer and @other-user",
+        "reviewer",
+      ],
+      ["generic fallback username", undefined, "No mentions here", "user"],
+    ] as const) {
+      it(`only removes the successful header prefix for ${name}`, () => {
+        const input = {
+          ...baseInput,
+          triggerUsername,
+          currentBody,
+          executionDetails: { duration_ms: 74000 },
+        };
+        const defaultBody = updateCommentBody(input);
+        expect(defaultBody).toStartWith(
+          `**Claude finished @${username}'s task in 1m 14s**`,
+        );
+        expect(
+          updateCommentBody({ ...input, suppressCompletionMention: false }),
+        ).toBe(defaultBody);
+        const suppressedBody = updateCommentBody({
+          ...input,
+          suppressCompletionMention: true,
+        });
+        expect(suppressedBody).toBe(
+          defaultBody.replace(
+            `**Claude finished @${username}`,
+            `**Claude finished ${username}`,
+          ),
+        );
+        expect(suppressedBody).toEndWith(currentBody);
+      });
+    }
+
+    it("leaves the entire error response unchanged", () => {
+      const input = {
+        ...baseInput,
+        actionFailed: true,
+        triggerUsername: "trigger-user",
+        currentBody: "Please ask @reviewer and @trigger-user",
+        executionDetails: { duration_ms: 45000 },
+        errorDetails: "Failed for @trigger-user",
+      };
+      const defaultBody = updateCommentBody(input);
+      expect(defaultBody).toStartWith(
+        "**Claude encountered an error after 45s**",
+      );
+      expect(
+        updateCommentBody({ ...input, suppressCompletionMention: true }),
+      ).toBe(defaultBody);
+    });
+  });
+
   describe("job link", () => {
     it("includes job link in header", () => {
       const input = {
