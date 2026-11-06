@@ -180,6 +180,27 @@ export async function setupSshSigning(sshSigningKey: string): Promise<void> {
  */
 export async function cleanupSshSigning(): Promise<void> {
   try {
+    const signingKey = (
+      await $`git config --local --get user.signingkey`.text()
+    ).trim();
+
+    // Only remove configuration created by setupSshSigning. Cleanup can run
+    // after a failed setup, so unrelated local signing configuration must stay.
+    if (signingKey === SSH_SIGNING_KEY_PATH) {
+      for (const key of ["gpg.format", "user.signingkey", "commit.gpgsign"]) {
+        try {
+          await $`git config --local --unset-all ${key}`;
+        } catch {
+          // The setup may not have reached every config entry.
+        }
+      }
+      console.log("✓ SSH signing git configuration cleaned up");
+    }
+  } catch {
+    // No action-managed SSH signing config to clean up.
+  }
+
+  try {
     await rm(SSH_SIGNING_KEY_PATH, { force: true });
     console.log("✓ SSH signing key cleaned up");
   } catch (error) {

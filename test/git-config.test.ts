@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { execFileSync } from "child_process";
-import { mkdtempSync, rmSync, statSync } from "fs";
+import { existsSync, mkdtempSync, mkdirSync, rmSync, statSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
@@ -18,6 +18,16 @@ const NOREPLY_DOMAIN =
     ? "users.noreply.github.com"
     : `users.noreply.${SERVER.hostname}`;
 const EXTRAHEADER_KEY = `http.${GITHUB_SERVER_URL}/.extraheader`;
+const SSH_SIGNING_MODULE = join(
+  import.meta.dir,
+  "..",
+  "src",
+  "github",
+  "operations",
+  "git-config.ts",
+);
+const TEST_SSH_SIGNING_KEY =
+  "-----BEGIN OPENSSH PRIVATE KEY-----\ntest-key-content\n-----END OPENSSH PRIVATE KEY-----";
 
 // git exports these into hooks (e.g. a pre-commit hook running the test
 // suite); if inherited they would point every git command below at the
@@ -33,13 +43,47 @@ const GIT_ENV_OVERRIDES = [
 // Pass an explicit env copy: unlike bun's `$`, execFileSync does not pick up
 // deletions from process.env, so the GIT_* overrides removed in beforeEach
 // would otherwise still reach the child process.
-function runGit(args: string[], cwd?: string): string {
+function runGit(
+  args: string[],
+  cwd?: string,
+  env?: Record<string, string | undefined>,
+): string {
   return execFileSync("git", args, {
     cwd,
     encoding: "utf8",
     stdio: "pipe",
-    env: { ...process.env },
+    env: { ...process.env, ...env },
   }).trim();
+}
+
+function runSshSigningOperation(
+  operation: "setup" | "cleanup",
+  cwd: string,
+  homeDir: string,
+  globalConfig: string,
+): void {
+  const command =
+    operation === "setup"
+      ? `import { setupSshSigning } from ${JSON.stringify(SSH_SIGNING_MODULE)}; await setupSshSigning(${JSON.stringify(TEST_SSH_SIGNING_KEY)});`
+      : `import { cleanupSshSigning } from ${JSON.stringify(SSH_SIGNING_MODULE)}; await cleanupSshSigning();`;
+  const result = Bun.spawnSync({
+    cmd: [process.execPath, "--no-env-file", "-e", command],
+    cwd,
+    env: {
+      ...process.env,
+      HOME: homeDir,
+      GIT_CONFIG_GLOBAL: globalConfig,
+      GIT_CONFIG_NOSYSTEM: "1",
+    },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `SSH signing ${operation} failed: ${result.stderr.toString()}`,
+    );
+  }
 }
 
 function gitConfigGetAll(key: string): string {
@@ -176,6 +220,74 @@ describe("git-config", () => {
       expect(remoteUrl()).toBe(
         `https://x-access-token:test-token@${SERVER.host}/test-owner/test-repo.git`,
       );
+    });
+  });
+
+  describe("SSH signing cleanup", () => {
+    test("removes action-owned local config and restores global settings", () => {
+      const homeDir = join(tempDir, "home");
+      const globalConfig = join(tempDir, "global-gitconfig");
+      const signingKeyPath = join(homeDir, ".ssh", "claude_signing_key");
+      const gitEnv = {
+        HOME: homeDir,
+        GIT_CONFIG_GLOBAL: globalConfig,
+        GIT_CONFIG_NOSYSTEM: "1",
+      };
+      mkdirSync(homeDir, { recursive: true });
+      runGit(["config", "--file", globalConfig, "gpg.format", "openpgp"]);
+      runGit([
+        "config",
+        "--file",
+        globalConfig,
+        "user.signingkey",
+        "global-signing-key",
+      ]);
+      runGit(["config", "--file", globalConfig, "commit.gpgsign", "false"]);
+
+      runSshSigningOperation("setup", repoDir, homeDir, globalConfig);
+
+      expect(existsSync(signingKeyPath)).toBe(true);
+      expect(gitConfigGetAll("gpg.format")).toBe("ssh");
+      expect(gitConfigGetAll("user.signingkey")).toBe(signingKeyPath);
+      expect(gitConfigGetAll("commit.gpgsign")).toBe("true");
+
+      runSshSigningOperation("cleanup", repoDir, homeDir, globalConfig);
+
+      expect(existsSync(signingKeyPath)).toBe(false);
+      expect(gitConfigGetAll("gpg.format")).toBe("");
+      expect(gitConfigGetAll("user.signingkey")).toBe("");
+      expect(gitConfigGetAll("commit.gpgsign")).toBe("");
+      expect(runGit(["config", "--get", "gpg.format"], repoDir, gitEnv)).toBe(
+        "openpgp",
+      );
+      expect(
+        runGit(["config", "--get", "user.signingkey"], repoDir, gitEnv),
+      ).toBe("global-signing-key");
+      expect(
+        runGit(["config", "--get", "commit.gpgsign"], repoDir, gitEnv),
+      ).toBe("false");
+    });
+
+    test("leaves unrelated local signing config alone", () => {
+      const homeDir = join(tempDir, "home");
+      const globalConfig = join(tempDir, "global-gitconfig");
+      mkdirSync(homeDir, { recursive: true });
+      git(["config", "--local", "gpg.format", "openpgp"]);
+      git([
+        "config",
+        "--local",
+        "user.signingkey",
+        join(homeDir, ".ssh", "other_signing_key"),
+      ]);
+      git(["config", "--local", "commit.gpgsign", "true"]);
+
+      runSshSigningOperation("cleanup", repoDir, homeDir, globalConfig);
+
+      expect(gitConfigGetAll("gpg.format")).toBe("openpgp");
+      expect(gitConfigGetAll("user.signingkey")).toBe(
+        join(homeDir, ".ssh", "other_signing_key"),
+      );
+      expect(gitConfigGetAll("commit.gpgsign")).toBe("true");
     });
   });
 
