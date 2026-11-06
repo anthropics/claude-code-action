@@ -37,6 +37,21 @@ describe("updateGitReference", () => {
     });
   });
 
+  it("should percent-encode URL-significant characters in the branch name", async () => {
+    // `#` is valid in a ref name (see validateBranchName) but starts a URL
+    // fragment, so an unencoded branch would be sent as `refs/heads/fix/`.
+    await updateGitReference({
+      ...reference,
+      branch: "fix/#123-description",
+      fetchFn: async (url) => {
+        expect(url).toBe(
+          `${GITHUB_API_URL}/repos/owner/repo/git/refs/heads/fix/%23123-description`,
+        );
+        return response(200);
+      },
+    });
+  });
+
   it("should not retry deterministic client errors", async () => {
     for (const status of [400, 404, 409, 422]) {
       let attempts = 0;
