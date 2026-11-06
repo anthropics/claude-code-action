@@ -32,6 +32,11 @@ const ACCUMULATE_DELIMITER = "\x00";
 // widening a scoped permission rule to Bash(*). We escape each metachar to a
 // Unicode private-use codepoint before parsing and restore it afterward,
 // keeping shell-quote's quote/whitespace handling intact.
+//
+// `$` gets the same treatment: shell-quote expands `$VAR` (also inside double
+// quotes) against an empty environment, so "Budget is $5" or "$HOME/bin" were
+// silently rewritten to "Budget is " and "/bin". There is no shell here to
+// expand anything, and substituting process.env would put secrets into args.
 const SHELL_META_PAIRS: [string, string][] = [
   ["(", ""],
   [")", ""],
@@ -40,11 +45,12 @@ const SHELL_META_PAIRS: [string, string][] = [
   [";", ""],
   ["<", ""],
   [">", ""],
+  ["$", ""],
 ];
 const SHELL_META_ESCAPE = new Map(SHELL_META_PAIRS);
 const SHELL_META_UNESCAPE = new Map(SHELL_META_PAIRS.map(([k, v]) => [v, k]));
-const SHELL_META_ESCAPE_RE = /[()|&;<>]/g;
-const SHELL_META_UNESCAPE_RE = /[-]/g;
+const SHELL_META_ESCAPE_RE = /[()|&;<>$]/g;
+const SHELL_META_UNESCAPE_RE = /[-]/g;
 
 function escapeShellMeta(s: string): string {
   return s.replace(SHELL_META_ESCAPE_RE, (c) => SHELL_META_ESCAPE.get(c)!);
