@@ -1,22 +1,46 @@
-import { $ } from "bun";
-import { homedir } from "os";
-import { readFile } from "fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+
+async function resolveClaudeConfigDir(homeDir?: string): Promise<string> {
+  const configuredDir = process.env.CLAUDE_CONFIG_DIR?.trim();
+  if (configuredDir) {
+    process.env.CLAUDE_CONFIG_DIR = configuredDir;
+    return configuredDir;
+  }
+
+  const baseDir = process.env.RUNNER_TEMP?.trim() || homeDir || tmpdir();
+  await mkdir(baseDir, { recursive: true });
+
+  const sessionDir = await mkdtemp(join(baseDir, "claude-code-action-"));
+  process.env.CLAUDE_CONFIG_DIR = sessionDir;
+  console.log(`Using session-scoped Claude config directory: ${sessionDir}`);
+  return sessionDir;
+}
+
+export function prependSettingsArgToClaudeArgs(
+  claudeArgs: string | undefined,
+  settingsPath: string,
+): string {
+  const settingsArg = `--settings ${JSON.stringify(settingsPath)}`;
+  const trimmedArgs = claudeArgs?.trim();
+  return trimmedArgs ? `${settingsArg}\n${trimmedArgs}` : settingsArg;
+}
 
 export async function setupClaudeCodeSettings(
   settingsInput?: string,
   homeDir?: string,
-) {
-  const home = homeDir ?? homedir();
-  const settingsPath = `${home}/.claude/settings.json`;
+): Promise<string> {
+  const configDir = await resolveClaudeConfigDir(homeDir);
+  const settingsPath = join(configDir, "settings.json");
   console.log(`Setting up Claude settings at: ${settingsPath}`);
 
-  // Ensure .claude directory exists
-  console.log(`Creating .claude directory...`);
-  await $`mkdir -p ${home}/.claude`.quiet();
+  console.log(`Creating Claude config directory...`);
+  await mkdir(configDir, { recursive: true });
 
   let settings: Record<string, unknown> = {};
   try {
-    const existingSettings = await $`cat ${settingsPath}`.quiet().text();
+    const existingSettings = await readFile(settingsPath, "utf-8");
     if (existingSettings.trim()) {
       settings = JSON.parse(existingSettings);
       console.log(
@@ -63,6 +87,7 @@ export async function setupClaudeCodeSettings(
   settings.enableAllProjectMcpServers = true;
   console.log(`Updated settings with enableAllProjectMcpServers: true`);
 
-  await $`echo ${JSON.stringify(settings, null, 2)} > ${settingsPath}`.quiet();
+  await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
   console.log(`Settings saved successfully`);
+  return settingsPath;
 }
