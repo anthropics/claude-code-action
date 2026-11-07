@@ -1,9 +1,10 @@
 import { existsSync, readFileSync, writeFileSync } from "fs";
 
 export type BufferedCommentMatch = {
-  path: string;
+  path?: string;
   line?: number;
   startLine?: number;
+  in_reply_to_id?: number;
   body: string;
 };
 
@@ -17,8 +18,11 @@ export type BufferedCommentMatch = {
  * reply; previously the original buffered entry was left behind and replayed,
  * producing duplicate inline comments.
  *
- * Entries are matched on path, line, startLine and body. Lines that cannot be
- * parsed are kept untouched.
+ * Entries are matched on body and target identity:
+ * - for inline comments: path + line + startLine
+ * - for replies: in_reply_to_id
+ *
+ * Lines that cannot be parsed are kept untouched.
  */
 export function removeBufferedComment(
   match: BufferedCommentMatch,
@@ -40,6 +44,7 @@ export function removeBufferedComment(
         return true;
       }
       const isSameComment =
+        entry.in_reply_to_id === match.in_reply_to_id &&
         entry.path === match.path &&
         entry.line === match.line &&
         entry.startLine === match.startLine &&
