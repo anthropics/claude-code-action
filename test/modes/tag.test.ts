@@ -18,16 +18,22 @@ describe("Tag Mode", () => {
     let spies: Array<{ mockRestore: () => void }>;
     let configureGitAuthSpy: any;
     let replaceCheckoutCredentialsSpy: any;
+    let operationOrder: string[];
 
     beforeEach(() => {
+      operationOrder = [];
       configureGitAuthSpy = spyOn(
         gitConfig,
         "configureGitAuth",
-      ).mockImplementation(async () => {});
+      ).mockImplementation(async () => {
+        operationOrder.push("configureGitAuth");
+      });
       replaceCheckoutCredentialsSpy = spyOn(
         gitConfig,
         "replaceCheckoutCredentials",
-      ).mockImplementation(async () => {});
+      ).mockImplementation(async () => {
+        operationOrder.push("replaceCheckoutCredentials");
+      });
       spies = [
         configureGitAuthSpy,
         replaceCheckoutCredentialsSpy,
@@ -38,14 +44,14 @@ describe("Tag Mode", () => {
         spyOn(fetcher, "fetchGitHubData").mockImplementation(
           async () => ({}) as any,
         ),
-        spyOn(branch, "setupBranch").mockImplementation(
-          async () =>
-            ({
-              baseBranch: "main",
-              claudeBranch: "claude/test",
-              currentBranch: "claude/test",
-            }) as any,
-        ),
+        spyOn(branch, "setupBranch").mockImplementation(async () => {
+          operationOrder.push("setupBranch");
+          return {
+            baseBranch: "main",
+            claudeBranch: "claude/test",
+            currentBranch: "claude/test",
+          } as any;
+        }),
         spyOn(createPrompt, "createPrompt").mockImplementation(async () => {}),
         spyOn(mcp, "prepareMcpConfig").mockImplementation(async () => "{}"),
       ];
@@ -74,6 +80,7 @@ describe("Tag Mode", () => {
       // configureGitAuth performs the credential replacement itself; the mock
       // stands in for it here, so the standalone helper is not invoked.
       expect(replaceCheckoutCredentialsSpy).not.toHaveBeenCalled();
+      expect(operationOrder).toEqual(["configureGitAuth", "setupBranch"]);
     });
 
     test("still replaces the checkout credential when API commit signing is enabled", async () => {
@@ -94,6 +101,10 @@ describe("Tag Mode", () => {
         "test-token",
         context,
       );
+      expect(operationOrder).toEqual([
+        "replaceCheckoutCredentials",
+        "setupBranch",
+      ]);
     });
   });
 });
