@@ -307,39 +307,49 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
 
   // --no-recurse-submodules: explicitly suppress submodule fetching regardless of
   // fetch.recurseSubmodules config. Defense-in-depth alongside the delete above.
-  execFileSync(
-    "git",
-    [
-      "fetch",
-      "origin",
-      baseBranch,
-      ...fetchDepthArgs(1),
-      "--no-recurse-submodules",
-    ],
-    {
-      stdio: "inherit",
-      env: process.env,
-    },
-  );
+  let fetchedBase = false;
+  try {
+    execFileSync(
+      "git",
+      [
+        "fetch",
+        "origin",
+        baseBranch,
+        ...fetchDepthArgs(1),
+        "--no-recurse-submodules",
+      ],
+      {
+        stdio: "inherit",
+        env: process.env,
+      },
+    );
+    fetchedBase = true;
+  } catch {
+    console.warn(
+      `Warning: git fetch origin/${baseBranch} failed. Sensitive paths will remain deleted (safe fallback).`,
+    );
+  }
 
-  for (const p of SENSITIVE_PATHS) {
+  if (fetchedBase) {
+    for (const p of SENSITIVE_PATHS) {
+      try {
+        execFileSync("git", ["checkout", `origin/${baseBranch}`, "--", p], {
+          stdio: "pipe",
+        });
+      } catch {
+        // Path doesn't exist on base — it stays deleted.
+      }
+    }
+
+    // `git checkout <ref> -- <path>` stages the restored files. Unstage so the
+    // revert doesn't silently leak into commits the CLI makes later.
     try {
-      execFileSync("git", ["checkout", `origin/${baseBranch}`, "--", p], {
+      execFileSync("git", ["reset", "--", ...SENSITIVE_PATHS], {
         stdio: "pipe",
       });
     } catch {
-      // Path doesn't exist on base — it stays deleted.
+      // Nothing was staged, or paths don't exist on HEAD — either is fine.
     }
-  }
-
-  // `git checkout <ref> -- <path>` stages the restored files. Unstage so the
-  // revert doesn't silently leak into commits the CLI makes later.
-  try {
-    execFileSync("git", ["reset", "--", ...SENSITIVE_PATHS], {
-      stdio: "pipe",
-    });
-  } catch {
-    // Nothing was staged, or paths don't exist on HEAD — either is fine.
   }
 
   // Every sensitive path is reported, not just the ones that changed: the
