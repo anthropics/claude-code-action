@@ -175,7 +175,7 @@ export async function setupSshSigning(sshSigningKey: string): Promise<void> {
 }
 
 /**
- * Clean up the SSH signing key file
+ * Clean up the SSH signing key file and the git config that points at it
  * Should be called in the post step for security
  */
 export async function cleanupSshSigning(): Promise<void> {
@@ -185,4 +185,27 @@ export async function cleanupSshSigning(): Promise<void> {
   } catch (error) {
     console.log("No SSH signing key to clean up");
   }
+
+  // With the key file gone, the config setupSshSigning wrote would make every
+  // later `git commit` in this checkout fail. Only remove it while
+  // user.signingkey still points at our key, so a key set after setup is kept.
+  let signingKey = "";
+  try {
+    signingKey = (
+      await $`git config --local --get user.signingkey`.text()
+    ).trim();
+  } catch {
+    // No local signing key, or not inside a git repository.
+  }
+  if (signingKey !== SSH_SIGNING_KEY_PATH) {
+    return;
+  }
+  for (const key of ["user.signingkey", "commit.gpgsign", "gpg.format"]) {
+    try {
+      await $`git config --local --unset-all ${key}`;
+    } catch {
+      // This key is not in the local config.
+    }
+  }
+  console.log("✓ SSH signing git config cleaned up");
 }
