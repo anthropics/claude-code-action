@@ -48,6 +48,20 @@ export async function configureGitAuth(
 }
 
 /**
+ * git invokes a credential helper by handing its configured value to a shell.
+ * On Git for Windows that shell is a POSIX sh, which treats each backslash as an
+ * escape, so a Windows helper path collapses into a string the shell cannot run.
+ * Rewriting the path with forward slashes keeps it runnable on Windows, and a
+ * POSIX path has no backslash to rewrite.
+ */
+export function gitCredentialHelperValue(
+  helperPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  return platform === "win32" ? helperPath.replace(/\\/g, "/") : helperPath;
+}
+
+/**
  * Replace the credential that actions/checkout persisted in the working tree.
  *
  * actions/checkout stores its token as an `http.<server>/.extraheader` entry
@@ -124,7 +138,7 @@ export async function replaceCheckoutCredentials(
     );
     const cleanUrl = `https://${serverUrl.host}/${context.repository.owner}/${context.repository.repo}.git`;
     await $`git remote set-url origin ${cleanUrl}`;
-    await $`git config credential.helper ${helperPath}`;
+    await $`git config credential.helper ${gitCredentialHelperValue(helperPath)}`;
     console.log("✓ Configured credential helper");
   } else {
     // Update the remote URL to include the token for authentication
