@@ -216,6 +216,29 @@ export function formatResultContent(content: any): string {
   }
 }
 
+/**
+ * Renders tool_result content as readable text for inline display.
+ *
+ * Tool results can carry their content either as a plain string or as an
+ * array of content blocks (MCP tools, including this action's own servers,
+ * reply with `content: [{type: "text", text: ...}]`). Template-literal
+ * stringification of an array yields "[object Object]", so text blocks are
+ * joined explicitly; arrays without text blocks fall back to JSON so the
+ * summary still shows something useful.
+ */
+function stringifyToolResultContent(content: unknown): string {
+  if (Array.isArray(content)) {
+    const textParts = content
+      .filter((block: any) => block?.type === "text")
+      .map((block: any) => String(block?.text ?? ""));
+    if (textParts.length > 0) {
+      return textParts.join("\n");
+    }
+    return JSON.stringify(content);
+  }
+  return String(content ?? "");
+}
+
 export function formatToolWithResult(
   toolUse: ToolUse,
   toolResult?: ToolResult,
@@ -238,7 +261,7 @@ export function formatToolWithResult(
     const isError = toolResult.is_error || false;
 
     if (isError) {
-      result += `❌ **Error:** \`${content}\`\n\n`;
+      result += `❌ **Error:** \`${stringifyToolResultContent(content)}\`\n\n`;
     } else {
       result += formatResultContent(content);
     }

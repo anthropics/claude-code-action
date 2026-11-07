@@ -192,6 +192,49 @@ describe("formatToolWithResult", () => {
     expect(result).toContain("❌ **Error:** `Permission denied`");
   });
 
+  test("formats error result whose content is an array of text blocks", () => {
+    const toolUse: ToolUse = {
+      type: "tool_use",
+      name: "mcp__github_inline_comment__create_inline_comment",
+      input: { path: "src/index.ts" },
+    };
+
+    // MCP servers (including this action's own) return errors as a content
+    // array of blocks, and the SDK records that shape on the tool_result.
+    const toolResult: ToolResult = {
+      type: "tool_result",
+      content: [{ type: "text", text: "Error creating inline comment" }],
+      is_error: true,
+    };
+
+    const result = formatToolWithResult(toolUse, toolResult);
+
+    expect(result).toContain(
+      "❌ **Error:** `Error creating inline comment`",
+    );
+    expect(result).not.toContain("[object Object]");
+  });
+
+  test("formats error result whose content is a multi-block array", () => {
+    const toolResult: ToolResult = {
+      type: "tool_result",
+      content: [
+        { type: "image", source: { type: "base64" } },
+        { type: "text", text: "first part" },
+        { type: "text", text: "second part" },
+      ],
+      is_error: true,
+    };
+
+    const result = formatToolWithResult(
+      { type: "tool_use", name: "t" },
+      toolResult,
+    );
+
+    expect(result).toContain("❌ **Error:** `first part\nsecond part`");
+    expect(result).not.toContain("[object Object]");
+  });
+
   test("formats tool without parameters", () => {
     const toolUse: ToolUse = {
       type: "tool_use",
