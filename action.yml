@@ -44,6 +44,10 @@ inputs:
       only use for workflows with very limited permissions and validate all outputs.
     required: false
     default: ""
+  git_credential_helper:
+    description: "Use a token-free git credential helper instead of embedding the GitHub token in .git/config"
+    required: false
+    default: "false"
   include_comments_by_actor:
     description: "Comma-separated list of actor usernames to INCLUDE in comments. Supports wildcards: '*[bot]' matches all bots, 'dependabot[bot]' matches specific bot. Empty (default) includes all actors."
     required: false
@@ -298,6 +302,7 @@ runs:
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
+        GIT_CREDENTIAL_HELPER: ${{ inputs.git_credential_helper }}
         CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB || (inputs.allowed_non_write_users != '' && '1') || '' }}
         CLAUDE_CODE_SCRIPT_CAPS: ${{ env.CLAUDE_CODE_SCRIPT_CAPS || '' }}
         INCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.include_comments_by_actor }}
