@@ -17,6 +17,22 @@ export type ClaudeRunResult = {
   structuredOutput?: string;
 };
 
+/**
+ * The CLI can emit prompt-size rejection text as a nominally successful,
+ * zero-turn result. Treat that specific no-request outcome as an error.
+ */
+export function isPromptTooLongResult(
+  resultMessage: SDKResultMessage,
+): boolean {
+  return (
+    resultMessage.subtype === "success" &&
+    !resultMessage.is_error &&
+    resultMessage.num_turns === 0 &&
+    resultMessage.duration_api_ms === 0 &&
+    /^Prompt is too long\b/i.test(resultMessage.result.trim())
+  );
+}
+
 /** Filename for the user request file, written by prompt generation */
 const USER_REQUEST_FILENAME = "claude-user-request.txt";
 
@@ -236,6 +252,13 @@ export async function runClaudeWithSdk(
   if (!resultMessage) {
     core.error("No result message received from Claude");
     throw new Error("No result message received from Claude");
+  }
+
+  if (isPromptTooLongResult(resultMessage)) {
+    const message =
+      "Claude rejected the prompt as too long before making an API request";
+    core.error(message);
+    throw new Error(message);
   }
 
   if (
