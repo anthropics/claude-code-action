@@ -268,6 +268,39 @@ describe("branch template utilities", () => {
       expect(result).toBe("test/-101");
     });
 
+    it("should drop empty slash segments when description sanitizes to empty", () => {
+      const template = "{{prefix}}{{description}}/{{entityNumber}}";
+      const result = generateBranchName(
+        template,
+        "claude/",
+        "issue",
+        123,
+        undefined,
+        undefined,
+        "🎉🎉🎉",
+      );
+
+      expect(result).toBe("claude/123");
+      expect(() => validateBranchName(result)).not.toThrow();
+    });
+
+    it("should fallback to default format when slash normalization leaves an empty result", () => {
+      const template = "{{description}}/";
+      const result = generateBranchName(
+        template,
+        "claude/",
+        "issue",
+        321,
+        undefined,
+        undefined,
+        "日本語のタイトル",
+      );
+
+      expect(result).toMatch(/^claude\/issue-321-\d{8}-\d{4}$/);
+      expect(result.length).toBeLessThanOrEqual(50);
+      expect(() => validateBranchName(result)).not.toThrow();
+    });
+
     it("should fallback to default format when template produces empty result", () => {
       const template = "{{description}}"; // Will be empty if no title provided
       const result = generateBranchName(template, "claude/", "issue", 123);
