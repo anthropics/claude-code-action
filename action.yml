@@ -45,11 +45,11 @@ inputs:
     required: false
     default: ""
   include_comments_by_actor:
-    description: "Comma-separated list of actor usernames to INCLUDE in comments. Supports wildcards: '*[bot]' matches all bots, 'dependabot[bot]' matches specific bot. Empty (default) includes all actors."
+    description: "Comma-separated list of actor usernames to INCLUDE in comments. Entries are exact, case-sensitive logins; the only wildcard is the literal '*[bot]', matching all bots. Empty (default) includes all actors."
     required: false
     default: ""
   exclude_comments_by_actor:
-    description: "Comma-separated list of actor usernames to EXCLUDE from comments. Supports wildcards: '*[bot]' matches all bots, 'renovate[bot]' matches specific bot. Empty (default) excludes none. If actor is in both lists, exclusion takes priority."
+    description: "Comma-separated list of actor usernames to EXCLUDE from comments. Entries are exact, case-sensitive logins; the only wildcard is the literal '*[bot]', matching all bots. Empty (default) excludes none. If actor is in both lists, exclusion takes priority."
     required: false
     default: ""
 
