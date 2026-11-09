@@ -6,17 +6,37 @@ on:
   pull_request_review_comment:
     types: [created]
   issues:
-    types: [opened, assigned]
+    types: [opened]
   pull_request_review:
     types: [submitted]
 
 jobs:
   claude:
+    # Only run for repository insiders. The action also enforces write access at
+    # runtime (checkWritePermissions), but that happens after the job has already
+    # started and consumed a runner, so gate here as well.
+    #
+    # The guard is repeated inside every branch rather than factored out in front
+    # of them, for two reasons: each event carries its trigger's association on a
+    # different field (comment.author_association for issue_comment and
+    # pull_request_review_comment, review.author_association for
+    # pull_request_review, issue.author_association for issues.opened), and `&&`
+    # binds tighter than `||` in GitHub Actions expressions, so a single leading
+    # guard would apply only to the first branch and leave the rest unguarded.
+    #
+    # To use assignee_trigger or label_trigger, add `assigned` / `labeled` to the
+    # issues types above and add a matching branch here, e.g.
+    #   (github.event_name == 'issues' && github.event.action == 'assigned' &&
+    #    github.event.assignee.login == 'claude-bot')
+    # Those triggers key off who assigned or labelled rather than the issue
+    # author, so they are not author_association-gated; checkWritePermissions
+    # still applies. Leaving them out by default keeps an assignment on an
+    # unrelated issue from starting a runner that cannot match a trigger.
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issue_comment' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association) && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && github.event.action == 'opened' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     permissions:
       contents: write
