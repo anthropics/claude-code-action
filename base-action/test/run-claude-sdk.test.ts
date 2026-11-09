@@ -6,6 +6,225 @@ import { tmpdir } from "os";
 import { join } from "path";
 
 describe("runClaudeWithSdk", () => {
+  describe("cancellation", () => {
+    const initMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "session-cancel-123",
+      model: "claude-sonnet-4-6",
+    };
+
+    test("an abort mid-stream yields a cancelled partial result with the session id", async () => {
+      const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+
+      tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-cancel-"));
+      process.env.RUNNER_TEMP = tempDir;
+
+      const promptPath = join(tempDir, "prompt.txt");
+      await writeFile(promptPath, "test prompt");
+
+      const abortController = new AbortController();
+      mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+        query: async function* () {
+          yield initMessage;
+          abortController.abort();
+          throw new Error("AbortError: This operation was aborted");
+        },
+      }));
+
+      try {
+        const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+        const result = await runClaudeWithSdk(promptPath, {
+          sdkOptions: { abortController },
+          showFullOutput: false,
+          hasJsonSchema: false,
+        });
+
+        expect(result.cancelled).toBe(true);
+        expect(result.conclusion).toBe("failure");
+        expect(result.sessionId).toBe("session-cancel-123");
+        expect(result.executionFile).toBeDefined();
+      } finally {
+        consoleLogSpy.mockRestore();
+      }
+    });
+
+    test("an aborted run with no result message is cancelled, not an error", async () => {
+      const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+
+      tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-cancel-"));
+      process.env.RUNNER_TEMP = tempDir;
+
+      const promptPath = join(tempDir, "prompt.txt");
+      await writeFile(promptPath, "test prompt");
+
+      const abortController = new AbortController();
+      abortController.abort();
+      mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+        query: async function* () {
+          yield initMessage;
+        },
+      }));
+
+      try {
+        const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+        const result = await runClaudeWithSdk(promptPath, {
+          sdkOptions: { abortController },
+          showFullOutput: false,
+          hasJsonSchema: false,
+        });
+
+        expect(result.cancelled).toBe(true);
+        expect(result.sessionId).toBe("session-cancel-123");
+      } finally {
+        consoleLogSpy.mockRestore();
+      }
+    });
+
+    test("an aborted run that still produced a failing result is cancelled", async () => {
+      const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+
+      tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-cancel-"));
+      process.env.RUNNER_TEMP = tempDir;
+
+      const promptPath = join(tempDir, "prompt.txt");
+      await writeFile(promptPath, "test prompt");
+
+      const abortController = new AbortController();
+      abortController.abort();
+      mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+        query: async function* () {
+          yield initMessage;
+          yield {
+            type: "result",
+            subtype: "error_during_execution",
+            is_error: true,
+            num_turns: 2,
+          };
+        },
+      }));
+
+      try {
+        const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+        const result = await runClaudeWithSdk(promptPath, {
+          sdkOptions: { abortController },
+          showFullOutput: false,
+          hasJsonSchema: false,
+        });
+
+        expect(result.cancelled).toBe(true);
+      } finally {
+        consoleLogSpy.mockRestore();
+      }
+    });
+
+    test("an aborted run with --json-schema returns cancelled instead of throwing", async () => {
+      const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+
+      tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-cancel-"));
+      process.env.RUNNER_TEMP = tempDir;
+
+      const promptPath = join(tempDir, "prompt.txt");
+      await writeFile(promptPath, "test prompt");
+
+      const abortController = new AbortController();
+      mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+        query: async function* () {
+          yield initMessage;
+          yield {
+            type: "result",
+            subtype: "error_during_execution",
+            is_error: true,
+            num_turns: 1,
+          };
+        },
+      }));
+      abortController.abort();
+
+      try {
+        const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+        const result = await runClaudeWithSdk(promptPath, {
+          sdkOptions: { abortController },
+          showFullOutput: false,
+          hasJsonSchema: true,
+        });
+
+        expect(result.cancelled).toBe(true);
+        expect(result.sessionId).toBe("session-cancel-123");
+      } finally {
+        consoleLogSpy.mockRestore();
+      }
+    });
+
+    test("a stream error without an abort still fails hard", async () => {
+      const consoleErrorSpy = spyOn(console, "error").mockImplementation(
+        () => {},
+      );
+      const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+
+      tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-cancel-"));
+      process.env.RUNNER_TEMP = tempDir;
+
+      const promptPath = join(tempDir, "prompt.txt");
+      await writeFile(promptPath, "test prompt");
+
+      mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+        query: async function* () {
+          yield initMessage;
+          throw new Error("boom");
+        },
+      }));
+
+      try {
+        const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+        await expect(
+          runClaudeWithSdk(promptPath, {
+            sdkOptions: {},
+            showFullOutput: false,
+            hasJsonSchema: false,
+          }),
+        ).rejects.toThrow("SDK execution error");
+      } finally {
+        consoleErrorSpy.mockRestore();
+        consoleLogSpy.mockRestore();
+      }
+    });
+
+    test("no result message without an abort still fails hard", async () => {
+      const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+
+      tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-cancel-"));
+      process.env.RUNNER_TEMP = tempDir;
+
+      const promptPath = join(tempDir, "prompt.txt");
+      await writeFile(promptPath, "test prompt");
+
+      mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+        query: async function* () {
+          yield initMessage;
+        },
+      }));
+
+      try {
+        const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+        await expect(
+          runClaudeWithSdk(promptPath, {
+            sdkOptions: {},
+            showFullOutput: false,
+            hasJsonSchema: false,
+          }),
+        ).rejects.toThrow("No result message received from Claude");
+      } finally {
+        consoleLogSpy.mockRestore();
+      }
+    });
+  });
   const originalRunnerTemp = process.env.RUNNER_TEMP;
   let tempDir: string | undefined;
 

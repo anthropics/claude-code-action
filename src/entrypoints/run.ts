@@ -147,6 +147,32 @@ async function writeStepSummary(executionFile: string): Promise<void> {
   }
 }
 
+// GitHub sends SIGINT (workflow cancel) then SIGTERM to the whole process
+// group. Without handlers the process dies mid-run: the tracking comment is
+// left on "Claude Code is working", the execution file is never written and
+// the session id needed to resume is lost. Intercept the first signal, abort
+// the SDK query, and let run()'s cleanup post the partial progress. A second
+// signal means the grace period is over: exit immediately.
+const abortController = new AbortController();
+let cancellationSignal: NodeJS.Signals | undefined;
+let onCancellationSignal: ((signal: NodeJS.Signals) => void) | undefined;
+
+function installCancellationHandlers(): void {
+  onCancellationSignal = (signal: NodeJS.Signals) => {
+    if (cancellationSignal) {
+      console.log(`Received ${signal} during cleanup; exiting`);
+      process.exit(1);
+    }
+    cancellationSignal = signal;
+    console.log(
+      `Received ${signal}; aborting the Claude session to post partial progress`,
+    );
+    abortController.abort();
+  };
+  process.once("SIGINT", onCancellationSignal);
+  process.once("SIGTERM", onCancellationSignal);
+}
+
 async function run() {
   let githubToken: string | undefined;
   let commentId: number | undefined;
@@ -162,6 +188,7 @@ async function run() {
   // Paths reverted to the PR base branch, which cleanup must not commit back
   // onto the PR author's branch. Empty unless restoreConfigFromBase ran.
   let restoredConfigPaths: string[] = [];
+  let claudeResult: ClaudeRunResult | undefined;
   // Track whether we've completed prepare phase, so we can attribute errors correctly
   let prepareCompleted = false;
   try {
@@ -291,16 +318,26 @@ async function run() {
       promptFile,
     });
 
-    const claudeResult: ClaudeRunResult = await runClaude(promptConfig.path, {
+    installCancellationHandlers();
+    claudeResult = await runClaude(promptConfig.path, {
       claudeArgs: prepareResult.claudeArgs,
       appendSystemPrompt: process.env.APPEND_SYSTEM_PROMPT,
       model: process.env.ANTHROPIC_MODEL,
       pathToClaudeCodeExecutable: claudeExecutable,
       showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
+      sessionId: process.env.INPUT_SESSION_ID,
+      abortController,
     });
 
     claudeSuccess = claudeResult.conclusion === "success";
     executionFile = claudeResult.executionFile;
+
+    if (claudeResult.cancelled) {
+      core.setOutput("cancelled", "true");
+      core.setFailed(
+        `Run was cancelled before completion (${cancellationSignal ?? "interrupt"})`,
+      );
+    }
 
     // Set action-level outputs
     if (claudeResult.executionFile) {
@@ -350,6 +387,8 @@ async function run() {
           outputFile: executionFile,
           prepareSuccess,
           prepareError,
+          cancelled: claudeResult?.cancelled,
+          sessionId: claudeResult?.sessionId,
           useCommitSigning: context.inputs.useCommitSigning,
           restoredConfigPaths,
         });
@@ -374,5 +413,9 @@ async function run() {
 }
 
 if (import.meta.main) {
-  run();
+  run().then(() => {
+    if (cancellationSignal) {
+      process.exit(process.exitCode || 1);
+    }
+  });
 }
