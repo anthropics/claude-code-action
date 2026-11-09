@@ -133,6 +133,24 @@ describe("prepareMcpConfig", () => {
     );
   });
 
+  test("should use SSH git path instead of file ops when both signing inputs are set", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: [],
+      mode: "tag",
+      context: {
+        ...mockContextWithSigning,
+        inputs: { ...mockContextWithSigning.inputs, sshSigningKey: "test-key" },
+      },
+    });
+
+    expect(JSON.parse(result).mcpServers.github_file_ops).not.toBeDefined();
+  });
+
   test("should include github MCP server when mcp__github__ tools are allowed", async () => {
     const result = await prepareMcpConfig({
       githubToken: "test-token",

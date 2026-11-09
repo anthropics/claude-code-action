@@ -7,6 +7,7 @@ import {
   setupSshSigning,
 } from "../../github/operations/git-config";
 import { checkHumanActor } from "../../github/validation/actor";
+import { usesApiCommitSigning } from "../../github/context";
 import type { GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
 
@@ -32,7 +33,7 @@ export async function prepareAgentMode({
   // Configure git authentication for agent mode (same as tag mode)
   // SSH signing takes precedence if provided
   const useSshSigning = !!context.inputs.sshSigningKey;
-  const useApiCommitSigning = context.inputs.useCommitSigning && !useSshSigning;
+  const useApiCommitSigning = usesApiCommitSigning(context);
 
   if (useSshSigning) {
     // Setup SSH signing for commits

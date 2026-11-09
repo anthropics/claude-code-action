@@ -16,6 +16,7 @@ import {
   isIssueCommentEvent,
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
+  usesApiCommitSigning,
 } from "../github/context";
 import type { ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
@@ -956,7 +957,7 @@ export async function createPrompt(
     const promptContent = generatePrompt(
       preparedContext,
       githubData,
-      context.inputs.useCommitSigning,
+      usesApiCommitSigning(context),
       "tag",
     );
 
@@ -989,7 +990,7 @@ export async function createPrompt(
     const allAllowedTools = buildAllowedToolsString(
       [],
       hasActionsReadPermission,
-      context.inputs.useCommitSigning,
+      usesApiCommitSigning(context),
     );
     const allDisallowedTools = buildDisallowedToolsString([], []);
 
