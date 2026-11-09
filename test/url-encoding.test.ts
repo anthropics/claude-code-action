@@ -64,6 +64,38 @@ describe("ensureProperlyEncodedUrl", () => {
     expect(ensureProperlyEncodedUrl(url)).toBe(expected);
   });
 
+  it("should preserve query values containing a raw '=' instead of truncating them", () => {
+    const url =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=fix: parse a=b&body=see description";
+    const expected =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=fix%3A+parse+a%3Db&body=see+description";
+    expect(ensureProperlyEncodedUrl(url)).toBe(expected);
+  });
+
+  it("should preserve query values containing a raw '?' instead of truncating them", () => {
+    const url =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=what? retry";
+    const expected =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=what%3F+retry";
+    expect(ensureProperlyEncodedUrl(url)).toBe(expected);
+  });
+
+  it("should encode spaces in the path even when a query string is present", () => {
+    const url =
+      "https://github.com/owner/repo/compare/main...my branch?quick_pull=1&title=hi there";
+    const expected =
+      "https://github.com/owner/repo/compare/main...my%20branch?quick_pull=1&title=hi+there";
+    expect(ensureProperlyEncodedUrl(url)).toBe(expected);
+  });
+
+  it("should percent-encode a stray '%' in a query value instead of dropping the pair", () => {
+    const url =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=Fix 100% of bugs";
+    const expected =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=Fix+100%25+of+bugs";
+    expect(ensureProperlyEncodedUrl(url)).toBe(expected);
+  });
+
   it("should return null for completely invalid URLs", () => {
     const url = "not-a-url-at-all";
     expect(ensureProperlyEncodedUrl(url)).toBe(null);
