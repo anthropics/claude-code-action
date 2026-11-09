@@ -12,8 +12,9 @@ import {
   statSync,
   writeFileSync,
 } from "fs";
-import { dirname, join, posix, relative, sep } from "path";
+import { dirname, isAbsolute, join, posix, relative, sep } from "path";
 import { fetchDepthArgs } from "./fetch-depth";
+import { repositoryDir } from "./repo-dir";
 
 // Paths that are both PR-controllable and read from cwd at CLI startup.
 //
@@ -48,9 +49,9 @@ type TrackedPaths = { files: Set<string>; dirs: Set<string> };
 // Built from the superproject only: `git ls-files` reports a submodule as a
 // single entry, so paths inside a checked-out submodule are in neither set and
 // links into one are recorded as placeholders.
-function listTrackedPaths(): TrackedPaths {
+function listTrackedPaths(cwd: string): TrackedPaths {
   const gitPathList = (args: string[]) =>
-    execFileSync("git", args, { encoding: "utf8", maxBuffer: Infinity })
+    execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: Infinity })
       .split("\0")
       .filter(Boolean);
   const modified = new Set(
@@ -101,6 +102,7 @@ function listTrackedPaths(): TrackedPaths {
 // resolves anywhere else.
 function shouldSnapshotContent(
   entryPath: string,
+  workTreeDir: string,
   workTreeRealPath: string,
   tracked: TrackedPaths,
 ): boolean {
@@ -123,7 +125,7 @@ function shouldSnapshotContent(
     }
     const literalPath = join(
       workTreeRealPath,
-      relative(process.cwd(), entryPath),
+      relative(workTreeDir, entryPath),
     );
     if (targetRealPath === literalPath) {
       return true;
@@ -162,6 +164,7 @@ function recordPlaceholder(src: string, dest: string): void {
 function snapshotSensitivePath(
   src: string,
   dest: string,
+  workTreeDir: string,
   workTreeRealPath: string,
   tracked: TrackedPaths,
 ): void {
@@ -180,7 +183,7 @@ function snapshotSensitivePath(
       recursive: true,
       dereference: true,
       filter: keepOrExclude((entry) =>
-        shouldSnapshotContent(entry, workTreeRealPath, tracked),
+        shouldSnapshotContent(entry, workTreeDir, workTreeRealPath, tracked),
       ),
     });
   } catch (error) {
@@ -206,12 +209,14 @@ function snapshotSensitivePath(
   }
 }
 
-function ensureClaudePrExcludedFromGit(): void {
-  const excludePath = execFileSync(
+function ensureClaudePrExcludedFromGit(cwd: string): void {
+  const gitPath = execFileSync(
     "git",
     ["rev-parse", "--git-path", "info/exclude"],
-    { encoding: "utf8" },
+    { cwd, encoding: "utf8" },
   ).trim();
+  // `--git-path` answers relative to the repository when it can.
+  const excludePath = isAbsolute(gitPath) ? gitPath : join(cwd, gitPath);
 
   const excludeContents = existsSync(excludePath)
     ? readFileSync(excludePath, "utf8")
@@ -277,19 +282,28 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
   // PR-authored version. Links are followed only to tracked, unmodified content
   // inside the working tree; anything else is recorded as a placeholder file,
   // so the snapshot itself never contains links.
-  rmSync(".claude-pr", { recursive: true, force: true });
-  const workTreeRealPath = realpathSync(process.cwd());
-  const tracked = listTrackedPaths();
+  const workTreeDir = repositoryDir();
+  const snapshotDir = join(workTreeDir, ".claude-pr");
+  rmSync(snapshotDir, { recursive: true, force: true });
+  const workTreeRealPath = realpathSync(workTreeDir);
+  const tracked = listTrackedPaths(workTreeDir);
   for (const p of SENSITIVE_PATHS) {
-    if (lstatSync(p, { throwIfNoEntry: false })) {
-      snapshotSensitivePath(p, `.claude-pr/${p}`, workTreeRealPath, tracked);
+    const entryPath = join(workTreeDir, p);
+    if (lstatSync(entryPath, { throwIfNoEntry: false })) {
+      snapshotSensitivePath(
+        entryPath,
+        join(snapshotDir, p),
+        workTreeDir,
+        workTreeRealPath,
+        tracked,
+      );
     }
   }
-  if (existsSync(".claude-pr")) {
+  if (existsSync(snapshotDir)) {
     console.log(
       "Preserved PR's sensitive paths -> .claude-pr/ for review agents (not executed)",
     );
-    ensureClaudePrExcludedFromGit();
+    ensureClaudePrExcludedFromGit(workTreeDir);
   }
 
   // Delete PR-controlled versions BEFORE fetching so the attacker-controlled
@@ -302,7 +316,7 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
   // the safe fallback (no attacker-controlled config). A bare `git checkout`
   // alone wouldn't remove files the PR added, so nuke first.
   for (const p of SENSITIVE_PATHS) {
-    rmSync(p, { recursive: true, force: true });
+    rmSync(join(workTreeDir, p), { recursive: true, force: true });
   }
 
   // --no-recurse-submodules: explicitly suppress submodule fetching regardless of
@@ -313,10 +327,11 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
       "fetch",
       "origin",
       baseBranch,
-      ...fetchDepthArgs(1),
+      ...fetchDepthArgs(1, workTreeDir),
       "--no-recurse-submodules",
     ],
     {
+      cwd: workTreeDir,
       stdio: "inherit",
       env: process.env,
     },
@@ -325,6 +340,7 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
   for (const p of SENSITIVE_PATHS) {
     try {
       execFileSync("git", ["checkout", `origin/${baseBranch}`, "--", p], {
+        cwd: workTreeDir,
         stdio: "pipe",
       });
     } catch {
@@ -336,6 +352,7 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
   // revert doesn't silently leak into commits the CLI makes later.
   try {
     execFileSync("git", ["reset", "--", ...SENSITIVE_PATHS], {
+      cwd: workTreeDir,
       stdio: "pipe",
     });
   } catch {
