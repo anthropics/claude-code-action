@@ -156,6 +156,7 @@ async function run() {
   let claudeSuccess = false;
   let prepareSuccess = true;
   let prepareError: string | undefined;
+  let runError: string | undefined;
   let context: GitHubContext | undefined;
   let octokit: Octokits | undefined;
   let workloadIdentity: WorkloadIdentityHandle | undefined;
@@ -315,6 +316,7 @@ async function run() {
     core.setOutput("conclusion", claudeResult.conclusion);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    runError = errorMessage;
     executionFile ??= setExecutionFileOutputIfPresent();
     // Only mark as prepare failure if we haven't completed the prepare phase
     if (!prepareCompleted) {
@@ -350,6 +352,7 @@ async function run() {
           outputFile: executionFile,
           prepareSuccess,
           prepareError,
+          runError,
           useCommitSigning: context.inputs.useCommitSigning,
           restoredConfigPaths,
         });
