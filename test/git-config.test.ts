@@ -145,9 +145,28 @@ describe("git-config", () => {
         `https://${SERVER.host}/test-owner/test-repo.git`,
       );
       const helperPath = join(tempDir, ".git-credential-gh-token");
-      expect(gitConfigGetAll("credential.helper")).toBe(helperPath);
-      expect(statSync(helperPath).mode & 0o777).toBe(0o700);
+      const configuredHelperPath = gitConfigGetAll("credential.helper");
+      expect(configuredHelperPath).toBe(
+        process.platform === "win32"
+          ? helperPath.replaceAll("\\", "/")
+          : helperPath,
+      );
+      if (process.platform !== "win32") {
+        expect(statSync(helperPath).mode & 0o777).toBe(0o700);
+      }
       expect(process.env.GH_TOKEN).toBe("helper-token");
+
+      if (process.platform === "win32") {
+        const credentials = execFileSync("git", ["credential", "fill"], {
+          cwd: repoDir,
+          encoding: "utf8",
+          input: `protocol=https\nhost=${SERVER.host}\n\n`,
+          stdio: ["pipe", "pipe", "pipe"],
+          env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+        });
+        expect(credentials).toContain("username=x-access-token");
+        expect(credentials).toContain("password=helper-token");
+      }
     });
 
     test("succeeds when there is no checkout extraheader to remove", async () => {
