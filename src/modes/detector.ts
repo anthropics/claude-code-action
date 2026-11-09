@@ -67,6 +67,7 @@ export function detectMode(context: GitHubContext): AutoDetectedMode {
       "synchronize",
       "ready_for_review",
       "reopened",
+      "labeled",
     ];
     if (context.eventAction && supportedActions.includes(context.eventAction)) {
       // If prompt is provided, use agent mode (default for automation)
