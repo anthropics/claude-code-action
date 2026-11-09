@@ -2,6 +2,7 @@
 
 import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import * as core from "@actions/core";
+import * as fs from "fs";
 import {
   existsSync,
   mkdtempSync,
@@ -112,7 +113,10 @@ describe("workload identity federation", () => {
         expect(readFileSync(handle!.tokenFile, "utf-8")).toBe(
           "test-identity-token",
         );
-        expect(statSync(handle!.tokenFile).mode & 0o777).toBe(0o600);
+        // Windows does not expose POSIX owner/group permission bits.
+        if (process.platform !== "win32") {
+          expect(statSync(handle!.tokenFile).mode & 0o777).toBe(0o600);
+        }
         expect(setSecretSpy).toHaveBeenCalledWith("test-identity-token");
         // Default audience scopes the JWT to the Claude API token exchange
         expect(getIDTokenSpy).toHaveBeenCalledWith("https://api.anthropic.com");
@@ -156,7 +160,9 @@ describe("workload identity federation", () => {
         expect(process.env.ANTHROPIC_PROFILE).toBe("default");
 
         const profilePath = join(configDir!, "configs", "default.json");
-        expect(statSync(profilePath).mode & 0o777).toBe(0o600);
+        if (process.platform !== "win32") {
+          expect(statSync(profilePath).mode & 0o777).toBe(0o600);
+        }
         // Minimal on purpose: the SDK gap-fills the federation fields from
         // the ANTHROPIC_* env vars the action exports.
         expect(JSON.parse(readFileSync(profilePath, "utf-8"))).toEqual({
@@ -237,6 +243,88 @@ describe("workload identity federation", () => {
         expect(warningSpy).toHaveBeenCalled();
       } finally {
         handle?.stop();
+      }
+    });
+
+    test("rolls back partial token and profile writes on setup failure", async () => {
+      process.env.ANTHROPIC_FEDERATION_RULE_ID = "fdrl_test";
+      process.env.ANTHROPIC_ORGANIZATION_ID = "org_test";
+      process.env.ANTHROPIC_IDENTITY_TOKEN_FILE = "previous-token";
+      const tokenDir = join(tempDir, "claude-workload-identity");
+      const writeFile = fs.writeFileSync;
+
+      for (const failOnWrite of [1, 2]) {
+        let writes = 0;
+        const writeSpy = spyOn(fs, "writeFileSync").mockImplementation(
+          (...args: Parameters<typeof fs.writeFileSync>) => {
+            writeFile(...args);
+            if (++writes === failOnWrite) {
+              throw new Error("simulated partial write failure");
+            }
+          },
+        );
+        try {
+          await expect(setupWorkloadIdentity()).rejects.toThrow(
+            "simulated partial write failure",
+          );
+          expect(existsSync(tokenDir)).toBe(false);
+          expect(process.env.ANTHROPIC_IDENTITY_TOKEN_FILE).toBe(
+            "previous-token",
+          );
+          expect(process.env.ANTHROPIC_CONFIG_DIR).toBeUndefined();
+          expect(process.env.ANTHROPIC_PROFILE).toBeUndefined();
+        } finally {
+          writeSpy.mockRestore();
+        }
+      }
+    });
+
+    test("serializes refreshes and releases the in-flight slot after completion", async () => {
+      process.env.ANTHROPIC_FEDERATION_RULE_ID = "fdrl_test";
+      process.env.ANTHROPIC_ORGANIZATION_ID = "org_test";
+      let tick!: () => Promise<void> | undefined;
+      const timerSpy = spyOn(globalThis, "setInterval").mockImplementation(((
+        callback: typeof tick,
+      ) => {
+        tick = callback;
+        return 123;
+      }) as any);
+      const clearSpy = spyOn(globalThis, "clearInterval").mockImplementation(
+        () => {},
+      );
+      let handle: Awaited<ReturnType<typeof setupWorkloadIdentity>>;
+      try {
+        handle = await setupWorkloadIdentity();
+        let complete!: (token: string) => void;
+        getIDTokenSpy.mockImplementation(
+          () => new Promise<string>((resolve) => (complete = resolve)),
+        );
+        const refresh = tick();
+        tick();
+        expect(getIDTokenSpy).toHaveBeenCalledTimes(2);
+        complete("refreshed-token");
+        await refresh;
+        expect(readFileSync(handle!.tokenFile, "utf8")).toBe("refreshed-token");
+        getIDTokenSpy.mockResolvedValue("next-token");
+        await tick();
+        expect(getIDTokenSpy).toHaveBeenCalledTimes(3);
+        expect(readFileSync(handle!.tokenFile, "utf8")).toBe("next-token");
+
+        let reject!: (error: Error) => void;
+        getIDTokenSpy.mockImplementation(
+          () => new Promise<string>((_, fail) => (reject = fail)),
+        );
+        const pending = tick();
+        handle!.stop();
+        reject(new Error("request failed after stop"));
+        await pending;
+        expect(getIDTokenSpy).toHaveBeenCalledTimes(4);
+        expect(existsSync(handle!.tokenFile)).toBe(false);
+        expect(warningSpy).not.toHaveBeenCalled();
+      } finally {
+        handle?.stop();
+        timerSpy.mockRestore();
+        clearSpy.mockRestore();
       }
     });
 
