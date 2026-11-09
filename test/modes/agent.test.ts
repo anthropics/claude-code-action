@@ -8,7 +8,7 @@ import {
   mock,
 } from "bun:test";
 import { prepareAgentMode } from "../../src/modes/agent";
-import { createMockAutomationContext } from "../mockContext";
+import { createMockAutomationContext, createMockContext } from "../mockContext";
 import * as core from "@actions/core";
 import * as gitConfig from "../../src/github/operations/git-config";
 
@@ -318,5 +318,126 @@ describe("Agent Mode", () => {
         context,
       );
     });
+  });
+});
+
+describe("Agent Mode file ops branch on PR events", () => {
+  const envKeys = ["GITHUB_HEAD_REF", "GITHUB_REF_NAME", "CLAUDE_ARGS"];
+  const saved: Record<string, string | undefined> = {};
+  let spies: any[] = [];
+
+  beforeEach(() => {
+    for (const k of envKeys) saved[k] = process.env[k];
+    delete process.env.GITHUB_HEAD_REF;
+    delete process.env.CLAUDE_ARGS;
+    spies = [
+      spyOn(core, "exportVariable").mockImplementation(() => {}),
+      spyOn(core, "setOutput").mockImplementation(() => {}),
+      spyOn(gitConfig, "configureGitAuth").mockImplementation(async () => {}),
+      spyOn(gitConfig, "replaceCheckoutCredentials").mockImplementation(
+        async () => {},
+      ),
+    ];
+  });
+
+  afterEach(() => {
+    for (const k of envKeys) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+    for (const s of spies) s.mockRestore();
+  });
+
+  const head = (full_name: string) => ({
+    ref: "feature-x",
+    repo: { full_name },
+  });
+
+  const octokitWith = (pullsGet?: () => Promise<unknown>) =>
+    ({
+      rest: {
+        users: {
+          getByUsername: mock(() =>
+            Promise.resolve({ data: { login: "dev", id: 1, type: "User" } }),
+          ),
+        },
+        pulls: { get: mock(pullsGet ?? (() => Promise.reject(new Error()))) },
+      },
+    }) as any;
+
+  async function fileOpsBranch(context: any, octokit: any) {
+    const result = await prepareAgentMode({
+      context,
+      octokit,
+      githubToken: "test-token",
+    });
+    return JSON.parse(result.mcpConfig).mcpServers.github_file_ops.env
+      .BRANCH_NAME;
+  }
+
+  for (const eventName of [
+    "pull_request_review",
+    "pull_request_review_comment",
+  ] as const) {
+    test(`${eventName}: commits go to the PR head branch, not <number>/merge`, async () => {
+      process.env.GITHUB_REF_NAME = "123/merge";
+      const context = createMockContext({
+        eventName,
+        isPR: true,
+        entityNumber: 123,
+        payload: {
+          pull_request: { number: 123, head: head("test-owner/test-repo") },
+        } as any,
+        inputs: { prompt: "fix it", useCommitSigning: true },
+      });
+
+      expect(await fileOpsBranch(context, octokitWith())).toBe("feature-x");
+    });
+  }
+
+  test("issue_comment on a PR: commits go to the PR head branch, not the default branch", async () => {
+    process.env.GITHUB_REF_NAME = "main";
+    const context = createMockContext({
+      eventName: "issue_comment",
+      isPR: true,
+      entityNumber: 123,
+      payload: { issue: { number: 123, pull_request: {} } } as any,
+      inputs: { prompt: "fix it", useCommitSigning: true },
+    });
+    const octokit = octokitWith(() =>
+      Promise.resolve({ data: { head: head("test-owner/test-repo") } }),
+    );
+
+    expect(await fileOpsBranch(context, octokit)).toBe("feature-x");
+  });
+
+  test("issue_comment on a PR without use_commit_signing: no PR lookup", async () => {
+    process.env.GITHUB_REF_NAME = "main";
+    const context = createMockContext({
+      eventName: "issue_comment",
+      isPR: true,
+      entityNumber: 123,
+      payload: { issue: { number: 123, pull_request: {} } } as any,
+      inputs: { prompt: "fix it", useCommitSigning: false },
+    });
+    const octokit = octokitWith();
+
+    await prepareAgentMode({ context, octokit, githubToken: "test-token" });
+    expect(octokit.rest.pulls.get).not.toHaveBeenCalled();
+  });
+
+  test("PR from a fork keeps the previous fallback", async () => {
+    process.env.GITHUB_REF_NAME = "123/merge";
+    const context = createMockContext({
+      eventName: "pull_request_review_comment",
+      isPR: true,
+      entityNumber: 123,
+      payload: {
+        pull_request: { number: 123, head: head("someone/test-repo") },
+      } as any,
+      inputs: { prompt: "fix it", useCommitSigning: true },
+    });
+
+    expect(await fileOpsBranch(context, octokitWith())).toBe("123/merge");
   });
 });

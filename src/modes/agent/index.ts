@@ -7,7 +7,7 @@ import {
   setupSshSigning,
 } from "../../github/operations/git-config";
 import { checkHumanActor } from "../../github/validation/actor";
-import type { GitHubContext } from "../../github/context";
+import { isEntityContext, type GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
 
 /**
@@ -98,10 +98,14 @@ export async function prepareAgentMode({
   const defaultBranch = context.repository.default_branch || "main";
   const baseBranch = context.inputs.baseBranch || defaultBranch;
 
-  // Detect current branch from GitHub environment
+  // Detect current branch from GitHub environment. GITHUB_HEAD_REF is only set
+  // for pull_request(_target) events; for other PR events GITHUB_REF_NAME is
+  // "<number>/merge" (reviews, review comments) or the default branch (PR
+  // comments), so look up the PR's head branch instead.
   const currentBranch =
     claudeBranch ||
     process.env.GITHUB_HEAD_REF ||
+    (await getPrHeadBranch(context, octokit)) ||
     process.env.GITHUB_REF_NAME ||
     defaultBranch;
 
@@ -141,4 +145,53 @@ export async function prepareAgentMode({
     mcpConfig: ourMcpConfig,
     claudeArgs,
   };
+}
+
+/**
+ * Returns the head branch of the pull request the event is about, when that
+ * branch lives in this repository. Returns undefined for non-PR events, for
+ * PRs from forks, without use_commit_signing, and when the PR cannot be
+ * fetched.
+ */
+async function getPrHeadBranch(
+  context: GitHubContext,
+  octokit: Octokits,
+): Promise<string | undefined> {
+  // Only the file ops server (use_commit_signing) reads this branch.
+  if (
+    !context.inputs.useCommitSigning ||
+    !isEntityContext(context) ||
+    !context.isPR
+  ) {
+    return undefined;
+  }
+
+  let head: { ref: string; repo: { full_name: string } | null } | undefined;
+  if ("pull_request" in context.payload && context.payload.pull_request) {
+    head = context.payload.pull_request.head;
+  } else {
+    try {
+      const { data } = await octokit.rest.pulls.get({
+        owner: context.repository.owner,
+        repo: context.repository.repo,
+        pull_number: context.entityNumber,
+      });
+      head = data.head;
+    } catch (error) {
+      console.warn(
+        `Could not fetch PR #${context.entityNumber} to find its head branch:`,
+        error,
+      );
+      return undefined;
+    }
+  }
+
+  if (
+    !head ||
+    head.repo?.full_name?.toLowerCase() !==
+      context.repository.full_name.toLowerCase()
+  ) {
+    return undefined;
+  }
+  return head.ref;
 }
