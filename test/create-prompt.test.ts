@@ -181,6 +181,30 @@ describe("generatePrompt", () => {
     ); // from review comments
   });
 
+  test("should single-quote the branch in the push instruction", async () => {
+    // The live grant is Bash(<wrapper>:*), a prefix match, so anything the model appends to
+    // that command is permitted and the shell splits it. An unquoted branch carrying a
+    // metacharacter would turn the suggested push into two commands.
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issues",
+        eventAction: "opened",
+        isPR: false,
+        issueNumber: "789",
+        baseBranch: "main",
+        claudeBranch: "feat;-scoped-branch",
+      },
+    };
+
+    const prompt = await generatePrompt(envVars, mockGitHubData, false, "tag");
+
+    expect(prompt).toContain("origin 'feat;-scoped-branch'");
+    expect(prompt).not.toContain("origin feat;-scoped-branch");
+  });
+
   test("should generate prompt for issue opened event", async () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",

@@ -454,7 +454,7 @@ function getCommitInstructions(
           Bash(git commit -m "<message>\\n\\n${coAuthorLine}")`
             : ""
         }
-        - Push to the remote: Bash(${GIT_PUSH_WRAPPER} origin ${branchName})`;
+        - Push to the remote: Bash(${GIT_PUSH_WRAPPER} origin '${branchName}')`;
     }
   }
 }
