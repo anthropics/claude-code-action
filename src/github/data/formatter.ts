@@ -8,6 +8,10 @@ import type {
 import type { GitHubFileWithSHA } from "./fetcher";
 import { sanitizeContent } from "../utils/sanitizer";
 
+const REVIEW_DIFF_HUNK_CONTEXT_LINES = 20;
+const MAX_REVIEW_DIFF_HUNK_CHARS = 4_000;
+const MAX_REVIEW_DIFF_CONTEXT_CHARS = 50_000;
+
 function formatLabels(labelNodes: Array<{ name: string }>): string {
   if (labelNodes.length === 0) return "none";
   return labelNodes.map((l) => l.name).join(", ");
@@ -84,6 +88,8 @@ export function formatReviewComments(
     return "";
   }
 
+  let remainingDiffContextChars = MAX_REVIEW_DIFF_CONTEXT_CHARS;
+
   const formattedReviews = reviewData.nodes.map((review) => {
     let reviewOutput = `[Review by ${review.author?.login ?? "ghost"} at ${review.submittedAt}]: ${review.state}`;
 
@@ -121,10 +127,23 @@ export function formatReviewComments(
           let formatted = `  [Comment on ${comment.path}:${comment.line || "?"}]: ${body}`;
 
           // The diff hunk is the code the comment was left on. Without it the
-          // comment arrives without the context it was written against.
+          // comment arrives without the context it was written against. GitHub
+          // can return very large hunks for review comments on long new files,
+          // so keep only the header plus nearby tail context and enforce a
+          // total review-comment diff budget for the prompt.
           if (comment.diffHunk) {
-            const diffHunk = sanitizeContent(comment.diffHunk);
-            formatted += `\n  Diff context:\n\`\`\`diff\n${diffHunk}\n\`\`\``;
+            const { diffHunk, omitted, consumed } = formatReviewDiffHunk(
+              comment.diffHunk,
+              remainingDiffContextChars,
+            );
+            remainingDiffContextChars -= consumed;
+
+            if (diffHunk) {
+              formatted += `\n  Diff context${omitted ? " (truncated)" : ""}:\n\`\`\`diff\n${diffHunk}\n\`\`\``;
+            } else {
+              formatted +=
+                "\n  Diff context omitted: review comment diff context budget exceeded.";
+            }
           }
 
           return formatted;
@@ -139,6 +158,44 @@ export function formatReviewComments(
   });
 
   return formattedReviews.join("\n\n");
+}
+
+function formatReviewDiffHunk(
+  rawDiffHunk: string,
+  remainingBudget: number,
+): { diffHunk: string; omitted: boolean; consumed: number } {
+  if (remainingBudget <= 0) {
+    return { diffHunk: "", omitted: true, consumed: 0 };
+  }
+
+  const sanitized = sanitizeContent(rawDiffHunk);
+  const lines = sanitized.split("\n");
+  const header = lines.find((line) => line.startsWith("@@"));
+  const tailLines = lines.slice(-REVIEW_DIFF_HUNK_CONTEXT_LINES);
+  const candidateLines =
+    header && tailLines[0] !== header
+      ? [header, "...", ...tailLines]
+      : tailLines;
+  let diffHunk = candidateLines.join("\n");
+  let omitted = diffHunk.length < sanitized.length;
+  const maxChars = Math.min(MAX_REVIEW_DIFF_HUNK_CHARS, remainingBudget);
+
+  if (diffHunk.length > maxChars) {
+    const prefix = header ? `${header}\n...\n` : "";
+    const tailBudget = Math.max(0, maxChars - prefix.length);
+    diffHunk = `${prefix}${diffHunk.slice(Math.max(0, diffHunk.length - tailBudget))}`;
+    omitted = true;
+  }
+
+  if (omitted) {
+    diffHunk = `[... diff context truncated to the last ${REVIEW_DIFF_HUNK_CONTEXT_LINES} lines ...]\n${diffHunk}`;
+  }
+
+  if (diffHunk.length > remainingBudget) {
+    diffHunk = "";
+  }
+
+  return { diffHunk, omitted, consumed: diffHunk.length };
 }
 
 export function formatChangedFiles(changedFiles: GitHubFile[]): string {

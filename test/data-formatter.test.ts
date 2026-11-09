@@ -544,6 +544,89 @@ describe("formatReviewComments", () => {
     expect(result).toContain("+const a = 2;");
   });
 
+  test("truncates very large review comment diff hunks", () => {
+    const longHunk = [
+      "@@ -1,900 +1,900 @@",
+      ...Array.from({ length: 900 }, (_, index) => `+line ${index}`),
+    ].join("\n");
+    const reviewData = {
+      nodes: [
+        {
+          id: "review1",
+          databaseId: "300001",
+          author: { login: "reviewer1" },
+          body: "",
+          state: "COMMENTED",
+          submittedAt: "2023-01-01T00:00:00Z",
+          comments: {
+            nodes: [
+              {
+                id: "comment1",
+                databaseId: "200001",
+                body: "Too much context",
+                author: { login: "reviewer1" },
+                createdAt: "2023-01-01T00:00:00Z",
+                path: "src/large.ts",
+                line: 899,
+                diffHunk: longHunk,
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const result = formatReviewComments(reviewData);
+
+    expect(result).toContain("Diff context (truncated):");
+    expect(result).toContain(
+      "[... diff context truncated to the last 20 lines ...]",
+    );
+    expect(result).toContain("@@ -1,900 +1,900 @@");
+    expect(result).toContain("+line 899");
+    expect(result).not.toContain("+line 100");
+    expect(result.length).toBeLessThan(5_000);
+  });
+
+  test("omits review comment diff hunks after the total context budget", () => {
+    const largeHunk = [
+      "@@ -1,400 +1,400 @@",
+      ...Array.from(
+        { length: 400 },
+        (_, index) => `+${index} ${"x".repeat(180)}`,
+      ),
+    ].join("\n");
+    const reviewData = {
+      nodes: [
+        {
+          id: "review1",
+          databaseId: "300001",
+          author: { login: "reviewer1" },
+          body: "",
+          state: "COMMENTED",
+          submittedAt: "2023-01-01T00:00:00Z",
+          comments: {
+            nodes: Array.from({ length: 20 }, (_, index) => ({
+              id: `comment${index}`,
+              databaseId: `20000${index}`,
+              body: `Comment ${index}`,
+              author: { login: "reviewer1" },
+              createdAt: "2023-01-01T00:00:00Z",
+              path: "src/large.ts",
+              line: index + 1,
+              diffHunk: largeHunk,
+            })),
+          },
+        },
+      ],
+    };
+
+    const result = formatReviewComments(reviewData);
+
+    expect(result).toContain("Diff context omitted");
+    expect(result.length).toBeLessThan(60_000);
+  });
+
   test("omits the diff context when the comment has no diff hunk", () => {
     const reviewData = {
       nodes: [
