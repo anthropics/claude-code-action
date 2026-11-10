@@ -231,20 +231,24 @@ All structured output fields are available in the `structured_output` output as 
 **In GitHub Actions expressions:**
 
 ```yaml
-if: fromJSON(steps.analyze.outputs.structured_output).is_flaky == true
-run: |
-  CONFIDENCE=${{ fromJSON(steps.analyze.outputs.structured_output).confidence }}
+if: |
+  fromJSON(steps.analyze.outputs.structured_output).is_flaky == true &&
+  fromJSON(steps.analyze.outputs.structured_output).confidence >= 0.7
+run: ./retry-tests.sh
 ```
 
 **In bash with jq:**
 
 ```yaml
 - name: Process results
+  env:
+    OUTPUT: ${{ steps.analyze.outputs.structured_output }}
   run: |
-    OUTPUT='${{ steps.analyze.outputs.structured_output }}'
     IS_FLAKY=$(echo "$OUTPUT" | jq -r '.is_flaky')
     SUMMARY=$(echo "$OUTPUT" | jq -r '.summary')
 ```
+
+Always pass these values to a script through `env:`, as above. GitHub puts a `${{ }}` expression's value into the script before the shell reads it, so a quote or other shell syntax in Claude's answer can break the script or run as a command.
 
 **Note**: Due to GitHub Actions limitations, composite actions cannot expose dynamic outputs. All fields are bundled in the single `structured_output` JSON string.
 
