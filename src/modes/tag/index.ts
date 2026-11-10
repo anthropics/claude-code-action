@@ -18,6 +18,7 @@ import {
   isEntityContext,
   isIssueCommentEvent,
   isPullRequestReviewCommentEvent,
+  usesApiCommitSigning,
 } from "../../github/context";
 import { updateClaudeComment } from "../../github/operations/comments/update-claude-comment";
 import type { GitHubContext } from "../../github/context";
@@ -97,7 +98,7 @@ export async function prepareTagMode({
   // Configure git authentication
   // SSH signing takes precedence if provided
   const useSshSigning = !!context.inputs.sshSigningKey;
-  const useApiCommitSigning = context.inputs.useCommitSigning && !useSshSigning;
+  const useApiCommitSigning = usesApiCommitSigning(context);
 
   if (useSshSigning) {
     // Setup SSH signing for commits

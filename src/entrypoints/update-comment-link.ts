@@ -11,6 +11,7 @@ import {
   parseGitHubContext,
   isPullRequestReviewCommentEvent,
   isEntityContext,
+  usesApiCommitSigning,
 } from "../github/context";
 import type { ParsedGitHubContext } from "../github/context";
 import { GITHUB_SERVER_URL } from "../github/api/config";
@@ -271,7 +272,7 @@ async function run() {
       outputFile: process.env.OUTPUT_FILE,
       prepareSuccess: process.env.PREPARE_SUCCESS !== "false",
       prepareError: process.env.PREPARE_ERROR,
-      useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
+      useCommitSigning: usesApiCommitSigning(context),
     });
 
     process.exit(0);

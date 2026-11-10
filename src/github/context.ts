@@ -131,6 +131,11 @@ export type AutomationContext = BaseContext & {
 // Union type for all contexts
 export type GitHubContext = ParsedGitHubContext | AutomationContext;
 
+/** SSH signing takes precedence over the GitHub API commit signing path. */
+export function usesApiCommitSigning(context: GitHubContext): boolean {
+  return context.inputs.useCommitSigning && !context.inputs.sshSigningKey;
+}
+
 export function parseGitHubContext(): GitHubContext {
   const context = github.context;
 

@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
 import { GITHUB_API_URL, GITHUB_SERVER_URL } from "../github/api/config";
 import type { GitHubContext } from "../github/context";
-import { isEntityContext } from "../github/context";
+import { isEntityContext, usesApiCommitSigning } from "../github/context";
 import { Octokit } from "@octokit/rest";
 import type { AutoDetectedMode } from "../modes/detector";
 
@@ -129,7 +129,7 @@ export async function prepareMcpConfig(
     }
 
     // Include file ops server when commit signing is enabled
-    if (context.inputs.useCommitSigning) {
+    if (usesApiCommitSigning(context)) {
       baseMcpConfig.mcpServers.github_file_ops = {
         command: "bun",
         args: bunServerArgs("src/mcp/github-file-ops-server.ts"),

@@ -9,7 +9,7 @@
 import { $ } from "bun";
 import { execFileSync } from "child_process";
 import type { ParsedGitHubContext } from "../context";
-import { isPullRequestEvent } from "../context";
+import { isPullRequestEvent, usesApiCommitSigning } from "../context";
 import { retryWithBackoff } from "../../utils/retry";
 import type { GitHubPullRequest } from "../types";
 import type { Octokits } from "../api/client";
@@ -339,7 +339,7 @@ export async function setupBranch(
     validateBranchName(newBranch);
 
     // For commit signing, defer branch creation to the file ops server
-    if (context.inputs.useCommitSigning) {
+    if (usesApiCommitSigning(context)) {
       console.log(
         `Branch name generated: ${newBranch} (will be created by file ops server on first commit)`,
       );

@@ -22,6 +22,7 @@ import {
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
   isWorkflowRunEvent,
+  usesApiCommitSigning,
 } from "../github/context";
 import type { GitHubContext } from "../github/context";
 import { detectMode } from "../modes/detector";
@@ -350,7 +351,7 @@ async function run() {
           outputFile: executionFile,
           prepareSuccess,
           prepareError,
-          useCommitSigning: context.inputs.useCommitSigning,
+          useCommitSigning: usesApiCommitSigning(context),
           restoredConfigPaths,
         });
       } catch (error) {
