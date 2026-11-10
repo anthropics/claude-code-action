@@ -231,11 +231,10 @@ All structured output fields are available in the `structured_output` output as 
 **In GitHub Actions expressions:**
 
 ```yaml
-if: fromJSON(steps.analyze.outputs.structured_output).is_flaky == true
-env:
-  CONFIDENCE: ${{ fromJSON(steps.analyze.outputs.structured_output).confidence }}
-run: |
-  echo "Confidence: $CONFIDENCE"
+if: |
+  fromJSON(steps.analyze.outputs.structured_output).is_flaky == true &&
+  fromJSON(steps.analyze.outputs.structured_output).confidence >= 0.7
+run: ./retry-tests.sh
 ```
 
 **In bash with jq:**
