@@ -456,7 +456,8 @@ runs:
       env:
         APP_TOKEN: ${{ steps.run.outputs.github_token }}
       run: |
-        curl -L \
+        # -q comes first and skips ~/.curlrc, which a session can write.
+        curl -q -L \
           --connect-timeout 5 \
           --max-time 10 \
           -X DELETE \

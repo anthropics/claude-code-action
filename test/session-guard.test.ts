@@ -31,7 +31,18 @@ const KEYS = [
   "GIT_CONFIG_VALUE_1",
   "GIT_CONFIG_KEY_2",
   "GIT_CONFIG_VALUE_2",
+  // git exports these into hooks, such as a pre-commit hook running this suite.
+  // If inherited, git would act on the enclosing repository, not the temp one.
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_COMMON_DIR",
+  "GIT_PREFIX",
 ];
+
+// A child process doesn't see deletions from process.env unless env is passed.
+const git = (...args: string[]) =>
+  execFileSync("git", args, { encoding: "utf8", env: { ...process.env } });
 
 describe("session guard", () => {
   let dir: string;
@@ -49,7 +60,7 @@ describe("session guard", () => {
     cwd = process.cwd();
     mkdirSync(join(dir, "home"));
     mkdirSync(join(dir, "repo"));
-    execFileSync("git", ["init", "-q", join(dir, "repo")]);
+    git("init", "-q", join(dir, "repo"));
     process.chdir(join(dir, "repo"));
     process.env.HOME = join(dir, "home");
     process.env.GITHUB_ENV = join(dir, "set_env");
@@ -93,7 +104,7 @@ describe("session guard", () => {
     const configPath = join(dir, "repo", ".git", "config");
     const before = readFileSync(configPath, "utf8");
     const restore = snapshotSessionFiles();
-    execFileSync("git", ["config", "core.fsmonitor", "/tmp/payload"]);
+    git("config", "core.fsmonitor", "/tmp/payload");
     restore();
     expect(readFileSync(configPath, "utf8")).toBe(before);
     expect(warnings()[0]).toContain(".git/config");
@@ -134,6 +145,18 @@ describe("session guard", () => {
     expect(statSync(path).mode & 0o777).toBe(0o640);
   });
 
+  test("keeps the real file's mode when restoring through a symlink", () => {
+    const target = join(dir, "real-gitconfig");
+    writeFileSync(target, "[user]\n");
+    execFileSync("chmod", ["600", target]);
+    const link = join(dir, "home", ".gitconfig");
+    symlinkSync(target, link);
+    const restore = snapshotSessionFiles();
+    writeFileSync(target, "[core]\n");
+    restore();
+    expect(statSync(link).mode & 0o777).toBe(0o600);
+  });
+
   test("replaces a directory a session put in a file's place", () => {
     const path = process.env.GITHUB_ENV!;
     const restore = snapshotSessionFiles();
@@ -141,6 +164,49 @@ describe("session guard", () => {
     mkdirSync(path);
     restore();
     expect(readFileSync(path, "utf8")).toBe("SET_BY_ACTION=1\n");
+  });
+
+  test("does not hang on a FIFO at a tracked path, and removes it", () => {
+    const fifo = join(dir, "repo", ".git", "config.worktree");
+    const restore = snapshotSessionFiles();
+    execFileSync("mkfifo", [fifo]);
+    writeFileSync(process.env.GITHUB_ENV!, "HOME=/tmp/x\n");
+    restore();
+    expect(existsSync(fifo)).toBe(false);
+    expect(readFileSync(process.env.GITHUB_ENV!, "utf8")).toBe(
+      "SET_BY_ACTION=1\n",
+    );
+  });
+
+  test("removes a directory planted at a path that was absent", () => {
+    const planted = join(dir, "home", ".gitconfig");
+    const restore = snapshotSessionFiles();
+    mkdirSync(join(planted, "nested"), { recursive: true });
+    restore();
+    expect(existsSync(planted)).toBe(false);
+  });
+
+  test("restores a config file pulled in through include.path", () => {
+    const included = join(dir, "included.cfg");
+    writeFileSync(included, "[user]\n\tname = x\n");
+    git("config", "--add", "include.path", included);
+    const restore = snapshotSessionFiles();
+    writeFileSync(included, "[core]\n\tfsmonitor = /tmp/payload\n");
+    restore();
+    expect(readFileSync(included, "utf8")).toBe("[user]\n\tname = x\n");
+    expect(warnings()[0]).toContain("a git config file");
+    expect(warnings()[0]).not.toContain(included);
+  });
+
+  test("leaves a file alone when it was not regular before", () => {
+    const path = process.env.GITHUB_PATH!;
+    rmSync(path);
+    mkdirSync(path);
+    const restore = snapshotSessionFiles();
+    rmSync(path, { recursive: true });
+    writeFileSync(path, "/tmp/shims\n");
+    restore();
+    expect(warnings()[0]).toContain("Could not restore GITHUB_PATH");
   });
 
   test("never logs the content of a file", () => {
@@ -157,10 +223,9 @@ describe("session guard", () => {
 
   test("makes git ignore fsmonitor and, when asked, hooks", () => {
     disableGitPrograms({ hooks: true });
-    execFileSync("git", ["config", "core.fsmonitor", "/tmp/payload"]);
-    execFileSync("git", ["config", "core.hooksPath", "hooks"]);
-    const read = (key: string) =>
-      execFileSync("git", ["config", key], { encoding: "utf8" }).trim();
+    git("config", "core.fsmonitor", "/tmp/payload");
+    git("config", "core.hooksPath", "hooks");
+    const read = (key: string) => git("config", key).trim();
     expect(read("core.fsmonitor")).toBe("false");
     expect(read("core.hooksPath")).toBe("/dev/null");
   });
@@ -169,6 +234,12 @@ describe("session guard", () => {
     disableGitPrograms({ hooks: false });
     expect(process.env.GIT_CONFIG_COUNT).toBe("1");
     expect(process.env.GIT_CONFIG_KEY_0).toBe("core.fsmonitor");
+  });
+
+  test("does not add a setting twice", () => {
+    disableGitPrograms({ hooks: true });
+    disableGitPrograms({ hooks: true });
+    expect(process.env.GIT_CONFIG_COUNT).toBe("2");
   });
 
   test("keeps existing GIT_CONFIG entries", () => {

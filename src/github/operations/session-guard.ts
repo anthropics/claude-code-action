@@ -1,26 +1,68 @@
 import * as core from "@actions/core";
 import { execFileSync } from "child_process";
-import { lstatSync, readFileSync, rmSync, writeFileSync, type Stats } from "fs";
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "fs";
 import { homedir } from "os";
-import { isAbsolute, join } from "path";
+import { isAbsolute, join, resolve } from "path";
 
 type TrackedFile = { label: string; path: string };
 
+// "opaque" is anything that can't be saved and compared: a directory, a FIFO, a
+// device, a file too large to hold, or one that can't be read.
 type FileSnapshot = TrackedFile & {
-  content: Buffer | null;
-  mode?: number;
+  state: "absent" | "file" | "opaque";
   wasSymlink: boolean;
+  content?: Buffer;
+  mode?: number;
 };
+
+const MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024;
 
 function resolveGitPath(file: string): string | null {
   try {
     const path = execFileSync("git", ["rev-parse", "--git-path", file], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
+      env: { ...process.env },
     }).trim();
     return isAbsolute(path) ? path : join(process.cwd(), path);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Every config file git reads here, which includes those pulled in through
+ * include.path. actions/checkout keeps its config in one of those.
+ */
+function gitConfigFilesInUse(): TrackedFile[] {
+  try {
+    const listing = execFileSync(
+      "git",
+      ["config", "--list", "--includes", "--show-origin", "--name-only", "-z"],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        env: { ...process.env },
+      },
+    );
+    return listing
+      .split("\0")
+      .filter((token, index) => index % 2 === 0 && token.startsWith("file:"))
+      .map((origin) => ({
+        label: "a git config file",
+        path: origin.slice("file:".length),
+      }));
+  } catch {
+    return [];
   }
 }
 
@@ -42,35 +84,54 @@ function filesLaterStepsTrust(): TrackedFile[] {
       join(process.env.XDG_CONFIG_HOME || join(home, ".config"), "git/config"),
     ],
   ];
-  return candidates.flatMap(([label, path]) => (path ? [{ label, path }] : []));
+  const named = candidates.flatMap(([label, path]) =>
+    path ? [{ label, path }] : [],
+  );
+
+  const seen = new Set<string>();
+  return [...named, ...gitConfigFilesInUse()].filter(({ path }) => {
+    const absolute = resolve(path);
+    if (seen.has(absolute)) return false;
+    seen.add(absolute);
+    return true;
+  });
 }
 
 function readSnapshot(file: TrackedFile): FileSnapshot {
-  let stats: Stats | undefined;
+  let wasSymlink: boolean;
   try {
-    stats = lstatSync(file.path);
+    wasSymlink = lstatSync(file.path).isSymbolicLink();
   } catch {
-    return { ...file, content: null, wasSymlink: false };
+    return { ...file, state: "absent", wasSymlink: false };
   }
+
+  let fd: number | undefined;
   try {
+    // Non-blocking, because opening a FIFO would otherwise wait for a writer.
+    fd = openSync(file.path, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0));
+    const stats = fstatSync(fd);
+    if (!stats.isFile() || stats.size > MAX_SNAPSHOT_BYTES) {
+      return { ...file, state: "opaque", wasSymlink };
+    }
     return {
       ...file,
-      content: readFileSync(file.path),
-      // A symlink's own mode says nothing about the file it points to.
-      mode: stats.isSymbolicLink() ? undefined : stats.mode & 0o777,
-      wasSymlink: stats.isSymbolicLink(),
+      state: "file",
+      wasSymlink,
+      content: readFileSync(fd),
+      mode: stats.mode & 0o777,
     };
   } catch {
-    return { ...file, content: null, wasSymlink: stats.isSymbolicLink() };
+    return { ...file, state: "opaque", wasSymlink };
+  } finally {
+    if (fd !== undefined) closeSync(fd);
   }
 }
 
 function isUnchanged(before: FileSnapshot, now: FileSnapshot): boolean {
-  if (before.wasSymlink !== now.wasSymlink) return false;
-  if (before.content === null || now.content === null) {
-    return before.content === now.content;
+  if (before.state !== now.state || before.wasSymlink !== now.wasSymlink) {
+    return false;
   }
-  return before.content.equals(now.content);
+  return before.state !== "file" || before.content!.equals(now.content!);
 }
 
 /**
@@ -91,9 +152,15 @@ export function snapshotSessionFiles(): () => void {
     for (const before of snapshots) {
       try {
         if (isUnchanged(before, readSnapshot(before))) continue;
+        if (before.state === "opaque") {
+          core.warning(
+            `Could not restore ${before.label} after the session: it was not a regular file before`,
+          );
+          continue;
+        }
         rmSync(before.path, { force: true, recursive: true });
-        if (before.content !== null) {
-          writeFileSync(before.path, before.content, { mode: before.mode });
+        if (before.state === "file") {
+          writeFileSync(before.path, before.content!, { mode: before.mode });
         }
         restored.push(before.label);
       } catch (error) {
@@ -122,7 +189,15 @@ export function disableGitPrograms({ hooks }: { hooks: boolean }): void {
   if (hooks) settings.push(["core.hooksPath", "/dev/null"]);
 
   let count = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? "", 10) || 0;
+  const current = new Map<string, string | undefined>();
+  for (let i = 0; i < count; i++) {
+    current.set(
+      process.env[`GIT_CONFIG_KEY_${i}`] ?? "",
+      process.env[`GIT_CONFIG_VALUE_${i}`],
+    );
+  }
   for (const [key, value] of settings) {
+    if (current.get(key) === value) continue;
     process.env[`GIT_CONFIG_KEY_${count}`] = key;
     process.env[`GIT_CONFIG_VALUE_${count}`] = value;
     count++;
