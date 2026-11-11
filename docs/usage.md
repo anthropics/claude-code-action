@@ -85,6 +85,7 @@ jobs:
 | `exclude_comments_by_actor`      | Comma-separated list of actor usernames to EXCLUDE from comments. Supports the `*[bot]` wildcard to match all bot accounts. If an actor matches both lists, exclusion takes priority                                                   | No       | ""                          |
 | `allowed_bots`                   | Comma-separated list of allowed bot usernames, or '\*' to allow all bots. Empty string (default) allows no bots. **⚠️ On public repos with `'*'`, external Apps may be able to invoke this action.** See [Security](./security.md)     | No       | ""                          |
 | `allowed_non_write_users`        | **⚠️ RISKY**: Comma-separated list of usernames to allow without write permissions, or '\*' for all users. Only works with `github_token` input. See [Security](./security.md)                                                         | No       | ""                          |
+| `setup_sandbox`                  | Install Bash sandbox dependencies on Linux. See [Bash sandbox setup](#bash-sandbox-setup).                                                                                                                                             | No       | `false`                     |
 | `path_to_claude_code_executable` | Optional path to a custom Claude Code executable. Skips automatic installation. Useful for Nix, custom containers, or specialized environments                                                                                         | No       | ""                          |
 | `path_to_bun_executable`         | Optional path to a custom Bun executable. Skips automatic Bun installation. Useful for Nix, custom containers, or specialized environments                                                                                             | No       | ""                          |
 | `plugin_marketplaces`            | Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., see example in workflow above). Marketplaces are added before plugin installation                                                             | No       | ""                          |
@@ -193,6 +194,19 @@ For a comprehensive guide on migrating from v0.x to v1.0, including step-by-step
       Analyze PR #${{ github.event.pull_request.number }} for security issues.
       Focus on the changed files in this PR.
 ```
+
+## Bash sandbox setup
+
+Set `setup_sandbox: true` in the action's `with` block when your Claude Code
+settings enable the Bash sandbox. The action attempts to install `bubblewrap`
+and `socat` on Linux runners with `apt-get` and `sudo`. On GitHub-hosted Ubuntu
+runners it also lifts the AppArmor restriction on unprivileged user namespaces
+if the kernel exposes that setting.
+
+On self-hosted runners, configure any required AppArmor profile through the
+runner's administrator. Set `sandbox.failIfUnavailable: true` in your Claude
+Code settings to require the sandbox at runtime. See the
+[Claude Code sandbox setup guide](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2).
 
 ## Structured Outputs
 

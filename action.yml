@@ -44,6 +44,10 @@ inputs:
       only use for workflows with very limited permissions and validate all outputs.
     required: false
     default: ""
+  setup_sandbox:
+    description: "Install dependencies for the Bash sandbox on Linux runners"
+    required: false
+    default: "false"
   include_comments_by_actor:
     description: "Comma-separated list of actor usernames to INCLUDE in comments. Supports wildcards: '*[bot]' matches all bots, 'dependabot[bot]' matches specific bot. Empty (default) includes all actors."
     required: false
@@ -222,14 +226,20 @@ runs:
         cd ${GITHUB_ACTION_PATH}
         bun install --production
 
-    - name: Install subprocess isolation dependencies
-      # Install subprocess isolation dependencies when processing content from non-write users.
-      # Best-effort: skips on non-Linux or when sudo/apt unavailable (self-hosted runners).
-      if: ${{ inputs.allowed_non_write_users != '' && runner.os == 'Linux' }}
+    - name: Install sandbox dependencies
+      # Best-effort setup for Bash sandboxing and subprocess isolation.
+      if: ${{ runner.os == 'Linux' && (inputs.setup_sandbox == 'true' || inputs.allowed_non_write_users != '') }}
       continue-on-error: true
       shell: bash
+      env:
+        SETUP_SANDBOX: ${{ inputs.setup_sandbox == 'true' }}
+        SETUP_SUBPROCESS_ISOLATION: ${{ inputs.allowed_non_write_users != '' }}
+        RUNNER_ENVIRONMENT: ${{ runner.environment }}
       run: |
         if [ "${CLAUDE_CODE_SUBPROCESS_ENV_SCRUB:-}" = "0" ]; then
+          SETUP_SUBPROCESS_ISOLATION=false
+        fi
+        if [ "$SETUP_SANDBOX" != "true" ] && [ "$SETUP_SUBPROCESS_ISOLATION" != "true" ]; then
           echo "Subprocess isolation opted out via CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=0"
           exit 0
         fi
@@ -241,9 +251,12 @@ runs:
           done
         fi
         # Ubuntu 24.04+ restricts unprivileged user namespaces via AppArmor.
-        # The sysctl doesn't exist on older kernels — that's fine.
-        if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ] && command -v sudo >/dev/null; then
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        # Keep the existing workaround for subprocess isolation. For Bash sandbox
+        # setup alone, apply it only on GitHub-hosted runners.
+        if [ "$SETUP_SUBPROCESS_ISOLATION" = "true" ] || [ "$RUNNER_ENVIRONMENT" = "github-hosted" ]; then
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ] && command -v sudo >/dev/null; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
         fi
 
     - name: Pin bun binary for post-steps
