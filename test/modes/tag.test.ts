@@ -146,6 +146,16 @@ describe("Tag Mode", () => {
         );
       });
 
+      test.each([
+        `--disallowedTools Bash(git:*)`,
+        `--disallowedTools="Bash(git commit:*)"`,
+        `--disallowedTools "Bash(git comm*)"`,
+      ])("carries over %s", async (args) => {
+        expect(await prepare(args)).toContain(
+          `--disallowedTools "Bash(/action/scripts/git-commit.sh:*)`,
+        );
+      });
+
       test("a deny of git push also denies the push wrapper", async () => {
         expect(await prepare(`--disallowedTools "Bash(git push:*)"`)).toContain(
           `--disallowedTools "Bash(/action/scripts/git-push.sh:*)"`,

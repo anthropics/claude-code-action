@@ -2,41 +2,54 @@ import { describe, test, expect } from "bun:test";
 import {
   deniesCommand,
   parseAllowedTools,
-  parseDisallowedTools,
+  parseDeniedBashPatterns,
 } from "../../src/modes/agent/parse-tools";
 
-describe("parseDisallowedTools", () => {
-  test("reads both spellings and ignores allowed tools", () => {
-    expect(
-      parseDisallowedTools(
-        `--allowedTools "Read" --disallowedTools "Bash(git commit:*),WebFetch" --disallowed-tools Grep`,
-      ),
-    ).toEqual(["Bash(git commit:*)", "WebFetch", "Grep"]);
+describe("parseDeniedBashPatterns", () => {
+  test.each([
+    [`--disallowedTools "Bash(git commit:*)"`, ["git commit:*"]],
+    [`--disallowed-tools "Bash(git commit:*)"`, ["git commit:*"]],
+    [`--disallowedTools Bash(git:*)`, ["git:*"]],
+    [`--disallowedTools="Bash(git commit:*)"`, ["git commit:*"]],
+    [`--disallowedTools "Bash(a:*),WebFetch,Bash(b:*)"`, ["a:*", "b:*"]],
+    [`--disallowedTools "Bash(a:*) Bash(b:*)"`, ["a:*", "b:*"]],
+    [`--disallowedTools "Bash(a:*)" "Bash(b:*)"`, ["a:*", "b:*"]],
+    [`--disallowedTools Bash(a:*) --disallowedTools Bash(b:*)`, ["a:*", "b:*"]],
+    [`--allowedTools "Bash(git commit:*)"`, []],
+    [`# --disallowedTools "Bash(git commit:*)"`, []],
+    ["", []],
+  ])("reads %s", (args, expected) => {
+    expect(parseDeniedBashPatterns(args as string)).toEqual(
+      expected as string[],
+    );
   });
 });
 
 describe("deniesCommand", () => {
   test.each([
-    "Bash(git commit:*)",
-    "Bash(git commit *)",
-    "Bash(git commit*)",
-    "Bash(git commit)",
-    "Bash(git:*)",
-    "Bash(git *)",
-  ])("%p covers git commit", (rule) => {
-    expect(deniesCommand([rule], "git commit")).toBe(true);
+    "git commit:*",
+    "git commit *",
+    "git commit*",
+    "git comm*",
+    "gi*",
+    "*git commit*",
+    "git:*",
+    "git *",
+    "*",
+  ])("%p covers git commit", (pattern) => {
+    expect(deniesCommand([pattern], "git commit")).toBe(true);
   });
 
   test.each([
-    "Bash(git commit --amend:*)",
-    "Bash(git committed:*)",
-    "Bash(git push:*)",
-    "Bash(gi:*)",
-    "Bash(*)",
-    "Bash",
-    "WebFetch",
-  ])("%p doesn't cover git commit", (rule) => {
-    expect(deniesCommand([rule], "git commit")).toBe(false);
+    "git commit --amend:*",
+    "git committed:*",
+    "git commit",
+    "git push:*",
+    "gi:*",
+    "git.commit:*",
+    "",
+  ])("%p doesn't cover git commit", (pattern) => {
+    expect(deniesCommand([pattern], "git commit")).toBe(false);
   });
 });
 
