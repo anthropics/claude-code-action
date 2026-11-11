@@ -137,6 +137,7 @@ Opt out if your workflow relies on `--allowedTools` as a strict list, because au
 - **Unsupported model or organization setting:** auto mode needs a [supported model](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode), and an administrator can turn it off. The session then starts in Manual. For `@claude` mentions, the action logs a warning and switches to `acceptEdits`. With a `prompt`, it stays in Manual and denies what no rule covers.
 - **`allowed_non_write_users` is set:** sessions keep the earlier defaults, because anyone's text reaches these runs, so the review can't pass a call those defaults deny. Add `--permission-mode auto` to opt in.
 - **`ANTHROPIC_BASE_URL` is set:** sessions keep the earlier defaults, because the safety check depends on what a gateway passes through. Add `--permission-mode auto` once your gateway supports it.
+- **The `settings` input sets `env.ANTHROPIC_BASE_URL`, or a `permissions.defaultMode` other than `auto`:** sessions keep the earlier defaults. Workflows with a prompt then use your mode. For `@claude` mentions, `acceptEdits` still overrides it, so pass yours in `claude_args`.
 - **`--dangerously-skip-permissions`:** this still takes priority over any mode.
 
 ### Provider notes
@@ -148,7 +149,7 @@ Opt out if your workflow relies on `--allowedTools` as a strict list, because au
 
 - Tool calls that used to be denied can now run if the review passes.
 - Allow rules that auto mode ignores no longer approve those commands on their own.
-- This flag overrides a `permissions.defaultMode` in your settings. To keep yours, pass it in `claude_args`.
+- The action checks only the `settings` input, not other settings files such as `.claude/settings.json` in your repository. If one of those points `ANTHROPIC_BASE_URL` to a gateway or sets `permissions.defaultMode`, auto mode still applies, so set the mode you want in `claude_args`.
 
 ## Upgrading from v0.x?
 

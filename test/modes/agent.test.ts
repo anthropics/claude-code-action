@@ -20,10 +20,12 @@ describe("Agent Mode", () => {
 
   const savedBaseUrl = process.env.ANTHROPIC_BASE_URL;
   const savedNonWriteUsers = process.env.ALLOWED_NON_WRITE_USERS;
+  const savedSettings = process.env.INPUT_SETTINGS;
 
   beforeEach(() => {
     delete process.env.ANTHROPIC_BASE_URL;
     delete process.env.ALLOWED_NON_WRITE_USERS;
+    delete process.env.INPUT_SETTINGS;
     exportVariableSpy = spyOn(core, "exportVariable").mockImplementation(
       () => {},
     );
@@ -49,6 +51,8 @@ describe("Agent Mode", () => {
     } else {
       process.env.ALLOWED_NON_WRITE_USERS = savedNonWriteUsers;
     }
+    if (savedSettings === undefined) delete process.env.INPUT_SETTINGS;
+    else process.env.INPUT_SETTINGS = savedSettings;
     exportVariableSpy?.mockClear();
     setOutputSpy?.mockClear();
     configureGitAuthSpy?.mockClear();
@@ -130,6 +134,20 @@ describe("Agent Mode", () => {
       githubToken: "test-token",
     });
     expect(behindGateway.claudeArgs).toBe(
+      "--model claude-sonnet-4 --max-turns 10",
+    );
+    delete process.env.ANTHROPIC_BASE_URL;
+
+    // A permission mode in the settings input isn't replaced by the default
+    process.env.INPUT_SETTINGS = JSON.stringify({
+      permissions: { defaultMode: "dontAsk" },
+    });
+    const withSettingsMode = await prepareAgentMode({
+      context: contextWithCustomArgs,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+    expect(withSettingsMode.claudeArgs).toBe(
       "--model claude-sonnet-4 --max-turns 10",
     );
 
