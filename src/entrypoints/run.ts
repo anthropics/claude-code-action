@@ -23,7 +23,7 @@ import {
   isPullRequestReviewCommentEvent,
   isWorkflowRunEvent,
 } from "../github/context";
-import type { GitHubContext } from "../github/context";
+import type { GitHubContext, ParsedGitHubContext } from "../github/context";
 import { detectMode } from "../modes/detector";
 import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
@@ -147,6 +147,74 @@ async function writeStepSummary(executionFile: string): Promise<void> {
   }
 }
 
+const MAX_AGENT_SUMMARY_COMMENT_LENGTH = 60_000;
+
+/**
+ * Post the final Claude response to a pull request for agent-mode workflows.
+ */
+async function postAgentSummaryComment(
+  executionFile: string,
+  context: ParsedGitHubContext,
+  octokit: Octokits,
+): Promise<void> {
+  let summary: string | undefined;
+
+  try {
+    const turns: Turn[] = JSON.parse(readFileSync(executionFile, "utf-8"));
+    for (let index = turns.length - 1; index >= 0; index--) {
+      const turn = turns[index];
+      if (
+        turn?.type === "result" &&
+        turn.subtype === "success" &&
+        typeof turn.result === "string"
+      ) {
+        summary = turn.result.trim();
+        break;
+      }
+    }
+  } catch (error) {
+    console.error(`Failed to read Claude's final response: ${error}`);
+    return;
+  }
+
+  if (!summary) {
+    console.log("Skipping PR summary comment: no final response was found");
+    return;
+  }
+
+  summary = redactSecrets(summary);
+  if (summary.length > MAX_AGENT_SUMMARY_COMMENT_LENGTH) {
+    const truncationNotice = "\n\n_(Summary truncated.)_";
+    summary = `${summary.slice(
+      0,
+      MAX_AGENT_SUMMARY_COMMENT_LENGTH - truncationNotice.length,
+    )}${truncationNotice}`;
+  }
+
+  const serverUrl = (
+    process.env.GITHUB_SERVER_URL || "https://github.com"
+  ).replace(/\/$/, "");
+  const runUrl = [
+    serverUrl,
+    context.repository.owner,
+    context.repository.repo,
+    "actions",
+    "runs",
+    context.runId,
+  ].join("/");
+  const body = `${summary}\n\n---\n\n[View workflow run](${runUrl})`;
+
+  await octokit.rest.issues.createComment({
+    owner: context.repository.owner,
+    repo: context.repository.repo,
+    issue_number: context.entityNumber,
+    body,
+  });
+  console.log(
+    `Posted final Claude response to pull request #${context.entityNumber}`,
+  );
+}
+
 async function run() {
   let githubToken: string | undefined;
   let commentId: number | undefined;
@@ -162,6 +230,7 @@ async function run() {
   // Paths reverted to the PR base branch, which cleanup must not commit back
   // onto the PR author's branch. Empty unless restoreConfigFromBase ran.
   let restoredConfigPaths: string[] = [];
+  let agentMode = false;
   // Track whether we've completed prepare phase, so we can attribute errors correctly
   let prepareCompleted = false;
   try {
@@ -169,6 +238,7 @@ async function run() {
     const actionInputsPresent = collectActionInputsPresence();
     context = parseGitHubContext();
     const modeName = detectMode(context);
+    agentMode = modeName === "agent";
     console.log(
       `Auto-detected mode: ${modeName} for event: ${context.eventName}`,
     );
@@ -355,6 +425,25 @@ async function run() {
         });
       } catch (error) {
         console.error("Error updating comment with job link:", error);
+      }
+    }
+
+    if (
+      agentMode &&
+      context &&
+      isEntityContext(context) &&
+      context.isPR &&
+      process.env.POST_SUMMARY === "true" &&
+      githubToken &&
+      octokit &&
+      claudeSuccess &&
+      executionFile &&
+      existsSync(executionFile)
+    ) {
+      try {
+        await postAgentSummaryComment(executionFile, context, octokit);
+      } catch (error) {
+        console.error("Error posting final Claude response:", error);
       }
     }
 
