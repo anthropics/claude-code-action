@@ -17,6 +17,10 @@ import { GITHUB_SERVER_URL } from "../github/api/config";
 import { checkAndCommitOrDeleteBranch } from "../github/operations/branch-cleanup";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 import { encodeBranchNameForUrl } from "../github/operations/comments/common";
+import {
+  readDefaultPullRequestTemplate,
+  type PullRequestTemplate,
+} from "../github/operations/comments/pull-request-template";
 
 export type UpdateCommentLinkParams = {
   commentId: number;
@@ -129,8 +133,10 @@ export async function updateCommentLink(
 
   // Check if we need to add PR URL when we have a new branch
   let prLink = "";
+  let pullRequestTemplate: PullRequestTemplate | undefined;
   // If claudeBranch is set, it means we created a new branch (for issues or closed/merged PRs)
   if (claudeBranch && !shouldDeleteBranch) {
+    const compareUrl = `${serverUrl}/${owner}/${repo}/compare/${encodeBranchNameForUrl(baseBranch)}...${encodeBranchNameForUrl(claudeBranch)}`;
     // Check if comment already contains a PR URL
     const serverUrlPattern = serverUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const prUrlPattern = new RegExp(
@@ -154,18 +160,30 @@ export async function updateCommentLink(
           (comparison.files && comparison.files.length > 0)
         ) {
           const entityType = context.isPR ? "PR" : "Issue";
-          const prTitle = encodeURIComponent(
-            `${entityType} #${context.entityNumber}: Changes from Claude`,
-          );
-          const prBody = encodeURIComponent(
-            `This PR addresses ${entityType.toLowerCase()} #${context.entityNumber}\n\nGenerated with [Claude Code](https://claude.ai/code)`,
-          );
-          const prUrl = `${serverUrl}/${owner}/${repo}/compare/${encodeBranchNameForUrl(baseBranch)}...${encodeBranchNameForUrl(claudeBranch)}?quick_pull=1&title=${prTitle}&body=${prBody}`;
+          const params = new URLSearchParams({
+            quick_pull: "1",
+            title: `${entityType} #${context.entityNumber}: Changes from Claude`,
+            body: `This PR addresses ${entityType.toLowerCase()} #${context.entityNumber}\n\nGenerated with [Claude Code](https://claude.ai/code)`,
+          });
+          const prUrl = `${compareUrl}?${params}`;
           prLink = `\n[Create a PR](${prUrl})`;
         }
       } catch (error) {
         console.error("Error checking for changes in branch:", error);
         // Don't fail the entire update if we can't check for changes
+      }
+    }
+
+    if (prLink || (branchLink && containsPRUrl)) {
+      try {
+        const body = await readDefaultPullRequestTemplate(
+          octokit.graphql,
+          owner,
+          repo,
+        );
+        if (body) pullRequestTemplate = { compareUrl, body };
+      } catch {
+        console.warn("Could not read the default pull request template");
       }
     }
   }
@@ -221,6 +239,7 @@ export async function updateCommentLink(
     jobUrl,
     branchLink,
     prLink,
+    pullRequestTemplate,
     branchName: shouldDeleteBranch || !branchLink ? undefined : claudeBranch,
     triggerUsername,
     errorDetails,

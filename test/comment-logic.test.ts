@@ -14,6 +14,70 @@ describe("updateCommentBody", () => {
     triggerUsername: undefined,
   };
 
+  describe("pull request template", () => {
+    const compareUrl =
+      "https://github.com/owner/repo/compare/main...claude/task";
+    const templateBody = "## Test plan\n- [ ] Verify café (local)";
+    const pullRequestTemplate = { compareUrl, body: templateBody };
+
+    it("appends the template to an Action-generated link", () => {
+      const link = `${compareUrl}?quick_pull=1&title=Fix+issue&body=Fixes+%23265`;
+      const result = updateCommentBody({
+        ...baseInput,
+        prLink: `[Create a PR](${link})`,
+        pullRequestTemplate,
+      });
+
+      const url = new URL(result.match(/\[Create PR ➔\]\(([^)]+)\)/)![1]!);
+      expect(url.searchParams.get("title")).toBe("Fix issue");
+      expect(url.searchParams.get("body")).toBe(
+        `Fixes #265\n\n${templateBody}`,
+      );
+      expect(url.searchParams.get("quick_pull")).toBe("1");
+    });
+
+    it("preserves the description in a model-generated link", () => {
+      const link =
+        "https://github.com/owner/repo/compare/main...claude%2Ftask?body=Change+summary";
+      const result = updateCommentBody({
+        ...baseInput,
+        currentBody: `Done.\n[Create a PR](${link})`,
+        pullRequestTemplate,
+      });
+
+      const url = new URL(result.match(/\[Create PR ➔\]\(([^)]+)\)/)![1]!);
+      expect(url.searchParams.get("body")).toBe(
+        `Change summary\n\n${templateBody}`,
+      );
+    });
+
+    it.each([
+      `${compareUrl}?template=custom.md`,
+      `${compareUrl}?body=${encodeURIComponent(templateBody)}`,
+      "https://github.com/another/repo/compare/main...claude/task?body=Existing",
+    ])(
+      "preserves an existing template selection, template body, or unrelated URL",
+      (link) => {
+        const result = updateCommentBody({
+          ...baseInput,
+          prLink: `[Create a PR](${link})`,
+          pullRequestTemplate,
+        });
+        expect(result).toContain(`[Create PR ➔](${link})`);
+      },
+    );
+
+    it("preserves the original link if the template makes it too long", () => {
+      const link = `${compareUrl}?body=Existing`;
+      const result = updateCommentBody({
+        ...baseInput,
+        prLink: `[Create a PR](${link})`,
+        pullRequestTemplate: { compareUrl, body: "x".repeat(8192) },
+      });
+      expect(result).toContain(`[Create PR ➔](${link})`);
+    });
+  });
+
   describe("working message replacement", () => {
     it("includes success message header with duration", () => {
       const input = {
