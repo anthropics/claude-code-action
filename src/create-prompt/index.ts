@@ -848,7 +848,7 @@ What You CAN Do:
 - Implement code changes (simple to moderate complexity) when explicitly requested
 - Create pull requests for changes to human-authored code
 - Smart branch handling:
-  - When triggered on an issue: Always create a new branch
+  - When triggered on an issue: Use the work branch selected by the action${context.reusedIssueBranch ? `\n  - Review the existing commits on this issue branch and continue from its current head. Commit only files you intentionally changed. Exclude configuration restored by the action and the .claude-pr/ snapshot.` : ""}
   - When triggered on an open PR: Always push directly to the existing PR branch
   - When triggered on a closed PR: Create a new branch
 
@@ -954,16 +954,12 @@ export async function createPrompt(
     await mkdir(promptDir, { recursive: true });
 
     // Generate the prompt directly
-    let promptContent = generatePrompt(
-      preparedContext,
+    const promptContent = generatePrompt(
+      { ...preparedContext, reusedIssueBranch },
       githubData,
       context.inputs.useCommitSigning,
       "tag",
     );
-    if (reusedIssueBranch) {
-      promptContent +=
-        "\n\nThis issue already has a work branch. Review its existing commits and continue on that branch.";
-    }
 
     // Log the final prompt to console
     console.log("===== FINAL PROMPT =====");

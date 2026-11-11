@@ -111,4 +111,5 @@ export type EventData =
 export type PreparedContext = CommonFields & {
   eventData: EventData;
   githubContext?: GitHubContext;
+  reusedIssueBranch?: boolean;
 };

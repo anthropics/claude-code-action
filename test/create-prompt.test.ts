@@ -155,6 +155,20 @@ describe("generatePrompt", () => {
     expect(prompt).toContain("<trigger_username>Unknown</trigger_username>");
     expect(prompt).toContain("[user1 at 2023-01-01T01:00:00Z]: First comment"); // from formatted comments
     expect(prompt).not.toContain("filename\tstatus\tadditions\tdeletions\tsha"); // since it's not a PR
+
+    const resumedPrompt = generatePrompt(
+      { ...envVars, reusedIssueBranch: true },
+      mockGitHubData,
+      false,
+      "tag",
+    );
+    expect(resumedPrompt).toContain(
+      "Review the existing commits on this issue branch",
+    );
+    expect(resumedPrompt).toContain(
+      "Exclude configuration restored by the action",
+    );
+    expect(resumedPrompt).not.toContain("Always create a new branch");
   });
 
   test("should generate prompt for pull_request_review event", async () => {
