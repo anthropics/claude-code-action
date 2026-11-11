@@ -1,6 +1,9 @@
 import * as core from "@actions/core";
 import type { Octokit } from "@octokit/rest";
-import { parseAllowedTools } from "../../modes/agent/parse-tools";
+import {
+  parseAllowedTools,
+  stripShellComments,
+} from "../../modes/agent/parse-tools";
 import { retryWithBackoff } from "../../utils/retry";
 import type { ParsedGitHubContext } from "../context";
 
@@ -74,6 +77,9 @@ export const UNTRUSTED_PR_DISALLOWED_TOOLS = [
   "Bash(git -c:*)",
 ];
 
+const SKIPS_PERMISSION_CHECKS =
+  /--(allow-)?dangerously-skip-permissions|--permission-mode[=\s]+["']?bypassPermissions/;
+
 function getPrAuthor(context: ParsedGitHubContext): string | undefined {
   const { payload } = context;
   if ("pull_request" in payload) {
@@ -85,6 +91,33 @@ function getPrAuthor(context: ParsedGitHubContext): string | undefined {
     return payload.issue.user?.login;
   }
   return undefined;
+}
+
+type LookupError = Error & { retryable: boolean };
+
+/**
+ * Reduces a failed API call to its HTTP status, so that nothing else from the
+ * error can reach the workflow log, and decides whether to try again. A 404 (not
+ * a user account) or a plain 403 won't change, but GitHub also uses 403 for rate
+ * limits. Whatever the outcome, a failed lookup counts as untrusted.
+ */
+function toLookupError(error: unknown): LookupError {
+  const { status, response } = error as {
+    status?: number;
+    response?: { headers?: Record<string, string | number | undefined> };
+  };
+  const headers = response?.headers;
+  const rateLimited =
+    status === 429 ||
+    (status === 403 &&
+      (headers?.["retry-after"] !== undefined ||
+        String(headers?.["x-ratelimit-remaining"]) === "0"));
+  return Object.assign(
+    new Error(status === undefined ? "no response" : `HTTP ${status}`),
+    {
+      retryable: status === undefined || status >= 500 || rateLimited,
+    },
+  );
 }
 
 /**
@@ -104,26 +137,28 @@ async function isPrAuthorTrusted(
 
   try {
     const response = await retryWithBackoff(
-      () =>
-        octokit.repos.getCollaboratorPermissionLevel({
-          owner: context.repository.owner,
-          repo: context.repository.repo,
-          username: author,
-        }),
+      async () => {
+        try {
+          return await octokit.repos.getCollaboratorPermissionLevel({
+            owner: context.repository.owner,
+            repo: context.repository.repo,
+            username: author,
+          });
+        } catch (error) {
+          throw toLookupError(error);
+        }
+      },
       {
         initialDelayMs: 1000,
-        // A 404 (not a user account) or 403 won't change on a retry.
-        shouldRetry: (error) => {
-          const { status } = error as Error & { status?: number };
-          return status === undefined || status === 429 || status >= 500;
-        },
+        shouldRetry: (error) => (error as LookupError).retryable,
       },
     );
     const { permission } = response.data;
     return permission === "admin" || permission === "write";
   } catch (error) {
+    // Only the bounded text from toLookupError reaches the log.
     core.warning(
-      `Could not check repository access for pull request author ${author}, treating them as untrusted: ${error}`,
+      `Could not check repository access for pull request author ${author}, treating them as untrusted: ${(error as Error).message}`,
     );
     return false;
   }
@@ -145,15 +180,16 @@ function isDenied(rule: string): boolean {
 /**
  * Returns the tools to deny when the session works on a pull request from an
  * author without write access, or an empty list when no restriction applies.
- * Workflows opt in with restrict_untrusted_prs: true.
+ * On by default: only restrict_untrusted_prs: false turns it off, so a mistyped
+ * value keeps the restriction.
  */
 export async function getUntrustedPrDisallowedTools(
   octokit: Octokit,
   context: ParsedGitHubContext,
 ): Promise<string[]> {
-  const enabled =
-    process.env.RESTRICT_UNTRUSTED_PRS?.trim().toLowerCase() === "true";
-  if (!enabled || !context.isPR) {
+  const disabled =
+    process.env.RESTRICT_UNTRUSTED_PRS?.trim().toLowerCase() === "false";
+  if (disabled || !context.isPR) {
     return [];
   }
   if (await isPrAuthorTrusted(octokit, context)) {
@@ -161,15 +197,23 @@ export async function getUntrustedPrDisallowedTools(
   }
 
   core.warning(
-    `The author of pull request #${context.entityNumber} does not have write access, so commands that run code from the checkout are denied (restrict_untrusted_prs).`,
+    `The author of pull request #${context.entityNumber} is not confirmed to have write access, so commands that run code from the checkout are denied. Set restrict_untrusted_prs to "false" to turn this off.`,
   );
 
-  const uncovered = parseAllowedTools(process.env.CLAUDE_ARGS || "").filter(
+  // These warnings report a count and fixed text, not the content of claude_args,
+  // which is never printed to the workflow log.
+  const claudeArgs = process.env.CLAUDE_ARGS || "";
+  const uncovered = parseAllowedTools(claudeArgs).filter(
     (tool) => tool === "Bash" || (tool.startsWith("Bash(") && !isDenied(tool)),
   );
   if (uncovered.length > 0) {
     core.warning(
-      `These rules in claude_args stay allowed. Check that they cannot run code from the pull request: ${uncovered.join(", ")}`,
+      `${uncovered.length} Bash rule(s) in claude_args are not on the deny list and stay allowed. Check that they cannot run code from the pull request.`,
+    );
+  }
+  if (SKIPS_PERMISSION_CHECKS.test(stripShellComments(claudeArgs))) {
+    core.warning(
+      "claude_args turns off permission checks, so commands that are not on the deny list run without approval.",
     );
   }
 

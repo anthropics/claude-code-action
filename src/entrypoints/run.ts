@@ -295,9 +295,13 @@ async function run() {
     // Deny commands that run checkout code on PRs from authors without write
     // access. These are passed separately because text added to claudeArgs can
     // be lost: a comment at the end of the user's claude_args would swallow it.
-    const disallowedTools = isEntityContext(context)
-      ? await getUntrustedPrDisallowedTools(octokit.rest, context)
-      : [];
+    // Tag mode sets claudeBranch only when it branched from the base instead of
+    // checking out the PR's head, as for a closed or merged PR.
+    const checkedOutPrHead = modeName !== "tag" || !claudeBranch;
+    const disallowedTools =
+      isEntityContext(context) && checkedOutPrHead
+        ? await getUntrustedPrDisallowedTools(octokit.rest, context)
+        : [];
 
     const claudeResult: ClaudeRunResult = await runClaude(promptConfig.path, {
       claudeArgs: prepareResult.claudeArgs,

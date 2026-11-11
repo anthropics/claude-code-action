@@ -45,9 +45,9 @@ inputs:
     required: false
     default: ""
   restrict_untrusted_prs:
-    description: "On pull requests whose author does not have write access, deny commands that commonly run code from the checkout (package managers, test runners, interpreters, shells), even if claude_args allows them. See docs/security.md."
+    description: "On pull requests whose author does not have write access, deny commands that commonly run code from the checkout (package managers, test runners, interpreters, shells), even if claude_args allows them. Set to 'false' to turn this off. See docs/security.md."
     required: false
-    default: "false"
+    default: "true"
   include_comments_by_actor:
     description: "Comma-separated list of actor usernames to INCLUDE in comments. Supports wildcards: '*[bot]' matches all bots, 'dependabot[bot]' matches specific bot. Empty (default) includes all actors."
     required: false

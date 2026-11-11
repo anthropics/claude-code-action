@@ -60,13 +60,13 @@ describe("getUntrustedPrDisallowedTools", () => {
   const warnings = (): string[] =>
     warningSpy.mock.calls.map((call: any[]) => call[0]);
   const uncoveredWarning = () =>
-    warnings().find((w) => w.startsWith("These rules"));
+    warnings().find((w) => w.includes("Bash rule(s)"));
 
   beforeEach(() => {
     warningSpy = spyOn(core, "warning").mockImplementation(() => {});
     logSpy = spyOn(console, "log").mockImplementation(() => {});
     errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    process.env.RESTRICT_UNTRUSTED_PRS = "true";
+    delete process.env.RESTRICT_UNTRUSTED_PRS;
     delete process.env.CLAUDE_ARGS;
   });
 
@@ -149,6 +149,52 @@ describe("getUntrustedPrDisallowedTools", () => {
     expect(attempts).toBe(1);
   });
 
+  test.each([[{ "retry-after": "1" }], [{ "x-ratelimit-remaining": "0" }]])(
+    "retries a rate-limited 403 (%j)",
+    async (headers) => {
+      let attempts = 0;
+      const octokit = {
+        repos: {
+          getCollaboratorPermissionLevel: async () => {
+            attempts++;
+            if (attempts === 1) {
+              throw Object.assign(httpError(403), { response: { headers } });
+            }
+            return { data: { permission: "write" } };
+          },
+        },
+      } as any;
+      expect(
+        await getUntrustedPrDisallowedTools(
+          octokit,
+          mockPullRequestOpenedContext,
+        ),
+      ).toEqual([]);
+      expect(attempts).toBe(2);
+    },
+  );
+
+  test("does not retry a plain 403", async () => {
+    let attempts = 0;
+    const octokit = {
+      repos: {
+        getCollaboratorPermissionLevel: async () => {
+          attempts++;
+          throw Object.assign(httpError(403), {
+            response: { headers: { "x-ratelimit-remaining": "42" } },
+          });
+        },
+      },
+    } as any;
+    expect(
+      await getUntrustedPrDisallowedTools(
+        octokit,
+        mockPullRequestOpenedContext,
+      ),
+    ).toEqual(UNTRUSTED_PR_DISALLOWED_TOOLS);
+    expect(attempts).toBe(1);
+  });
+
   test("retries a transient failure before deciding", async () => {
     let attempts = 0;
     const octokit = {
@@ -196,11 +242,10 @@ describe("getUntrustedPrDisallowedTools", () => {
     expect(calls).toEqual([]);
   });
 
-  test.each([undefined, "", "false", "yes"])(
-    "is off unless set to true (%p)",
+  test.each(["false", "False", "FALSE", " false "])(
+    "is turned off by %p",
     async (value) => {
-      if (value === undefined) delete process.env.RESTRICT_UNTRUSTED_PRS;
-      else process.env.RESTRICT_UNTRUSTED_PRS = value;
+      process.env.RESTRICT_UNTRUSTED_PRS = value;
       const { octokit, calls } = octokitWithPermission("none");
       expect(
         await getUntrustedPrDisallowedTools(
@@ -212,10 +257,11 @@ describe("getUntrustedPrDisallowedTools", () => {
     },
   );
 
-  test.each(["true", "True", "TRUE", " true "])(
-    "accepts %p as on",
+  test.each([undefined, "", "true", "True", "flase", "no"])(
+    "stays on for %p",
     async (value) => {
-      process.env.RESTRICT_UNTRUSTED_PRS = value;
+      if (value === undefined) delete process.env.RESTRICT_UNTRUSTED_PRS;
+      else process.env.RESTRICT_UNTRUSTED_PRS = value;
       const { octokit } = octokitWithPermission("none");
       expect(
         await getUntrustedPrDisallowedTools(
@@ -226,23 +272,21 @@ describe("getUntrustedPrDisallowedTools", () => {
     },
   );
 
-  test("warns about allowed Bash rules the list does not cover", async () => {
+  test("counts allowed Bash rules the list does not cover", async () => {
     process.env.CLAUDE_ARGS = `--allowedTools "Read,Bash(bun:*),Bash(./scripts/test.sh),Bash(git:*),Bash(gh pr view:*)"`;
     const { octokit } = octokitWithPermission("none");
     await getUntrustedPrDisallowedTools(octokit, mockPullRequestOpenedContext);
-    expect(uncoveredWarning()).toEndWith(
-      "Bash(./scripts/test.sh), Bash(git:*), Bash(gh pr view:*)",
-    );
+    expect(uncoveredWarning()).toStartWith("3 Bash rule(s)");
   });
 
-  test("warns about a bare Bash rule", async () => {
+  test("counts a bare Bash rule", async () => {
     process.env.CLAUDE_ARGS = `--allowedTools "Read,Bash"`;
     const { octokit } = octokitWithPermission("none");
     await getUntrustedPrDisallowedTools(octokit, mockPullRequestOpenedContext);
-    expect(uncoveredWarning()).toEndWith(": Bash");
+    expect(uncoveredWarning()).toStartWith("1 Bash rule(s)");
   });
 
-  test("does not report rules the list denies as staying allowed", async () => {
+  test("does not count rules the list denies", async () => {
     process.env.CLAUDE_ARGS = `--allowedTools "Bash(bun install),Bash(bun test:*),Bash(bun run format),Bash(npm),Bash(git config user.name:*)"`;
     const { octokit } = octokitWithPermission("none");
     await getUntrustedPrDisallowedTools(octokit, mockPullRequestOpenedContext);
@@ -253,7 +297,84 @@ describe("getUntrustedPrDisallowedTools", () => {
     process.env.CLAUDE_ARGS = `--allowedTools "Bash(gofmt:*)"`;
     const { octokit } = octokitWithPermission("none");
     await getUntrustedPrDisallowedTools(octokit, mockPullRequestOpenedContext);
-    expect(uncoveredWarning()).toEndWith(": Bash(gofmt:*)");
+    expect(uncoveredWarning()).toStartWith("1 Bash rule(s)");
+  });
+
+  test("handles unquoted rules the same as quoted ones", async () => {
+    process.env.CLAUDE_ARGS = `--allowedTools Bash(bun:*),Bash(npm:*)`;
+    const { octokit } = octokitWithPermission("none");
+    await getUntrustedPrDisallowedTools(octokit, mockPullRequestOpenedContext);
+    expect(uncoveredWarning()).toBeUndefined();
+  });
+
+  test("never prints the content of claude_args or a raw error", async () => {
+    const secret = "not-a-real-secret-value";
+    process.env.CLAUDE_ARGS = `--allowedTools "Bash(curl -H ${secret}:*)"`;
+    const octokit = {
+      repos: {
+        getCollaboratorPermissionLevel: async () => {
+          throw Object.assign(new Error(`failed with ${secret}`), {
+            status: 404,
+          });
+        },
+      },
+    } as any;
+    await getUntrustedPrDisallowedTools(octokit, mockPullRequestOpenedContext);
+    const logged = [
+      ...warnings(),
+      ...logSpy.mock.calls.flat(),
+      ...errorSpy.mock.calls.flat(),
+    ].join("\n");
+    expect(logged).toContain("HTTP 404");
+    expect(logged).toContain("1 Bash rule(s)");
+    expect(logged).not.toContain(secret);
+  });
+
+  test.each([
+    "--dangerously-skip-permissions",
+    "--allow-dangerously-skip-permissions",
+    "--permission-mode bypassPermissions",
+    "--permission-mode=bypassPermissions",
+    `--permission-mode "bypassPermissions"`,
+  ])("warns when claude_args has %s", async (flag) => {
+    process.env.CLAUDE_ARGS = flag;
+    const { octokit } = octokitWithPermission("none");
+    await getUntrustedPrDisallowedTools(octokit, mockPullRequestOpenedContext);
+    expect(warnings().some((w) => w.includes("permission checks"))).toBe(true);
+  });
+
+  test.each([
+    "--permission-mode auto",
+    "--permission-mode auto\n# --permission-mode bypassPermissions",
+  ])("does not warn about permission checks for %j", async (claudeArgs) => {
+    process.env.CLAUDE_ARGS = claudeArgs;
+    const { octokit } = octokitWithPermission("none");
+    await getUntrustedPrDisallowedTools(octokit, mockPullRequestOpenedContext);
+    expect(warnings().some((w) => w.includes("permission checks"))).toBe(false);
+  });
+
+  test("keeps a synchronous client failure out of the log", async () => {
+    const secret = "not-a-real-secret-value";
+    const octokit = {
+      repos: {
+        getCollaboratorPermissionLevel: () => {
+          throw new Error(`failed with ${secret}`);
+        },
+      },
+    } as any;
+    expect(
+      await getUntrustedPrDisallowedTools(
+        octokit,
+        mockPullRequestOpenedContext,
+      ),
+    ).toEqual(UNTRUSTED_PR_DISALLOWED_TOOLS);
+    const logged = [
+      ...warnings(),
+      ...logSpy.mock.calls.flat(),
+      ...errorSpy.mock.calls.flat(),
+    ].join("\n");
+    expect(logged).toContain("no response");
+    expect(logged).not.toContain(secret);
   });
 
   test.each([
