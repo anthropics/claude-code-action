@@ -90,6 +90,29 @@ describe("Tag Mode", () => {
 
       test("pins the push wrapper to a new claude branch", async () => {
         await prepareTagMode({
+          context: { ...mockIssueCommentContext },
+          octokit: {} as any,
+          githubToken: "test-token",
+        });
+        expect(process.env.CLAUDE_PUSH_BRANCH).toBe("claude/test");
+      });
+
+      test("pins the push wrapper to the branch of an open PR", async () => {
+        spies.push(
+          spyOn(branch, "setupBranch").mockImplementation(
+            async () =>
+              ({ baseBranch: "main", currentBranch: "feature" }) as any,
+          ),
+        );
+        await prepareTagMode({
+          context: { ...mockIssueCommentContext },
+          octokit: {} as any,
+          githubToken: "test-token",
+        });
+        expect(process.env.CLAUDE_PUSH_BRANCH).toBe("feature");
+      });
+    });
+
     describe("a workflow's deny rules", () => {
       const savedArgs = process.env.CLAUDE_ARGS;
       const savedPath = process.env.GITHUB_ACTION_PATH;
@@ -112,22 +135,6 @@ describe("Tag Mode", () => {
           octokit: {} as any,
           githubToken: "test-token",
         });
-        expect(process.env.CLAUDE_PUSH_BRANCH).toBe("claude/test");
-      });
-
-      test("pins the push wrapper to the branch of an open PR", async () => {
-        spies.push(
-          spyOn(branch, "setupBranch").mockImplementation(
-            async () =>
-              ({ baseBranch: "main", currentBranch: "feature" }) as any,
-          ),
-        );
-        await prepareTagMode({
-          context: { ...mockIssueCommentContext },
-          octokit: {} as any,
-          githubToken: "test-token",
-        });
-        expect(process.env.CLAUDE_PUSH_BRANCH).toBe("feature");
         return claudeArgs;
       };
 
