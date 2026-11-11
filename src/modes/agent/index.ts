@@ -7,8 +7,22 @@ import {
   setupSshSigning,
 } from "../../github/operations/git-config";
 import { checkHumanActor } from "../../github/validation/actor";
-import type { GitHubContext } from "../../github/context";
+import { isPullRequestEvent, type GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
+
+/**
+ * A fork's branch name means nothing in this repository, and commits made through
+ * the API land on the branch of that name here. Tag mode uses pr-N for the same
+ * reason.
+ */
+function getPullRequestBranch(context: GitHubContext): string | undefined {
+  if (!isPullRequestEvent(context)) return process.env.GITHUB_HEAD_REF;
+  const headRepository = context.payload.pull_request.head?.repo?.full_name;
+  const isFork =
+    headRepository?.toLowerCase() !==
+    context.repository.full_name.toLowerCase();
+  return isFork ? `pr-${context.entityNumber}` : process.env.GITHUB_HEAD_REF;
+}
 
 /**
  * Prepares the agent mode execution context.
@@ -101,7 +115,7 @@ export async function prepareAgentMode({
   // Detect current branch from GitHub environment
   const currentBranch =
     claudeBranch ||
-    process.env.GITHUB_HEAD_REF ||
+    getPullRequestBranch(context) ||
     process.env.GITHUB_REF_NAME ||
     defaultBranch;
 
