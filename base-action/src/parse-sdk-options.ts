@@ -9,6 +9,7 @@ export type ParsedSdkOptions = {
   sdkOptions: SdkOptions;
   showFullOutput: boolean;
   hasJsonSchema: boolean;
+  fallbackPermissionMode?: SdkOptions["permissionMode"];
 };
 
 // Flags that should accumulate multiple values instead of overwriting
@@ -351,5 +352,13 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     sdkOptions,
     showFullOutput,
     hasJsonSchema,
+    // Only when auto mode is what the session ends up asking for: a mode someone
+    // chose in claude_args must stay as they set it.
+    ...(extraArgs["permission-mode"] === "auto" &&
+      !Object.keys(extraArgs).some((flag) =>
+        flag.startsWith("permission-mode="),
+      ) && {
+        fallbackPermissionMode: options.fallbackPermissionMode,
+      }),
   };
 }

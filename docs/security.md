@@ -79,6 +79,10 @@ This design ensures that users retain full control over what pull requests are c
 
 On public repos, you can also use `include_comments_by_actor` to allowlist which users' comments are passed to Claude, reducing exposure to untrusted input. Use `exclude_comments_by_actor` to filter out noisy bot comments (e.g., `dependabot[bot]`, `renovate[bot]`). If an actor matches both lists, exclusion takes priority. See [Usage](./usage.md) for details.
 
+### Auto mode is a review, not a boundary
+
+By default the action uses [auto mode](./usage.md#permission-mode), where a safety review decides tool calls that your allow rules don't cover. It catches many unsafe actions, but a call can still run if the review passes it. For a strict list of what Claude may run, use `--permission-mode acceptEdits` or `default`.
+
 ## GitHub App Permissions
 
 The [Claude Code GitHub app](https://github.com/apps/claude) requests the following permissions:

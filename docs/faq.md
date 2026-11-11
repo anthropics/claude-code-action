@@ -174,7 +174,7 @@ The Bash tool is **disabled by default** for security. To enable individual bash
 
 ```yaml
 claude_args: |
-  --allowedTools "Bash(npm:*),Bash(git:*)"  # Allows only npm and git commands
+  --allowedTools "Bash(npm:*),Bash(git:*)"  # Allows npm and git commands without asking
 ```
 
 ### Can Claude work across multiple repositories?

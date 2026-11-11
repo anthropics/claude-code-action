@@ -112,6 +112,43 @@ These inputs are deprecated and will be removed in a future version:
 
 > **Note**: This action is currently in beta. Features and APIs may change as we continue to improve the integration.
 
+## Permission Mode
+
+The action runs Claude in [auto mode](https://code.claude.com/docs/en/permission-modes) by default. Reads and file edits in the workspace run without asking, and a safety review decides any other tool call that your allow rules don't cover. Narrow allow rules like `Bash(npm test)` skip the review, and broad ones like `Bash(*)` or package-manager run commands are ignored in this mode.
+
+### Opting out
+
+Set another mode in `claude_args`. These are the earlier defaults:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    # For @claude mentions: allow file edits in the workspace, and deny what no rule covers
+    claude_args: --permission-mode acceptEdits
+
+    # For workflows with a prompt: deny what no rule covers
+    # claude_args: --permission-mode default
+```
+
+Opt out if your workflow relies on `--allowedTools` as a strict list, because auto mode can run other tool calls when the review passes.
+
+### When auto mode doesn't apply
+
+- **Unsupported model or organization setting:** auto mode needs a [supported model](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode), and an administrator can turn it off. The session then starts in Manual. For `@claude` mentions, the action logs a warning and switches to `acceptEdits`. With a `prompt`, it stays in Manual and denies what no rule covers.
+- **`ANTHROPIC_BASE_URL` is set:** sessions keep the earlier defaults, because the safety check depends on what a gateway passes through. Add `--permission-mode auto` once your gateway supports it.
+- **`--dangerously-skip-permissions`:** this still takes priority over any mode.
+
+### Provider notes
+
+- Where the server's check doesn't reach a session, Claude Code makes its own [classifier requests, which count toward token usage](https://code.claude.com/docs/en/auto-mode-classifier-billing).
+- On Amazon Bedrock, your account may need access to the classifier's model, or actions that need the review are blocked. See the [error reference](https://code.claude.com/docs/en/errors.md#auto-mode-cannot-determine-the-safety-of-an-action).
+
+### Upgrading
+
+- Tool calls that used to be denied can now run if the review passes.
+- Allow rules that auto mode ignores no longer approve those commands on their own.
+- This flag overrides a `permissions.defaultMode` in your settings. To keep yours, pass it in `claude_args`.
+
 ## Upgrading from v0.x?
 
 For a comprehensive guide on migrating from v0.x to v1.0, including step-by-step instructions and examples, see our **[Migration Guide](./migration-guide.md)**.
