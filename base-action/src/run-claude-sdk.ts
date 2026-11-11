@@ -20,6 +20,45 @@ export type ClaudeRunResult = {
 /** Filename for the user request file, written by prompt generation */
 const USER_REQUEST_FILENAME = "claude-user-request.txt";
 
+const BILLING_ERROR_MESSAGE = [
+  "Claude API billing error. Check your organization's purchased credits and workspace spend limits at https://platform.claude.com/settings/billing.",
+  "Monthly API credits included with Max or Team plans do not cover Claude Code GitHub Action runs, even if the same credentials work with claude -p or the Agent SDK.",
+  "Add purchased credits, or use claude_code_oauth_token with a supported Claude subscription.",
+  "See https://support.claude.com/en/articles/17154008-monthly-api-credits-for-max-and-team-plans.",
+].join(" ");
+
+/** Recognize billing failures without copying response content into action logs. */
+function getBillingErrorMessage(
+  messages: SDKMessage[],
+  error?: unknown,
+): string | undefined {
+  const isCreditBalanceError = (text: string) =>
+    /\bcredit balance (?:is )?too low\b/i.test(text);
+
+  const hasBillingError = messages.some((message) => {
+    if (message.type === "assistant") {
+      return message.error === "billing_error";
+    }
+    if (message.type === "result" && message.is_error) {
+      return message.subtype === "success"
+        ? isCreditBalanceError(message.result)
+        : message.errors.some(isCreditBalanceError);
+    }
+    return false;
+  });
+
+  if (
+    hasBillingError ||
+    (error !== undefined &&
+      isCreditBalanceError(
+        error instanceof Error ? error.message : String(error),
+      ))
+  ) {
+    return BILLING_ERROR_MESSAGE;
+  }
+  return undefined;
+}
+
 /**
  * Check if a file exists
  */
@@ -210,9 +249,10 @@ export async function runClaudeWithSdk(
       }
     }
   } catch (error) {
-    console.error("SDK execution error:", error);
+    const billingError = getBillingErrorMessage(messages, error);
+    console.error("SDK execution error:", billingError ?? error);
     await writeExecutionFile(messages);
-    throw new Error(`SDK execution error: ${error}`);
+    throw new Error(billingError ?? `SDK execution error: ${error}`);
   }
 
   const result: ClaudeRunResult = {
@@ -231,6 +271,17 @@ export async function runClaudeWithSdk(
   if (initMessage && "session_id" in initMessage && initMessage.session_id) {
     result.sessionId = initMessage.session_id as string;
     core.info(`Set session_id: ${result.sessionId}`);
+  }
+
+  const billingError = getBillingErrorMessage(messages);
+  if (
+    billingError &&
+    (!resultMessage ||
+      resultMessage.subtype !== "success" ||
+      resultMessage.is_error)
+  ) {
+    core.error(billingError);
+    throw new Error(billingError);
   }
 
   if (!resultMessage) {

@@ -202,6 +202,14 @@ However, tools from these servers still need to be explicitly allowed via `claud
 
 ## Troubleshooting
 
+### Why does the action report "Credit balance is too low" when the same credentials work with `claude -p`?
+
+Check the **purchased credits** balance in your [Console billing settings](https://platform.claude.com/settings/billing), as well as your workspace's spend limit. Monthly API credits included with Max or Team plans appear under **Promotional credits**. They cover the Claude API and Agent SDK, but **do not cover runs started by the Claude Code GitHub Action**, even though the action uses the Agent SDK internally. A direct `claude -p` invocation can therefore work with the same credentials while the action is rejected. This also applies when authenticating with workload identity federation instead of an API key.
+
+To run the action, add purchased credits to the Console organization, or configure the [`claude_code_oauth_token` input](setup.md) with a supported Claude subscription. See the [API credits documentation](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers) and the [Help Center explanation of `claude -p` and GitHub Action billing](https://support.claude.com/en/articles/17154008-monthly-api-credits-for-max-and-team-plans).
+
+If purchased credits are available and the workspace spend limit has not been reached, report the action and Claude Code versions, authentication method, and API request ID in an [issue](https://github.com/anthropics/claude-code-action/issues). Do not include credentials or the full execution transcript in a public report.
+
 ### How can I debug what Claude is doing?
 
 Check the GitHub Action log for Claude's run for the full execution trace.
