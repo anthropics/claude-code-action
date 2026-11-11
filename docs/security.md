@@ -71,7 +71,7 @@ By default, when the pull request's author does not have write access, the actio
 - **Text can still steer Claude.** On an issue or a trusted author's pull request these commands stay allowed, so text from an outside contributor could try to get Claude to edit a file and then run it. Keep the rules you grant in `claude_args` as narrow as you can.
 - **Other broad rules weaken the protections.** `Write` lets Claude write outside the workspace, and `Bash(git:*)` can still run programs through forms this list does not deny, such as `git rebase --exec`. Avoid them in workflows that handle outside contributions.
 
-Set `restrict_untrusted_prs: false` to turn this off.
+**Upgrading:** workflows that use a floating tag or branch such as `@v1` or `@main` get this behavior without changing anything. If a workflow relied on commands like `npm test` running on pull requests from outside contributors or bots, those commands are now denied. The run still succeeds, so check the log for the warning. Set `restrict_untrusted_prs: false` to turn this off.
 
 ### `claude-code-action` vs `claude-code-base-action`
 
