@@ -101,13 +101,17 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            Please review this pull request with a focus on:
-            - Code quality and best practices
-            - Potential bugs or issues
-            - Security implications
-            - Performance considerations
+            Review the current PR diff for defects introduced by this change.
+            Use surrounding code for context and report only actionable
+            correctness, security, or performance issues.
 
-            Provide detailed feedback using inline comments for specific issues.
+            On subsequent runs, check previous findings against the current
+            diff. Keep unresolved findings in their existing threads and
+            report a resolved issue again only if the change reintroduces it.
+
+            For each new finding, use an inline comment on a changed line.
+            Explain the concrete impact and what triggers the problem.
+            If there are no new actionable findings, say so in the tracking comment.
 
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
@@ -120,11 +124,17 @@ jobs:
 - **Migration-Friendly**: Perfect for teams moving from v0.x who miss tracking comments
 - **Works with Custom Prompts**: Your prompt becomes custom instructions while maintaining GitHub context
 
+To keep the model consistent across runs, add `--model <model-id>` to
+`claude_args`. Replace `<model-id>` with the full identifier of a model you
+have tested with your provider. [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases)
+such as `opus` can move to a newer version. Check the new model on a few
+representative PRs before changing the identifier.
+
 **Expected Output:**
 
 1. Claude creates a tracking comment: "Claude Code is reviewing this pull request..."
 2. Updates the comment with progress checkboxes as it works
-3. Posts detailed review feedback with inline annotations
+3. Posts inline comments for new actionable findings, when present
 4. Updates tracking comment to "Completed" when done
 
 ---
