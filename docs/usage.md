@@ -266,6 +266,25 @@ See `examples/test-failure-analysis.yml` for a working example that:
 For complete details on JSON Schema syntax and Agent SDK structured outputs:
 https://docs.claude.com/en/docs/agent-sdk/structured-outputs
 
+## Monitor tool permission denials
+
+The `permission_denials` step output is a JSON object whose keys are tool names
+and whose values are the numbers of denied calls recorded in the Agent SDK
+result. It contains only names and counts. The output is `{}` when the SDK
+reports zero denials and is empty when the SDK returns no denial data.
+
+A later workflow step can read the counts with full output logging disabled.
+The following step assumes the Claude Action step uses `id: claude`.
+
+```yaml
+- name: Report denied tool calls
+  if: always() && steps.claude.outputs.permission_denials != ''
+  env:
+    PERMISSION_DENIALS: ${{ steps.claude.outputs.permission_denials }}
+  shell: bash
+  run: jq -r 'to_entries[] | "\(.key)\t\(.value)"' <<< "$PERMISSION_DENIALS"
+```
+
 ## Ways to Tag @claude
 
 These examples show how to interact with Claude using comments in PRs and issues. By default, Claude will be triggered anytime you mention `@claude`, but you can customize the exact trigger phrase using the `trigger_phrase` input in the workflow.
