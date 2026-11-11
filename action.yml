@@ -138,7 +138,7 @@ inputs:
     required: false
     default: "false"
   post_summary:
-    description: "Post Claude's final response as a pull request comment after a successful agent-mode run. Set to 'true' only when the workflow prompt and inputs are trusted; this publishes Claude-authored content."
+    description: "Post or update one pull request comment with Claude's final response after a successful agent-mode run. Set to 'true' only when the workflow prompt and inputs are trusted; this publishes Claude-authored content."
     required: false
     default: "false"
   include_fix_links:
