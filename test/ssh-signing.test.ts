@@ -10,7 +10,7 @@ import {
 } from "bun:test";
 import { mkdir, writeFile, rm, readFile, stat } from "fs/promises";
 import { join } from "path";
-import { tmpdir } from "os";
+import { tmpdir, platform } from "os";
 
 describe("SSH Signing", () => {
   // Use a temp directory for tests
@@ -52,7 +52,9 @@ describe("SSH Signing", () => {
       // Verify permissions (0o600 = 384 in decimal for permission bits only)
       const stats = await stat(testKeyPath);
       const permissions = stats.mode & 0o777; // Get only permission bits
-      expect(permissions).toBe(0o600);
+      if (platform() !== "win32") {
+        expect(permissions).toBe(0o600);
+      }
     });
 
     test("should normalize key to have trailing newline", async () => {
@@ -109,7 +111,9 @@ describe("SSH Signing", () => {
 
       // Verify directory permissions
       const dirPermissions = dirStats.mode & 0o777;
-      expect(dirPermissions).toBe(0o700);
+      if (platform() !== "win32") {
+        expect(dirPermissions).toBe(0o700);
+      }
     });
   });
 
