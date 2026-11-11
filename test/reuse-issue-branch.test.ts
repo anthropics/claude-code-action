@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import type { Octokits } from "../src/github/api/client";
 import type { FetchDataResult } from "../src/github/data/fetcher";
 import { setupBranch } from "../src/github/operations/branch";
@@ -98,7 +99,15 @@ describe("reuse_issue_branch", () => {
       );
       git("push", "origin", branch);
       const savedHead = git("rev-parse", "HEAD");
-      git("checkout", "main");
+      const nextCheckout = join(fixture, "next-checkout");
+      git(
+        "clone",
+        "--depth=1",
+        "--branch=main",
+        pathToFileURL(join(fixture, "remote.git")).href,
+        nextCheckout,
+      );
+      process.chdir(nextCheckout);
 
       const second = await setupBranch(octokit, githubData, context);
       expect(second).toEqual({
@@ -109,6 +118,9 @@ describe("reuse_issue_branch", () => {
       });
       expect(git("branch", "--show-current")).toBe(branch);
       expect(git("rev-parse", "HEAD")).toBe(savedHead);
+      expect(git("log", "-2", "--format=%s")).toBe(
+        "Change configuration\nSave progress",
+      );
       expect(readFileSync("work.txt", "utf8")).toBe("Earlier issue work\n");
 
       expect(restoreConfigFromBase(second.baseBranch)).toContain("CLAUDE.md");

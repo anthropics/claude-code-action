@@ -334,7 +334,7 @@ export async function setupBranch(
           "fetch",
           "--no-recurse-submodules",
           "origin",
-          ...fetchDepthArgs(1),
+          ...fetchDepthArgs(20),
           remoteRef,
         ]);
         execGit(["checkout", "-B", newBranch, "FETCH_HEAD", "--"]);
