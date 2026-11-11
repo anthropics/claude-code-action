@@ -1,5 +1,10 @@
+import { existsSync, readFileSync } from "fs";
 import type { Octokits } from "../github/api/client";
-import type { ParsedGitHubContext } from "../github/context";
+import {
+  isEntityContext,
+  type GitHubContext,
+  type ParsedGitHubContext,
+} from "../github/context";
 import { redactSecrets, sanitizeContent } from "../github/utils/sanitizer";
 import type { Turn } from "./format-turns";
 
@@ -7,14 +12,15 @@ const SUMMARY_COMMENT_MARKER = "<!-- claude-code-action:agent-summary -->";
 const MAX_SUMMARY_COMMENT_LENGTH = 60_000;
 const TRUNCATION_NOTICE = "\n\n_(Summary truncated.)_";
 
-export type AgentSummaryContext = Pick<
-  ParsedGitHubContext,
-  "entityNumber" | "runId"
-> & {
-  repository: Pick<ParsedGitHubContext["repository"], "owner" | "repo">;
+type PostAgentSummaryOptions = {
+  agentMode: boolean;
+  enabled: boolean;
+  claudeSuccess: boolean;
+  context: GitHubContext | undefined;
+  executionFile: string | undefined;
+  octokit: Octokits | undefined;
+  serverUrl?: string;
 };
-
-export type AgentSummaryCommentResult = "created" | "updated" | "skipped";
 
 function getFinalResponse(turns: Turn[]): string | undefined {
   for (let index = turns.length - 1; index >= 0; index--) {
@@ -46,18 +52,12 @@ function createCommentBody(summary: string, runUrl: string): string {
   return `${prefix}${summary.slice(0, truncatedLimit)}${TRUNCATION_NOTICE}${suffix}`;
 }
 
-/**
- * Create or update the single final-response comment for an agent-mode PR run.
- */
-export async function postAgentSummaryComment(
-  turns: Turn[],
-  context: AgentSummaryContext,
+async function upsertSummaryComment(
+  summary: string,
+  context: ParsedGitHubContext,
   octokit: Octokits,
-  serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com",
-): Promise<AgentSummaryCommentResult> {
-  const summary = getFinalResponse(turns);
-  if (!summary) return "skipped";
-
+  serverUrl: string,
+): Promise<"created" | "updated"> {
   const { owner, repo } = context.repository;
   const normalizedServerUrl = serverUrl.replace(/\/+$/, "");
   const runUrl = [
@@ -100,4 +100,49 @@ export async function postAgentSummaryComment(
     body,
   });
   return "created";
+}
+
+export async function postAgentSummaryComment({
+  agentMode,
+  enabled,
+  claudeSuccess,
+  context,
+  executionFile,
+  octokit,
+  serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com",
+}: PostAgentSummaryOptions): Promise<void> {
+  if (
+    !agentMode ||
+    !enabled ||
+    !claudeSuccess ||
+    !context ||
+    !isEntityContext(context) ||
+    !context.isPR ||
+    !octokit ||
+    !executionFile ||
+    !existsSync(executionFile)
+  ) {
+    return;
+  }
+
+  try {
+    const turns: Turn[] = JSON.parse(readFileSync(executionFile, "utf-8"));
+    const summary = getFinalResponse(turns);
+    if (!summary) {
+      console.log("Skipping PR summary comment: no final response was found");
+      return;
+    }
+
+    const result = await upsertSummaryComment(
+      summary,
+      context,
+      octokit,
+      serverUrl,
+    );
+    console.log(
+      `${result === "created" ? "Posted" : "Updated"} final Claude response on pull request #${context.entityNumber}`,
+    );
+  } catch (error) {
+    console.error("Error posting final Claude response:", error);
+  }
 }

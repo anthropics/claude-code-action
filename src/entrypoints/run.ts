@@ -361,38 +361,14 @@ async function run() {
       }
     }
 
-    if (
-      agentMode &&
-      context &&
-      isEntityContext(context) &&
-      context.isPR &&
-      process.env.POST_SUMMARY === "true" &&
-      githubToken &&
-      octokit &&
-      claudeSuccess &&
-      executionFile &&
-      existsSync(executionFile)
-    ) {
-      try {
-        const turns: Turn[] = JSON.parse(readFileSync(executionFile, "utf-8"));
-        const result = await postAgentSummaryComment(turns, context, octokit);
-        if (result === "created") {
-          console.log(
-            `Posted final Claude response to pull request #${context.entityNumber}`,
-          );
-        } else if (result === "updated") {
-          console.log(
-            `Updated final Claude response on pull request #${context.entityNumber}`,
-          );
-        } else {
-          console.log(
-            "Skipping PR summary comment: no final response was found",
-          );
-        }
-      } catch (error) {
-        console.error("Error posting final Claude response:", error);
-      }
-    }
+    await postAgentSummaryComment({
+      agentMode,
+      enabled: process.env.POST_SUMMARY === "true",
+      claudeSuccess,
+      context,
+      executionFile,
+      octokit: githubToken ? octokit : undefined,
+    });
 
     // Write step summary (unless display_report is set to false)
     if (
