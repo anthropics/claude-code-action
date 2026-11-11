@@ -457,10 +457,87 @@ describe("checkWritePermissions", () => {
     });
   });
 
+  describe("pull requests a bot pushed to", () => {
+    const createBotPushContext = (author: string | null, allowedBots = "") => ({
+      ...createContext(),
+      eventName: "pull_request" as const,
+      actor: "dependabot[bot]",
+      inputs: { ...createContext().inputs, allowedBots },
+      payload: {
+        pull_request: { number: 1, user: author ? { login: author } : null },
+      } as any,
+    });
+
+    test("should return false when the pull request's author lacks write access", async () => {
+      expect(
+        await checkWritePermissions(
+          createMockOctokit("read"),
+          createBotPushContext("outsider", "dependabot[bot]"),
+        ),
+      ).toBe(false);
+    });
+
+    test("should return true when the pull request's author has write access", async () => {
+      expect(
+        await checkWritePermissions(
+          createMockOctokit("write"),
+          createBotPushContext("maintainer", "dependabot[bot]"),
+        ),
+      ).toBe(true);
+    });
+
+    test("should return true for a pull request from an allowed bot", async () => {
+      expect(
+        await checkWritePermissions(
+          createMockOctokit("none"),
+          createBotPushContext("dependabot[bot]", "dependabot[bot]"),
+        ),
+      ).toBe(true);
+    });
+
+    test("should return false for a pull request from a bot that is not allowed", async () => {
+      expect(
+        await checkWritePermissions(
+          createMockOctokit("none"),
+          createBotPushContext("other-app[bot]", "dependabot[bot]"),
+        ),
+      ).toBe(false);
+    });
+
+    test("should return false when the author is missing", async () => {
+      expect(
+        await checkWritePermissions(
+          createMockOctokit("write"),
+          createBotPushContext(null, "dependabot[bot]"),
+        ),
+      ).toBe(false);
+    });
+
+    test("should not check the author when a person triggered the run", async () => {
+      const context = {
+        ...createBotPushContext("outsider"),
+        actor: "maintainer",
+      };
+      const levels: Record<string, string> = {
+        maintainer: "write",
+        outsider: "read",
+      };
+      const octokit = {
+        repos: {
+          getCollaboratorPermissionLevel: async (params: {
+            username: string;
+          }) => ({ data: { permission: levels[params.username] } }),
+        },
+      } as any;
+      expect(await checkWritePermissions(octokit, context)).toBe(true);
+    });
+  });
+
   describe("workflow_run contexts", () => {
     const createWorkflowRunContext = (
       actor: string,
       runActor: string = actor,
+      headRepository: unknown = { full_name: "test-owner/test-repo" },
     ) =>
       createMockAutomationContext({
         eventName: "workflow_run",
@@ -472,7 +549,7 @@ describe("checkWritePermissions", () => {
             id: 123,
             event: "pull_request",
             actor: { login: runActor },
-            head_repository: { full_name: "fork-owner/test-repo" },
+            head_repository: headRepository,
           },
         } as any,
       });
@@ -487,6 +564,38 @@ describe("checkWritePermissions", () => {
           }),
         },
       }) as any;
+
+    test("should return false when a fork's owner lacks write access, whoever triggered the run", async () => {
+      const context = createWorkflowRunContext("maintainer", "maintainer", {
+        full_name: "fork-owner/test-repo",
+      });
+      const octokit = createMockOctokitWithLevels({
+        maintainer: "write",
+        "fork-owner": "read",
+      });
+      expect(await checkWritePermissions(octokit, context)).toBe(false);
+    });
+
+    test("should return true when a fork's owner has write access", async () => {
+      const context = createWorkflowRunContext("maintainer", "maintainer", {
+        full_name: "Maintainer/test-repo",
+      });
+      const octokit = createMockOctokitWithLevels({
+        maintainer: "write",
+        Maintainer: "write",
+      });
+      expect(await checkWritePermissions(octokit, context)).toBe(true);
+    });
+
+    test("should return false when the run's repository is unknown", async () => {
+      const context = createWorkflowRunContext(
+        "maintainer",
+        "maintainer",
+        null,
+      );
+      const octokit = createMockOctokitWithLevels({ maintainer: "write" });
+      expect(await checkWritePermissions(octokit, context)).toBe(false);
+    });
 
     test("should return false when the run actor lacks write access", async () => {
       const mockOctokit = createMockOctokit("read");

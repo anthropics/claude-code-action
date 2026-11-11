@@ -3,6 +3,7 @@
 import * as core from "@actions/core";
 import { writeFile, mkdir, rm } from "fs/promises";
 import type { FetchDataResult } from "../github/data/fetcher";
+import { isSameLogin } from "../github/validation/actor";
 import {
   formatContext,
   formatBody,
@@ -893,11 +894,16 @@ f. If you are unable to complete certain steps, such as running a linter or test
  * // Issue body with "@claude fix this" -> returns "fix this"
  * // Issue assigned without @claude in body -> returns null
  */
-function extractUserRequestFromContext(
+export function extractUserRequestFromContext(
   context: PreparedContext,
   githubData: FetchDataResult,
 ): string | null {
   const { eventData, triggerPhrase } = context;
+
+  // The request gets the highest trust in the prompt and can run slash commands,
+  // so it only comes from the person who passed the permission check. When
+  // someone else triggers the run, for example by labeling another person's
+  // issue or editing their comment, that text stays ordinary context.
 
   // For comment events, extract from comment body
   if (
@@ -907,11 +913,27 @@ function extractUserRequestFromContext(
       eventData.eventName === "pull_request_review_comment" ||
       eventData.eventName === "pull_request_review")
   ) {
-    return extractUserRequest(eventData.commentBody, triggerPhrase);
+    const payload = context.githubContext?.payload as
+      | {
+          comment?: { user?: { login?: string } };
+          review?: { user?: { login?: string } };
+        }
+      | undefined;
+    const commentAuthor = (payload?.comment ?? payload?.review)?.user?.login;
+    return isSameLogin(commentAuthor, context.githubContext?.actor)
+      ? extractUserRequest(eventData.commentBody, triggerPhrase)
+      : null;
   }
 
-  // For issue/PR events triggered by body content, extract from the body
-  if (githubData.contextData?.body) {
+  // For issue/PR events triggered by body content, extract from the body.
+  // GraphQL gives a bot's login without the "[bot]" suffix that actors have.
+  const author = githubData.contextData?.author;
+  const authorLogin =
+    author?.__typename === "Bot" ? `${author.login}[bot]` : author?.login;
+  if (
+    githubData.contextData?.body &&
+    isSameLogin(authorLogin, context.githubContext?.actor)
+  ) {
     const request = extractUserRequest(
       githubData.contextData.body,
       triggerPhrase,

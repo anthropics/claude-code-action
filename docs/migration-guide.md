@@ -142,6 +142,8 @@ The `track_progress` input only works with these GitHub events:
 - `labeled` - Label added to issue
 - `assigned` - Issue assigned to user
 
+> **Note**: On `labeled` and `assigned` issue events with `track_progress` and a `prompt`, the label must match `label_trigger` (default `claude`), and the assignee must match `assignee_trigger` if you set one. Set `label_trigger` to the label your workflow uses.
+
 > **Note**: Using `track_progress: true` with unsupported events will cause an error.
 
 ### Custom Template with Variables

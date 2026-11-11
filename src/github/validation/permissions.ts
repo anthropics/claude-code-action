@@ -1,5 +1,9 @@
 import * as core from "@actions/core";
-import { isWorkflowRunEvent, type GitHubContext } from "../context";
+import {
+  isPullRequestEvent,
+  isWorkflowRunEvent,
+  type GitHubContext,
+} from "../context";
 import type { Octokit } from "@octokit/rest";
 
 /**
@@ -28,22 +32,71 @@ function isAllowedBot(actor: string, allowedBots: string): boolean {
  * Collect the actors whose repository access should be checked. This is
  * normally just the workflow actor (GITHUB_ACTOR). For workflow_run events
  * the actor that started the upstream run is checked as well when it
- * differs, since that is the account the run originates from.
+ * differs, since that is the account the run originates from. GitHub credits a
+ * run to whoever caused it, so a maintainer reopening a fork's pull request
+ * starts a run of the fork's code; the fork's owner is checked too.
+ *
+ * Returns null when the run's origin cannot be determined.
  */
-function getActorsToCheck(context: GitHubContext): string[] {
+function getActorsToCheck(context: GitHubContext): string[] | null {
   const actors = [context.actor];
 
   if (isWorkflowRunEvent(context)) {
-    const runActor = context.payload.workflow_run?.actor?.login;
+    const run = context.payload.workflow_run;
+    const runActor = run?.actor?.login;
     if (runActor && !actors.includes(runActor)) {
       core.info(
         `workflow_run was started by ${runActor}; checking permissions for that actor as well`,
       );
       actors.push(runActor);
     }
+
+    const headRepository = run?.head_repository;
+    if (!headRepository?.full_name) {
+      core.warning("workflow_run does not say which repository it ran from");
+      return null;
+    }
+    const isFork =
+      headRepository.full_name.toLowerCase() !==
+      context.repository.full_name.toLowerCase();
+    const forkOwner = headRepository.full_name.split("/")[0]!;
+    if (isFork && !actors.includes(forkOwner)) {
+      core.info(
+        `workflow_run ran code from a fork owned by ${forkOwner}; checking permissions for that account as well`,
+      );
+      actors.push(forkOwner);
+    }
   }
 
   return actors;
+}
+
+/**
+ * When a bot pushes to a pull request, the bot is the actor even though someone
+ * else wrote the pull request. Bots are not checked for repository access, so an
+ * allowed bot pushing to an outsider's fork would otherwise start a run for them.
+ */
+async function isBotPushAllowed(
+  octokit: Octokit,
+  context: GitHubContext,
+  allowedNonWriteUsers?: string,
+  githubTokenProvided?: boolean,
+): Promise<boolean> {
+  if (!isPullRequestEvent(context) || !context.actor.endsWith("[bot]")) {
+    return true;
+  }
+  const author = context.payload.pull_request.user?.login;
+  if (!author) return false;
+  if (author.endsWith("[bot]")) {
+    return isAllowedBot(author, context.inputs.allowedBots ?? "");
+  }
+  return checkActorWritePermissions(
+    octokit,
+    context,
+    author,
+    allowedNonWriteUsers,
+    githubTokenProvided,
+  );
 }
 
 /**
@@ -60,7 +113,10 @@ export async function checkWritePermissions(
   allowedNonWriteUsers?: string,
   githubTokenProvided?: boolean,
 ): Promise<boolean> {
-  for (const actor of getActorsToCheck(context)) {
+  const actors = getActorsToCheck(context);
+  if (!actors) return false;
+
+  for (const actor of actors) {
     const allowed = await checkActorWritePermissions(
       octokit,
       context,
@@ -70,7 +126,13 @@ export async function checkWritePermissions(
     );
     if (!allowed) return false;
   }
-  return true;
+
+  return isBotPushAllowed(
+    octokit,
+    context,
+    allowedNonWriteUsers,
+    githubTokenProvided,
+  );
 }
 
 async function checkActorWritePermissions(
