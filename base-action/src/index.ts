@@ -3,7 +3,10 @@
 import * as core from "@actions/core";
 import { preparePrompt } from "./prepare-prompt";
 import { runClaude } from "./run-claude";
-import { setupClaudeCodeSettings } from "./setup-claude-code-settings";
+import {
+  prependSettingsArgToClaudeArgs,
+  setupClaudeCodeSettings,
+} from "./setup-claude-code-settings";
 import { validateEnvironmentVariables } from "./validate-env";
 import { installPlugins } from "./install-plugins";
 import { setExecutionFileOutputIfPresent } from "./execution-file";
@@ -27,7 +30,7 @@ async function run() {
       process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE ||
       `${process.env.HOME}/.local/bin/claude`;
 
-    await setupClaudeCodeSettings(
+    const settingsPath = await setupClaudeCodeSettings(
       process.env.INPUT_SETTINGS,
       undefined, // homeDir
     );
@@ -45,7 +48,10 @@ async function run() {
     });
 
     const result = await runClaude(promptConfig.path, {
-      claudeArgs: process.env.INPUT_CLAUDE_ARGS,
+      claudeArgs: prependSettingsArgToClaudeArgs(
+        process.env.INPUT_CLAUDE_ARGS,
+        settingsPath,
+      ),
       allowedTools: process.env.INPUT_ALLOWED_TOOLS,
       disallowedTools: process.env.INPUT_DISALLOWED_TOOLS,
       maxTurns: process.env.INPUT_MAX_TURNS,
