@@ -150,4 +150,12 @@ describe("parseAllowedTools", () => {
       "mcp__github_comment__*",
     ]);
   });
+  test("keeps commas inside a rule's parentheses", () => {
+    const args =
+      '--allowedTools "Bash(echo a,mcp__github_comment__update_claude_comment)",mcp__github__get_issue';
+    expect(parseAllowedTools(args)).toEqual([
+      "Bash(echo a,mcp__github_comment__update_claude_comment)",
+      "mcp__github__get_issue",
+    ]);
+  });
 });

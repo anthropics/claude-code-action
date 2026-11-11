@@ -25,6 +25,29 @@ const ACCUMULATING_FLAGS = new Set([
 // Delimiter used to join accumulated flag values
 const ACCUMULATE_DELIMITER = "\x00";
 
+// Split a comma-separated tool list, keeping commas inside a rule's
+// parentheses, e.g. "Bash(gh pr list --json number,title)". With unbalanced
+// parentheses, fall back to a plain comma split so a typo cannot merge the
+// following rules into one.
+export function splitToolRules(value: string): string[] {
+  const rules: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (ch === "(") depth++;
+    else if (ch === ")") {
+      if (--depth < 0) return value.split(",");
+    } else if (ch === "," && depth === 0) {
+      rules.push(value.slice(start, i));
+      start = i + 1;
+    }
+  }
+  if (depth !== 0) return value.split(",");
+  rules.push(value.slice(start));
+  return rules;
+}
+
 // shell-quote treats ()|&;<> as control operators and splits adjacent text
 // around them into separate tokens (returned as `{op}` objects, which we then
 // dropped). For CLI args these must be literal characters — e.g. unquoted
@@ -229,12 +252,12 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   const extraArgsAllowedTools = allowedToolsValues
     ? allowedToolsValues
         .split(ACCUMULATE_DELIMITER)
-        .flatMap((v) => v.split(","))
+        .flatMap(splitToolRules)
         .map((t) => t.trim())
         .filter(Boolean)
     : [];
   const directAllowedTools = options.allowedTools
-    ? options.allowedTools.split(",").map((t) => t.trim())
+    ? splitToolRules(options.allowedTools).map((t) => t.trim())
     : [];
   const mergedAllowedTools = [
     ...new Set([...extraArgsAllowedTools, ...directAllowedTools]),
@@ -252,12 +275,12 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   const extraArgsDisallowedTools = disallowedToolsValues
     ? disallowedToolsValues
         .split(ACCUMULATE_DELIMITER)
-        .flatMap((v) => v.split(","))
+        .flatMap(splitToolRules)
         .map((t) => t.trim())
         .filter(Boolean)
     : [];
   const directDisallowedTools = options.disallowedTools
-    ? options.disallowedTools.split(",").map((t) => t.trim())
+    ? splitToolRules(options.disallowedTools).map((t) => t.trim())
     : [];
   const mergedDisallowedTools = [
     ...new Set([...extraArgsDisallowedTools, ...directDisallowedTools]),
