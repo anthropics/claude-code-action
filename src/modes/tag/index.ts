@@ -25,7 +25,7 @@ import type { Octokits } from "../../github/api/client";
 import {
   deniesCommand,
   parseAllowedTools,
-  parseDisallowedTools,
+  parseDeniedBashPatterns,
 } from "../agent/parse-tools";
 
 /**
@@ -220,7 +220,7 @@ export async function prepareTagMode({
 
   // Deny rules match the command's text, so a workflow's deny of `git commit` or
   // `git push` wouldn't match the wrappers that run them. Deny the wrappers too.
-  const userDeniedTools = parseDisallowedTools(userClaudeArgs);
+  const userDeniedTools = parseDeniedBashPatterns(userClaudeArgs);
   const deniedWrappers = [
     ...(deniesCommand(userDeniedTools, "git commit")
       ? [`Bash(${gitCommitWrapper}:*)`]

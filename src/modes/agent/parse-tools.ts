@@ -1,9 +1,9 @@
 import { parse as parseShellArgs } from "shell-quote";
+import { parseClaudeArgsToExtraArgs } from "../../../base-action/src/parse-sdk-options";
 
 // Flags whose values make up the allowed-tools list.
 // Include both camelCase and hyphenated variants for CLI compatibility.
 const ALLOWED_TOOLS_FLAGS = new Set(["allowedTools", "allowed-tools"]);
-const DISALLOWED_TOOLS_FLAGS = new Set(["disallowedTools", "disallowed-tools"]);
 
 /**
  * Strip comment lines from a shell argument string.
@@ -51,31 +51,6 @@ function tokenize(claudeArgs: string): string[] {
  * three values, and commented-out lines are ignored.
  */
 export function parseAllowedTools(claudeArgs: string): string[] {
-  return parseToolFlags(claudeArgs, ALLOWED_TOOLS_FLAGS);
-}
-
-/** Parse the deny rules from a user-provided claude_args string. */
-export function parseDisallowedTools(claudeArgs: string): string[] {
-  return parseToolFlags(claudeArgs, DISALLOWED_TOOLS_FLAGS);
-}
-
-/**
- * Whether a deny rule such as `Bash(git commit:*)` covers every use of a command.
- * Narrower rules, such as `Bash(git commit --amend:*)`, don't count.
- */
-export function deniesCommand(rules: string[], command: string): boolean {
-  return rules.some((rule) => {
-    const pattern = /^Bash\((.*)\)$/
-      .exec(rule)?.[1]
-      ?.replace(/(?::\*| \*|\*)$/, "")
-      .trim();
-    return (
-      !!pattern && (command === pattern || command.startsWith(`${pattern} `))
-    );
-  });
-}
-
-function parseToolFlags(claudeArgs: string, flags: Set<string>): string[] {
   if (!claudeArgs?.trim()) return [];
 
   const args = tokenize(claudeArgs);
@@ -87,7 +62,7 @@ function parseToolFlags(claudeArgs: string, flags: Set<string>): string[] {
     if (!arg?.startsWith("--")) continue;
 
     const flag = arg.slice(2);
-    if (!flags.has(flag)) continue;
+    if (!ALLOWED_TOOLS_FLAGS.has(flag)) continue;
 
     // Consume all consecutive non-flag values, e.g.
     //   --allowedTools "Read" "Grep" "mcp__github__get_commit"
@@ -104,4 +79,38 @@ function parseToolFlags(claudeArgs: string, flags: Set<string>): string[] {
   }
 
   return tools;
+}
+
+/**
+ * The patterns of the `Bash(...)` deny rules in a claude_args string. It reads the
+ * arguments the same way as the code that passes them to the CLI, including the
+ * `--disallowedTools=...` form, so it sees every rule the CLI receives.
+ */
+export function parseDeniedBashPatterns(claudeArgs: string): string[] {
+  const values = Object.entries(parseClaudeArgsToExtraArgs(claudeArgs)).flatMap(
+    ([key, value]) => {
+      const [flag, inlineValue] = key.split(/=(.*)/s);
+      return flag === "disallowedTools" || flag === "disallowed-tools"
+        ? [inlineValue ?? "", value ?? ""]
+        : [];
+    },
+  );
+  return values.flatMap((value) =>
+    [...value.matchAll(/Bash\(([^)]*)\)/g)].map((match) => match[1]!),
+  );
+}
+
+/**
+ * Whether a Bash deny pattern covers every use of a command. Narrower patterns,
+ * such as `git commit --amend:*`, don't count.
+ */
+export function deniesCommand(patterns: string[], command: string): boolean {
+  return patterns.some((pattern) => {
+    const escape = (text: string) => text.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+    const toRegex = (glob: string) => glob.split("*").map(escape).join(".*");
+    const source = pattern.endsWith(":*")
+      ? `${toRegex(pattern.slice(0, -2))}( .*)?`
+      : toRegex(pattern);
+    return new RegExp(`^${source}$`, "s").test(`${command} x`);
+  });
 }
