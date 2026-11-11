@@ -281,6 +281,86 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("commas inside tool rule parentheses", () => {
+    test("keeps a comma inside an allowed rule", () => {
+      const result = parseSdkOptions({
+        claudeArgs: '--allowedTools "Bash(gh pr list --json number,title)"',
+      });
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(gh pr list --json number,title)",
+      ]);
+    });
+
+    test("keeps rules that share text after a comma", () => {
+      const result = parseSdkOptions({
+        claudeArgs:
+          '--allowedTools "Bash(gh pr list --json number,title),Read" "Bash(gh issue list --json body,title)"',
+      });
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(gh pr list --json number,title)",
+        "Read",
+        "Bash(gh issue list --json body,title)",
+      ]);
+    });
+
+    test("keeps disallowed rules that share text after a comma", () => {
+      const result = parseSdkOptions({
+        claudeArgs:
+          '--disallowedTools "Bash(gh pr merge --admin,--auto)" "Bash(gh pr close --delete-branch,--auto)"',
+      });
+
+      expect(result.sdkOptions.disallowedTools).toEqual([
+        "Bash(gh pr merge --admin,--auto)",
+        "Bash(gh pr close --delete-branch,--auto)",
+      ]);
+    });
+
+    test("keeps rules from both sources that share text after a comma", () => {
+      const result = parseSdkOptions({
+        claudeArgs: '--allowedTools "Bash(npm run test,lint)"',
+        allowedTools: "Bash(npm run build,lint),Read",
+        disallowedTools: "Bash(git push --force,origin),Write",
+      });
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(npm run test,lint)",
+        "Bash(npm run build,lint)",
+        "Read",
+      ]);
+      expect(result.sdkOptions.disallowedTools).toEqual([
+        "Bash(git push --force,origin)",
+        "Write",
+      ]);
+    });
+
+    test("falls back to a plain split when parentheses are unbalanced", () => {
+      const result = parseSdkOptions({
+        claudeArgs: '--disallowedTools "Bash(rm:*,WebFetch"',
+        allowedTools: "Read),Grep",
+      });
+
+      expect(result.sdkOptions.disallowedTools).toEqual([
+        "Bash(rm:*",
+        "WebFetch",
+      ]);
+      expect(result.sdkOptions.allowedTools).toEqual(["Read)", "Grep"]);
+    });
+
+    test("still splits a plain comma list", () => {
+      const result = parseSdkOptions({
+        claudeArgs: '--allowedTools "Read, Bash(git log:*) ,Grep"',
+      });
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Read",
+        "Bash(git log:*)",
+        "Grep",
+      ]);
+    });
+  });
+
   describe("mcp-config merging", () => {
     test("should pass through single mcp-config in extraArgs", () => {
       const options: ClaudeOptions = {

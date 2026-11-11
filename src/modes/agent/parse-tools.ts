@@ -1,4 +1,5 @@
 import { parse as parseShellArgs } from "shell-quote";
+import { splitToolRules } from "../../../base-action/src/parse-sdk-options";
 
 // Flags whose values make up the allowed-tools list.
 // Include both camelCase and hyphenated variants for CLI compatibility.
@@ -67,7 +68,7 @@ export function parseAllowedTools(claudeArgs: string): string[] {
     //   --allowedTools "Read" "Grep" "mcp__github__get_commit"
     while (i + 1 < args.length && !args[i + 1]!.startsWith("--")) {
       i++;
-      for (const tool of args[i]!.split(",")) {
+      for (const tool of splitToolRules(args[i]!)) {
         const trimmed = tool.trim();
         if (trimmed && !seen.has(trimmed)) {
           seen.add(trimmed);
