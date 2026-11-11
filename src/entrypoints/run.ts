@@ -14,10 +14,6 @@ import { existsSync, readFileSync } from "fs";
 import { setupGitHubToken, WorkflowValidationSkipError } from "../github/token";
 import { checkWritePermissions } from "../github/validation/permissions";
 import { getUntrustedPrDisallowedTools } from "../github/validation/untrusted-pr";
-import {
-  disableGitPrograms,
-  snapshotSessionFiles,
-} from "../github/operations/session-guard";
 import { createOctokit } from "../github/api/client";
 import type { Octokits } from "../github/api/client";
 import {
@@ -33,6 +29,10 @@ import { detectMode } from "../modes/detector";
 import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
 import { checkContainsTrigger } from "../github/validation/trigger";
+import {
+  disableGitPrograms,
+  snapshotSessionFiles,
+} from "../github/operations/session-guard";
 import { restoreConfigFromBase } from "../github/operations/restore-config";
 import { validateBranchName } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
