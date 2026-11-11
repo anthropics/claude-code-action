@@ -170,7 +170,7 @@ claude_args: |
 
 ### Why doesn't Claude execute my bash commands?
 
-The Bash tool is **disabled by default** for security. To enable individual bash commands using `claude_args`:
+In [auto mode](./usage.md#permission-mode), the default, a safety review decides any Bash command that no allow rule covers, and it can block yours. With `--permission-mode acceptEdits` or `default`, most Bash commands are denied unless allowed. To allow individual bash commands using `claude_args`:
 
 ```yaml
 claude_args: |

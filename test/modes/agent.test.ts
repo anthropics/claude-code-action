@@ -19,9 +19,11 @@ describe("Agent Mode", () => {
   let replaceCheckoutCredentialsSpy: any;
 
   const savedBaseUrl = process.env.ANTHROPIC_BASE_URL;
+  const savedNonWriteUsers = process.env.ALLOWED_NON_WRITE_USERS;
 
   beforeEach(() => {
     delete process.env.ANTHROPIC_BASE_URL;
+    delete process.env.ALLOWED_NON_WRITE_USERS;
     exportVariableSpy = spyOn(core, "exportVariable").mockImplementation(
       () => {},
     );
@@ -42,6 +44,11 @@ describe("Agent Mode", () => {
   afterEach(() => {
     if (savedBaseUrl === undefined) delete process.env.ANTHROPIC_BASE_URL;
     else process.env.ANTHROPIC_BASE_URL = savedBaseUrl;
+    if (savedNonWriteUsers === undefined) {
+      delete process.env.ALLOWED_NON_WRITE_USERS;
+    } else {
+      process.env.ALLOWED_NON_WRITE_USERS = savedNonWriteUsers;
+    }
     exportVariableSpy?.mockClear();
     setOutputSpy?.mockClear();
     configureGitAuthSpy?.mockClear();

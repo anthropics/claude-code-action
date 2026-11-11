@@ -135,6 +135,7 @@ Opt out if your workflow relies on `--allowedTools` as a strict list, because au
 ### When auto mode doesn't apply
 
 - **Unsupported model or organization setting:** auto mode needs a [supported model](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode), and an administrator can turn it off. The session then starts in Manual. For `@claude` mentions, the action logs a warning and switches to `acceptEdits`. With a `prompt`, it stays in Manual and denies what no rule covers.
+- **`allowed_non_write_users` is set:** sessions keep the earlier defaults, because anyone's text reaches these runs, so the review can't pass a call those defaults deny. Add `--permission-mode auto` to opt in.
 - **`ANTHROPIC_BASE_URL` is set:** sessions keep the earlier defaults, because the safety check depends on what a gateway passes through. Add `--permission-mode auto` once your gateway supports it.
 - **`--dangerously-skip-permissions`:** this still takes priority over any mode.
 
