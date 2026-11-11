@@ -65,7 +65,7 @@ export const createMockContext = (
         includeCommentsByActor: overrides.inputs.includeCommentsByActor ?? "",
         excludeCommentsByActor: overrides.inputs.excludeCommentsByActor ?? "",
       }
-    : defaultInputs;
+    : { ...defaultInputs };
 
   return { ...baseContext, ...overrides, inputs: mergedInputs };
 };
