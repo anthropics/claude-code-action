@@ -545,6 +545,138 @@ describe("installPlugins", () => {
     );
   });
 
+  // Ref-pinned marketplace tests (`.git#<branch|tag|sha>` suffix)
+  test("should fetch a ref-pinned marketplace at the ref and add the local checkout", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "https://github.com/user/marketplace.git#v1.2.3",
+      "test-plugin",
+    );
+
+    // 4 git calls (init, remote add, fetch, checkout) + marketplace add + plugin install
+    expect(spy).toHaveBeenCalledTimes(6);
+
+    const calls = spy.mock.calls as unknown as [string, string[]][];
+    expect(calls[0]![0]).toBe("git");
+    expect(calls[0]![1]![0]).toBe("init");
+    const tempDir = calls[0]![1]![2]!;
+    expect(tempDir).toContain("claude-marketplace-");
+    expect(calls[1]).toEqual([
+      "git",
+      [
+        "-C",
+        tempDir,
+        "remote",
+        "add",
+        "origin",
+        "https://github.com/user/marketplace.git",
+      ],
+      { stdio: "inherit" },
+    ] as any);
+    expect(calls[2]).toEqual([
+      "git",
+      ["-C", tempDir, "fetch", "--quiet", "--depth", "1", "origin", "v1.2.3"],
+      { stdio: "inherit" },
+    ] as any);
+    expect(calls[3]).toEqual([
+      "git",
+      ["-C", tempDir, "checkout", "--quiet", "FETCH_HEAD"],
+      { stdio: "inherit" },
+    ] as any);
+    // The marketplace is added from the pinned local checkout, not the URL
+    expect(calls[4]).toEqual([
+      "claude",
+      ["plugin", "marketplace", "add", tempDir],
+      { stdio: "inherit" },
+    ] as any);
+    expect(calls[5]).toEqual([
+      "claude",
+      ["plugin", "install", "test-plugin"],
+      { stdio: "inherit" },
+    ] as any);
+  });
+
+  test("should support pinning to a commit SHA", async () => {
+    const spy = createMockSpawn();
+    const sha = "0123456789abcdef0123456789abcdef01234567";
+    await installPlugins(
+      `https://github.com/user/marketplace.git#${sha}`,
+      undefined,
+    );
+
+    const calls = spy.mock.calls as unknown as [string, string[]][];
+    const fetchCall = calls.find((c) => c[1]?.includes("fetch"));
+    expect(fetchCall![1]![fetchCall![1]!.length - 1]).toBe(sha);
+  });
+
+  test("should support mixing pinned and unpinned marketplaces", async () => {
+    const spy = createMockSpawn();
+    await installPlugins(
+      "https://github.com/user/m1.git#release/1.x\nhttps://github.com/user/m2.git",
+      undefined,
+    );
+
+    // m1: 4 git calls + add; m2: add only
+    expect(spy).toHaveBeenCalledTimes(6);
+    const calls = spy.mock.calls as unknown as [string, string[]][];
+    expect(calls[2]![1]).toContain("release/1.x");
+    expect(calls[5]).toEqual([
+      "claude",
+      ["plugin", "marketplace", "add", "https://github.com/user/m2.git"],
+      { stdio: "inherit" },
+    ] as any);
+  });
+
+  test("should reject an empty ref after .git#", async () => {
+    const spy = createMockSpawn();
+
+    await expect(
+      installPlugins("https://github.com/user/marketplace.git#", "p"),
+    ).rejects.toThrow("Invalid marketplace ref");
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test("should reject a ref starting with a dash (flag injection)", async () => {
+    const spy = createMockSpawn();
+
+    await expect(
+      installPlugins("https://github.com/user/marketplace.git#-rev", "p"),
+    ).rejects.toThrow("Invalid marketplace ref");
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test("should reject a ref containing path traversal", async () => {
+    const spy = createMockSpawn();
+
+    await expect(
+      installPlugins("https://github.com/user/marketplace.git#v1..v2", "p"),
+    ).rejects.toThrow("Invalid marketplace ref");
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test("should reject a ref with shell metacharacters", async () => {
+    const spy = createMockSpawn();
+
+    await expect(
+      installPlugins("https://github.com/user/marketplace.git#v1;rm", "p"),
+    ).rejects.toThrow("Invalid marketplace ref");
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test("should surface a git fetch failure for a pinned marketplace", async () => {
+    createMockSpawn(1, false); // every spawned command exits 1
+
+    await expect(
+      installPlugins("https://github.com/user/marketplace.git#v9.9.9", "p"),
+    ).rejects.toThrow(
+      "Failed to fetch marketplace 'https://github.com/user/marketplace.git' at ref 'v9.9.9' (exit code: 1)",
+    );
+  });
+
   test("should handle marketplace addition error", async () => {
     createMockSpawn(1, false); // Exit code 1
 
