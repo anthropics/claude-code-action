@@ -67,7 +67,8 @@ Note that the runtime executing the tool also reads project config. `bunx <tool>
 
 In its default configuration, **Claude does not create pull requests automatically** when responding to `@claude` mentions. Instead:
 
-- Claude commits code changes to a new branch
+- Claude commits code changes to a new branch, or to the pull request's branch
+- Claude's push command can't update any other branch. Branch protection on your default branch is still worth having, because a workflow can allow other push commands
 - Claude provides a **link to the GitHub PR creation page** in its response
 - **The user must click the link and create the PR themselves**, ensuring human oversight before any code is proposed for merging
 

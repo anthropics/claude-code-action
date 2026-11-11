@@ -76,6 +76,43 @@ describe("Tag Mode", () => {
       expect(replaceCheckoutCredentialsSpy).not.toHaveBeenCalled();
     });
 
+    describe("push branch", () => {
+      const saved = process.env.CLAUDE_PUSH_BRANCH;
+
+      beforeEach(() => {
+        delete process.env.CLAUDE_PUSH_BRANCH;
+      });
+
+      afterEach(() => {
+        if (saved === undefined) delete process.env.CLAUDE_PUSH_BRANCH;
+        else process.env.CLAUDE_PUSH_BRANCH = saved;
+      });
+
+      test("pins the push wrapper to a new claude branch", async () => {
+        await prepareTagMode({
+          context: { ...mockIssueCommentContext },
+          octokit: {} as any,
+          githubToken: "test-token",
+        });
+        expect(process.env.CLAUDE_PUSH_BRANCH).toBe("claude/test");
+      });
+
+      test("pins the push wrapper to the branch of an open PR", async () => {
+        spies.push(
+          spyOn(branch, "setupBranch").mockImplementation(
+            async () =>
+              ({ baseBranch: "main", currentBranch: "feature" }) as any,
+          ),
+        );
+        await prepareTagMode({
+          context: { ...mockIssueCommentContext },
+          octokit: {} as any,
+          githubToken: "test-token",
+        });
+        expect(process.env.CLAUDE_PUSH_BRANCH).toBe("feature");
+      });
+    });
+
     test("still replaces the checkout credential when API commit signing is enabled", async () => {
       const context = {
         ...mockIssueCommentContext,
