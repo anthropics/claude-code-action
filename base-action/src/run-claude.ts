@@ -14,6 +14,7 @@ export type ClaudeOptions = {
   appendSystemPrompt?: string;
   fallbackModel?: string;
   showFullOutput?: string;
+  maxDurationMs?: number;
 };
 
 export async function runClaude(
@@ -21,5 +22,5 @@ export async function runClaude(
   options: ClaudeOptions,
 ): Promise<ClaudeRunResult> {
   const parsedOptions = parseSdkOptions(options);
-  return runClaudeWithSdk(promptPath, parsedOptions);
+  return runClaudeWithSdk(promptPath, parsedOptions, options.maxDurationMs);
 }

@@ -65,6 +65,7 @@ jobs:
 | `track_progress`                 | Force tag mode with tracking comments. Only works with specific PR/issue events. Preserves GitHub context                                                                                                                              | No       | `false`                     |
 | `include_fix_links`              | Include 'Fix this' links in PR code review feedback that open Claude Code with context to fix the identified issue                                                                                                                     | No       | `true`                      |
 | `claude_args`                    | Additional [arguments to pass directly to Claude CLI](https://docs.claude.com/en/docs/claude-code/cli-reference#cli-flags) (e.g., `--max-turns 10 --model claude-4-0-sonnet-20250805`)                                                 | No       | ""                          |
+| `max_duration_minutes`           | Maximum wall-clock duration of the Claude session in whole minutes. Leave empty for no limit.                                                                                                                                          | No       | ""                          |
 | `base_branch`                    | The base branch to use for creating new branches (e.g., 'main', 'develop')                                                                                                                                                             | No       | -                           |
 | `use_sticky_comment`             | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                                                                                                                                            | No       | `false`                     |
 | `classify_inline_comments`       | Buffer inline comments without `confirmed: true` and classify them (real review vs test/probe) via Haiku before posting after the session ends. Prevents subagent test comments. Set `'false'` to post all inline comments immediately | No       | `true`                      |
@@ -89,6 +90,19 @@ jobs:
 | `path_to_bun_executable`         | Optional path to a custom Bun executable. Skips automatic Bun installation. Useful for Nix, custom containers, or specialized environments                                                                                             | No       | ""                          |
 | `plugin_marketplaces`            | Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., see example in workflow above). Marketplaces are added before plugin installation                                                             | No       | ""                          |
 | `plugins`                        | Newline-separated list of Claude Code plugin names to install (e.g., see example in workflow above). Plugins are installed before Claude Code execution                                                                                | No       | ""                          |
+
+### Limit session duration
+
+Set `max_duration_minutes` below the workflow's `timeout-minutes` to leave time for setup and cleanup. The limit starts when the action starts the Claude SDK query. When it expires, the action cancels the query, saves the execution log collected so far, and reports the run as failed. Cleanup can still run if the workflow timeout has not expired.
+
+For example, give the action step 15 minutes and the Claude session 10:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  timeout-minutes: 15
+  with:
+    max_duration_minutes: "10"
+```
 
 ### Deprecated Inputs
 

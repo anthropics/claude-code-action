@@ -105,6 +105,10 @@ inputs:
     description: "Additional arguments to pass directly to Claude CLI"
     required: false
     default: ""
+  max_duration_minutes:
+    description: "Maximum duration of the Claude session in whole minutes. Leave empty for no limit. Set below timeout-minutes to leave time for setup and cleanup."
+    required: false
+    default: ""
   additional_permissions:
     description: "Additional GitHub permissions to request (e.g., 'actions: read')"
     required: false
@@ -314,6 +318,7 @@ runs:
         INCLUDE_FIX_LINKS: ${{ inputs.include_fix_links }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         CLAUDE_ARGS: ${{ inputs.claude_args }}
+        MAX_DURATION_MINUTES: ${{ inputs.max_duration_minutes }}
         ALL_INPUTS: ${{ toJson(inputs) }}
 
         # Base-action inputs

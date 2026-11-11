@@ -165,6 +165,7 @@ function sanitizeSdkOutput(
 export async function runClaudeWithSdk(
   promptPath: string,
   { sdkOptions, showFullOutput, hasJsonSchema }: ParsedSdkOptions,
+  maxDurationMs?: number,
 ): Promise<ClaudeRunResult> {
   // Create prompt configuration - may be a string or multi-block message
   const prompt = await createPromptConfig(promptPath, showFullOutput);
@@ -185,9 +186,20 @@ export async function runClaudeWithSdk(
 
   const messages: SDKMessage[] = [];
   let resultMessage: SDKResultMessage | undefined;
+  const abortController =
+    maxDurationMs === undefined ? undefined : new AbortController();
+  const timeoutError = new Error(
+    "Claude session exceeded max_duration_minutes",
+  );
+  const deadline = abortController
+    ? setTimeout(() => abortController.abort(timeoutError), maxDurationMs)
+    : undefined;
 
   try {
-    for await (const message of query({ prompt, options: sdkOptions })) {
+    const options = abortController
+      ? { ...sdkOptions, abortController }
+      : sdkOptions;
+    for await (const message of query({ prompt, options })) {
       messages.push(message);
 
       const sanitized = sanitizeSdkOutput(message, showFullOutput);
@@ -209,10 +221,15 @@ export async function runClaudeWithSdk(
         break;
       }
     }
+    // Some cancelled queries close the stream without throwing.
+    abortController?.signal.throwIfAborted();
   } catch (error) {
-    console.error("SDK execution error:", error);
+    const failure = abortController?.signal.aborted ? timeoutError : error;
+    console.error("SDK execution error:", failure);
     await writeExecutionFile(messages);
-    throw new Error(`SDK execution error: ${error}`);
+    throw new Error(`SDK execution error: ${failure}`);
+  } finally {
+    clearTimeout(deadline);
   }
 
   const result: ClaudeRunResult = {

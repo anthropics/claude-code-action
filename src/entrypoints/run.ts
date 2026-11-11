@@ -53,6 +53,22 @@ export function buildInstallCommand(version: string): string {
   return `set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash -s -- ${version}`;
 }
 
+export function parseMaxDurationMs(
+  input: string | undefined,
+): number | undefined {
+  const value = input?.trim();
+  if (!value) return undefined;
+
+  const minutes = Number(value);
+  const maxMinutes = Math.floor(2_147_483_647 / 60_000);
+  if (!/^\d+$/.test(value) || minutes < 1 || minutes > maxMinutes) {
+    throw new Error(
+      `max_duration_minutes must be a whole number between 1 and ${maxMinutes}`,
+    );
+  }
+  return minutes * 60_000;
+}
+
 /**
  * Install Claude Code CLI, handling retry logic and custom executable paths.
  * Returns the absolute path to the claude executable.
@@ -166,6 +182,7 @@ async function run() {
   let prepareCompleted = false;
   try {
     // Phase 1: Prepare
+    const maxDurationMs = parseMaxDurationMs(process.env.MAX_DURATION_MINUTES);
     const actionInputsPresent = collectActionInputsPresence();
     context = parseGitHubContext();
     const modeName = detectMode(context);
@@ -297,6 +314,7 @@ async function run() {
       model: process.env.ANTHROPIC_MODEL,
       pathToClaudeCodeExecutable: claudeExecutable,
       showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
+      maxDurationMs,
     });
 
     claudeSuccess = claudeResult.conclusion === "success";

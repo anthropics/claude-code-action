@@ -17,6 +17,51 @@ describe("runClaudeWithSdk", () => {
     process.env.RUNNER_TEMP = originalRunnerTemp;
   });
 
+  test("cancels a stalled SDK query and saves the partial execution log", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+    process.env.RUNNER_TEMP = tempDir;
+    const promptPath = join(tempDir, "prompt.txt");
+    await writeFile(promptPath, "test prompt");
+
+    const initMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "session-123",
+    };
+
+    mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+      query: async function* ({
+        options,
+      }: {
+        options: { abortController?: AbortController };
+      }) {
+        yield initMessage;
+        const signal = options.abortController?.signal;
+        if (!signal) throw new Error("No SDK abort signal");
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) resolve();
+          else
+            signal.addEventListener("abort", () => resolve(), { once: true });
+        });
+        // The SDK may finish the stream on cancellation without a result.
+      },
+    }));
+
+    const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+    await expect(
+      runClaudeWithSdk(
+        promptPath,
+        { sdkOptions: {}, showFullOutput: false, hasJsonSchema: false },
+        20,
+      ),
+    ).rejects.toThrow("Claude session exceeded max_duration_minutes");
+
+    const executionFile = join(tempDir, "claude-execution-output.json");
+    await expect(readFile(executionFile, "utf-8")).resolves.toBe(
+      JSON.stringify([initMessage], null, 2),
+    );
+  });
+
   test("writes the execution file when the SDK throws after yielding messages", async () => {
     const consoleErrorSpy = spyOn(console, "error").mockImplementation(
       () => {},
