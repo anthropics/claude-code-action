@@ -29,6 +29,7 @@ import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
 import { checkContainsTrigger } from "../github/validation/trigger";
 import { restoreConfigFromBase } from "../github/operations/restore-config";
+import { ensurePullRequestMergeBase } from "../github/operations/fetch-depth";
 import { validateBranchName } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
@@ -272,6 +273,11 @@ async function run() {
       }
       if (restoreBase) {
         restoredConfigPaths = restoreConfigFromBase(restoreBase);
+        await ensurePullRequestMergeBase(
+          octokit.rest,
+          context.repository,
+          restoreBase,
+        );
       }
     }
 

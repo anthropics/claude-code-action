@@ -116,16 +116,17 @@ Claude's branch behavior depends on the context:
 
 ### Why are my commits shallow/missing history?
 
-For performance, Claude uses shallow clones:
+When the checkout is shallow, the action fetches the history needed for the run.
+For pull requests, it checks whether Git can find the merge base and fetches
+more history if needed for commands such as `git diff origin/main...HEAD`.
+Runs that create a branch from an issue can still start with a single commit.
 
-- PRs: `--depth=20` (last 20 commits)
-- New branches: `--depth=1` (single commit)
+For full history across the repository, set `fetch-depth: 0` in the checkout step.
 
-If you need full history, you can configure this in your workflow before calling Claude in the `actions/checkout` step.
-
-```
+```yaml
 - uses: actions/checkout@v6
-  depth: 0 # will fetch full repo history
+  with:
+    fetch-depth: 0
 ```
 
 ## Configuration and Tools
