@@ -457,6 +457,23 @@ describe("parseSdkOptions", () => {
       );
       expect(result.hasJsonSchema).toBe(true);
     });
+
+    test("should keep a literal $ inside double-quoted values", () => {
+      // shell-quote expands $VAR against an empty environment, so "$5" and
+      // "$HOME/bin" were silently rewritten to "" and "/bin".
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--append-system-prompt "Budget is $5, tools live in $HOME/bin"' +
+          ' --allowedTools "Bash(echo $HOME:*)"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.extraArgs?.["append-system-prompt"]).toBe(
+        "Budget is $5, tools live in $HOME/bin",
+      );
+      expect(result.sdkOptions.allowedTools).toEqual(["Bash(echo $HOME:*)"]);
+    });
   });
 
   describe("shell comment stripping", () => {
