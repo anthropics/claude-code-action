@@ -18,6 +18,7 @@ export type CommentUpdateInput = {
   branchName?: string;
   triggerUsername?: string;
   errorDetails?: string;
+  includeSummary?: boolean;
 };
 
 export function ensureProperlyEncodedUrl(url: string): string | null {
@@ -188,6 +189,10 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   // secrets, so redact known formats before posting.
   if (actionFailed && errorDetails) {
     newBody += `\n\n\`\`\`\n${redactSecrets(errorDetails)}\n\`\`\``;
+  }
+
+  if (input.includeSummary === false) {
+    return newBody.trim();
   }
 
   newBody += `\n\n---\n`;

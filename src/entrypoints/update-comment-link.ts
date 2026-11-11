@@ -224,6 +224,7 @@ export async function updateCommentLink(
     branchName: shouldDeleteBranch || !branchLink ? undefined : claudeBranch,
     triggerUsername,
     errorDetails,
+    includeSummary: process.env.TRACK_PROGRESS_SUMMARY !== "false",
   };
 
   const updatedBody = updateCommentBody(commentInput);
