@@ -186,7 +186,10 @@ describe("Agent Mode", () => {
       }
     });
 
-    const branchFor = async (headRepository: string | null) => {
+    const branchFor = async (
+      headRepository: string | null,
+      overrides: Record<string, unknown> = {},
+    ) => {
       const context = {
         ...createMockAutomationContext({
           repository: {
@@ -198,6 +201,7 @@ describe("Agent Mode", () => {
         }),
         eventName: "pull_request",
         entityNumber: 5,
+        isPR: true,
         inputs: {
           ...createMockAutomationContext().inputs,
           useCommitSigning: true,
@@ -205,9 +209,12 @@ describe("Agent Mode", () => {
         payload: {
           pull_request: {
             number: 5,
-            head: headRepository ? { repo: { full_name: headRepository } } : {},
+            head: headRepository
+              ? { ref: "release", repo: { full_name: headRepository } }
+              : { ref: "release" },
           },
         },
+        ...overrides,
       } as any;
       const octokit = {
         rest: {
@@ -245,6 +252,54 @@ describe("Agent Mode", () => {
 
     test("keeps the branch name for the same repository", async () => {
       expect(await branchFor("Test-Owner/test-repo")).toBe("release");
+    });
+
+    test("uses pr-N for a fork's review event", async () => {
+      expect(
+        await branchFor("attacker/test-repo", {
+          eventName: "pull_request_review",
+        }),
+      ).toBe("pr-5");
+    });
+
+    test("keeps the branch name for a review in the same repository", async () => {
+      delete process.env.GITHUB_HEAD_REF;
+      expect(
+        await branchFor("test-owner/test-repo", {
+          eventName: "pull_request_review",
+        }),
+      ).toBe("release");
+    });
+
+    test("uses pr-N for a comment on a PR, not the default branch", async () => {
+      delete process.env.GITHUB_HEAD_REF;
+      process.env.GITHUB_REF_NAME = "main";
+      try {
+        expect(
+          await branchFor(null, {
+            eventName: "issue_comment",
+            payload: { issue: { number: 5, pull_request: {} } },
+          }),
+        ).toBe("pr-5");
+      } finally {
+        delete process.env.GITHUB_REF_NAME;
+      }
+    });
+
+    test("leaves a comment on an issue on the workflow's branch", async () => {
+      delete process.env.GITHUB_HEAD_REF;
+      process.env.GITHUB_REF_NAME = "main";
+      try {
+        expect(
+          await branchFor(null, {
+            eventName: "issue_comment",
+            isPR: false,
+            payload: { issue: { number: 5 } },
+          }),
+        ).toBe("main");
+      } finally {
+        delete process.env.GITHUB_REF_NAME;
+      }
     });
   });
 

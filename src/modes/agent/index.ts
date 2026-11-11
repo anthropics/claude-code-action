@@ -7,21 +7,26 @@ import {
   setupSshSigning,
 } from "../../github/operations/git-config";
 import { checkHumanActor } from "../../github/validation/actor";
-import { isPullRequestEvent, type GitHubContext } from "../../github/context";
+import { isEntityContext, type GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
 
 /**
- * A fork's branch name means nothing in this repository, and commits made through
- * the API land on the branch of that name here. Tag mode uses pr-N for the same
- * reason.
+ * Commits made through the API land on the branch of this name in this repository,
+ * so a pull request run has to use its own branch. A fork's branch name means nothing
+ * here, and a comment event only knows the default branch. Tag mode uses pr-N too.
  */
 function getPullRequestBranch(context: GitHubContext): string | undefined {
-  if (!isPullRequestEvent(context)) return process.env.GITHUB_HEAD_REF;
-  const headRepository = context.payload.pull_request.head?.repo?.full_name;
-  const isFork =
-    headRepository?.toLowerCase() !==
+  if (!isEntityContext(context) || !context.isPR) {
+    return process.env.GITHUB_HEAD_REF;
+  }
+  const head =
+    "pull_request" in context.payload
+      ? context.payload.pull_request.head
+      : undefined;
+  const isSameRepository =
+    head?.repo?.full_name?.toLowerCase() ===
     context.repository.full_name.toLowerCase();
-  return isFork ? `pr-${context.entityNumber}` : process.env.GITHUB_HEAD_REF;
+  return isSameRepository && head ? head.ref : `pr-${context.entityNumber}`;
 }
 
 /**
