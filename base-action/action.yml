@@ -107,19 +107,19 @@ outputs:
     value: ${{ steps.run_claude.outputs.session_id }}
   total_cost_usd:
     description: "Estimated cost reported by the Agent SDK in USD"
-    value: ${{ steps.run.outputs.total_cost_usd }}
+    value: ${{ steps.run_claude.outputs.total_cost_usd }}
   input_tokens:
     description: "Input tokens excluding cache reads and writes, summed across models"
-    value: ${{ steps.run.outputs.input_tokens }}
+    value: ${{ steps.run_claude.outputs.input_tokens }}
   output_tokens:
     description: "Output tokens summed across models"
-    value: ${{ steps.run.outputs.output_tokens }}
+    value: ${{ steps.run_claude.outputs.output_tokens }}
   cache_read_tokens:
     description: "Input tokens read from the prompt cache, summed across models"
-    value: ${{ steps.run.outputs.cache_read_tokens }}
+    value: ${{ steps.run_claude.outputs.cache_read_tokens }}
   cache_write_tokens:
     description: "Input tokens written to the prompt cache, summed across models"
-    value: ${{ steps.run.outputs.cache_write_tokens }}
+    value: ${{ steps.run_claude.outputs.cache_write_tokens }}
 
 runs:
   using: "composite"
