@@ -159,6 +159,31 @@ function sanitizeSdkOutput(
   return null;
 }
 
+function setUsageOutputs(result: SDKResultMessage): void {
+  if (Number.isFinite(result.total_cost_usd)) {
+    core.setOutput("total_cost_usd", result.total_cost_usd);
+  }
+
+  const modelUsage = Object.values(result.modelUsage ?? {});
+  if (modelUsage.length === 0) return;
+
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cacheReadTokens = 0;
+  let cacheWriteTokens = 0;
+  for (const model of modelUsage) {
+    inputTokens += model.inputTokens;
+    outputTokens += model.outputTokens;
+    cacheReadTokens += model.cacheReadInputTokens;
+    cacheWriteTokens += model.cacheCreationInputTokens;
+  }
+
+  core.setOutput("input_tokens", inputTokens);
+  core.setOutput("output_tokens", outputTokens);
+  core.setOutput("cache_read_tokens", cacheReadTokens);
+  core.setOutput("cache_write_tokens", cacheWriteTokens);
+}
+
 /**
  * Run Claude using the Agent SDK
  */
@@ -237,6 +262,8 @@ export async function runClaudeWithSdk(
     core.error("No result message received from Claude");
     throw new Error("No result message received from Claude");
   }
+
+  setUsageOutputs(resultMessage);
 
   if (
     resultMessage.subtype === "success" &&

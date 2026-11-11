@@ -64,8 +64,12 @@ describe("runClaudeWithSdk", () => {
     }
   });
 
-  test("logs resolved model limits without exposing token usage", async () => {
+  test("exposes combined usage as outputs while keeping token counts out of logs", async () => {
     const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+    const setOutputSpy = spyOn(
+      await import("@actions/core"),
+      "setOutput",
+    ).mockImplementation(() => {});
 
     tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
     process.env.RUNNER_TEMP = tempDir;
@@ -96,6 +100,16 @@ describe("runClaudeWithSdk", () => {
           cacheCreationInputTokens: 149043,
           webSearchRequests: 0,
           costUSD: 1.23,
+          contextWindow: 200000,
+          maxOutputTokens: 64000,
+        },
+        "claude-haiku-4-5": {
+          inputTokens: 12,
+          outputTokens: 34,
+          cacheReadInputTokens: 0,
+          cacheCreationInputTokens: 0,
+          webSearchRequests: 0,
+          costUSD: 0.01,
           contextWindow: 200000,
           maxOutputTokens: 64000,
         },
@@ -144,12 +158,24 @@ describe("runClaudeWithSdk", () => {
             contextWindow: 200000,
             maxOutputTokens: 64000,
           },
+          "claude-haiku-4-5": {
+            contextWindow: 200000,
+            maxOutputTokens: 64000,
+          },
         },
       });
       expect(sanitizedResult).not.toContain("inputTokens");
       expect(sanitizedResult).not.toContain("costUSD");
+      expect(setOutputSpy.mock.calls).toEqual([
+        ["total_cost_usd", 1.23],
+        ["input_tokens", 96221],
+        ["output_tokens", 55358],
+        ["cache_read_tokens", 1135701],
+        ["cache_write_tokens", 149043],
+      ]);
     } finally {
       consoleLogSpy.mockRestore();
+      setOutputSpy.mockRestore();
     }
   });
 
@@ -158,6 +184,10 @@ describe("runClaudeWithSdk", () => {
       () => {},
     );
     const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+    const setOutputSpy = spyOn(
+      await import("@actions/core"),
+      "setOutput",
+    ).mockImplementation(() => {});
     const coreErrorSpy = spyOn(
       await import("@actions/core"),
       "error",
@@ -208,6 +238,7 @@ describe("runClaudeWithSdk", () => {
       await expect(readFile(executionFile, "utf-8")).resolves.toBe(
         JSON.stringify([initMessage, errorResultMessage], null, 2),
       );
+      expect(setOutputSpy.mock.calls).toEqual([["total_cost_usd", 0]]);
       expect(coreErrorSpy).toHaveBeenCalledWith(
         "Claude result reported subtype success with is_error:true (run did not complete successfully)",
       );
@@ -215,6 +246,7 @@ describe("runClaudeWithSdk", () => {
       consoleErrorSpy.mockRestore();
       consoleLogSpy.mockRestore();
       coreErrorSpy.mockRestore();
+      setOutputSpy.mockRestore();
     }
   });
 

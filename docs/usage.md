@@ -266,6 +266,26 @@ See `examples/test-failure-analysis.yml` for a working example that:
 For complete details on JSON Schema syntax and Agent SDK structured outputs:
 https://docs.claude.com/en/docs/agent-sdk/structured-outputs
 
+## Run cost and token usage
+
+The action exposes these outputs when the Agent SDK returns usage data. They
+are available without enabling `show_full_output` or parsing the execution file.
+
+| Output               | Description                                                         |
+| -------------------- | ------------------------------------------------------------------- |
+| `total_cost_usd`     | Estimated cost reported by the Agent SDK in USD                     |
+| `input_tokens`       | Input tokens excluding cache reads and writes, summed across models |
+| `output_tokens`      | Output tokens summed across models                                  |
+| `cache_read_tokens`  | Input tokens read from the prompt cache, summed across models       |
+| `cache_write_tokens` | Input tokens written to the prompt cache, summed across models      |
+
+The token counts aggregate the SDK's per-model totals, including subagent calls
+tracked by the SDK. The USD value is a client-side estimate. If a session is
+resumed, its result may include usage and cost from earlier turns. If the SDK
+returns an error result with usage data, the outputs are still available. If no
+result arrives, the outputs are unset. Token outputs are also unset when the
+result has no per-model breakdown.
+
 ## Ways to Tag @claude
 
 These examples show how to interact with Claude using comments in PRs and issues. By default, Claude will be triggered anytime you mention `@claude`, but you can customize the exact trigger phrase using the `trigger_phrase` input in the workflow.
