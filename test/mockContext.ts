@@ -55,7 +55,7 @@ export const createMockContext = (
     payload: {} as any,
     entityNumber: 1,
     isPR: false,
-    inputs: defaultInputs,
+    inputs: { ...defaultInputs },
   };
 
   const mergedInputs = overrides.inputs
@@ -84,7 +84,7 @@ export const createMockAutomationContext = (
     repository: defaultRepository,
     actor: "test-actor",
     payload: {} as any,
-    inputs: defaultInputs,
+    inputs: { ...defaultInputs },
   };
 
   const mergedInputs = overrides.inputs
@@ -123,7 +123,7 @@ export const mockRepositoryDispatchContext: AutomationContext = {
       login: "automation-user",
     },
   } as RepositoryDispatchEvent,
-  inputs: defaultInputs,
+  inputs: { ...defaultInputs },
 };
 
 export const mockIssueOpenedContext: ParsedGitHubContext = {
@@ -158,7 +158,7 @@ export const mockIssueOpenedContext: ParsedGitHubContext = {
   } as IssuesEvent,
   entityNumber: 42,
   isPR: false,
-  inputs: defaultInputs,
+  inputs: { ...defaultInputs },
 };
 
 export const mockIssueAssignedContext: ParsedGitHubContext = {
@@ -337,7 +337,7 @@ export const mockPullRequestCommentContext: ParsedGitHubContext = {
   } as IssueCommentEvent,
   entityNumber: 789,
   isPR: true,
-  inputs: defaultInputs,
+  inputs: { ...defaultInputs },
 };
 
 export const mockPullRequestOpenedContext: ParsedGitHubContext = {
@@ -373,7 +373,7 @@ export const mockPullRequestOpenedContext: ParsedGitHubContext = {
   } as PullRequestEvent,
   entityNumber: 456,
   isPR: true,
-  inputs: defaultInputs,
+  inputs: { ...defaultInputs },
 };
 
 export const mockPullRequestReviewContext: ParsedGitHubContext = {
@@ -518,5 +518,5 @@ export const mockPullRequestReviewCommentContext: ParsedGitHubContext = {
   } as PullRequestReviewCommentEvent,
   entityNumber: 999,
   isPR: true,
-  inputs: defaultInputs,
+  inputs: { ...defaultInputs },
 };

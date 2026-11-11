@@ -53,8 +53,8 @@ export async function configureGitAuth(
  * actions/checkout stores its token as an `http.<server>/.extraheader` entry
  * in .git/config for the duration of the job. Claude and the tools it invokes
  * run inside this working tree, so remove that entry and back git with the
- * action's own token instead (a credential helper when non-write users are
- * allowed, otherwise the origin URL). This applies to every mode, including API
+ * action's own token instead (a credential helper when non-write users or bots
+ * are allowed, otherwise the origin URL). This applies to every mode, including API
  * commit signing where no other git configuration is needed.
  *
  * actions/checkout < v6 stored the header directly in the repo-local config,
@@ -105,9 +105,11 @@ export async function replaceCheckoutCredentials(
       : "No existing authentication headers to remove",
   );
 
-  if (process.env.ALLOWED_NON_WRITE_USERS) {
+  if (process.env.ALLOWED_NON_WRITE_USERS || context.inputs.allowedBots) {
     // When processing content from non-write users, use a credential helper
-    // instead of embedding the token in the remote URL. The helper script reads
+    // instead of embedding the token in the remote URL. Allowed bots count too:
+    // their access isn't checked, and they relay text that other people wrote.
+    // The helper script reads
     // from GH_TOKEN at auth time, so .git/config stays token-free. Written as a
     // file to avoid shell-escaping the helper body; placed under
     // GITHUB_ACTION_PATH so it sits alongside the action source.
@@ -124,7 +126,9 @@ export async function replaceCheckoutCredentials(
     );
     const cleanUrl = `https://${serverUrl.host}/${context.repository.owner}/${context.repository.repo}.git`;
     await $`git remote set-url origin ${cleanUrl}`;
-    await $`git config credential.helper ${helperPath}`;
+    // git runs the helper through sh, which would strip Windows backslashes.
+    const helperCommand = helperPath.replaceAll("\\", "/");
+    await $`git config credential.helper ${helperCommand}`;
     console.log("✓ Configured credential helper");
   } else {
     // Update the remote URL to include the token for authentication

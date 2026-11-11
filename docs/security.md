@@ -5,6 +5,7 @@
 - **Repository Access**: The action can only be triggered by users with write access to the repository. This is checked for issue, pull request, comment, and review events, and for `workflow_run` events, where both the workflow actor and the actor that started the upstream run are checked. `workflow_dispatch`, `repository_dispatch`, and `schedule` events are not checked separately — GitHub itself requires write access to dispatch a workflow, and scheduled runs have no external actor.
 - **Bot User Control**: By default, GitHub Apps and bots cannot trigger this action for security reasons. Use the `allowed_bots` parameter to enable specific bots or all bots
   - **⚠️ Allowed bots are not checked for repository permissions.** A bot that matches an entry does **not** need to be installed on your repository or have write access. On a **public repository**, external parties — including GitHub Apps created by anyone — may be able to trigger workflow events such as opening issues, commenting, or reviewing pull requests. If your workflow listens on those events and `allowed_bots` is set to `'*'`, any such App can invoke this action with a prompt it controls.
+  - When `allowed_bots` is set, the token stays out of `.git/config` and git gets it from a credential helper that reads `GH_TOKEN`. A later step that pushes with the `origin` remote then needs its own credentials. The token is still in Claude's environment.
   - Prefer an explicit list over `'*'`
   - Only list App names you trust
   - If you need `'*'`, scope workflow `permissions:` to the minimum required

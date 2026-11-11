@@ -150,6 +150,25 @@ describe("git-config", () => {
       expect(process.env.GH_TOKEN).toBe("helper-token");
     });
 
+    test("uses a credential helper when bots are allowed", async () => {
+      const context = createMockAutomationContext({
+        inputs: {
+          ...createMockAutomationContext().inputs,
+          allowedBots: "sentry-io[bot]",
+        },
+      } as any);
+
+      await replaceCheckoutCredentials("bot-token", context);
+
+      expect(remoteUrl()).toBe(
+        `https://${SERVER.host}/test-owner/test-repo.git`,
+      );
+      expect(gitConfigGetAll("credential.helper")).toBe(
+        join(tempDir, ".git-credential-gh-token"),
+      );
+      expect(process.env.GH_TOKEN).toBe("bot-token");
+    });
+
     test("succeeds when there is no checkout extraheader to remove", async () => {
       git(["config", "--local", "--unset-all", EXTRAHEADER_KEY]);
 
