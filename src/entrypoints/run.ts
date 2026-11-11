@@ -14,6 +14,10 @@ import { existsSync, readFileSync } from "fs";
 import { setupGitHubToken, WorkflowValidationSkipError } from "../github/token";
 import { checkWritePermissions } from "../github/validation/permissions";
 import { getUntrustedPrDisallowedTools } from "../github/validation/untrusted-pr";
+import {
+  disableGitPrograms,
+  snapshotSessionFiles,
+} from "../github/operations/session-guard";
 import { createOctokit } from "../github/api/client";
 import type { Octokits } from "../github/api/client";
 import {
@@ -303,14 +307,26 @@ async function run() {
         ? await getUntrustedPrDisallowedTools(octokit.rest, context)
         : [];
 
-    const claudeResult: ClaudeRunResult = await runClaude(promptConfig.path, {
-      claudeArgs: prepareResult.claudeArgs,
-      disallowedTools: disallowedTools.join(","),
-      appendSystemPrompt: process.env.APPEND_SYSTEM_PROMPT,
-      model: process.env.ANTHROPIC_MODEL,
-      pathToClaudeCodeExecutable: claudeExecutable,
-      showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
-    });
+    // Hooks keep running for trusted authors, whose repositories may rely on them.
+    disableGitPrograms({ hooks: disallowedTools.length > 0 });
+    const restoreSessionFiles = snapshotSessionFiles();
+
+    let claudeResult: ClaudeRunResult;
+    try {
+      claudeResult = await runClaude(promptConfig.path, {
+        claudeArgs: prepareResult.claudeArgs,
+        disallowedTools: disallowedTools.join(","),
+        appendSystemPrompt: process.env.APPEND_SYSTEM_PROMPT,
+        model: process.env.ANTHROPIC_MODEL,
+        pathToClaudeCodeExecutable: claudeExecutable,
+        showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
+      });
+    } finally {
+      restoreSessionFiles();
+      // The action's own git commands from here on hold the job's credentials,
+      // and the session could have edited a tracked hook.
+      disableGitPrograms({ hooks: true });
+    }
 
     claudeSuccess = claudeResult.conclusion === "success";
     executionFile = claudeResult.executionFile;

@@ -73,6 +73,14 @@ By default, when the pull request's author does not have write access, the actio
 
 **Upgrading:** workflows that use a floating tag or branch such as `@v1` or `@main` get this behavior without changing anything. If a workflow relied on commands like `npm test` running on pull requests from outside contributors or bots, those commands are now denied. The run still succeeds, so check the log for the warning. Set `restrict_untrusted_prs: false` to turn this off.
 
+### What a session can leave behind
+
+Steps that run after Claude, including post steps such as `actions/checkout`'s cleanup, trust `GITHUB_ENV`, `GITHUB_PATH` and git's config files. When the session ends, the action restores those files to how they were before it started and logs a warning naming any it changed. A session therefore can't pass environment variables to later steps through `GITHUB_ENV`, and `git config` changes it made, such as the upstream that `git push -u` records, don't last. Use `GITHUB_OUTPUT` or `--json-schema` to pass results on.
+
+While Claude runs, and for the action's own git commands afterwards, git ignores `core.fsmonitor`. Git hooks are also turned off for the action's own commits after the session, and during the session on pull requests that `restrict_untrusted_prs` applies to.
+
+This covers what a session can do through its tools, apart from submodule config, which is not restored. It is not a sandbox: code running on the runner, for example through an allowed `npm test`, can stop the action before it restores anything.
+
 ### `claude-code-action` vs `claude-code-base-action`
 
 `claude-code-base-action` is a lower-level building block that installs and runs Claude Code with the inputs you provide. It does not perform actor permission checks, restrict commands on pull requests from outside contributors, or restore project configuration from the base ref. If you need those behaviors, use this action (`claude-code-action`). See the [base-action README](../base-action/README.md#trust-model) for details.
