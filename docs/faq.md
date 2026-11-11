@@ -57,6 +57,17 @@ This issue typically only affects agent/automation mode workflows. Interactive w
 
 ## Claude's Capabilities and Limitations
 
+### How does Claude Code Action differ from Claude Code's Code Review?
+
+**Claude Code Action** runs in your GitHub Actions workflow. You configure the
+events, prompt, and permissions, and you can use it for PR reviews, issue
+triage, or code changes. See the [automatic PR review example](./solutions.md#automatic-pr-code-review).
+
+**[Code Review](https://code.claude.com/docs/en/code-review)** is Anthropic's
+managed PR review service. An administrator enables it in Claude Code settings
+and selects repositories. It runs reviews for those repositories and posts
+findings on the PR without requiring a GitHub Actions workflow.
+
 ### Why won't Claude update workflow files when I ask it to?
 
 The GitHub App for Claude doesn't have workflow write access for security reasons. This prevents Claude from modifying CI/CD configurations that could potentially create unintended consequences. This is something we may reconsider in the future.
