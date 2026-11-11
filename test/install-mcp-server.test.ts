@@ -94,6 +94,7 @@ describe("prepareMcpConfig", () => {
       repo: "test-repo",
       branch: "test-branch",
       baseBranch: "main",
+      claudeCommentId: "123",
       allowedTools: [],
       context: mockContext,
       mode: "tag",
@@ -107,6 +108,7 @@ describe("prepareMcpConfig", () => {
     expect(parsed.mcpServers.github_comment.env.GITHUB_TOKEN).toBe(
       "test-token",
     );
+    expect(parsed.mcpServers.github_comment.env.CLAUDE_COMMENT_ID).toBe("123");
   });
 
   test("should include file ops server when commit signing is enabled", async () => {
@@ -182,6 +184,7 @@ describe("prepareMcpConfig", () => {
       repo: "test-repo",
       branch: "test-branch",
       baseBranch: "main",
+      claudeCommentId: "123",
       allowedTools: [],
       mode: "tag",
       context: mockContext,
@@ -224,6 +227,7 @@ describe("prepareMcpConfig", () => {
       repo: "test-repo",
       branch: "test-branch",
       baseBranch: "main",
+      claudeCommentId: "123",
       allowedTools: ["mcp__github_inline_comment__create_inline_comment"],
       mode: "tag",
       context: {
@@ -395,24 +399,31 @@ describe("prepareMcpConfig", () => {
     expect(parsed.mcpServers.github_inline_comment.env.PR_NUMBER).toBe("456");
   });
 
-  test("should include comment server in agent mode when mcp__github_comment shorthand is used", async () => {
-    const result = await prepareMcpConfig({
-      githubToken: "test-token",
-      owner: "test-owner",
-      repo: "test-repo",
-      branch: "test-branch",
-      baseBranch: "main",
-      allowedTools: ["mcp__github_comment"],
-      mode: "agent",
-      context: mockContext,
-    });
+  test.each([
+    "mcp__github_comment",
+    "mcp__github_comment__update_claude_comment",
+  ])(
+    "omits %s without a tracking comment and leaves inline comments available",
+    async (tool) => {
+      const result = await prepareMcpConfig({
+        githubToken: "test-token",
+        owner: "test-owner",
+        repo: "test-repo",
+        branch: "test-branch",
+        baseBranch: "main",
+        allowedTools: [tool, "mcp__github_inline_comment"],
+        mode: "agent",
+        context: mockPRContext,
+      });
 
-    const parsed = JSON.parse(result);
-    expect(parsed.mcpServers.github_comment).toBeDefined();
-    expect(parsed.mcpServers.github_comment.env.GITHUB_TOKEN).toBe(
-      "test-token",
-    );
-  });
+      const parsed = JSON.parse(result);
+      expect(parsed.mcpServers.github_comment).toBeUndefined();
+      expect(parsed.mcpServers.github_inline_comment).toBeDefined();
+      expect(consoleWarningSpy).toHaveBeenCalledWith(
+        expect.stringContaining("track_progress: true"),
+      );
+    },
+  );
 
   test("should include CI server in agent mode when mcp__github_ci shorthand is used", async () => {
     process.env.DEFAULT_WORKFLOW_TOKEN = "workflow-token";
