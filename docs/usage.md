@@ -300,6 +300,24 @@ Get a thorough review:
 
 Claude will analyze the changes and provide feedback.
 
+### Run a Project Slash Command
+
+In a mention-triggered workflow, put the command after `@claude` in your
+comment.
+
+```text
+@claude /review-checklist
+```
+
+For this example, define the command in
+`.claude/skills/review-checklist/SKILL.md` or
+`.claude/commands/review-checklist.md`. The action passes the command as the
+user request. On pull requests, keep the command on the PR's base branch so it
+is available when the action
+[restores the project's configuration](./security.md#which-files-come-from-the-base-branch-on-pull-requests).
+See the [Claude Code skills guide](https://code.claude.com/docs/en/skills) for
+command definitions.
+
 ### Fix Bugs from Screenshots
 
 Upload a screenshot of a bug and ask Claude to fix it:
