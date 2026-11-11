@@ -104,6 +104,7 @@ function validateTrackProgressEvent(context: GitHubContext): void {
       "ready_for_review",
       "reopened",
       "labeled",
+      "closed",
     ];
     if (!validActions.includes(context.eventAction)) {
       throw new Error(

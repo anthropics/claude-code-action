@@ -76,25 +76,28 @@ describe("detectMode with enhanced routing", () => {
       expect(detectMode(context)).toBe("agent");
     });
 
-    it("should use tag mode when track_progress is true for pull_request.labeled", () => {
-      const context: GitHubContext = {
-        ...baseContext,
-        eventName: "pull_request",
-        eventAction: "labeled",
-        payload: { pull_request: { number: 1 } } as any,
-        entityNumber: 1,
-        isPR: true,
-        inputs: { ...baseContext.inputs, trackProgress: true },
-      };
+    it.each(["labeled", "closed"])(
+      "should use tag mode when track_progress is true for pull_request.%s",
+      (eventAction) => {
+        const context: GitHubContext = {
+          ...baseContext,
+          eventName: "pull_request",
+          eventAction,
+          payload: { pull_request: { number: 1 } } as any,
+          entityNumber: 1,
+          isPR: true,
+          inputs: { ...baseContext.inputs, trackProgress: true },
+        };
 
-      expect(detectMode(context)).toBe("tag");
-    });
+        expect(detectMode(context)).toBe("tag");
+      },
+    );
 
     it("should throw error when track_progress is used with unsupported PR action", () => {
       const context: GitHubContext = {
         ...baseContext,
         eventName: "pull_request",
-        eventAction: "closed",
+        eventAction: "unlabeled",
         payload: { pull_request: { number: 1 } } as any,
         entityNumber: 1,
         isPR: true,
