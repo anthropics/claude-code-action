@@ -1,18 +1,17 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
 import { defaultsToAutoMode } from "../../src/modes/permission-mode";
 
 describe("defaultsToAutoMode", () => {
   const saved = process.env.ANTHROPIC_BASE_URL;
   const savedNonWriteUsers = process.env.ALLOWED_NON_WRITE_USERS;
   const savedSettings = process.env.INPUT_SETTINGS;
+  const savedBots = process.env.ALLOWED_BOTS;
 
   beforeEach(() => {
     delete process.env.ANTHROPIC_BASE_URL;
     delete process.env.ALLOWED_NON_WRITE_USERS;
     delete process.env.INPUT_SETTINGS;
+    delete process.env.ALLOWED_BOTS;
   });
 
   afterEach(() => {
@@ -25,6 +24,8 @@ describe("defaultsToAutoMode", () => {
     }
     if (savedSettings === undefined) delete process.env.INPUT_SETTINGS;
     else process.env.INPUT_SETTINGS = savedSettings;
+    if (savedBots === undefined) delete process.env.ALLOWED_BOTS;
+    else process.env.ALLOWED_BOTS = savedBots;
   });
 
   describe("settings input", () => {
@@ -57,24 +58,9 @@ describe("defaultsToAutoMode", () => {
       expect(defaultsToAutoMode()).toBe(true);
     });
 
-    test("reads a settings file", () => {
-      const dir = mkdtempSync(join(tmpdir(), "permission-mode-"));
-      try {
-        const file = join(dir, "settings.json");
-        writeFileSync(
-          file,
-          JSON.stringify({ permissions: { defaultMode: "plan" } }),
-        );
-        process.env.INPUT_SETTINGS = file;
-        expect(defaultsToAutoMode()).toBe(false);
-      } finally {
-        rmSync(dir, { recursive: true, force: true });
-      }
-    });
-
-    test("doesn't throw on a settings input it can't read", () => {
+    test("is off for a settings file, whatever it holds", () => {
       process.env.INPUT_SETTINGS = "/no/such/settings.json";
-      expect(defaultsToAutoMode()).toBe(true);
+      expect(defaultsToAutoMode()).toBe(false);
     });
 
     test("doesn't throw on settings JSON that isn't an object", () => {
@@ -95,6 +81,16 @@ describe("defaultsToAutoMode", () => {
   test("is off when non-write users are allowed", () => {
     process.env.ALLOWED_NON_WRITE_USERS = "*";
     expect(defaultsToAutoMode()).toBe(false);
+  });
+
+  test("is off when bots are allowed", () => {
+    process.env.ALLOWED_BOTS = "sentry[bot]";
+    expect(defaultsToAutoMode()).toBe(false);
+  });
+
+  test("treats the empty value action.yml passes as no allowed bots", () => {
+    process.env.ALLOWED_BOTS = "";
+    expect(defaultsToAutoMode()).toBe(true);
   });
 
   test("treats the empty value action.yml passes as no allowed users", () => {
