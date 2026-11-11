@@ -1,5 +1,44 @@
 import { describe, test, expect } from "bun:test";
-import { parseAllowedTools } from "../../src/modes/agent/parse-tools";
+import {
+  deniesCommand,
+  parseAllowedTools,
+  parseDisallowedTools,
+} from "../../src/modes/agent/parse-tools";
+
+describe("parseDisallowedTools", () => {
+  test("reads both spellings and ignores allowed tools", () => {
+    expect(
+      parseDisallowedTools(
+        `--allowedTools "Read" --disallowedTools "Bash(git commit:*),WebFetch" --disallowed-tools Grep`,
+      ),
+    ).toEqual(["Bash(git commit:*)", "WebFetch", "Grep"]);
+  });
+});
+
+describe("deniesCommand", () => {
+  test.each([
+    "Bash(git commit:*)",
+    "Bash(git commit *)",
+    "Bash(git commit*)",
+    "Bash(git commit)",
+    "Bash(git:*)",
+    "Bash(git *)",
+  ])("%p covers git commit", (rule) => {
+    expect(deniesCommand([rule], "git commit")).toBe(true);
+  });
+
+  test.each([
+    "Bash(git commit --amend:*)",
+    "Bash(git committed:*)",
+    "Bash(git push:*)",
+    "Bash(gi:*)",
+    "Bash(*)",
+    "Bash",
+    "WebFetch",
+  ])("%p doesn't cover git commit", (rule) => {
+    expect(deniesCommand([rule], "git commit")).toBe(false);
+  });
+});
 
 describe("parseAllowedTools", () => {
   test("parses unquoted tools", () => {

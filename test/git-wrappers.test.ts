@@ -86,10 +86,6 @@ describe("git wrappers", () => {
       expect(git("log", "-1", "--format=%s")).toBe("-F .git/config");
     });
 
-    test("amends without a new message", () => {
-      expect(commit("--allow-empty", "--amend", "--no-edit").status).toBe(0);
-    });
-
     const rejected = [
       ["-F", ".git/config"],
       ["-F.git/config"],
@@ -120,8 +116,19 @@ describe("git wrappers", () => {
     test("requires a message", () => {
       expect(commit("--allow-empty").status).toBe(1);
       expect(commit("-m").status).toBe(1);
-      expect(commit("--amend").status).toBe(1);
     });
+
+    // A pushed commit can't be amended and pushed again, because forced pushes are
+    // refused, so the work would be stranded on the runner.
+    for (const args of [
+      ["--amend"],
+      ["--amend", "--no-edit"],
+      ["--amend", "-m", "new"],
+    ]) {
+      test(`rejects an amend: ${args.join(" ")}`, () => {
+        expect(commit(...args).status).toBe(1);
+      });
+    }
 
     test("does not read a file into the commit", () => {
       const secret = readFileSync(join(repo, ".git", "config"), "utf8");
