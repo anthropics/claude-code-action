@@ -118,11 +118,15 @@ async function findIssueEventTime(
     label?: { name?: string | null };
     assignee?: { login?: string } | null;
     actor?: { login?: string } | null;
+    assigner?: { login?: string } | null;
   }) => boolean;
   // Only the event from the person who passed the permission check counts. Someone
   // else removing and re-adding the label must not move the cutoff for comments.
-  const byActor = (event: { actor?: { login?: string } | null }) =>
-    isSameLogin(event.actor?.login, context.actor);
+  // Assignments name the person who made them separately, as the assigner.
+  const byActor = (event: {
+    actor?: { login?: string } | null;
+    assigner?: { login?: string } | null;
+  }) => isSameLogin((event.assigner ?? event.actor)?.login, context.actor);
 
   if (payload.action === "labeled") {
     const labelName = payload.label?.name;

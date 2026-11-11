@@ -583,6 +583,16 @@ describe("checkContainsTrigger when the text is someone else's", () => {
     ).toBe(false);
   });
 
+  it("does not start on someone else's edited comment even with a prompt", () => {
+    const context = commentEvent("edited", "outsider", "maintainer");
+    expect(
+      checkContainsTrigger({
+        ...context,
+        inputs: { ...context.inputs, prompt: "Triage this" },
+      }),
+    ).toBe(false);
+  });
+
   it("does not start on a deleted comment, even the actor's own", () => {
     const context = commentEvent("deleted", "maintainer", "maintainer");
     expect(

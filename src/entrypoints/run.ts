@@ -12,7 +12,10 @@ import { spawn } from "child_process";
 import { appendFile } from "fs/promises";
 import { existsSync, readFileSync } from "fs";
 import { setupGitHubToken, WorkflowValidationSkipError } from "../github/token";
-import { checkWritePermissions } from "../github/validation/permissions";
+import {
+  checkBotActorPullRequestAuthor,
+  checkWritePermissions,
+} from "../github/validation/permissions";
 import { createOctokit } from "../github/api/client";
 import type { Octokits } from "../github/api/client";
 import {
@@ -220,6 +223,18 @@ async function run() {
       console.log("No trigger found, skipping remaining steps");
       core.setOutput("github_token", githubToken);
       return;
+    }
+
+    const botActorAllowed = await checkBotActorPullRequestAuthor(
+      octokit.rest,
+      context,
+      context.inputs.allowedNonWriteUsers,
+      !!process.env.OVERRIDE_GITHUB_TOKEN,
+    );
+    if (!botActorAllowed) {
+      throw new Error(
+        "A bot acted on this pull request, but its author does not have write access",
+      );
     }
 
     // Run prepare

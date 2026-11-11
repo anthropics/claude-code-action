@@ -1447,6 +1447,7 @@ describe("extractUserRequestFromContext", () => {
             commentBody: "@claude /deploy now",
           },
           githubContext: {
+            eventName: "issue_comment",
             actor,
             payload: { comment: { user: { login: commentAuthor } } },
           },

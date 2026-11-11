@@ -182,6 +182,25 @@ describe("resolveTriggerTimestamp", () => {
     };
   };
 
+  it("should match an assignment by its assigner when the actor is the assignee", async () => {
+    const { octokits } = createEventsOctokits([
+      {
+        event: "assigned",
+        actor: { login: "claude-bot" },
+        assignee: { login: "claude-bot" },
+        assigner: { login: "admin-user" },
+        created_at: "2024-01-15T11:50:00Z",
+      },
+    ]);
+
+    const timestamp = await resolveTriggerTimestamp(
+      mockIssueAssignedContext,
+      octokits,
+    );
+
+    expect(timestamp).toBe("2024-01-15T11:50:00Z");
+  });
+
   it("should ignore a later matching event from someone other than the actor", async () => {
     const { octokits } = createEventsOctokits([
       {

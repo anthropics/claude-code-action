@@ -18,7 +18,7 @@ import {
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
 } from "../github/context";
-import type { ParsedGitHubContext } from "../github/context";
+import type { GitHubContext, ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import { extractUserRequest } from "../utils/extract-user-request";
@@ -283,7 +283,7 @@ export function prepareContext(
           ...(assigneeTrigger && { assigneeTrigger }),
         };
       } else if (eventAction === "labeled") {
-        if (!labelTrigger) {
+        if (!labelTrigger && !prompt) {
           throw new Error("LABEL_TRIGGER is required for issue labeled event");
         }
         eventData = {
@@ -293,7 +293,7 @@ export function prepareContext(
           issueNumber,
           baseBranch,
           claudeBranch,
-          labelTrigger,
+          ...(labelTrigger && { labelTrigger }),
         };
       } else if (eventAction === "opened") {
         eventData = {
@@ -371,7 +371,9 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
       } else if (eventData.eventAction === "labeled") {
         return {
           eventType: "ISSUE_LABELED",
-          triggerContext: `issue labeled with '${eventData.labelTrigger}'`,
+          triggerContext: eventData.labelTrigger
+            ? `issue labeled with '${eventData.labelTrigger}'`
+            : "issue labeled",
         };
       }
       return {
@@ -878,6 +880,22 @@ f. If you are unable to complete certain steps, such as running a linter or test
   return promptContent;
 }
 
+function getCommentOrReviewAuthor(
+  context: GitHubContext | undefined,
+): string | undefined {
+  if (!context) return undefined;
+  if (
+    isIssueCommentEvent(context) ||
+    isPullRequestReviewCommentEvent(context)
+  ) {
+    return context.payload.comment.user?.login;
+  }
+  if (isPullRequestReviewEvent(context)) {
+    return context.payload.review.user?.login;
+  }
+  return undefined;
+}
+
 /**
  * Extracts the user's request from the prepared context and GitHub data.
  *
@@ -913,14 +931,10 @@ export function extractUserRequestFromContext(
       eventData.eventName === "pull_request_review_comment" ||
       eventData.eventName === "pull_request_review")
   ) {
-    const payload = context.githubContext?.payload as
-      | {
-          comment?: { user?: { login?: string } };
-          review?: { user?: { login?: string } };
-        }
-      | undefined;
-    const commentAuthor = (payload?.comment ?? payload?.review)?.user?.login;
-    return isSameLogin(commentAuthor, context.githubContext?.actor)
+    return isSameLogin(
+      getCommentOrReviewAuthor(context.githubContext),
+      context.githubContext?.actor,
+    )
       ? extractUserRequest(eventData.commentBody, triggerPhrase)
       : null;
   }

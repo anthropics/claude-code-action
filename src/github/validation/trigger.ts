@@ -17,6 +17,25 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     inputs: { assigneeTrigger, labelTrigger, triggerPhrase, prompt },
   } = context;
 
+  // Deleting or editing someone else's comment or review fires these events with
+  // the moderator as the actor. The text must come from the person who was checked.
+  if (
+    (isIssueCommentEvent(context) ||
+      isPullRequestReviewCommentEvent(context)) &&
+    (context.eventAction === "deleted" ||
+      !isSameLogin(context.payload.comment.user?.login, context.actor))
+  ) {
+    console.log("Comment was not written by the actor, or was deleted");
+    return false;
+  }
+  if (
+    isPullRequestReviewEvent(context) &&
+    !isSameLogin(context.payload.review.user?.login, context.actor)
+  ) {
+    console.log("Review was written by someone other than the actor");
+    return false;
+  }
+
   // A prompt replaces the trigger phrase, but a configured label or assignee
   // still decides which label or assignment event starts a run. Otherwise any
   // triage action on an issue would start one.
@@ -117,10 +136,6 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     isPullRequestReviewEvent(context) &&
     (context.eventAction === "submitted" || context.eventAction === "edited")
   ) {
-    if (!isSameLogin(context.payload.review.user?.login, context.actor)) {
-      console.log("Review was written by someone other than the actor");
-      return false;
-    }
     const reviewBody = context.payload.review.body || "";
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(
@@ -140,15 +155,6 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     isIssueCommentEvent(context) ||
     isPullRequestReviewCommentEvent(context)
   ) {
-    // Deleting or editing someone else's comment fires these events with the
-    // moderator as the actor. The text must come from the person who was checked.
-    if (
-      context.eventAction === "deleted" ||
-      !isSameLogin(context.payload.comment.user?.login, context.actor)
-    ) {
-      console.log("Comment was not written by the actor, or was deleted");
-      return false;
-    }
     const commentBody = context.payload.comment.body;
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(

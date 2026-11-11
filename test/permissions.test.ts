@@ -1,6 +1,9 @@
 import { describe, expect, test, spyOn, beforeEach, afterEach } from "bun:test";
 import * as core from "@actions/core";
-import { checkWritePermissions } from "../src/github/validation/permissions";
+import {
+  checkBotActorPullRequestAuthor,
+  checkWritePermissions,
+} from "../src/github/validation/permissions";
 import type { ParsedGitHubContext } from "../src/github/context";
 import { CLAUDE_APP_BOT_ID, CLAUDE_BOT_LOGIN } from "../src/github/constants";
 import { createMockAutomationContext } from "./mockContext";
@@ -457,8 +460,8 @@ describe("checkWritePermissions", () => {
     });
   });
 
-  describe("pull requests a bot pushed to", () => {
-    const createBotPushContext = (author: string | null, allowedBots = "") => ({
+  describe("pull requests a bot acted on", () => {
+    const createBotContext = (author: string | null, allowedBots = "") => ({
       ...createContext(),
       eventName: "pull_request" as const,
       actor: "dependabot[bot]",
@@ -470,52 +473,70 @@ describe("checkWritePermissions", () => {
 
     test("should return false when the pull request's author lacks write access", async () => {
       expect(
-        await checkWritePermissions(
+        await checkBotActorPullRequestAuthor(
           createMockOctokit("read"),
-          createBotPushContext("outsider", "dependabot[bot]"),
+          createBotContext("outsider", "dependabot[bot]"),
         ),
       ).toBe(false);
     });
 
     test("should return true when the pull request's author has write access", async () => {
       expect(
-        await checkWritePermissions(
+        await checkBotActorPullRequestAuthor(
           createMockOctokit("write"),
-          createBotPushContext("maintainer", "dependabot[bot]"),
+          createBotContext("maintainer", "dependabot[bot]"),
         ),
       ).toBe(true);
     });
 
     test("should return true for a pull request from an allowed bot", async () => {
       expect(
-        await checkWritePermissions(
+        await checkBotActorPullRequestAuthor(
           createMockOctokit("none"),
-          createBotPushContext("dependabot[bot]", "dependabot[bot]"),
+          createBotContext("dependabot[bot]", "dependabot[bot]"),
         ),
       ).toBe(true);
     });
 
     test("should return false for a pull request from a bot that is not allowed", async () => {
       expect(
-        await checkWritePermissions(
+        await checkBotActorPullRequestAuthor(
           createMockOctokit("none"),
-          createBotPushContext("other-app[bot]", "dependabot[bot]"),
+          createBotContext("other-app[bot]", "dependabot[bot]"),
         ),
       ).toBe(false);
     });
 
-    test("should return false when the author is missing", async () => {
+    test("should leave a bot's own pull request to the allowed bots check", async () => {
+      expect(
+        await checkBotActorPullRequestAuthor(
+          createMockOctokit("none"),
+          createBotContext("dependabot[bot]"),
+        ),
+      ).toBe(true);
+    });
+
+    test("should not stop a bot activity at the first permission check", async () => {
       expect(
         await checkWritePermissions(
+          createMockOctokit("read"),
+          createBotContext("outsider"),
+        ),
+      ).toBe(true);
+    });
+
+    test("should return false when the author is missing", async () => {
+      expect(
+        await checkBotActorPullRequestAuthor(
           createMockOctokit("write"),
-          createBotPushContext(null, "dependabot[bot]"),
+          createBotContext(null, "dependabot[bot]"),
         ),
       ).toBe(false);
     });
 
     test("should not check the author when a person triggered the run", async () => {
       const context = {
-        ...createBotPushContext("outsider"),
+        ...createBotContext("outsider"),
         actor: "maintainer",
       };
       const levels: Record<string, string> = {
@@ -529,7 +550,7 @@ describe("checkWritePermissions", () => {
           }) => ({ data: { permission: levels[params.username] } }),
         },
       } as any;
-      expect(await checkWritePermissions(octokit, context)).toBe(true);
+      expect(await checkBotActorPullRequestAuthor(octokit, context)).toBe(true);
     });
   });
 

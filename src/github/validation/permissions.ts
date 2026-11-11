@@ -72,34 +72,6 @@ function getActorsToCheck(context: GitHubContext): string[] | null {
 }
 
 /**
- * When a bot pushes to a pull request, the bot is the actor even though someone
- * else wrote the pull request. Bots are not checked for repository access, so an
- * allowed bot pushing to an outsider's fork would otherwise start a run for them.
- */
-async function isBotPushAllowed(
-  octokit: Octokit,
-  context: GitHubContext,
-  allowedNonWriteUsers?: string,
-  githubTokenProvided?: boolean,
-): Promise<boolean> {
-  if (!isPullRequestEvent(context) || !context.actor.endsWith("[bot]")) {
-    return true;
-  }
-  const author = context.payload.pull_request.user?.login;
-  if (!author) return false;
-  if (author.endsWith("[bot]")) {
-    return isAllowedBot(author, context.inputs.allowedBots ?? "");
-  }
-  return checkActorWritePermissions(
-    octokit,
-    context,
-    author,
-    allowedNonWriteUsers,
-    githubTokenProvided,
-  );
-}
-
-/**
  * Check if the actor has write permissions to the repository
  * @param octokit - The Octokit REST client
  * @param context - The GitHub context
@@ -127,12 +99,47 @@ export async function checkWritePermissions(
     if (!allowed) return false;
   }
 
-  return isBotPushAllowed(
-    octokit,
-    context,
-    allowedNonWriteUsers,
-    githubTokenProvided,
-  );
+  return true;
+}
+
+/**
+ * When a bot acts on a pull request, the bot is the actor even though someone
+ * else wrote the pull request. Bots are not checked for repository access, so an
+ * allowed bot acting on an outsider's fork would otherwise start a run for them.
+ * Call this once a run is going to start, so that bot activity with nothing to
+ * do still skips quietly.
+ */
+export async function checkBotActorPullRequestAuthor(
+  octokit: Octokit,
+  context: GitHubContext,
+  allowedNonWriteUsers?: string,
+  githubTokenProvided?: boolean,
+): Promise<boolean> {
+  if (!isPullRequestEvent(context) || !context.actor.endsWith("[bot]")) {
+    return true;
+  }
+  const author = context.payload.pull_request.user?.login;
+  // A bot's own pull request is left to the check that bots are allowed.
+  if (author === context.actor) return true;
+
+  let allowed = false;
+  if (author?.endsWith("[bot]")) {
+    allowed = isAllowedBot(author, context.inputs.allowedBots ?? "");
+  } else if (author) {
+    allowed = await checkActorWritePermissions(
+      octokit,
+      context,
+      author,
+      allowedNonWriteUsers,
+      githubTokenProvided,
+    );
+  }
+  if (!allowed) {
+    core.warning(
+      `${context.actor} acted on a pull request by ${author ?? "an unknown author"}, who is not allowed to start a run`,
+    );
+  }
+  return allowed;
 }
 
 async function checkActorWritePermissions(
