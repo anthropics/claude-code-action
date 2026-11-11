@@ -7,7 +7,9 @@
  */
 
 import * as core from "@actions/core";
-import { dirname } from "path";
+import { dirname, join } from "path";
+import { randomUUID } from "crypto";
+import { tmpdir } from "os";
 import { spawn } from "child_process";
 import { appendFile } from "fs/promises";
 import { existsSync, readFileSync } from "fs";
@@ -17,6 +19,7 @@ import { createOctokit } from "../github/api/client";
 import type { Octokits } from "../github/api/client";
 import {
   parseGitHubContext,
+  getInlineCommentPullRequestNumber,
   isEntityContext,
   isPullRequestEvent,
   isPullRequestReviewEvent,
@@ -220,6 +223,18 @@ async function run() {
       console.log("No trigger found, skipping remaining steps");
       core.setOutput("github_token", githubToken);
       return;
+    }
+
+    const inlineCommentPullRequest = getInlineCommentPullRequestNumber(context);
+    if (inlineCommentPullRequest && context.inputs.classifyInlineComments) {
+      // Each action invocation owns its buffer, even on a shared runner.
+      const bufferPath = join(
+        process.env.RUNNER_TEMP || tmpdir(),
+        `claude-inline-comments-${randomUUID()}.jsonl`,
+      );
+      process.env.INLINE_COMMENTS_BUFFER_PATH = bufferPath;
+      core.setOutput("inline_comment_buffer_path", bufferPath);
+      core.setOutput("inline_comment_pr_number", inlineCommentPullRequest);
     }
 
     // Run prepare

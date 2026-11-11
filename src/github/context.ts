@@ -88,6 +88,7 @@ type BaseContext = {
     assigneeTrigger: string;
     labelTrigger: string;
     baseBranch?: string;
+    pullRequestNumber?: number;
     branchPrefix: string;
     branchNameTemplate?: string;
     useStickyComment: boolean;
@@ -133,6 +134,18 @@ export type GitHubContext = ParsedGitHubContext | AutomationContext;
 
 export function parseGitHubContext(): GitHubContext {
   const context = github.context;
+  const requestedPullRequest = process.env.PULL_REQUEST_NUMBER?.trim();
+  let pullRequestNumber: number | undefined;
+  if (context.eventName === "workflow_dispatch" && requestedPullRequest) {
+    pullRequestNumber = Number(requestedPullRequest);
+    if (
+      !/^\d+$/.test(requestedPullRequest) ||
+      !Number.isSafeInteger(pullRequestNumber) ||
+      pullRequestNumber < 1
+    ) {
+      throw new Error("pull_request_number must be a positive integer");
+    }
+  }
 
   const commonFields = {
     runId: process.env.GITHUB_RUN_ID!,
@@ -150,6 +163,7 @@ export function parseGitHubContext(): GitHubContext {
       assigneeTrigger: process.env.ASSIGNEE_TRIGGER ?? "",
       labelTrigger: process.env.LABEL_TRIGGER ?? "",
       baseBranch: process.env.BASE_BRANCH,
+      pullRequestNumber,
       branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
       branchNameTemplate: process.env.BRANCH_NAME_TEMPLATE,
       useStickyComment: process.env.USE_STICKY_COMMENT === "true",
@@ -299,6 +313,17 @@ export function isEntityContext(
   context: GitHubContext,
 ): context is ParsedGitHubContext {
   return ENTITY_EVENT_NAMES.includes(context.eventName as EntityEventName);
+}
+
+export function getInlineCommentPullRequestNumber(
+  context: GitHubContext,
+): number | undefined {
+  if (isEntityContext(context)) {
+    return context.isPR ? context.entityNumber : undefined;
+  }
+  if (context.eventName === "workflow_dispatch") {
+    return context.inputs.pullRequestNumber;
+  }
 }
 
 // Type guard to check if context is an automation context

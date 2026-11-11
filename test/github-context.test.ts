@@ -25,6 +25,7 @@ mock.module("@actions/github", () => ({
 
 import {
   parseGitHubContext,
+  getInlineCommentPullRequestNumber,
   isIssuesEvent,
   isIssueCommentEvent,
   isPullRequestEvent,
@@ -45,6 +46,7 @@ const ENV_KEYS = [
   "ASSIGNEE_TRIGGER",
   "LABEL_TRIGGER",
   "BASE_BRANCH",
+  "PULL_REQUEST_NUMBER",
   "BRANCH_PREFIX",
   "BRANCH_NAME_TEMPLATE",
   "USE_STICKY_COMMENT",
@@ -122,6 +124,7 @@ describe("parseGitHubContext", () => {
     });
 
     test("issue_comment on a plain issue has isPR false", () => {
+      process.env.PULL_REQUEST_NUMBER = "43";
       setEvent("issue_comment", {
         action: "created",
         issue: { number: 55 },
@@ -137,9 +140,11 @@ describe("parseGitHubContext", () => {
       }
       expect(context.entityNumber).toBe(55);
       expect(context.isPR).toBe(false);
+      expect(getInlineCommentPullRequestNumber(context)).toBeUndefined();
     });
 
     test("issue_comment on a pull request has isPR true", () => {
+      process.env.PULL_REQUEST_NUMBER = "43";
       setEvent("issue_comment", {
         action: "created",
         issue: {
@@ -159,6 +164,7 @@ describe("parseGitHubContext", () => {
       }
       expect(context.entityNumber).toBe(789);
       expect(context.isPR).toBe(true);
+      expect(getInlineCommentPullRequestNumber(context)).toBe(789);
     });
 
     test("pull_request event extracts PR number and isPR true", () => {
@@ -249,7 +255,29 @@ describe("parseGitHubContext", () => {
       expect(isAutomationContext(context)).toBe(true);
       expect("entityNumber" in context).toBe(false);
       expect("isPR" in context).toBe(false);
+      expect(getInlineCommentPullRequestNumber(context)).toBeUndefined();
     });
+
+    test("workflow_dispatch accepts a PR target without changing its event context", () => {
+      process.env.PULL_REQUEST_NUMBER = " 42 ";
+      setEvent("workflow_dispatch", { repository: repositoryPayload });
+
+      const context = parseGitHubContext();
+      expect(isAutomationContext(context)).toBe(true);
+      expect(getInlineCommentPullRequestNumber(context)).toBe(42);
+    });
+
+    test.each(["0", "-1", "1.5", "1e3", "42abc", "9007199254740992"])(
+      "workflow_dispatch rejects invalid PR target %s",
+      (value) => {
+        process.env.PULL_REQUEST_NUMBER = value;
+        setEvent("workflow_dispatch", { repository: repositoryPayload });
+
+        expect(() => parseGitHubContext()).toThrow(
+          "pull_request_number must be a positive integer",
+        );
+      },
+    );
 
     test("repository_dispatch produces an automation context", () => {
       setEvent("repository_dispatch", {
