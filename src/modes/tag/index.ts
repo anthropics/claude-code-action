@@ -22,7 +22,11 @@ import {
 import { updateClaudeComment } from "../../github/operations/comments/update-claude-comment";
 import type { GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
-import { parseAllowedTools } from "../agent/parse-tools";
+import {
+  deniesCommand,
+  parseAllowedTools,
+  parseDisallowedTools,
+} from "../agent/parse-tools";
 
 /**
  * Prepares the tag mode execution context.
@@ -213,6 +217,21 @@ export async function prepareTagMode({
   // acceptEdits: file edits auto-allowed inside cwd ($GITHUB_WORKSPACE), denied outside.
   // Headless SDK has no prompt handler, so anything that falls through to "ask" is denied.
   claudeArgs += ` --permission-mode acceptEdits --allowedTools "${tagModeTools.join(",")}"`;
+
+  // Deny rules match the command's text, so a workflow's deny of `git commit` or
+  // `git push` wouldn't match the wrappers that run them. Deny the wrappers too.
+  const userDeniedTools = parseDisallowedTools(userClaudeArgs);
+  const deniedWrappers = [
+    ...(deniesCommand(userDeniedTools, "git commit")
+      ? [`Bash(${gitCommitWrapper}:*)`]
+      : []),
+    ...(deniesCommand(userDeniedTools, "git push")
+      ? [`Bash(${gitPushWrapper}:*)`]
+      : []),
+  ];
+  if (deniedWrappers.length > 0) {
+    claudeArgs += ` --disallowedTools "${deniedWrappers.join(",")}"`;
+  }
 
   // Append user's claude_args (which may have more --mcp-config flags)
   if (userClaudeArgs) {

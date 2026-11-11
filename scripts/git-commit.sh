@@ -7,11 +7,8 @@ set -euo pipefail
 #
 # Usage:
 #   git-commit.sh -m "<message>" [-m "<message>"] [-a] [--allow-empty] [-- <paths>]
-#   git-commit.sh --amend --no-edit
 
 has_message=false
-amend=false
-no_edit=false
 expect_message=false
 paths_only=false
 
@@ -33,12 +30,6 @@ for arg in "$@"; do
       ;;
     -a | --all | --allow-empty | -q | --quiet | -s | --signoff)
       ;;
-    --amend)
-      amend=true
-      ;;
-    --no-edit)
-      no_edit=true
-      ;;
     --)
       paths_only=true
       ;;
@@ -54,8 +45,8 @@ if [[ "$expect_message" == true ]]; then
   exit 1
 fi
 
-if [[ "$has_message" != true && ! ("$amend" == true && "$no_edit" == true) ]]; then
-  echo "Error: a message is required, with -m or with --amend --no-edit" >&2
+if [[ "$has_message" != true ]]; then
+  echo "Error: a message is required, with -m" >&2
   exit 1
 fi
 

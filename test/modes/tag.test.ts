@@ -76,6 +76,53 @@ describe("Tag Mode", () => {
       expect(replaceCheckoutCredentialsSpy).not.toHaveBeenCalled();
     });
 
+    describe("a workflow's deny rules", () => {
+      const savedArgs = process.env.CLAUDE_ARGS;
+      const savedPath = process.env.GITHUB_ACTION_PATH;
+
+      beforeEach(() => {
+        process.env.GITHUB_ACTION_PATH = "/action";
+      });
+
+      afterEach(() => {
+        if (savedArgs === undefined) delete process.env.CLAUDE_ARGS;
+        else process.env.CLAUDE_ARGS = savedArgs;
+        if (savedPath === undefined) delete process.env.GITHUB_ACTION_PATH;
+        else process.env.GITHUB_ACTION_PATH = savedPath;
+      });
+
+      const prepare = async (userArgs: string) => {
+        process.env.CLAUDE_ARGS = userArgs;
+        const { claudeArgs } = await prepareTagMode({
+          context: { ...mockIssueCommentContext },
+          octokit: {} as any,
+          githubToken: "test-token",
+        });
+        return claudeArgs;
+      };
+
+      test("a deny of git commit also denies the commit wrapper", async () => {
+        expect(
+          await prepare(`--disallowedTools "Bash(git commit:*)"`),
+        ).toContain(
+          `--disallowedTools "Bash(/action/scripts/git-commit.sh:*)"`,
+        );
+      });
+
+      test("a deny of git push also denies the push wrapper", async () => {
+        expect(await prepare(`--disallowedTools "Bash(git push:*)"`)).toContain(
+          `--disallowedTools "Bash(/action/scripts/git-push.sh:*)"`,
+        );
+      });
+
+      test("adds no deny rule of its own otherwise", async () => {
+        expect(await prepare(`--disallowedTools "WebFetch"`)).not.toContain(
+          `--disallowedTools "Bash(`,
+        );
+        expect(await prepare("")).not.toContain("--disallowedTools");
+      });
+    });
+
     test("still replaces the checkout credential when API commit signing is enabled", async () => {
       const context = {
         ...mockIssueCommentContext,
