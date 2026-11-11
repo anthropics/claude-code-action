@@ -84,6 +84,7 @@ type BaseContext = {
   actor: string;
   inputs: {
     prompt: string;
+    triggerPrompt?: string;
     triggerPhrase: string;
     assigneeTrigger: string;
     labelTrigger: string;
@@ -146,6 +147,7 @@ export function parseGitHubContext(): GitHubContext {
     actor: context.actor,
     inputs: {
       prompt: process.env.PROMPT || "",
+      triggerPrompt: process.env.TRIGGER_PROMPT,
       triggerPhrase: process.env.TRIGGER_PHRASE ?? "@claude",
       assigneeTrigger: process.env.ASSIGNEE_TRIGGER ?? "",
       labelTrigger: process.env.LABEL_TRIGGER ?? "",

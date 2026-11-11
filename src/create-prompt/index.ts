@@ -970,10 +970,12 @@ export async function createPrompt(
 
     // Extract and write the user request separately for SDK multi-block messaging
     // This allows the CLI to process slash commands (e.g., "@claude /review-pr")
-    const userRequest = extractUserRequestFromContext(
-      preparedContext,
-      githubData,
-    );
+    const fallbackRequest = context.inputs.prompt
+      ? undefined
+      : context.inputs.triggerPrompt?.trim();
+    const userRequest =
+      extractUserRequestFromContext(preparedContext, githubData) ??
+      fallbackRequest;
     if (userRequest) {
       await writeFile(`${promptDir}/${USER_REQUEST_FILENAME}`, userRequest);
       console.log("===== USER REQUEST =====");

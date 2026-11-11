@@ -62,6 +62,7 @@ jobs:
 | `anthropic_workspace_id`         | Workspace ID (`wrkspc_...`) for workload identity federation. Optional when the federation rule targets a single workspace                                                                                                             | No       | -                           |
 | `anthropic_oidc_audience`        | Audience requested on the GitHub OIDC token used for workload identity federation                                                                                                                                                      | No       | `https://api.anthropic.com` |
 | `prompt`                         | Instructions for Claude. Can be a direct prompt or custom template for automation workflows                                                                                                                                            | No       | -                           |
+| `trigger_prompt`                 | Default task for a triggered run without an explicit request. See [Default tasks for mentions](#default-tasks-for-mentions).                                                                                                           | No       | -                           |
 | `track_progress`                 | Force tag mode with tracking comments. Only works with specific PR/issue events. Preserves GitHub context                                                                                                                              | No       | `false`                     |
 | `include_fix_links`              | Include 'Fix this' links in PR code review feedback that open Claude Code with context to fix the identified issue                                                                                                                     | No       | `true`                      |
 | `claude_args`                    | Additional [arguments to pass directly to Claude CLI](https://docs.claude.com/en/docs/claude-code/cli-reference#cli-flags) (e.g., `--max-turns 10 --model claude-4-0-sonnet-20250805`)                                                 | No       | ""                          |
@@ -267,6 +268,23 @@ For complete details on JSON Schema syntax and Agent SDK structured outputs:
 https://docs.claude.com/en/docs/agent-sdk/structured-outputs
 
 ## Ways to Tag @claude
+
+### Default tasks for mentions
+
+In an `issue_comment` workflow, use `trigger_prompt` in place of `prompt` to
+wait for the configured trigger and use a default task for a bare mention.
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    trigger_prompt: "Review this pull request for regressions."
+```
+
+A comment containing only `@claude` uses the default task. A comment such as
+`@claude check the authentication changes` uses the commenter's request.
+Existing permission checks still apply. Leave `prompt` empty to use this
+fallback.
 
 These examples show how to interact with Claude using comments in PRs and issues. By default, Claude will be triggered anytime you mention `@claude`, but you can customize the exact trigger phrase using the `trigger_phrase` input in the workflow.
 
