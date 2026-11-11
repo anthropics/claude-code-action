@@ -20,6 +20,12 @@ export function fetchDepthArgs(depth: number): string[] {
   return isShallowRepository() ? [`--depth=${depth}`] : [];
 }
 
+export function getShallowCheckoutContext(): string | undefined {
+  if (isShallowRepository()) {
+    return "This checkout has shallow Git history. Older commits may be missing from local Git output. Qualify conclusions about repository history when the available history is incomplete.";
+  }
+}
+
 function isShallowRepository(): boolean {
   try {
     const output = execFileSync(
