@@ -268,7 +268,7 @@ function ensureClaudePrExcludedFromGit(): void {
  */
 export function restoreConfigFromBase(baseBranch: string): string[] {
   console.log(
-    `Restoring ${SENSITIVE_PATHS.join(", ")} from origin/${baseBranch} (PR head is untrusted)`,
+    `Restoring ${SENSITIVE_PATHS.join(", ")} from origin/${baseBranch} before running Claude`,
   );
 
   // Snapshot every PR-authored sensitive path into .claude-pr/ before deletion
@@ -287,7 +287,7 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
   }
   if (existsSync(".claude-pr")) {
     console.log(
-      "Preserved PR's sensitive paths -> .claude-pr/ for review agents (not executed)",
+      "Preserved the work branch's sensitive paths in .claude-pr/ for reference",
     );
     ensureClaudePrExcludedFromGit();
   }

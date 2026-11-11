@@ -932,6 +932,7 @@ export async function createPrompt(
   claudeBranch: string | undefined,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
+  reusedIssueBranch = false,
 ) {
   try {
     const claudeCommentId = commentId.toString();
@@ -953,12 +954,16 @@ export async function createPrompt(
     await mkdir(promptDir, { recursive: true });
 
     // Generate the prompt directly
-    const promptContent = generatePrompt(
+    let promptContent = generatePrompt(
       preparedContext,
       githubData,
       context.inputs.useCommitSigning,
       "tag",
     );
+    if (reusedIssueBranch) {
+      promptContent +=
+        "\n\nThis issue already has a work branch. Review its existing commits and continue on that branch.";
+    }
 
     // Log the final prompt to console
     console.log("===== FINAL PROMPT =====");

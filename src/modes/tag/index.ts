@@ -146,6 +146,7 @@ export async function prepareTagMode({
     branchInfo.claudeBranch,
     githubData,
     context,
+    branchInfo.reusedIssueBranch,
   );
 
   const userClaudeArgs = process.env.CLAUDE_ARGS || "";

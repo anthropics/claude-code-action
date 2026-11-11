@@ -90,6 +90,7 @@ type BaseContext = {
     baseBranch?: string;
     branchPrefix: string;
     branchNameTemplate?: string;
+    reuseIssueBranch?: boolean;
     useStickyComment: boolean;
     classifyInlineComments: boolean;
     useCommitSigning: boolean;
@@ -152,6 +153,7 @@ export function parseGitHubContext(): GitHubContext {
       baseBranch: process.env.BASE_BRANCH,
       branchPrefix: process.env.BRANCH_PREFIX ?? "claude/",
       branchNameTemplate: process.env.BRANCH_NAME_TEMPLATE,
+      reuseIssueBranch: process.env.REUSE_ISSUE_BRANCH === "true",
       useStickyComment: process.env.USE_STICKY_COMMENT === "true",
       classifyInlineComments: process.env.CLASSIFY_INLINE_COMMENTS !== "false",
       useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",

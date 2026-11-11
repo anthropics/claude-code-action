@@ -236,6 +236,16 @@ async function run() {
     baseBranch = prepareResult.branchInfo.baseBranch;
     prepareCompleted = true;
 
+    // Reused issue branches can contain configuration from previous runs.
+    if (
+      "reusedIssueBranch" in prepareResult.branchInfo &&
+      prepareResult.branchInfo.reusedIssueBranch
+    ) {
+      restoredConfigPaths = restoreConfigFromBase(
+        prepareResult.branchInfo.baseBranch,
+      );
+    }
+
     // Phase 2: Install Claude Code CLI
     const claudeExecutable = await installClaudeCode();
 

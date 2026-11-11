@@ -74,6 +74,7 @@ jobs:
 | `assignee_trigger`               | The assignee username that triggers the action (e.g. @claude). Only used for issue assignment                                                                                                                                          | No       | -                           |
 | `label_trigger`                  | The label name that triggers the action when applied to an issue (e.g. "claude")                                                                                                                                                       | No       | -                           |
 | `trigger_phrase`                 | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                                                                                                                                          | No       | `@claude`                   |
+| `reuse_issue_branch`             | Continue work on the same pushed branch when an issue triggers Claude again.                                                                                                                                                           | No       | `false`                     |
 | `branch_prefix`                  | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                                                                                                                                           | No       | `claude/`                   |
 | `settings`                       | Claude Code settings as JSON string or path to settings JSON file                                                                                                                                                                      | No       | ""                          |
 | `additional_permissions`         | Additional permissions to enable. Currently supports 'actions: read' for viewing workflow results                                                                                                                                      | No       | ""                          |
@@ -265,6 +266,19 @@ See `examples/test-failure-analysis.yml` for a working example that:
 
 For complete details on JSON Schema syntax and Agent SDK structured outputs:
 https://docs.claude.com/en/docs/agent-sdk/structured-outputs
+
+## Continue work on an issue branch
+
+Set `reuse_issue_branch: true` to continue work on a branch from an earlier
+trigger on the same issue. For example, issue #42 uses `claude/issue-42` with
+the default prefix. Once that branch is pushed, a later mention on the issue
+checks it out and continues from its remote head.
+
+This option uses `branch_prefix` and the issue number to keep the branch
+name stable. Reserve that branch naming pattern for Claude's issue work.
+The Action restores Claude configuration from the base branch before starting
+a session on a reused branch. For issue workflows that may overlap, group
+runs by issue number with GitHub Actions `concurrency`.
 
 ## Ways to Tag @claude
 
