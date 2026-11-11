@@ -135,7 +135,7 @@ Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federa
 | `anthropic_service_account_id`   | Service account ID (svac\_...) the federated token acts as                                                              | No       | `''`          |
 | `anthropic_workspace_id`         | Workspace ID (wrkspc\_...) for federation                                                                               | No       | `''`          |
 | `anthropic_oidc_audience`        | Audience for the GitHub OIDC token request                                                                              | No       | `''`          |
-| `use_bedrock`                    | Use Amazon Bedrock with OIDC authentication                                                                             | No       | `'false'`     |
+| `use_bedrock`                    | Use Amazon Bedrock instead of the direct Anthropic API                                                                  | No       | `'false'`     |
 | `use_vertex`                     | Use Google Vertex AI with OIDC authentication                                                                           | No       | `'false'`     |
 | `use_foundry`                    | Use Microsoft Foundry with OIDC authentication                                                                          | No       | `'false'`     |
 | `use_node_cache`                 | Enable Node.js dependency caching for projects with lock files                                                          | No       | `'false'`     |
@@ -420,12 +420,11 @@ Check out additional examples in [`./examples`](./examples).
 You can authenticate with Claude using any of these methods:
 
 1. Direct Anthropic API (default) - requires API key or OAuth token
-2. Amazon Bedrock - requires OIDC authentication and automatically uses cross-region inference profiles
+2. Amazon Bedrock - supports OIDC and [AWS credentials](../docs/cloud-providers.md#amazon-bedrock-without-aws-oidc)
 3. Google Vertex AI - requires OIDC authentication
 
 **Note**:
 
-- Bedrock and Vertex use OIDC authentication exclusively
 - AWS Bedrock automatically uses cross-region inference profiles for certain models
 - For cross-region inference profile models, you need to request and be granted access to the Claude models in all regions that the inference profile uses
 - The Bedrock API endpoint URL is automatically constructed using the AWS_REGION environment variable (e.g., `https://bedrock-runtime.us-west-2.amazonaws.com`)
@@ -444,7 +443,7 @@ Use provider-specific model names based on your chosen provider:
     claude_args: "--model claude-3-7-sonnet-20250219"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
-# For Amazon Bedrock (requires OIDC authentication)
+# For Amazon Bedrock
 - name: Configure AWS Credentials (OIDC)
   uses: aws-actions/configure-aws-credentials@v4
   with:
