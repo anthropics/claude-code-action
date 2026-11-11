@@ -1,0 +1,22 @@
+# Tells agent-approval-check.yml that a PR's reviews changed, so that a review
+# submitted or dismissed after the last run re-evaluates the required status.
+#
+# This workflow runs from the PR's merge ref, so a PR can edit it. It therefore
+# holds no permissions and decides nothing: agent-approval-check.yml runs from
+# the default branch on `workflow_run` and reads the reviews from the GitHub
+# API. A PR that changes or deletes this file can only suppress its own
+# re-evaluation, so protect `.github/workflows/` with CODEOWNERS.
+
+name: agent-approval-check-review-signal
+
+on:
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions: {}
+
+jobs:
+  signal:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "A review changed; agent-approval-check will re-evaluate."

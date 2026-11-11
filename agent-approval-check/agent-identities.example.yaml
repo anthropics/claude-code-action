@@ -3,7 +3,8 @@
 # Pass via `with: { config_file: .github/agent-identities.yaml }` instead of
 # the inline `agent_emails` / `agent_logins` / … inputs.
 
-# Committer emails that mark a commit as agent-authored.
+# Committer or author emails that mark a commit as agent-authored. The GitHub
+# noreply address of an agent_app_logins identity always counts too.
 agent_emails:
   - noreply@anthropic.com
 
@@ -20,7 +21,8 @@ excluded_approver_logins: []
 # attacker-controlled, so this is not a safe place to encode trust.
 exempt_head_branches: []
 
-# Per-repo path prefixes whose PRs auto-pass when ONLY those paths change.
+# Per-repo path prefixes whose PRs auto-pass when ONLY those paths change. A
+# renamed or copied file must be under a prefix on both sides.
 exempt_path_prefixes:
   owner/repo:
     - docs/

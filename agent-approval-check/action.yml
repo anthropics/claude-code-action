@@ -13,7 +13,9 @@ inputs:
     description: Number of distinct human approvals required. Must be >= 1.
     default: "2"
   agent_emails:
-    description: Comma-separated committer emails treated as agent-authored.
+    description: |
+      Comma-separated committer or author emails treated as agent-authored. The
+      GitHub noreply address of an agent_logins identity always counts too.
     default: noreply@anthropic.com
   agent_logins:
     description: |
@@ -30,7 +32,9 @@ inputs:
       not a safe place to encode trust.
     default: ""
   exempt_path_prefixes:
-    description: Comma-separated path prefixes; PRs touching only these auto-pass.
+    description: |
+      Comma-separated path prefixes; PRs touching only these auto-pass. A renamed
+      or copied file must be under a prefix on both sides.
     default: ""
   protected_bases:
     description: |
@@ -39,6 +43,12 @@ inputs:
       status posted) so a sibling PR sharing the head SHA can't get the
       shared commit stamped green.
     default: ""
+  status_context_per_base:
+    description: |
+      "true" posts the status as agent-approval-check/<base> instead of
+      agent-approval-check, so a success earned for one base can't satisfy the
+      check required on another. Branch rules must then require the new name.
+    default: "false"
   config_file:
     description: Optional path to an agent-identities YAML file (overrides the inline inputs).
     default: ""
@@ -61,6 +71,7 @@ runs:
         GH_REPOSITORY: ${{ github.repository }}
         GH_EVENT_NAME: ${{ github.event_name }}
         GH_EVENT_PATH: ${{ github.event_path }}
+        GH_PR_CANDIDATES: ${{ github.event_name == 'workflow_run' && toJSON(github.event.workflow_run.pull_requests) || '' }}
         REQUIRED_APPROVALS: ${{ inputs.required_approvals }}
         AGENT_EMAILS: ${{ inputs.agent_emails }}
         AGENT_LOGINS: ${{ inputs.agent_logins }}
@@ -68,5 +79,6 @@ runs:
         EXEMPT_HEAD_BRANCHES: ${{ inputs.exempt_head_branches }}
         EXEMPT_PATH_PREFIXES: ${{ inputs.exempt_path_prefixes }}
         PROTECTED_BASES: ${{ inputs.protected_bases }}
+        STATUS_CONTEXT_PER_BASE: ${{ inputs.status_context_per_base }}
         CONFIG_FILE: ${{ inputs.config_file }}
         DOCS_URL: ${{ inputs.docs_url }}

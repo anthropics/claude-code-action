@@ -26,7 +26,9 @@ SECURITY MODEL:
     check, including this one.
 
 AGENT DETECTION:
-    A commit is agent-authored if its committer email is in `agent_emails`.
+    A commit is agent-authored if its committer or author email is in
+    `agent_emails`, or is the GitHub noreply address of an `agent_app_logins`
+    identity (e.g. 41898282+claude[bot]@users.noreply.github.com).
     A PR is agent-authored if its creator login is in `agent_app_logins`.
     A PR also counts as having agent activity if an `agent_app_logins` identity
     has submitted an APPROVED review (so an agent's approval can never satisfy
@@ -41,8 +43,8 @@ APPROVAL COUNTING:
 
     Approvals that DON'T count:
     - Reviews/comments from agent identities
-    - /approve for a SHA that doesn't match the PR head commit
-    - CHANGES_REQUESTED overrides earlier APPROVED from same user
+    - /approve for anything but the full 40-character PR head SHA
+    - CHANGES_REQUESTED or DISMISSED overrides earlier APPROVED from same user
       (COMMENTED reviews are ignored - they don't change approval status)
 
 OUTPUTS:
@@ -52,7 +54,9 @@ OUTPUTS:
 
 RATE LIMIT OPTIMIZATION:
     - 1 GraphQL query to fetch PR, commits, reviews, and comments
-      (paginated only if >100 comments)
+      (paginated only if >100 reviews or comments)
+    - 1 REST call for a rename's source path, only when renames or copies are
+      all that stand between a PR and an exempt_path_prefixes exemption
     - 1 REST permission check per unique candidate approver (cached)
     - 1 GraphQL mutation batch for all writes (comments, reactions, minimize)
     - 1 REST call for commit status (no GraphQL equivalent)
@@ -101,6 +105,12 @@ logger = logging.getLogger(__name__)
 
 CHECK_NAME = "agent-approval-check"
 REQUIRED_APPROVALS = int(os.environ.get("REQUIRED_APPROVALS") or 2)
+# Post the status as agent-approval-check/<base> so that a success earned for
+# one base can't satisfy the check required on another. Off by default, because
+# it changes the check name that branch rules must require.
+STATUS_CONTEXT_PER_BASE = (
+    os.environ.get("STATUS_CONTEXT_PER_BASE") or ""
+).strip().lower() == "true"
 
 # Only approvals from users with write access to the repo count. authorAssociation
 # alone can't prove that (a MEMBER or COLLABORATOR may have read/triage only), so
@@ -109,6 +119,12 @@ REQUIRED_APPROVALS = int(os.environ.get("REQUIRED_APPROVALS") or 2)
 # this set is not a collaborator at all, so the REST call is skipped.
 WRITE_ACCESS_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 WRITE_PERMISSION_LEVELS = frozenset({"write", "push", "maintain", "admin"})
+# GraphQL PatchStatus values that keep a file at one path. Anything else
+# (RENAMED, COPIED, or a value we don't know) has to show where it came from
+# before it can count as exempt.
+SAME_PATH_CHANGE_TYPES = frozenset({"ADDED", "CHANGED", "DELETED", "MODIFIED"})
+# GitHub's commit address for an account: [<id>+]<login>@users.noreply.<host>.
+NOREPLY_EMAIL_RE = re.compile(r"^(?:\d+\+)?(.+)@users\.noreply\.", re.IGNORECASE)
 DOCS_URL = (
     os.environ.get("DOCS_URL")
     or "https://github.com/anthropics/claude-code-action/tree/main/agent-approval-check"
@@ -120,7 +136,8 @@ DOCS_URL = (
 # PAGINATION STRATEGY:
 # - Use `last:` to get the most recent items (HEAD commit, recent reviews/approvals)
 # - For commits: fail-closed if hasPreviousPage (can't verify all commits are human)
-# - For reviews: warn only (old items are likely stale anyway)
+# - For reviews: paginated fully (an older agent APPROVED review must be found);
+#   fail-closed if a page can't be read
 # - For comments: paginated fully (older /approve and the sticky comment must be found)
 GRAPHQL_PR_QUERY = """
 query GetPRData($owner: String!, $repo: String!, $prNumber: Int!) {
@@ -151,6 +168,9 @@ query GetPRData($owner: String!, $repo: String!, $prNumber: Int!) {
             oid
             committedDate
             committer {
+              email
+            }
+            author {
               email
             }
             signature {
@@ -196,6 +216,7 @@ query GetPRData($owner: String!, $repo: String!, $prNumber: Int!) {
         }
         pageInfo {
           hasPreviousPage
+          startCursor
         }
       }
       comments(last: 100) {
@@ -218,9 +239,37 @@ query GetPRData($owner: String!, $repo: String!, $prNumber: Int!) {
       files(first: 100) {
         nodes {
           path
+          changeType
         }
         pageInfo {
           hasNextPage
+        }
+      }
+    }
+  }
+}
+"""
+
+GRAPHQL_REVIEWS_PAGE_QUERY = """
+query GetPRReviews($owner: String!, $repo: String!, $prNumber: Int!, $before: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $prNumber) {
+      reviews(last: 100, before: $before) {
+        nodes {
+          author {
+            __typename
+            login
+          }
+          authorAssociation
+          state
+          commit {
+            oid
+          }
+          submittedAt
+        }
+        pageInfo {
+          hasPreviousPage
+          startCursor
         }
       }
     }
@@ -292,6 +341,11 @@ class PRData:
     # Statuses are SHA-scoped, so a success here would satisfy them too.
     same_sha_open_prs: list[tuple[int, str]] = field(default_factory=list)
     same_sha_prs_incomplete: bool = False  # associatedPullRequests overflowed
+    # A page of older reviews couldn't be read (fail-closed: hold at pending).
+    reviews_incomplete: bool = False
+    # Paths whose changeType doesn't keep the file at one path (see
+    # SAME_PATH_CHANGE_TYPES). `path` alone is only a rename's destination.
+    moved_files: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -494,25 +548,72 @@ def get_committer_email(commit: dict) -> str:
     return commit.get("commit", {}).get("committer", {}).get("email", "")
 
 
-def is_agent_commit(commit: dict, config: AgentConfig) -> bool:
+def get_author_email(commit: dict) -> str:
+    return commit.get("commit", {}).get("author", {}).get("email", "")
+
+
+def is_agent_email(email: str, config: AgentConfig) -> bool:
     # Case-insensitive comparison per RFC 5321 (email addresses are case-insensitive)
-    email = get_committer_email(commit).lower()
-    return email in (e.lower() for e in config.agent_emails)
+    email = email.lower()
+    if email in (e.lower() for e in config.agent_emails):
+        return True
+    match = NOREPLY_EMAIL_RE.match(email)
+    return bool(match) and is_agent_user(match.group(1), config)
+
+
+def get_agent_email(commit: dict, config: AgentConfig) -> str:
+    """Return the committer or author email marking this commit as an agent's.
+
+    Both sides count: a commit made through GitHub's API has GitHub itself as
+    committer and the agent only as author, and a human's rebase of an agent's
+    commit keeps the agent as author.
+    """
+    for email in (get_committer_email(commit), get_author_email(commit)):
+        if email and is_agent_email(email, config):
+            return email
+    return ""
+
+
+def is_agent_commit(commit: dict, config: AgentConfig) -> bool:
+    return bool(get_agent_email(commit, config))
 
 
 # --- User/PR Helpers ---
 
 
-def is_review_exempt_pr(pr_data: PRData, config: AgentConfig, repo: str) -> bool:
+def is_review_exempt_pr(
+    pr_data: PRData,
+    config: AgentConfig,
+    repo: str,
+    fetch_previous_paths: Callable[[int], dict[str, str]] | None = None,
+) -> bool:
     """Check if all changed files are under a configured exempt path prefix.
 
     Fail-closed: returns False if no prefixes are configured for this repo,
     if the file list is incomplete (>100 files), or if no files are present.
+    A renamed or copied file must be exempt on both sides: moving src/p.py to
+    docs/p.py changes src/, and lists only docs/p.py as its path. GraphQL has
+    no previous path, so its source is looked up, and a source that can't be
+    found means not exempt.
     """
     exempt_prefixes = tuple(config.exempt_path_prefixes.get(repo, []))
     if not exempt_prefixes or pr_data.files_incomplete or not pr_data.files:
         return False
-    return all(f.startswith(exempt_prefixes) for f in pr_data.files)
+    if not all(f.startswith(exempt_prefixes) for f in pr_data.files):
+        return False
+    if not pr_data.moved_files:
+        return True
+    if fetch_previous_paths is None:
+        return False
+    try:
+        previous_paths = fetch_previous_paths(pr_data.number)
+    except (httpx.HTTPError, ValueError) as e:
+        logger.warning("Could not read rename sources, not exempting: %s", e)
+        return False
+    return all(
+        (previous_paths.get(f) or "").startswith(exempt_prefixes)
+        for f in pr_data.moved_files
+    )
 
 
 def is_protected_base(
@@ -646,6 +747,9 @@ def is_pr_created_by_agent(pr_author: str, config: AgentConfig) -> bool:
 def parse_approve_command(body: str | None) -> str | None:
     """Parse /approve <sha> command and return the SHA, or None if not valid.
 
+    The SHA must be the full 40 characters: a shorter prefix could also name a
+    different commit pushed later, which would inherit this approval.
+
     Only the first line of the comment is considered. GitHub email replies
     append the quoted notification below the user's text, so a reply of just
     "/approve <sha>" arrives as "/approve <sha>\r\n\r\nOn <date> ... wrote:".
@@ -654,12 +758,12 @@ def parse_approve_command(body: str | None) -> str | None:
     """
     first_line = (body or "").lstrip().splitlines()[0:1]
     first_line = first_line[0].strip() if first_line else ""
-    match = re.match(r"^/approve\s+([a-f0-9]{12,40})\s*$", first_line, re.IGNORECASE)
+    match = re.match(r"^/approve\s+([a-f0-9]{40})\s*$", first_line, re.IGNORECASE)
     return match.group(1).lower() if match else None
 
 
 def sha_matches(approved_sha: str, target_sha: str) -> bool:
-    return target_sha.lower().startswith(approved_sha.lower())
+    return target_sha.lower() == approved_sha.lower()
 
 
 def iter_approve_commands(
@@ -693,22 +797,26 @@ def iter_approve_commands(
 def get_latest_review_per_user(reviews: list[dict]) -> dict[str, dict]:
     """Get the latest decision review per user.
 
-    Only considers "decision" reviews (APPROVED, CHANGES_REQUESTED) that change
-    approval status. COMMENTED reviews are ignored because they don't represent
-    a decision change - a reviewer who approves then adds a comment is still
-    approving, matching GitHub's native behavior.
+    Only considers "decision" reviews (APPROVED, CHANGES_REQUESTED, DISMISSED)
+    that change approval status. COMMENTED reviews are ignored because they
+    don't represent a decision change - a reviewer who approves then adds a
+    comment is still approving, matching GitHub's native behavior.
+
+    DISMISSED has to take part: dismissal only flips the state of the review it
+    targets, so without it the reviewer's previous APPROVED review would count
+    again. Reviews arrive oldest first, so on equal timestamps the later wins.
     """
-    decision_states = {"APPROVED", "CHANGES_REQUESTED"}
+    decision_states = {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
     latest: dict[str, dict] = {}
     for review in reviews:
         login = review.get("user", {}).get("login")
         if not login:
             continue
-        # Only consider decision reviews (APPROVED, CHANGES_REQUESTED)
+        # Only consider decision reviews
         if review.get("state") not in decision_states:
             continue
         existing = latest.get(login)
-        if not existing or review.get("submitted_at", "") > existing.get(
+        if not existing or review.get("submitted_at", "") >= existing.get(
             "submitted_at", ""
         ):
             latest[login] = review
@@ -824,10 +932,11 @@ def load_agent_config_from_env(repo: str) -> AgentConfig:
 def resolve_pr_number(event_name: str, event_path: str) -> int | None:
     """Derive the PR number from the triggering event payload.
 
-    Supports pull_request / pull_request_target, pull_request_review, and
-    issue_comment (only when the issue is a PR). Returns None when the event
-    has no PR (e.g. an issue_comment on a plain issue) — callers exit 0 so
-    the workflow run succeeds without posting a status.
+    Supports pull_request / pull_request_target, pull_request_review,
+    issue_comment (only when the issue is a PR), and workflow_run. Returns None
+    when the event has no PR (e.g. an issue_comment on a plain issue, or a
+    workflow_run from a fork, whose pull_requests list GitHub leaves empty) —
+    callers exit 0 so the workflow run succeeds without posting a status.
     """
     with open(event_path) as f:
         event = json.load(f)
@@ -848,13 +957,9 @@ def resolve_pr_number(event_name: str, event_path: str) -> int | None:
 
 
 def get_detection_reason(commit: dict, config: AgentConfig) -> str:
-    email = get_committer_email(commit)
+    email = get_agent_email(commit, config)
     short_sha = commit.get("sha", "")[:12]
-    # Case-insensitive check to match is_agent_commit behavior
-    email_lower = email.lower()
-    assert email_lower in (e.lower() for e in config.agent_emails), (
-        f"Expected agent email but got {email}"
-    )
+    assert email, f"Expected agent email on commit {short_sha}"
     return f"Commit {short_sha} has agent email ({email})"
 
 
@@ -1066,10 +1171,10 @@ def generate_notification_comment(
     head_sha: str,
     sibling_blocker_prs: list[int] | None = None,
     sibling_list_incomplete: bool = False,
+    reviews_incomplete: bool = False,
 ) -> str:
-    short_sha = head_sha[:12]
     approver_count = len(approvers)
-    has_enough = approver_count >= REQUIRED_APPROVALS
+    has_enough = approver_count >= REQUIRED_APPROVALS and not reviews_incomplete
 
     lines = [COMMENT_MARKER]
 
@@ -1129,7 +1234,7 @@ def generate_notification_comment(
         lines.append("\n### How to Approve\n")
         lines.append("1. **Submit a GitHub review** with 'Approve', or")
         lines.append("2. **Comment:**")
-        lines.append(f"```\n/approve {short_sha}\n```")
+        lines.append(f"```\n/approve {head_sha}\n```")
         lines.append(
             f"\n> **Note:** If you requested this change, your approval counts as "
             f"one of the {REQUIRED_APPROVALS} required approvals."
@@ -1149,7 +1254,7 @@ def generate_stale_notification(stale_approvals: list[dict], latest_sha: str) ->
 
 Please re-approve:
 ```
-/approve {short_sha}
+/approve {latest_sha}
 ```"""
 
 
@@ -1251,6 +1356,25 @@ class GitHubClient:
         self._write_permission_cache[key] = result
         return result
 
+    def fetch_previous_paths(self, pr_number: int) -> dict[str, str]:
+        """Map each changed path to the path it was renamed or copied from.
+
+        REST only: GraphQL's PullRequestChangedFile has changeType but no
+        previous path. One page is enough, since this runs only once GraphQL
+        has listed every file in at most 100; a file missing here maps to
+        nothing and is treated as not exempt.
+        """
+        response = self._rest_request(
+            "GET",
+            f"/repos/{self.owner}/{self.repo_name}/pulls/{pr_number}/files",
+            context="pr-files",
+            params={"per_page": 100},
+        )
+        return {
+            f.get("filename", ""): f.get("previous_filename", "")
+            for f in response.json() or []
+        }
+
     def fetch_pr_data(self, pr_number: int) -> PRData:
         """Fetch all PR data in a single GraphQL call."""
         logger.info("Fetching PR #%d data via GraphQL", pr_number)
@@ -1291,7 +1415,7 @@ class GitHubClient:
 
         # Check pagination - using `last:` so we check hasPreviousPage
         # For commits: fail-closed if incomplete (security concern)
-        # For reviews/comments: just warn (old items likely stale)
+        # For reviews/comments: fetched in full below
 
         commits_incomplete = (commits_conn.get("pageInfo") or {}).get(
             "hasPreviousPage", False
@@ -1300,8 +1424,6 @@ class GitHubClient:
             logger.warning(
                 "PR has >100 commits - cannot verify all commits, will require approval"
             )
-        if (reviews_conn.get("pageInfo") or {}).get("hasPreviousPage"):
-            logger.warning("PR has more than 100 reviews - some may be missed")
 
         commit_nodes = commits_conn["nodes"]
 
@@ -1315,22 +1437,62 @@ class GitHubClient:
                             (node.get("commit") or {}).get("committer") or {}
                         ).get("email", ""),
                     },
+                    "author": {
+                        "email": ((node.get("commit") or {}).get("author") or {}).get(
+                            "email", ""
+                        ),
+                    },
                     "signature": (node.get("commit") or {}).get("signature"),
                 },
             }
             for node in commit_nodes
         ]
 
-        reviews = [
-            {
+        def normalize_review(node: dict) -> dict:
+            return {
                 "user": {"login": normalize_graphql_login(node.get("author"))},
                 "author_association": node.get("authorAssociation", ""),
                 "state": node.get("state", ""),
                 "commit_id": (node.get("commit") or {}).get("oid", ""),
                 "submitted_at": node.get("submittedAt", ""),
             }
-            for node in reviews_conn["nodes"]
-        ]
+
+        reviews = [normalize_review(node) for node in reviews_conn["nodes"]]
+
+        # Paginate the full review history: an agent's APPROVED review evicted
+        # from the most-recent-100 window would otherwise read as no agent
+        # activity. Unlike a missing comment, a missing review can turn into a
+        # false success, so an unreadable page marks the list incomplete and
+        # holds the status at pending instead of leaving the old status in place.
+        reviews_incomplete = False
+        page_info = reviews_conn.get("pageInfo") or {}
+        cursor = page_info.get("startCursor")
+        while page_info.get("hasPreviousPage"):
+            page_nodes = None
+            if cursor:
+                try:
+                    page = self._graphql(
+                        GRAPHQL_REVIEWS_PAGE_QUERY,
+                        {
+                            "owner": self.owner,
+                            "repo": self.repo_name,
+                            "prNumber": pr_number,
+                            "before": cursor,
+                        },
+                    )
+                    page_conn = (
+                        (page.get("repository") or {}).get("pullRequest") or {}
+                    ).get("reviews") or {}
+                    page_nodes = page_conn.get("nodes")
+                except (httpx.HTTPError, RuntimeError, ValueError) as e:
+                    logger.warning("Could not read older reviews: %s", e)
+            if page_nodes is None:
+                logger.warning("PR reviews incomplete - holding at pending")
+                reviews_incomplete = True
+                break
+            reviews = [normalize_review(n) for n in page_nodes] + reviews
+            page_info = page_conn.get("pageInfo") or {}
+            cursor = page_info.get("startCursor")
 
         def normalize_comment(node: dict) -> dict:
             return {
@@ -1375,7 +1537,13 @@ class GitHubClient:
             page_info = page_conn.get("pageInfo") or {}
             cursor = page_info.get("startCursor")
 
-        files = [node.get("path", "") for node in (files_conn.get("nodes") or [])]
+        file_nodes = files_conn.get("nodes") or []
+        files = [node.get("path", "") for node in file_nodes]
+        moved_files = [
+            node.get("path", "")
+            for node in file_nodes
+            if node.get("changeType") not in SAME_PATH_CHANGE_TYPES
+        ]
         files_incomplete = (files_conn.get("pageInfo") or {}).get("hasNextPage", False)
         if files_incomplete:
             logger.warning("PR has >100 changed files - cannot verify all file paths")
@@ -1464,6 +1632,8 @@ class GitHubClient:
             files_incomplete=files_incomplete,
             same_sha_open_prs=same_sha_open_prs,
             same_sha_prs_incomplete=same_sha_prs_incomplete,
+            reviews_incomplete=reviews_incomplete,
+            moved_files=moved_files,
         )
 
     def execute_mutation_batch(self, batch: MutationBatch) -> None:
@@ -1555,6 +1725,11 @@ def format_status_description(message: str, head_sha: str) -> str:
     return f"{message}{suffix}"
 
 
+def status_context(base_ref: str) -> str:
+    """The commit status's name, bound to the base if so configured."""
+    return f"{CHECK_NAME}/{base_ref}" if STATUS_CONTEXT_PER_BASE else CHECK_NAME
+
+
 def process_pr(
     client: GitHubClient,
     pr_number: int,
@@ -1631,13 +1806,13 @@ def process_pr(
         client.create_commit_status(
             sha=head_sha,
             state=state,
-            context=CHECK_NAME,
+            context=status_context(pr_data.base_ref),
             description=format_status_description(message, head_sha),
             target_url=run_url,
         )
         logger.info("Set status: %s — %s", state, message)
 
-    if is_review_exempt_pr(pr_data, config, client.repo):
+    if is_review_exempt_pr(pr_data, config, client.repo, client.fetch_previous_paths):
         post_status("success", "Review-exempt PR")
         logger.info("Review-exempt PR")
         return
@@ -1656,6 +1831,15 @@ def process_pr(
             detection_reason=(
                 "⚠️ PR has >100 commits — cannot verify all commits are human-authored, "
                 "so approval is required as a security precaution"
+            ),
+        )
+    elif pr_data.reviews_incomplete:
+        result = AgentActivityResult(
+            has_agent_activity=True,
+            latest_agent_commit=pr_data.commits[-1] if pr_data.commits else None,
+            detection_reason=(
+                "⚠️ Not all of this PR's reviews could be read, so this check stays "
+                "`pending` until a later run can read them"
             ),
         )
     else:
@@ -1696,7 +1880,7 @@ def process_pr(
     )
 
     approver_count = len(approvers)
-    has_enough = approver_count >= REQUIRED_APPROVALS
+    has_enough = approver_count >= REQUIRED_APPROVALS and not pr_data.reviews_incomplete
 
     # Build mutation batch
     batch = MutationBatch()
@@ -1716,6 +1900,7 @@ def process_pr(
         head_sha=head_sha,
         sibling_blocker_prs=open_protected_siblings or None,
         sibling_list_incomplete=pr_data.same_sha_prs_incomplete,
+        reviews_incomplete=pr_data.reviews_incomplete,
     )
 
     existing_comment = find_notification_comment(pr_data.comments)
@@ -1757,6 +1942,8 @@ def process_pr(
     # === REST commit status ===
     if has_enough:
         post_status("success", f"{approver_count}/{REQUIRED_APPROVALS} approvals")
+    elif pr_data.reviews_incomplete:
+        post_status("pending", "Cannot read all reviews — holding at pending")
     else:
         post_status(
             "pending",
