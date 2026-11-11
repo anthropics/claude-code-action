@@ -154,6 +154,7 @@ export async function prepareTagMode({
   );
 
   const gitPushWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-push.sh`;
+  const gitCommitWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-commit.sh`;
 
   // Build claude_args for tag mode with required tools.
   // Edit/MultiEdit/Write are intentionally omitted: acceptEdits permission mode (set below)
@@ -176,7 +177,7 @@ export async function prepareTagMode({
   if (!useApiCommitSigning) {
     tagModeTools.push(
       "Bash(git add:*)",
-      "Bash(git commit:*)",
+      `Bash(${gitCommitWrapper}:*)`,
       `Bash(${gitPushWrapper}:*)`,
       "Bash(git rm:*)",
     );

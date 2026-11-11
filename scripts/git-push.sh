@@ -22,6 +22,13 @@ for arg in "$@"; do
   fi
 done
 
+# A leading + is a valid ref name to check-ref-format, but git push treats it as
+# a forced update.
+if [[ "$2" == +* ]]; then
+  echo "Error: forced pushes are not allowed (got: $2)" >&2
+  exit 1
+fi
+
 if [[ "$1" != "origin" ]]; then
   echo "Error: remote must be 'origin' (got: $1)" >&2
   exit 1

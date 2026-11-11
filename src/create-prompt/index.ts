@@ -24,6 +24,7 @@ import { extractUserRequest } from "../utils/extract-user-request";
 export type { CommonFields, PreparedContext } from "./types";
 
 const GIT_PUSH_WRAPPER = `${process.env.GITHUB_ACTION_PATH}/scripts/git-push.sh`;
+const GIT_COMMIT_WRAPPER = `${process.env.GITHUB_ACTION_PATH}/scripts/git-commit.sh`;
 
 /** Filename for the user request file, read by the SDK runner */
 const USER_REQUEST_FILENAME = "claude-user-request.txt";
@@ -54,7 +55,7 @@ export function buildAllowedToolsString(
     // When not using commit signing, add specific Bash git commands
     baseTools.push(
       "Bash(git add:*)",
-      "Bash(git commit:*)",
+      `Bash(${GIT_COMMIT_WRAPPER}:*)`,
       `Bash(${GIT_PUSH_WRAPPER}:*)`,
       "Bash(git rm:*)",
     );
@@ -433,11 +434,11 @@ function getCommitInstructions(
       return `
       - Use git commands via the Bash tool to commit and push your changes:
         - Stage files: Bash(git add <files>)
-        - Commit with a descriptive message: Bash(git commit -m "<message>")
+        - Commit with a descriptive message: Bash(${GIT_COMMIT_WRAPPER} -m "<message>")
         ${
           coAuthorLine
             ? `- When committing and the trigger user is not "Unknown", include a Co-authored-by trailer:
-          Bash(git commit -m "<message>\\n\\n${coAuthorLine}")`
+          Bash(${GIT_COMMIT_WRAPPER} -m "<message>\\n\\n${coAuthorLine}")`
             : ""
         }
         - Push to the remote: Bash(${GIT_PUSH_WRAPPER} origin HEAD)`;
@@ -447,11 +448,11 @@ function getCommitInstructions(
       - You are already on the correct branch (${eventData.claudeBranch || "the PR branch"}). Do not create a new branch.
       - Use git commands via the Bash tool to commit and push your changes:
         - Stage files: Bash(git add <files>)
-        - Commit with a descriptive message: Bash(git commit -m "<message>")
+        - Commit with a descriptive message: Bash(${GIT_COMMIT_WRAPPER} -m "<message>")
         ${
           coAuthorLine
             ? `- When committing and the trigger user is not "Unknown", include a Co-authored-by trailer:
-          Bash(git commit -m "<message>\\n\\n${coAuthorLine}")`
+          Bash(${GIT_COMMIT_WRAPPER} -m "<message>\\n\\n${coAuthorLine}")`
             : ""
         }
         - Push to the remote: Bash(${GIT_PUSH_WRAPPER} origin ${branchName})`;
@@ -827,7 +828,7 @@ ${
   - mcp__github_file_ops__delete_files: {"paths": ["path/to/old.js"], "message": "chore: remove deprecated file"}`
     : `- Use git commands via the Bash tool for version control (remember that you have access to these git commands):
   - Stage files: Bash(git add <files>)
-  - Commit changes: Bash(git commit -m "<message>")
+  - Commit changes: Bash(${GIT_COMMIT_WRAPPER} -m "<message>")
   - Push to remote: Bash(${GIT_PUSH_WRAPPER} origin <branch>)
   - Delete files: Bash(git rm <files>) followed by commit and push
   - Check status: Bash(git status)
