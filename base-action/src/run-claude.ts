@@ -14,6 +14,7 @@ export type ClaudeOptions = {
   appendSystemPrompt?: string;
   fallbackModel?: string;
   showFullOutput?: string;
+  onSchemaViolation?: string;
 };
 
 export async function runClaude(

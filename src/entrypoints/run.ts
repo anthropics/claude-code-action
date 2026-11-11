@@ -297,6 +297,7 @@ async function run() {
       model: process.env.ANTHROPIC_MODEL,
       pathToClaudeCodeExecutable: claudeExecutable,
       showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
+      onSchemaViolation: process.env.INPUT_ON_SCHEMA_VIOLATION,
     });
 
     claudeSuccess = claudeResult.conclusion === "success";
