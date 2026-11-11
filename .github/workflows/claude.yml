@@ -41,6 +41,9 @@ jobs:
           anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
           anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          # The allowed bun commands run code from the checkout. On a pull request from an
+          # author without write access, deny them and similar commands. See docs/security.md.
+          restrict_untrusted_prs: true
           # --permission-mode auto: a tool call that needs permission and that the allowed tools
           # do not cover runs only if Claude Code's safety review passes it. The action sets
           # --permission-mode acceptEdits for @claude mentions, and this one, which comes after it, wins.
