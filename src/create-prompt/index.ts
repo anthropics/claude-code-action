@@ -503,6 +503,7 @@ function generateSimplePrompt(
     contextData,
     comments,
     changedFilesWithSHA,
+    excludedChangedFileCount,
     reviewData,
     imageUrlMap,
   } = githubData;
@@ -516,7 +517,7 @@ function generateSimplePrompt(
     ? formatReviewComments(reviewData, imageUrlMap)
     : "";
   const formattedChangedFiles = eventData.isPR
-    ? formatChangedFilesWithSHA(changedFilesWithSHA)
+    ? formatChangedFilesWithSHA(changedFilesWithSHA, excludedChangedFileCount)
     : "";
 
   const hasImages = imageUrlMap && imageUrlMap.size > 0;
@@ -631,6 +632,7 @@ export function generateDefaultPrompt(
     contextData,
     comments,
     changedFilesWithSHA,
+    excludedChangedFileCount,
     reviewData,
     imageUrlMap,
   } = githubData;
@@ -644,7 +646,7 @@ export function generateDefaultPrompt(
     ? formatReviewComments(reviewData, imageUrlMap)
     : "";
   const formattedChangedFiles = eventData.isPR
-    ? formatChangedFilesWithSHA(changedFilesWithSHA)
+    ? formatChangedFilesWithSHA(changedFilesWithSHA, excludedChangedFileCount)
     : "";
 
   // Check if any images were downloaded

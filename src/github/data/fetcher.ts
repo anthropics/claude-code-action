@@ -385,6 +385,7 @@ export type FetchDataResult = {
   comments: GitHubComment[];
   changedFiles: GitHubFile[];
   changedFilesWithSHA: GitHubFileWithSHA[];
+  excludedChangedFileCount?: number;
   reviewData: { nodes: GitHubReview[] } | null;
   imageUrlMap: Map<string, string>;
   triggerDisplayName?: string | null;
@@ -480,7 +481,8 @@ export async function fetchGitHubData({
     throw new Error(`Failed to fetch ${isPR ? "PR" : "issue"} data`);
   }
 
-  if (excludeChangedFiles && changedFiles.length > 0) {
+  const changedFileCount = changedFiles.length;
+  if (excludeChangedFiles && changedFileCount > 0) {
     const patterns = excludeChangedFiles
       .split("\n")
       .map((line) => line.trim())
@@ -647,6 +649,7 @@ export async function fetchGitHubData({
     comments,
     changedFiles,
     changedFilesWithSHA,
+    excludedChangedFileCount: changedFileCount - changedFiles.length,
     reviewData,
     imageUrlMap,
     triggerDisplayName,

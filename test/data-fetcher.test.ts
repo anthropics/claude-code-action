@@ -901,6 +901,7 @@ describe("fetchGitHubData changed file filtering", () => {
   it.each([
     [undefined, paths],
     ["  \r\n  ", paths],
+    ["**", []],
     [
       "  **/*.generated.go\r\n\r\n**/dist/**\nassets/app, compressed.js  ",
       ["packages/web/dist-tools/app.js", "src/main.go"],
@@ -939,6 +940,9 @@ describe("fetchGitHubData changed file filtering", () => {
       expect(result.changedFiles.map((file) => file.path)).toEqual(expected);
       expect(result.changedFilesWithSHA.map((file) => file.path)).toEqual(
         expected,
+      );
+      expect(result.excludedChangedFileCount).toBe(
+        paths.length - expected.length,
       );
     },
   );
