@@ -13,6 +13,7 @@ import { appendFile } from "fs/promises";
 import { existsSync, readFileSync } from "fs";
 import { setupGitHubToken, WorkflowValidationSkipError } from "../github/token";
 import { checkWritePermissions } from "../github/validation/permissions";
+import { getUntrustedPrDisallowedTools } from "../github/validation/untrusted-pr";
 import { createOctokit } from "../github/api/client";
 import type { Octokits } from "../github/api/client";
 import {
@@ -291,12 +292,26 @@ async function run() {
       promptFile,
     });
 
+    // Deny commands that run checkout code on PRs from authors without write
+    // access. These are passed separately because text added to claudeArgs can
+    // be lost: a comment at the end of the user's claude_args would swallow it.
+    // Tag mode sets claudeBranch only when it branched from the base instead of
+    // checking out the PR's head, as for a closed or merged PR.
+    const checkedOutPrHead = modeName !== "tag" || !claudeBranch;
+    const disallowedTools =
+      isEntityContext(context) && checkedOutPrHead
+        ? await getUntrustedPrDisallowedTools(octokit.rest, context)
+        : [];
+
     const claudeResult: ClaudeRunResult = await runClaude(promptConfig.path, {
       claudeArgs: prepareResult.claudeArgs,
+      disallowedTools: disallowedTools.join(","),
       appendSystemPrompt: process.env.APPEND_SYSTEM_PROMPT,
       model: process.env.ANTHROPIC_MODEL,
       pathToClaudeCodeExecutable: claudeExecutable,
       showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
+      // Tag mode has no allow rules for file edits, so it needs a mode that allows them.
+      ...(modeName === "tag" && { fallbackPermissionMode: "acceptEdits" }),
     });
 
     claudeSuccess = claudeResult.conclusion === "success";

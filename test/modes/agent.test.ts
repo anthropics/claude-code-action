@@ -18,7 +18,16 @@ describe("Agent Mode", () => {
   let configureGitAuthSpy: any;
   let replaceCheckoutCredentialsSpy: any;
 
+  const savedBaseUrl = process.env.ANTHROPIC_BASE_URL;
+  const savedNonWriteUsers = process.env.ALLOWED_NON_WRITE_USERS;
+  const savedSettings = process.env.INPUT_SETTINGS;
+  const savedExecutable = process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
+
   beforeEach(() => {
+    delete process.env.ANTHROPIC_BASE_URL;
+    delete process.env.ALLOWED_NON_WRITE_USERS;
+    delete process.env.INPUT_SETTINGS;
+    delete process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
     exportVariableSpy = spyOn(core, "exportVariable").mockImplementation(
       () => {},
     );
@@ -37,6 +46,20 @@ describe("Agent Mode", () => {
   });
 
   afterEach(() => {
+    if (savedBaseUrl === undefined) delete process.env.ANTHROPIC_BASE_URL;
+    else process.env.ANTHROPIC_BASE_URL = savedBaseUrl;
+    if (savedNonWriteUsers === undefined) {
+      delete process.env.ALLOWED_NON_WRITE_USERS;
+    } else {
+      process.env.ALLOWED_NON_WRITE_USERS = savedNonWriteUsers;
+    }
+    if (savedSettings === undefined) delete process.env.INPUT_SETTINGS;
+    else process.env.INPUT_SETTINGS = savedSettings;
+    if (savedExecutable === undefined) {
+      delete process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
+    } else {
+      process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE = savedExecutable;
+    }
     exportVariableSpy?.mockClear();
     setOutputSpy?.mockClear();
     configureGitAuthSpy?.mockClear();
@@ -92,7 +115,9 @@ describe("Agent Mode", () => {
     });
 
     // Verify claude_args includes user args (no MCP config in agent mode without allowed tools)
-    expect(result.claudeArgs).toBe("--model claude-sonnet-4 --max-turns 10");
+    expect(result.claudeArgs).toBe(
+      "--permission-mode auto --model claude-sonnet-4 --max-turns 10",
+    );
     expect(result.claudeArgs).not.toContain("--mcp-config");
 
     // Verify return structure - should fall back to repository.default_branch when no env vars set
@@ -104,8 +129,34 @@ describe("Agent Mode", () => {
         claudeBranch: undefined,
       },
       mcpConfig: expect.any(String),
-      claudeArgs: "--model claude-sonnet-4 --max-turns 10",
+      claudeArgs:
+        "--permission-mode auto --model claude-sonnet-4 --max-turns 10",
     });
+
+    // Sessions behind a gateway keep the earlier default of no flag
+    process.env.ANTHROPIC_BASE_URL = "https://gateway.example.com";
+    const behindGateway = await prepareAgentMode({
+      context: contextWithCustomArgs,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+    expect(behindGateway.claudeArgs).toBe(
+      "--model claude-sonnet-4 --max-turns 10",
+    );
+    delete process.env.ANTHROPIC_BASE_URL;
+
+    // A permission mode in the settings input isn't replaced by the default
+    process.env.INPUT_SETTINGS = JSON.stringify({
+      permissions: { defaultMode: "dontAsk" },
+    });
+    const withSettingsMode = await prepareAgentMode({
+      context: contextWithCustomArgs,
+      octokit: mockOctokit,
+      githubToken: "test-token",
+    });
+    expect(withSettingsMode.claudeArgs).toBe(
+      "--model claude-sonnet-4 --max-turns 10",
+    );
 
     // Clean up
     delete process.env.CLAUDE_ARGS;
