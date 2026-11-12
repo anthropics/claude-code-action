@@ -829,7 +829,7 @@ ${
     : `- Use git commands via the Bash tool for version control (remember that you have access to these git commands):
   - Stage files: Bash(git add <files>)
   - Commit changes: Bash(${GIT_COMMIT_WRAPPER} -m "<message>")
-  - Push to remote: Bash(${GIT_PUSH_WRAPPER} origin <branch>)
+  - Push to remote: Bash(${GIT_PUSH_WRAPPER} origin HEAD)
   - Delete files: Bash(git rm <files>) followed by commit and push
   - Check status: Bash(git status)
   - View diff: Bash(git diff)${eventData.isPR && eventData.baseBranch ? `\n  - IMPORTANT: For PR diffs, use: Bash(git diff origin/${eventData.baseBranch}...HEAD)` : ""}`

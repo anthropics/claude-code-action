@@ -158,6 +158,10 @@ export async function prepareTagMode({
     tool.startsWith("mcp__github_"),
   );
 
+  const sessionBranch = branchInfo.claudeBranch || branchInfo.currentBranch;
+  // scripts/git-push.sh refuses to update any other branch.
+  process.env.CLAUDE_PUSH_BRANCH = sessionBranch;
+
   const gitPushWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-push.sh`;
   const gitCommitWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-commit.sh`;
 
@@ -199,7 +203,7 @@ export async function prepareTagMode({
     githubToken,
     owner: context.repository.owner,
     repo: context.repository.repo,
-    branch: branchInfo.claudeBranch || branchInfo.currentBranch,
+    branch: sessionBranch,
     baseBranch: branchInfo.baseBranch,
     claudeCommentId: commentId.toString(),
     allowedTools: Array.from(new Set(tagModeTools)),
