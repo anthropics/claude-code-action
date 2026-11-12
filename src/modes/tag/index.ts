@@ -1,4 +1,5 @@
 import { checkHumanActor } from "../../github/validation/actor";
+import { defaultsToAutoMode } from "../permission-mode";
 import { createInitialComment } from "../../github/operations/comments/create-initial";
 import { setupBranch } from "../../github/operations/branch";
 import {
@@ -156,8 +157,8 @@ export async function prepareTagMode({
   const gitPushWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-push.sh`;
 
   // Build claude_args for tag mode with required tools.
-  // Edit/MultiEdit/Write are intentionally omitted: acceptEdits permission mode (set below)
-  // auto-allows file edits inside $GITHUB_WORKSPACE and denies writes outside (e.g. ~/.bashrc).
+  // Edit/MultiEdit/Write are intentionally omitted: the permission mode (set below) allows
+  // file edits inside $GITHUB_WORKSPACE and doesn't allow every write outside (e.g. ~/.bashrc).
   // Listing them here would grant blanket write access to the whole runner (Asana 1213310082312048).
   const tagModeTools = [
     "Glob",
@@ -209,11 +210,15 @@ export async function prepareTagMode({
   claudeArgs = `--mcp-config '${escapedOurConfig}'`;
 
   // Add required tools for tag mode.
-  // acceptEdits: file edits auto-allowed inside cwd ($GITHUB_WORKSPACE), denied outside.
-  // Headless SDK has no prompt handler, so anything that falls through to "ask" is denied.
-  claudeArgs += ` --permission-mode acceptEdits --allowedTools "${tagModeTools.join(",")}"`;
+  // auto: file edits allowed inside cwd ($GITHUB_WORKSPACE), and a safety review decides
+  // calls that no rule covers.
+  // acceptEdits: file edits allowed inside cwd, denied outside. The headless SDK has no
+  // prompt handler, so anything that falls through to "ask" is denied.
+  const permissionMode = defaultsToAutoMode() ? "auto" : "acceptEdits";
+  claudeArgs += ` --permission-mode ${permissionMode} --allowedTools "${tagModeTools.join(",")}"`;
 
-  // Append user's claude_args (which may have more --mcp-config flags)
+  // Append user's claude_args (which may have more --mcp-config flags, or another
+  // --permission-mode, where the last one wins)
   if (userClaudeArgs) {
     claudeArgs += ` ${userClaudeArgs}`;
   }

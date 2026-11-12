@@ -9,6 +9,7 @@ export type ParsedSdkOptions = {
   sdkOptions: SdkOptions;
   showFullOutput: boolean;
   hasJsonSchema: boolean;
+  fallbackPermissionMode?: SdkOptions["permissionMode"];
 };
 
 // Flags that should accumulate multiple values instead of overwriting
@@ -187,6 +188,21 @@ function parseClaudeArgsToExtraArgs(
 }
 
 /**
+ * The permission mode the CLI ends up with: the last one given. `--permission-mode=x`
+ * is kept under its own key, with the value in the key's name.
+ */
+function lastPermissionMode(
+  extraArgs: Record<string, string | null>,
+): string | null | undefined {
+  const modes = Object.entries(extraArgs).flatMap(([flag, value]) => {
+    if (flag === "permission-mode") return [value];
+    const [name, inlineValue] = flag.split(/=(.*)/s);
+    return name === "permission-mode" ? [inlineValue ?? null] : [];
+  });
+  return modes.at(-1);
+}
+
+/**
  * Parse ClaudeOptions into SDK-compatible options
  * Uses extraArgs for CLI pass-through instead of duplicating option parsing
  */
@@ -351,5 +367,10 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     sdkOptions,
     showFullOutput,
     hasJsonSchema,
+    // Only when auto mode is what the session ends up asking for: a mode someone
+    // chose in claude_args must stay as they set it.
+    ...(lastPermissionMode(extraArgs) === "auto" && {
+      fallbackPermissionMode: options.fallbackPermissionMode,
+    }),
   };
 }
