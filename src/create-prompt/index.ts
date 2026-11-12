@@ -30,8 +30,8 @@ const GIT_COMMIT_WRAPPER = `${process.env.GITHUB_ACTION_PATH}/scripts/git-commit
 const USER_REQUEST_FILENAME = "claude-user-request.txt";
 
 // Tag mode defaults - these tools are needed for tag mode to function.
-// Edit/MultiEdit/Write are intentionally omitted: acceptEdits permission mode
-// auto-allows file edits inside $GITHUB_WORKSPACE and denies writes outside it.
+// Edit/MultiEdit/Write are intentionally omitted: the permission mode allows file
+// edits inside $GITHUB_WORKSPACE and doesn't allow every write outside it.
 const BASE_ALLOWED_TOOLS = ["Glob", "Grep", "LS", "Read"];
 
 export function buildAllowedToolsString(
