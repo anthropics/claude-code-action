@@ -75,6 +75,19 @@ By default, when the pull request's author does not have write access, the actio
 
 **Upgrading:** workflows that use a floating tag or branch such as `@v1` or `@main` get this behavior without changing anything. If a workflow relied on commands like `npm test` running on pull requests from outside contributors or bots, those commands are now denied. The run still succeeds, so check the log for the warning. Set `restrict_untrusted_prs: false` to turn this off.
 
+### What a session can leave behind
+
+Steps that run after Claude, including post steps such as `actions/checkout`'s cleanup, trust `GITHUB_ENV`, `GITHUB_PATH` and git's config files. When the session ends, the action restores those files, including config pulled in through `include.path`, to how they were before it started, and logs a warning naming any it changed. A session therefore can't pass environment variables to later steps through `GITHUB_ENV`, and `git config` changes it made, such as the upstream that `git push -u` records, don't last. Use `GITHUB_OUTPUT` or `--json-schema` to pass results on.
+
+While Claude runs, and for the action's own git commands afterwards, git ignores `core.fsmonitor`. Git hooks are off for the action's own commits after the session, and from before the checkout on pull requests that `restrict_untrusted_prs` applies to. Git LFS uploads through a hook, so the action uploads objects itself for its own commits, but a push Claude makes on such a pull request won't include them.
+
+This has limits:
+
+- It is not a sandbox. Code running on the runner, for example through an allowed `npm test`, can stop the action before it restores anything, or change the files later steps run, including the code of this and other actions. An allow rule for `Write` can reach those files too, so treat it like allowing code to run.
+- A run that is cancelled or times out during the session does not restore anything, and later `always()` and post steps still run.
+- Submodule config, a repository checked out to a subdirectory, and an `include.path` target that does not exist yet are not restored.
+- The git settings need git 2.31 or newer. On older versions they have no effect.
+
 ### `claude-code-action` vs `claude-code-base-action`
 
 `claude-code-base-action` is a lower-level building block that installs and runs Claude Code with the inputs you provide. It does not perform actor permission checks, restrict commands on pull requests from outside contributors, or restore project configuration from the base ref. If you need those behaviors, use this action (`claude-code-action`). See the [base-action README](../base-action/README.md#trust-model) for details.
