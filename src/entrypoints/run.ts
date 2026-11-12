@@ -36,6 +36,7 @@ import {
   clearSessionState,
   disableGitPrograms,
   prepareGitForSession,
+  restoreTrackedSymlinks,
   snapshotSessionFiles,
 } from "../github/operations/session-guard";
 import { restoreConfigFromBase } from "../github/operations/restore-config";
@@ -331,7 +332,12 @@ async function run() {
     const disallowedTools = checkedOutPrHead ? untrustedPrDisallowedTools : [];
 
     const restoreSessionFiles = snapshotSessionFiles(() =>
-      prepareGitForSession({ hooks: hooksOff }),
+      prepareGitForSession({
+        hooks: hooksOff,
+        ...(disallowedTools.length > 0 && {
+          flattenSymlinks: { except: restoredConfigPaths },
+        }),
+      }),
     );
 
     let claudeResult: ClaudeRunResult;
@@ -351,6 +357,7 @@ async function run() {
       // The action's own git commands from here on hold the job's credentials,
       // and the session could have edited a tracked hook.
       disableGitPrograms({ hooks: true });
+      restoreTrackedSymlinks();
       // Revoking the app token depends on this output, and a session can write it.
       core.setOutput("skipped_due_to_workflow_validation_mismatch", "false");
     }

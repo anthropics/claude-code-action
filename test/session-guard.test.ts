@@ -20,6 +20,7 @@ import {
   disableGitPrograms,
   pinPushBranch,
   prepareGitForSession,
+  restoreTrackedSymlinks,
   snapshotSessionFiles,
 } from "../src/github/operations/session-guard";
 
@@ -286,6 +287,138 @@ describe("session guard", () => {
       prepareGitForSession({ hooks: false });
       expect(warnings()).toEqual([]);
       expect(readFileSync(join(bare, "config"), "utf8")).toContain("fsmonitor");
+    });
+
+    describe("symlinks", () => {
+      const commitLinks = (...names: string[]) => {
+        writeFileSync(join(dir, "secret"), "the secret\n");
+        for (const name of names) symlinkSync(join(dir, "secret"), name);
+        git("add", "-A");
+        git(
+          "-c",
+          "user.name=a",
+          "-c",
+          "user.email=a@b",
+          "commit",
+          "-qm",
+          "links",
+        );
+      };
+
+      test("are plain files for the session, and come back afterwards", () => {
+        commitLinks("leak", "with space");
+        const restore = snapshotSessionFiles(() =>
+          prepareGitForSession({
+            hooks: true,
+            flattenSymlinks: { except: [] },
+          }),
+        );
+        for (const name of ["leak", "with space"]) {
+          expect(lstatSync(name).isSymbolicLink()).toBe(false);
+          expect(readFileSync(name, "utf8")).toBe(join(dir, "secret"));
+        }
+        expect(git("status", "--short")).toBe("");
+        git("add", "-A");
+        expect(git("diff", "--cached", "--name-only")).toBe("");
+
+        restore();
+        restoreTrackedSymlinks();
+        for (const name of ["leak", "with space"]) {
+          expect(lstatSync(name).isSymbolicLink()).toBe(true);
+        }
+        expect(git("status", "--short")).toBe("");
+        expect(local("core.symlinks")).toBe("");
+        expect(warnings()).toEqual([]);
+      });
+
+      test("drops a session's edit to the plain file, so cleanup commits nothing", () => {
+        commitLinks("leak");
+        const restore = snapshotSessionFiles(() =>
+          prepareGitForSession({
+            hooks: true,
+            flattenSymlinks: { except: [] },
+          }),
+        );
+        writeFileSync("leak", "edited\n");
+        restore();
+        restoreTrackedSymlinks();
+        expect(lstatSync("leak").isSymbolicLink()).toBe(true);
+        expect(git("status", "--short")).toBe("");
+      });
+
+      test("doesn't bring back a link the session removed", () => {
+        commitLinks("leak");
+        const restore = snapshotSessionFiles(() =>
+          prepareGitForSession({
+            hooks: true,
+            flattenSymlinks: { except: [] },
+          }),
+        );
+        git("rm", "-q", "leak");
+        restore();
+        restoreTrackedSymlinks();
+        expect(existsSync("leak")).toBe(false);
+        expect(warnings()).toEqual([]);
+      });
+
+      test("keeps links in paths restored from the base branch", () => {
+        mkdirSync(".claude");
+        commitLinks("CLAUDE.md", ".claude/inside", "CLAUDE.md.old", "leak");
+        prepareGitForSession({
+          hooks: true,
+          flattenSymlinks: { except: ["CLAUDE.md", ".claude"] },
+        });
+        expect(lstatSync("CLAUDE.md").isSymbolicLink()).toBe(true);
+        expect(lstatSync(".claude/inside").isSymbolicLink()).toBe(true);
+        expect(lstatSync("CLAUDE.md.old").isSymbolicLink()).toBe(false);
+        expect(lstatSync("leak").isSymbolicLink()).toBe(false);
+        restoreTrackedSymlinks();
+      });
+
+      test("replaces a link to a directory", () => {
+        symlinkSync(dir, "to-dir");
+        commitLinks();
+        const restore = snapshotSessionFiles(() =>
+          prepareGitForSession({
+            hooks: true,
+            flattenSymlinks: { except: [] },
+          }),
+        );
+        expect(lstatSync("to-dir").isFile()).toBe(true);
+        restore();
+        restoreTrackedSymlinks();
+        expect(lstatSync("to-dir").isSymbolicLink()).toBe(true);
+        expect(warnings()).toEqual([]);
+      });
+
+      // APFS refuses names that aren't valid UTF-8.
+      test.skipIf(process.platform === "darwin")(
+        "replaces a link whose name isn't valid UTF-8",
+        () => {
+          const name = Buffer.from([0x6c, 0x65, 0x61, 0x6b, 0xff]);
+          symlinkSync(join(dir, "secret"), name);
+          commitLinks();
+          const restore = snapshotSessionFiles(() =>
+            prepareGitForSession({
+              hooks: true,
+              flattenSymlinks: { except: [] },
+            }),
+          );
+          expect(lstatSync(name).isFile()).toBe(true);
+          expect(git("status", "--short")).toBe("");
+          restore();
+          restoreTrackedSymlinks();
+          expect(lstatSync(name).isSymbolicLink()).toBe(true);
+          expect(warnings()).toEqual([]);
+        },
+      );
+
+      test("stay links without the option", () => {
+        commitLinks("leak");
+        prepareGitForSession({ hooks: true });
+        expect(lstatSync("leak").isSymbolicLink()).toBe(true);
+        expect(local("core.symlinks")).toBe("");
+      });
     });
 
     test("keeps a workflow's own entries in the environment", () => {

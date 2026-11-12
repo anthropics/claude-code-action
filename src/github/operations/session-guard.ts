@@ -36,6 +36,9 @@ const SESSION_STATE_FILES = [".push-branch", ".no-hooks", ".git-repo"];
 // How many GIT_CONFIG_* entries were there before disableGitPrograms added any.
 let entriesBeforeAction: number | undefined;
 
+// Tracked symlinks turned into plain files for the session.
+let flattenedLinks: string[] = [];
+
 const codeOf = (error: unknown): string =>
   (error as { code?: string }).code ?? "unknown error";
 
@@ -303,6 +306,76 @@ const gitOutput = (...args: string[]): string | null => {
   }
 };
 
+// File names can be any bytes. Latin-1 keeps each one intact, where UTF-8 would turn
+// an invalid name into one that doesn't exist on disk.
+const fsPath = (path: string): Buffer => Buffer.from(path, "latin1");
+
+function trackedSymlinks(): string[] {
+  const listing = execFileSync("git", ["ls-files", "--stage", "-z"], {
+    encoding: "latin1",
+    stdio: ["ignore", "pipe", "ignore"],
+    env: { ...process.env },
+    maxBuffer: 1024 ** 3,
+  });
+  return listing.split("\0").flatMap((entry) => {
+    const [info, path] = entry.split(/\t(.*)/s);
+    return info?.startsWith("120000 ") && info.endsWith(" 0") && path
+      ? [path]
+      : [];
+  });
+}
+
+function checkOutFromIndex(paths: string[]): void {
+  execFileSync("git", ["checkout-index", "-f", "-u", "-z", "--stdin"], {
+    input: fsPath(paths.join("\0")),
+    stdio: ["pipe", "ignore", "ignore"],
+    env: { ...process.env },
+  });
+}
+
+/**
+ * Makes each tracked symlink a plain file that holds the link's target, so reading
+ * it can't reach a file outside the checkout. A link that can't be replaced is left
+ * deleted. Git sees no change, because core.symlinks=false tells it to expect this.
+ * Paths in `except` came from the base branch, so a link there stays.
+ */
+function flattenTrackedSymlinks(except: string[]): void {
+  if (gitOutput("config", "--local", "core.symlinks", "false") === null) {
+    core.warning("Could not set core.symlinks for the session");
+    return;
+  }
+  const isExcepted = (path: string): boolean =>
+    except.some((kept) => path === kept || path.startsWith(`${kept}/`));
+  try {
+    flattenedLinks = trackedSymlinks().filter(
+      (path) =>
+        !isExcepted(path) &&
+        lstatSync(fsPath(path), { throwIfNoEntry: false })?.isSymbolicLink(),
+    );
+    for (const path of flattenedLinks) rmSync(fsPath(path));
+    if (flattenedLinks.length > 0) checkOutFromIndex(flattenedLinks);
+  } catch (error) {
+    core.warning(`Could not replace symlinks (${codeOf(error)})`);
+  }
+}
+
+/**
+ * Puts back the links flattenTrackedSymlinks replaced. Call it after git's config is
+ * restored. Otherwise the action's own commit after the session would record each
+ * link as a plain file.
+ */
+export function restoreTrackedSymlinks(): void {
+  const flattened = new Set(flattenedLinks);
+  flattenedLinks = [];
+  if (flattened.size === 0) return;
+  try {
+    const paths = trackedSymlinks().filter((path) => flattened.has(path));
+    if (paths.length > 0) checkOutFromIndex(paths);
+  } catch (error) {
+    core.warning(`Could not put symlinks back (${codeOf(error)})`);
+  }
+}
+
 /**
  * Moves the settings from disableGitPrograms out of the environment for the session.
  * Repository config and the wrappers keep them in force instead, and
@@ -310,7 +383,13 @@ const gitOutput = (...args: string[]): string | null => {
  * repository git finds in a plain folder, with its own config. Git only reads
  * safe.bareRepository from global config or the command line.
  */
-export function prepareGitForSession({ hooks }: { hooks: boolean }): void {
+export function prepareGitForSession({
+  hooks,
+  flattenSymlinks,
+}: {
+  hooks: boolean;
+  flattenSymlinks?: { except: string[] };
+}): void {
   const count = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? "", 10) || 0;
   const before = entriesBeforeAction ?? count;
   for (let i = before; i < count; i++) {
@@ -332,7 +411,10 @@ export function prepareGitForSession({ hooks }: { hooks: boolean }): void {
   // Before the global setting, which stops git from finding a bare repository here.
   const gitDir = gitOutput("rev-parse", "--absolute-git-dir");
   const workTree = gitDir && gitOutput("rev-parse", "--show-toplevel");
-  if (gitDir) setConfig("--local", gitProgramSettings({ hooks }));
+  if (gitDir) {
+    setConfig("--local", gitProgramSettings({ hooks }));
+    if (flattenSymlinks) flattenTrackedSymlinks(flattenSymlinks.except);
+  }
   setConfig("--global", [["safe.bareRepository", "explicit"]]);
 
   try {
