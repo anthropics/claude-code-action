@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { readFile, stat } from "fs/promises";
 import { resolve } from "path";
 import { constants } from "fs";
+import { execFileSync } from "node:child_process";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
 import { isBinaryContent } from "./binary-detection";
@@ -199,6 +200,32 @@ async function getFileMode(filePath: string): Promise<string> {
   }
 }
 
+function rejectLfsFiles(repoDir: string, paths: string[]): void {
+  if (paths.length === 0) return;
+
+  // Check both working-tree and indexed attributes. An unstaged edit removing
+  // an LFS rule would otherwise allow raw contents into a commit without that edit.
+  for (const source of [[], ["--cached"]]) {
+    const fields = execFileSync(
+      "git",
+      ["check-attr", ...source, "-z", "--stdin", "filter"],
+      {
+        cwd: repoDir,
+        input: paths.join("\0") + "\0",
+        encoding: "utf8",
+      },
+    ).split("\0");
+
+    for (let index = 0; index + 2 < fields.length; index += 3) {
+      if (fields[index + 2] === "lfs") {
+        throw new Error(
+          `${JSON.stringify(fields[index])} is tracked by Git LFS. The GitHub API commit tool cannot upload LFS objects. Use the Git CLI commit flow with Git LFS configured.`,
+        );
+      }
+    }
+  }
+}
+
 // Commit files tool
 server.tool(
   "commit_files",
@@ -225,6 +252,11 @@ server.tool(
           const relativePath = normalizedPath.slice(resolvedRepoDir.length + 1);
           return { fullPath, relativePath };
         }),
+      );
+
+      rejectLfsFiles(
+        resolvedRepoDir,
+        validatedFiles.map(({ relativePath }) => relativePath),
       );
 
       // 1. Get the branch reference (create if doesn't exist)

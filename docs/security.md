@@ -151,6 +151,8 @@ This uses GitHub's API to create commits, which automatically signs them as veri
 
 This is the simplest option and requires no additional setup. However, because it uses the GitHub API instead of git CLI, it cannot perform complex git operations like rebasing, cherry-picking, or interactive history manipulation.
 
+The API commit tool rejects files that Git marks with the `filter=lfs` attribute. Git LFS needs to store a pointer in the commit and upload the file contents separately. To commit LFS files, use `actions/checkout` with `lfs: true`, leave `use_commit_signing` disabled, and use the Git CLI commit flow. For signed Git CLI commits, configure `ssh_signing_key` as shown below. See [Git LFS behavior when hooks are disabled](#what-a-session-can-leave-behind) for pull requests from outside contributors.
+
 With `prompt`, a run on an issue commits to `issue-N`. A run on a pull request commits to the pull request's branch, or to `pr-N` if that branch isn't known to be in this repository. `issue-N` and `pr-N` start from the base branch. To use another branch, set `CLAUDE_BRANCH` in the step's `env`.
 
 ### Option 2: SSH Signing Key (ssh_signing_key)
