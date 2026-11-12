@@ -121,3 +121,16 @@ A human counts as an approver by either:
 - **No checkout of PR code.** The action never checks out the PR's branch;
   it reads PR metadata via the GitHub API, so the usual
   `pull_request_target` code-execution risk does not apply.
+
+## Development
+
+The pure decision logic (approval counting, `/approve` parsing, routing,
+config validation) is covered by `test_agent_approval_check.py` — run with:
+
+```bash
+pip install 'httpx==0.28.1' 'pyyaml==6.0.3' 'tenacity==9.1.4' pytest
+pytest agent-approval-check/
+```
+
+CI runs this suite on Python 3.11 and 3.12 via
+`.github/workflows/test-agent-approval-check.yml`.
