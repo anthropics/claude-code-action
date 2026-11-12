@@ -64,6 +64,63 @@ describe("runClaudeWithSdk", () => {
     }
   });
 
+  test("warns about MCP startup failures without logging connection details", async () => {
+    const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+    const warningSpy = spyOn(
+      await import("@actions/core"),
+      "warning",
+    ).mockImplementation(() => {});
+
+    tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+    process.env.RUNNER_TEMP = tempDir;
+    const promptPath = join(tempDir, "prompt.txt");
+    await writeFile(promptPath, "test prompt");
+
+    mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+      query: async function* () {
+        yield {
+          type: "system",
+          subtype: "init",
+          mcp_servers: [
+            { name: "connected", status: "connected" },
+            { name: "pending", status: "pending" },
+            { name: "disabled", status: "disabled" },
+            { name: "offline", status: "failed", error: "private endpoint" },
+            { name: "remote", status: "needs-auth" },
+          ],
+        };
+        yield { type: "result", subtype: "success", is_error: false };
+      },
+    }));
+
+    try {
+      const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+
+      await expect(
+        runClaudeWithSdk(promptPath, {
+          sdkOptions: {},
+          showFullOutput: false,
+          hasJsonSchema: false,
+        }),
+      ).resolves.toMatchObject({ conclusion: "success" });
+
+      expect(warningSpy.mock.calls).toEqual([
+        [
+          'MCP server "offline" failed to connect. Use --debug-file in claude_args to capture connection details.',
+        ],
+        [
+          'MCP server "remote" requires authentication. Check the credentials configured for this server.',
+        ],
+      ]);
+      expect(JSON.stringify(consoleLogSpy.mock.calls)).not.toContain(
+        "private endpoint",
+      );
+    } finally {
+      warningSpy.mockRestore();
+      consoleLogSpy.mockRestore();
+    }
+  });
+
   test("logs resolved model limits without exposing token usage", async () => {
     const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
 
