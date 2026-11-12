@@ -94,14 +94,16 @@ Bots often open pull requests from branches in your own repository. Runs there u
 
 Steps that run after Claude, including post steps such as `actions/checkout`'s cleanup, trust `GITHUB_ENV`, `GITHUB_PATH` and git's config files. When the session ends, the action restores those files, including config pulled in through `include.path`, to how they were before it started, and logs a warning naming any it changed. A session therefore can't pass environment variables to later steps through `GITHUB_ENV`, and `git config` changes it made, such as the upstream that `git push -u` records, don't last. Use `GITHUB_OUTPUT` or `--json-schema` to pass results on.
 
-While Claude runs, and for the action's own git commands afterwards, git ignores `core.fsmonitor`. Git hooks are off for the action's own commits after the session, and from before the checkout on pull requests that `restrict_untrusted_prs` applies to. Git LFS uploads through a hook, so the action uploads objects itself for its own commits, but a push Claude makes on such a pull request won't include them.
+While Claude runs, and for the action's own git commands afterwards, git ignores `core.fsmonitor`. Git hooks are off for the action's own commits after the session, and from before the checkout on pull requests that `restrict_untrusted_prs` applies to. During the session these are set in the repository's git config and by the wrapper scripts. Global git config also sets `safe.bareRepository=explicit` for the session, so git won't use a repository it finds in a folder that has no `.git`. A workflow that has Claude work in a bare repository needs to pass `--git-dir`. If a run is cancelled before it restores this, the setting stays in the global config of a self-hosted runner that keeps its home directory. Git LFS uploads through a hook, so the action uploads objects itself for its own commits, but a push Claude makes on such a pull request won't include them.
+
+Claude's wrapper scripts for `git add`, `git rm`, `git commit` and `git push` always work on the repository the action checked out, and take only a short list of flags, so `git add -f` is refused. They ignore settings from the environment: `GIT_SSH_COMMAND`, `GIT_ASKPASS`, `GIT_CONFIG_*`, any other `GIT_*` variable except the author and committer ones, `XDG_CONFIG_HOME`, and a `HOME` changed during the session. A workflow that relies on one of those, such as pushing over SSH with `GIT_SSH_COMMAND`, can allow its own command in `claude_args`, such as `Bash(git push:*)`, which gives up these protections for that workflow.
 
 This has limits:
 
 - It is not a sandbox. Code running on the runner, for example through an allowed `npm test`, can stop the action before it restores anything, or change the files later steps run, including the code of this and other actions. An allow rule for `Write` can reach those files too, so treat it like allowing code to run.
 - A run that is cancelled or times out during the session does not restore anything, and later `always()` and post steps still run.
 - Submodule config, a repository checked out to a subdirectory, and an `include.path` target that does not exist yet are not restored.
-- The git settings need git 2.31 or newer. On older versions they have no effect.
+- The git settings need git 2.31 or newer, and `safe.bareRepository` needs 2.38. On older versions they have no effect.
 
 ### `claude-code-action` vs `claude-code-base-action`
 
@@ -111,7 +113,7 @@ This has limits:
 
 In its default configuration, **Claude does not create pull requests automatically** when responding to `@claude` mentions. Instead:
 
-- Claude commits code changes to a new branch, or to the pull request's branch, through wrapper scripts in the action. A deny rule for `git commit` or `git push` in `claude_args` also covers those scripts. A deny rule in a settings file doesn't, so pass it in `claude_args`
+- Claude commits code changes to a new branch, or to the pull request's branch, through wrapper scripts in the action. A deny rule for `git add`, `git rm`, `git commit` or `git push` in `claude_args` also covers those scripts, including a narrower rule such as `git add -A:*`. A deny rule in a settings file doesn't, so pass it in `claude_args`
 - Claude's push command can't update any other branch. For a pull request from a fork, its branch is `pr-N` in your repository, and the fork's branch is not updated
 - Branch protection on your default branch is still worth having: a workflow can allow other push commands, and a pull request opened from the default branch has that branch as its own
 - Claude provides a **link to the GitHub PR creation page** in its response

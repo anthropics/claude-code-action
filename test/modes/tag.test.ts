@@ -1,3 +1,4 @@
+import { parseDeniedBashPatterns } from "../../src/modes/agent/parse-tools";
 import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import { prepareTagMode } from "../../src/modes/tag";
 import { mockIssueCommentContext } from "../mockContext";
@@ -8,6 +9,10 @@ import * as branch from "../../src/github/operations/branch";
 import * as createPrompt from "../../src/create-prompt";
 import * as mcp from "../../src/mcp/install-mcp-server";
 import * as gitConfig from "../../src/github/operations/git-config";
+import { mkdtempSync, readFileSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import * as sessionGuard from "../../src/github/operations/session-guard";
 
 describe("Tag Mode", () => {
   test("prepareTagMode is exported as a function", () => {
@@ -77,15 +82,21 @@ describe("Tag Mode", () => {
     });
 
     describe("push branch", () => {
-      const saved = process.env.CLAUDE_PUSH_BRANCH;
+      const savedPath = process.env.GITHUB_ACTION_PATH;
+      let actionPath: string;
+
+      const pinned = () =>
+        readFileSync(join(actionPath, "scripts/.push-branch"), "utf8");
 
       beforeEach(() => {
-        delete process.env.CLAUDE_PUSH_BRANCH;
+        actionPath = mkdtempSync(join(tmpdir(), "tag-action-"));
+        process.env.GITHUB_ACTION_PATH = actionPath;
       });
 
       afterEach(() => {
-        if (saved === undefined) delete process.env.CLAUDE_PUSH_BRANCH;
-        else process.env.CLAUDE_PUSH_BRANCH = saved;
+        rmSync(actionPath, { recursive: true, force: true });
+        if (savedPath === undefined) delete process.env.GITHUB_ACTION_PATH;
+        else process.env.GITHUB_ACTION_PATH = savedPath;
       });
 
       test("pins the push wrapper to a new claude branch", async () => {
@@ -94,7 +105,8 @@ describe("Tag Mode", () => {
           octokit: {} as any,
           githubToken: "test-token",
         });
-        expect(process.env.CLAUDE_PUSH_BRANCH).toBe("claude/test");
+        expect(pinned()).toBe("claude/test");
+        expect(process.env.CLAUDE_PUSH_BRANCH).toBeUndefined();
       });
 
       test("pins the push wrapper to the branch of an open PR", async () => {
@@ -109,7 +121,7 @@ describe("Tag Mode", () => {
           octokit: {} as any,
           githubToken: "test-token",
         });
-        expect(process.env.CLAUDE_PUSH_BRANCH).toBe("feature");
+        expect(pinned()).toBe("feature");
       });
     });
 
@@ -119,6 +131,9 @@ describe("Tag Mode", () => {
 
       beforeEach(() => {
         process.env.GITHUB_ACTION_PATH = "/action";
+        spies.push(
+          spyOn(sessionGuard, "pinPushBranch").mockImplementation(() => {}),
+        );
       });
 
       afterEach(() => {
@@ -138,11 +153,20 @@ describe("Tag Mode", () => {
         return claudeArgs;
       };
 
+      test.each([
+        ["git add", "git-add.sh"],
+        ["git rm", "git-rm.sh"],
+      ])("a deny of %s also denies its wrapper", async (command, wrapper) => {
+        expect(
+          await prepare(`--disallowedTools "Bash(${command}:*)"`),
+        ).toContain(`--disallowedTools 'Bash(/action/scripts/${wrapper}:*)'`);
+      });
+
       test("a deny of git commit also denies the commit wrapper", async () => {
         expect(
           await prepare(`--disallowedTools "Bash(git commit:*)"`),
         ).toContain(
-          `--disallowedTools "Bash(/action/scripts/git-commit.sh:*)"`,
+          `--disallowedTools 'Bash(/action/scripts/git-commit.sh:*)'`,
         );
       });
 
@@ -152,19 +176,31 @@ describe("Tag Mode", () => {
         `--disallowedTools "Bash(git comm*)"`,
       ])("carries over %s", async (args) => {
         expect(await prepare(args)).toContain(
-          `--disallowedTools "Bash(/action/scripts/git-commit.sh:*)`,
+          `--disallowedTools 'Bash(/action/scripts/git-commit.sh:*)`,
         );
       });
 
       test("a deny of git push also denies the push wrapper", async () => {
         expect(await prepare(`--disallowedTools "Bash(git push:*)"`)).toContain(
-          `--disallowedTools "Bash(/action/scripts/git-push.sh:*)"`,
+          `--disallowedTools 'Bash(/action/scripts/git-push.sh:*)'`,
         );
       });
 
       test("adds no deny rule of its own otherwise", async () => {
+        const args = await prepare(`--disallowedTools "Bash(git add -A:*)"`);
+        expect(args).toContain(
+          `--disallowedTools 'Bash(/action/scripts/git-add.sh -A:*)'`,
+        );
+        for (const rest of [`"a b"`, "it's", "$HOME/x"]) {
+          const denied = await prepare(
+            `--disallowedTools 'Bash(git add ${rest.replace(/'/g, "'\\''")}:*)'`,
+          );
+          expect(parseDeniedBashPatterns(denied)).toContain(
+            `/action/scripts/git-add.sh ${rest}:*`,
+          );
+        }
         expect(await prepare(`--disallowedTools "WebFetch"`)).not.toContain(
-          `--disallowedTools "Bash(`,
+          `--disallowedTools 'Bash(`,
         );
         expect(await prepare("")).not.toContain("--disallowedTools");
       });

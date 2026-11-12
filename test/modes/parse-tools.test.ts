@@ -1,6 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import {
   deniesCommand,
+  wrapperDenyRules,
   parseAllowedTools,
   parseDeniedBashPatterns,
 } from "../../src/modes/agent/parse-tools";
@@ -42,6 +43,8 @@ describe("deniesCommand", () => {
 
   test.each([
     "git commit --amend:*",
+    "git commit x:*",
+    "git commit x*",
     "git committed:*",
     "git commit",
     "git push:*",
@@ -50,6 +53,27 @@ describe("deniesCommand", () => {
     "",
   ])("%p doesn't cover git commit", (pattern) => {
     expect(deniesCommand([pattern], "git commit")).toBe(false);
+  });
+});
+
+describe("wrapperDenyRules", () => {
+  const rules = (...patterns: string[]) =>
+    wrapperDenyRules(patterns, "git add", "/a/git-add.sh");
+
+  test("denies the whole wrapper for a rule that covers every use", () => {
+    expect(rules("git add:*")).toEqual(["Bash(/a/git-add.sh:*)"]);
+    expect(rules("git:*", "git add -A:*")).toEqual(["Bash(/a/git-add.sh:*)"]);
+  });
+
+  test("keeps the arguments of a narrower rule", () => {
+    expect(rules("git add -A:*", "git add .")).toEqual([
+      "Bash(/a/git-add.sh -A:*)",
+      "Bash(/a/git-add.sh .)",
+    ]);
+  });
+
+  test("ignores rules for other commands", () => {
+    expect(rules("git push:*", "git addendum:*", "")).toEqual([]);
   });
 });
 

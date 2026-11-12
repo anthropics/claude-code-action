@@ -7,6 +7,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -15,15 +16,20 @@ import {
 import { tmpdir } from "os";
 import { join } from "path";
 import {
+  clearSessionState,
   disableGitPrograms,
+  pinPushBranch,
+  prepareGitForSession,
   snapshotSessionFiles,
 } from "../src/github/operations/session-guard";
 
 const KEYS = [
+  "GITHUB_ACTION_PATH",
   "GITHUB_ENV",
   "GITHUB_PATH",
   "HOME",
   "XDG_CONFIG_HOME",
+  "GIT_CONFIG_GLOBAL",
   "GIT_CONFIG_COUNT",
   "GIT_CONFIG_KEY_0",
   "GIT_CONFIG_VALUE_0",
@@ -195,6 +201,164 @@ describe("session guard", () => {
       restore();
       expect(lstatSync(link).isSymbolicLink()).toBe(false);
       expect(readFileSync(link, "utf8")).toBe("[user]\n");
+    });
+  });
+
+  describe("git settings during the session", () => {
+    const local = (key: string) => {
+      try {
+        return git("config", "--local", key).trim();
+      } catch {
+        return "";
+      }
+    };
+
+    beforeEach(() => {
+      git("init", "-q", join(dir, "repo"));
+      process.chdir(join(dir, "repo"));
+    });
+
+    test("moves the action's settings from the environment to the repository", () => {
+      disableGitPrograms({ hooks: true });
+      expect(process.env.GIT_CONFIG_COUNT).toBe("2");
+      const restore = snapshotSessionFiles(() =>
+        prepareGitForSession({ hooks: true }),
+      );
+      expect(process.env.GIT_CONFIG_COUNT).toBeUndefined();
+      expect(process.env.GIT_CONFIG_KEY_0).toBeUndefined();
+      expect(process.env.GIT_CONFIG_VALUE_1).toBeUndefined();
+      expect(local("core.fsmonitor")).toBe("false");
+      expect(local("core.hooksPath")).toBe("/dev/null");
+
+      restore();
+      expect(local("core.fsmonitor")).toBe("");
+      expect(local("core.hooksPath")).toBe("");
+      expect(warnings()).toEqual([]);
+    });
+
+    const globalConfig = (key: string) => {
+      try {
+        return git("config", "--global", "--get", key).trim();
+      } catch {
+        return "";
+      }
+    };
+
+    test("refuses repositories in plain folders, and puts that back", () => {
+      const restore = snapshotSessionFiles(() =>
+        prepareGitForSession({ hooks: true }),
+      );
+      expect(globalConfig("safe.bareRepository")).toBe("explicit");
+      expect(globalConfig("core.hooksPath")).toBe("");
+
+      restore();
+      expect(globalConfig("safe.bareRepository")).toBe("");
+      expect(warnings()).toEqual([]);
+    });
+
+    test("restores a global config file named by GIT_CONFIG_GLOBAL", () => {
+      process.env.GIT_CONFIG_GLOBAL = join(dir, "global-config");
+      const restore = snapshotSessionFiles(() =>
+        prepareGitForSession({ hooks: false }),
+      );
+      expect(readFileSync(process.env.GIT_CONFIG_GLOBAL, "utf8")).toContain(
+        "explicit",
+      );
+      restore();
+      expect(existsSync(process.env.GIT_CONFIG_GLOBAL)).toBe(false);
+    });
+
+    test("outside a repository, still refuses them and records the hook setting", () => {
+      process.env.GITHUB_ACTION_PATH = dir;
+      const outside = join(dir, "outside");
+      mkdirSync(outside);
+      process.chdir(outside);
+      prepareGitForSession({ hooks: true });
+      expect(globalConfig("safe.bareRepository")).toBe("explicit");
+      expect(existsSync(join(dir, "scripts/.no-hooks"))).toBe(true);
+      expect(existsSync(join(dir, "scripts/.git-repo"))).toBe(false);
+    });
+
+    test("sets repository config in a bare working directory", () => {
+      const bare = join(dir, "bare.git");
+      git("init", "-q", "--bare", bare);
+      process.chdir(bare);
+      prepareGitForSession({ hooks: false });
+      expect(warnings()).toEqual([]);
+      expect(readFileSync(join(bare, "config"), "utf8")).toContain("fsmonitor");
+    });
+
+    test("keeps a workflow's own entries in the environment", () => {
+      process.env.GIT_CONFIG_COUNT = "1";
+      process.env.GIT_CONFIG_KEY_0 = "user.name";
+      process.env.GIT_CONFIG_VALUE_0 = "someone";
+      disableGitPrograms({ hooks: false });
+      prepareGitForSession({ hooks: false });
+      expect(process.env.GIT_CONFIG_COUNT).toBe("1");
+      expect(process.env.GIT_CONFIG_VALUE_0).toBe("someone");
+      expect(process.env.GIT_CONFIG_KEY_1).toBeUndefined();
+    });
+
+    test("leaves hooks on unless asked", () => {
+      disableGitPrograms({ hooks: false });
+      prepareGitForSession({ hooks: false });
+      expect(local("core.hooksPath")).toBe("");
+      expect(local("core.fsmonitor")).toBe("false");
+    });
+
+    test("a session's own change is still reported", () => {
+      const restore = snapshotSessionFiles(() =>
+        prepareGitForSession({ hooks: false }),
+      );
+      git("config", "--local", "core.fsmonitor", "evil");
+      restore();
+      expect(local("core.fsmonitor")).toBe("");
+      expect(warnings().join(" ")).toContain("restored");
+    });
+
+    test("records and clears what the wrappers read", () => {
+      process.env.GITHUB_ACTION_PATH = dir;
+      pinPushBranch("claude/x");
+      prepareGitForSession({ hooks: true });
+      expect(readFileSync(join(dir, "scripts/.push-branch"), "utf8")).toBe(
+        "claude/x",
+      );
+      expect(existsSync(join(dir, "scripts/.no-hooks"))).toBe(true);
+      pinPushBranch("claude/y");
+      expect(readFileSync(join(dir, "scripts/.push-branch"), "utf8")).toBe(
+        "claude/y",
+      );
+      const repoFile = join(dir, "scripts/.git-repo");
+      const repoRoot = realpathSync(join(dir, "repo"));
+      expect(readFileSync(repoFile, "utf8")).toBe(
+        `${repoRoot}/.git\n${repoRoot}\n${process.env.HOME}\n`,
+      );
+      clearSessionState();
+      expect(existsSync(join(dir, "scripts/.push-branch"))).toBe(false);
+      expect(existsSync(join(dir, "scripts/.no-hooks"))).toBe(false);
+      expect(existsSync(repoFile)).toBe(false);
+    });
+
+    test("clearing also removes a directory left in a file's place", () => {
+      process.env.GITHUB_ACTION_PATH = dir;
+      mkdirSync(join(dir, "scripts/.no-hooks"), { recursive: true });
+      expect(() => clearSessionState()).not.toThrow();
+      expect(existsSync(join(dir, "scripts/.no-hooks"))).toBe(false);
+    });
+
+    test("leaves a workflow's entries alone if nothing was added", () => {
+      process.env.GIT_CONFIG_COUNT = "1";
+      process.env.GIT_CONFIG_KEY_0 = "user.name";
+      process.env.GIT_CONFIG_VALUE_0 = "someone";
+      prepareGitForSession({ hooks: false });
+      expect(process.env.GIT_CONFIG_COUNT).toBe("1");
+      expect(process.env.GIT_CONFIG_VALUE_0).toBe("someone");
+    });
+
+    test("warns if it can't set the repository's config", () => {
+      writeFileSync(join(dir, "repo/.git/config.lock"), "");
+      prepareGitForSession({ hooks: false });
+      expect(warnings().join(" ")).toContain("Could not set core.fsmonitor");
     });
   });
 

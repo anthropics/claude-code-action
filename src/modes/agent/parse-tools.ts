@@ -105,6 +105,22 @@ export function parseDeniedBashPatterns(claudeArgs: string): string[] {
 }
 
 /**
+ * The deny rules a wrapper needs so a workflow's rules for the command it runs still
+ * apply: all of it for a rule that covers every use, otherwise each narrower form, so
+ * `git add -A:*` becomes `<wrapper> -A:*`.
+ */
+export function wrapperDenyRules(
+  patterns: string[],
+  command: string,
+  wrapper: string,
+): string[] {
+  if (deniesCommand(patterns, command)) return [`Bash(${wrapper}:*)`];
+  return patterns
+    .filter((pattern) => pattern.startsWith(`${command} `))
+    .map((pattern) => `Bash(${wrapper}${pattern.slice(command.length)})`);
+}
+
+/**
  * Whether a Bash deny pattern covers every use of a command. Narrower patterns,
  * such as `git commit --amend:*`, don't count.
  */
@@ -115,6 +131,6 @@ export function deniesCommand(patterns: string[], command: string): boolean {
     const source = pattern.endsWith(":*")
       ? `${toRegex(pattern.slice(0, -2))}( .*)?`
       : toRegex(pattern);
-    return new RegExp(`^${source}$`, "s").test(`${command} x`);
+    return new RegExp(`^${source}$`, "s").test(`${command} \0`);
   });
 }
