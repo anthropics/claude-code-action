@@ -328,45 +328,49 @@ async function run() {
   } finally {
     // Phase 4: Cleanup (always runs)
 
-    // Stop refreshing the workload identity token file and delete the token
-    // material so it doesn't outlive this step
-    workloadIdentity?.stop();
-
-    // Update tracking comment
-    if (
-      commentId &&
-      context &&
-      isEntityContext(context) &&
-      githubToken &&
-      octokit
-    ) {
-      try {
-        await updateCommentLink({
-          commentId,
-          githubToken,
-          claudeBranch,
-          baseBranch: baseBranch || context.repository.default_branch || "main",
-          triggerUsername: context.actor,
-          context,
-          octokit,
-          claudeSuccess,
-          outputFile: executionFile,
-          prepareSuccess,
-          prepareError,
-          useCommitSigning: context.inputs.useCommitSigning,
-          restoredConfigPaths,
-        });
-      } catch (error) {
-        console.error("Error updating comment with job link:", error);
-      }
-    }
-
     try {
-      await restoreCheckoutGitAuth?.();
-    } catch (error) {
-      core.setFailed(
-        redactSecrets(error instanceof Error ? error.message : String(error)),
-      );
+      // Stop refreshing the workload identity token file and delete the token
+      // material so it doesn't outlive this step
+      workloadIdentity?.stop();
+
+      // Update tracking comment before restoring checkout credentials so any
+      // cleanup commits still use the action's Git authentication.
+      if (
+        commentId &&
+        context &&
+        isEntityContext(context) &&
+        githubToken &&
+        octokit
+      ) {
+        try {
+          await updateCommentLink({
+            commentId,
+            githubToken,
+            claudeBranch,
+            baseBranch:
+              baseBranch || context.repository.default_branch || "main",
+            triggerUsername: context.actor,
+            context,
+            octokit,
+            claudeSuccess,
+            outputFile: executionFile,
+            prepareSuccess,
+            prepareError,
+            useCommitSigning: context.inputs.useCommitSigning,
+            restoredConfigPaths,
+          });
+        } catch (error) {
+          console.error("Error updating comment with job link:", error);
+        }
+      }
+    } finally {
+      try {
+        await restoreCheckoutGitAuth?.();
+      } catch (error) {
+        core.setFailed(
+          redactSecrets(error instanceof Error ? error.message : String(error)),
+        );
+      }
     }
 
     // Write step summary (unless display_report is set to false)
