@@ -5,7 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { readFile, stat } from "fs/promises";
 import { resolve } from "path";
 import { constants } from "fs";
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
 import { isBinaryContent } from "./binary-detection";
@@ -206,16 +206,25 @@ function rejectLfsFiles(repoDir: string, paths: string[]): void {
   // Check both working-tree and indexed attributes. An unstaged edit removing
   // an LFS rule would otherwise allow raw contents into a commit without that edit.
   for (const source of [[], ["--cached"]]) {
-    const fields = execFileSync(
+    const result = spawnSync(
       "git",
       ["check-attr", ...source, "-z", "--stdin", "filter"],
       {
         cwd: repoDir,
         input: paths.join("\0") + "\0",
         encoding: "utf8",
+        env: { ...process.env, LC_ALL: "C" },
       },
-    ).split("\0");
+    );
+    // Agent-mode workflows can use API commits without a local checkout.
+    if (result.stderr?.startsWith("fatal: not a git repository")) return;
+    if (result.status !== 0) {
+      throw new Error(
+        "Could not check Git attributes for the files to commit.",
+      );
+    }
 
+    const fields = result.stdout.split("\0");
     for (let index = 0; index + 2 < fields.length; index += 3) {
       if (fields[index + 2] === "lfs") {
         throw new Error(

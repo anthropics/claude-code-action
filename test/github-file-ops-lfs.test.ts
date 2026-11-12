@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -94,6 +94,18 @@ test("commit_files rejects a mixed batch containing a Git LFS file before making
       arguments: { files: ["data/preview.csv"], message: "Update preview" },
     });
     expect(ordinary.isError).toBeFalsy();
+    expect(requests).toContain("PATCH /repos/test/repo/git/refs/heads/work");
+
+    await rename(join(repoDir, ".git"), join(repoDir, "saved-git-dir"));
+    requests.length = 0;
+    const withoutCheckout = await client.callTool({
+      name: "commit_files",
+      arguments: {
+        files: ["data/preview.csv"],
+        message: "Commit generated CSV",
+      },
+    });
+    expect(withoutCheckout.isError).toBeFalsy();
     expect(requests).toContain("PATCH /repos/test/repo/git/refs/heads/work");
   } finally {
     await client.close();
