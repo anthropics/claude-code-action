@@ -59,9 +59,23 @@ Everything else in the working tree — including `package.json`, lockfiles, `Ma
 
 Note that the runtime executing the tool also reads project config. `bunx <tool>` runs the tool's script under `node` when `node` is on `PATH` (as it is on GitHub-hosted runners); when only Bun is available, Bun executes the script itself and reads `bunfig.toml` from the checkout — including `preload` entries — which comes from the PR head. On such runners, make sure `node` is on `PATH` for the hook, and treat `bunfig.toml` and `.npmrc` in the checkout as PR-controlled runtime config.
 
+### Running code from pull requests
+
+A command that runs repository code (`npm install`, `bun test`, `make`) runs whatever the checkout contains, in a job that holds your workflow's tokens. Tag mode checks out the pull request's head, so on a pull request from an outside contributor that code is theirs, even when a maintainer triggered the run.
+
+By default, when the pull request's author does not have write access, the action denies commands that commonly run repository code (package managers, test runners, interpreters and shells), even if `claude_args` allows them. Claude can still read and edit files, commit and push. Bots count as authors without write access, even if they are listed in `allowed_bots`, and if the check fails the author is treated the same way. Issues and pull requests from authors with write access are not affected. Runs on `workflow_run`, `workflow_dispatch`, `repository_dispatch` and `schedule` events are not covered, so follow the checkout guidance above if those check out pull request code. On a closed or merged pull request, tag mode works from the base branch rather than the pull request's code, so nothing is denied.
+
+- **This is a list of common commands, not a sandbox.** A rule such as `Bash(./scripts/test.sh)` stays allowed, and the action logs a warning with the number of `Bash` rules in `claude_args` that the list does not cover. Rules in the `settings` input or settings files are not checked. Other ways of writing a command, such as `git --no-pager -c`, may not match the list. Add your own rules with `--disallowedTools` if they can run pull request code.
+- **Trust follows the pull request's author.** If someone with write access opens a pull request from another person's branch, or pushes someone else's commits, that code is treated as theirs. Review it before asking Claude to run it.
+- **Commands outside the list follow your permission mode.** With `--permission-mode auto`, a command that no rule covers runs only if Claude Code's safety review passes it, which we recommend where it is available. In the modes that ask for approval, such a command is denied, because a workflow has no one to approve it. Either way, a rule in `--allowedTools` skips that decision, so don't rely on the review for commands you allow. If `claude_args` turns off permission checks, for example with `bypassPermissions`, commands outside the list run without approval, and the action logs a warning.
+- **Text can still steer Claude.** On an issue or a trusted author's pull request these commands stay allowed, so text from an outside contributor could try to get Claude to edit a file and then run it. Keep the rules you grant in `claude_args` as narrow as you can.
+- **Other broad rules weaken the protections.** `Write` lets Claude write outside the workspace, and `Bash(git:*)` can still run programs through forms this list does not deny, such as `git rebase --exec`. Avoid them in workflows that handle outside contributions.
+
+**Upgrading:** workflows that use a floating tag or branch such as `@v1` or `@main` get this behavior without changing anything. If a workflow relied on commands like `npm test` running on pull requests from outside contributors or bots, those commands are now denied. The run still succeeds, so check the log for the warning. Set `restrict_untrusted_prs: false` to turn this off.
+
 ### `claude-code-action` vs `claude-code-base-action`
 
-`claude-code-base-action` is a lower-level building block that installs and runs Claude Code with the inputs you provide. It does not perform actor permission checks or restore project configuration from the base ref. If you need those behaviors, use this action (`claude-code-action`). See the [base-action README](../base-action/README.md#trust-model) for details.
+`claude-code-base-action` is a lower-level building block that installs and runs Claude Code with the inputs you provide. It does not perform actor permission checks, restrict commands on pull requests from outside contributors, or restore project configuration from the base ref. If you need those behaviors, use this action (`claude-code-action`). See the [base-action README](../base-action/README.md#trust-model) for details.
 
 ## Pull Request Creation
 
