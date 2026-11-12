@@ -34,7 +34,8 @@ AGENT DETECTION:
 
 APPROVAL COUNTING:
     Valid approvals come from non-agent users with write access to the
-    repository (verified via the collaborators permission API), via either:
+    repository (verified via the collaborators permission API; GitHub
+    authorAssociation is not used as a gate), via either:
     - A non-dismissed APPROVED review (staleness is controlled by GitHub's
       branch protection dismiss_stale_reviews setting)
     - A /approve <sha> comment
@@ -102,12 +103,12 @@ logger = logging.getLogger(__name__)
 CHECK_NAME = "agent-approval-check"
 REQUIRED_APPROVALS = int(os.environ.get("REQUIRED_APPROVALS") or 2)
 
-# Only approvals from users with write access to the repo count. authorAssociation
-# alone can't prove that (a MEMBER or COLLABORATOR may have read/triage only), so
-# it's used as a cheap pre-filter and the actual gate is a per-user REST
-# `GET /repos/{o}/{r}/collaborators/{login}/permission` check. A login outside
-# this set is not a collaborator at all, so the REST call is skipped.
-WRITE_ACCESS_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
+# Only approvals from users with write access to the repo count. The
+# authoritative gate is a per-user REST
+# `GET /repos/{o}/{r}/collaborators/{login}/permission` check.
+# authorAssociation is logged for diagnosis but is not used as a pre-filter:
+# a repository-scoped token in a private org may report NONE for a
+# write-authorized reviewer whose org membership is not public.
 WRITE_PERMISSION_LEVELS = frozenset({"write", "push", "maintain", "admin"})
 DOCS_URL = (
     os.environ.get("DOCS_URL")
@@ -671,8 +672,11 @@ def iter_approve_commands(
         commenter = comment.get("user", {}).get("login", "")
         if not commenter:  # Skip deleted users or null authors
             continue
-        if comment.get("author_association") not in WRITE_ACCESS_ASSOCIATIONS:
-            continue
+        logger.info(
+            "Approve comment candidate %s association=%s",
+            commenter,
+            comment.get("author_association") or "(empty)",
+        )
         if is_agent_user(commenter, config):
             continue
         if is_excluded_approver(commenter, config):
@@ -946,8 +950,12 @@ def count_approvers(
     # GitHub's branch protection settings (dismiss_stale_reviews_on_push)
     # control which reviews remain active — we defer to that.
     for login, review in get_latest_review_per_user(reviews).items():
-        if review.get("author_association") not in WRITE_ACCESS_ASSOCIATIONS:
-            continue
+        logger.info(
+            "Review candidate %s association=%s state=%s",
+            login,
+            review.get("author_association") or "(empty)",
+            review.get("state"),
+        )
         if is_agent_user(login, config):
             continue
         if is_excluded_approver(login, config):
