@@ -46,11 +46,11 @@ const SHELL_META_UNESCAPE = new Map(SHELL_META_PAIRS.map(([k, v]) => [v, k]));
 const SHELL_META_ESCAPE_RE = /[()|&;<>]/g;
 const SHELL_META_UNESCAPE_RE = /[-]/g;
 
-function escapeShellMeta(s: string): string {
+export function escapeShellMeta(s: string): string {
   return s.replace(SHELL_META_ESCAPE_RE, (c) => SHELL_META_ESCAPE.get(c)!);
 }
 
-function unescapeShellMeta(s: string): string {
+export function unescapeShellMeta(s: string): string {
   return s.replace(SHELL_META_UNESCAPE_RE, (c) => SHELL_META_UNESCAPE.get(c)!);
 }
 
