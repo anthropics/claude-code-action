@@ -119,17 +119,30 @@ export async function replaceCheckoutCredentials(
       process.env.GITHUB_ACTION_PATH || homedir(),
       ".git-credential-gh-token",
     );
+    // With no token it answers nothing, so that git goes on to a later step's own
+    // credentials. An empty password would count as an answer.
     await writeFile(
       helperPath,
-      '#!/bin/sh\necho username=x-access-token\necho password="$GH_TOKEN"\n',
+      '#!/bin/sh\n[ -n "$GH_TOKEN" ] || exit 0\necho username=x-access-token\necho password="$GH_TOKEN"\n',
       { mode: 0o700 },
     );
-    const cleanUrl = `https://${serverUrl.host}/${context.repository.owner}/${context.repository.repo}.git`;
-    await $`git remote set-url origin ${cleanUrl}`;
-    // git runs the helper through sh, which would strip Windows backslashes.
-    const helperCommand = helperPath.replaceAll("\\", "/");
-    await $`git config credential.helper ${helperCommand}`;
+    // The username holds no secret. It keeps the URL out of rewrite rules on the
+    // server's prefix, as the token URL below is, and they would bypass the helper.
+    const helperUrl = `https://x-access-token@${serverUrl.host}/${context.repository.owner}/${context.repository.repo}.git`;
+    await $`git remote set-url origin ${helperUrl}`;
+    // git runs the helper through sh, which would strip Windows backslashes and split
+    // a path with a space.
+    const shellSafePath = helperPath
+      .replaceAll("\\", "/")
+      .replaceAll("'", "'\\''");
+    // Only for this server: git asks a helper about every host it contacts, and the
+    // helper answers without looking at which one.
+    const helperKey = `credential.https://${serverUrl.host}.helper`;
+    await $`git config ${helperKey} ${`!'${shellSafePath}'`}`;
     console.log("✓ Configured credential helper");
+    console.log(
+      "Later steps that use the origin remote need their own credentials",
+    );
   } else {
     // Update the remote URL to include the token for authentication
     console.log("Updating remote URL with authentication...");
