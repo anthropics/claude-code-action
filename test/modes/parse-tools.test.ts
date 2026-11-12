@@ -1,5 +1,57 @@
 import { describe, test, expect } from "bun:test";
-import { parseAllowedTools } from "../../src/modes/agent/parse-tools";
+import {
+  deniesCommand,
+  parseAllowedTools,
+  parseDeniedBashPatterns,
+} from "../../src/modes/agent/parse-tools";
+
+describe("parseDeniedBashPatterns", () => {
+  test.each([
+    [`--disallowedTools "Bash(git commit:*)"`, ["git commit:*"]],
+    [`--disallowed-tools "Bash(git commit:*)"`, ["git commit:*"]],
+    [`--disallowedTools Bash(git:*)`, ["git:*"]],
+    [`--disallowedTools="Bash(git commit:*)"`, ["git commit:*"]],
+    [`--disallowedTools "Bash(a:*),WebFetch,Bash(b:*)"`, ["a:*", "b:*"]],
+    [`--disallowedTools "Bash(a:*) Bash(b:*)"`, ["a:*", "b:*"]],
+    [`--disallowedTools "Bash(a:*)" "Bash(b:*)"`, ["a:*", "b:*"]],
+    [`--disallowedTools Bash(a:*) --disallowedTools Bash(b:*)`, ["a:*", "b:*"]],
+    [`--allowedTools "Bash(git commit:*)"`, []],
+    [`# --disallowedTools "Bash(git commit:*)"`, []],
+    ["", []],
+  ])("reads %s", (args, expected) => {
+    expect(parseDeniedBashPatterns(args as string)).toEqual(
+      expected as string[],
+    );
+  });
+});
+
+describe("deniesCommand", () => {
+  test.each([
+    "git commit:*",
+    "git commit *",
+    "git commit*",
+    "git comm*",
+    "gi*",
+    "*git commit*",
+    "git:*",
+    "git *",
+    "*",
+  ])("%p covers git commit", (pattern) => {
+    expect(deniesCommand([pattern], "git commit")).toBe(true);
+  });
+
+  test.each([
+    "git commit --amend:*",
+    "git committed:*",
+    "git commit",
+    "git push:*",
+    "gi:*",
+    "git.commit:*",
+    "",
+  ])("%p doesn't cover git commit", (pattern) => {
+    expect(deniesCommand([pattern], "git commit")).toBe(false);
+  });
+});
 
 describe("parseAllowedTools", () => {
   test("keeps unquoted Bash rules whole", () => {

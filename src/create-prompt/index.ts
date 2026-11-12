@@ -3,6 +3,7 @@
 import * as core from "@actions/core";
 import { writeFile, mkdir, rm } from "fs/promises";
 import type { FetchDataResult } from "../github/data/fetcher";
+import { isSameLogin } from "../github/validation/actor";
 import {
   formatContext,
   formatBody,
@@ -17,13 +18,14 @@ import {
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
 } from "../github/context";
-import type { ParsedGitHubContext } from "../github/context";
+import type { GitHubContext, ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import { extractUserRequest } from "../utils/extract-user-request";
 export type { CommonFields, PreparedContext } from "./types";
 
 const GIT_PUSH_WRAPPER = `${process.env.GITHUB_ACTION_PATH}/scripts/git-push.sh`;
+const GIT_COMMIT_WRAPPER = `${process.env.GITHUB_ACTION_PATH}/scripts/git-commit.sh`;
 
 /** Filename for the user request file, read by the SDK runner */
 const USER_REQUEST_FILENAME = "claude-user-request.txt";
@@ -54,7 +56,7 @@ export function buildAllowedToolsString(
     // When not using commit signing, add specific Bash git commands
     baseTools.push(
       "Bash(git add:*)",
-      "Bash(git commit:*)",
+      `Bash(${GIT_COMMIT_WRAPPER}:*)`,
       `Bash(${GIT_PUSH_WRAPPER}:*)`,
       "Bash(git rm:*)",
     );
@@ -282,7 +284,7 @@ export function prepareContext(
           ...(assigneeTrigger && { assigneeTrigger }),
         };
       } else if (eventAction === "labeled") {
-        if (!labelTrigger) {
+        if (!labelTrigger && !prompt) {
           throw new Error("LABEL_TRIGGER is required for issue labeled event");
         }
         eventData = {
@@ -292,7 +294,7 @@ export function prepareContext(
           issueNumber,
           baseBranch,
           claudeBranch,
-          labelTrigger,
+          ...(labelTrigger && { labelTrigger }),
         };
       } else if (eventAction === "opened") {
         eventData = {
@@ -370,7 +372,9 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
       } else if (eventData.eventAction === "labeled") {
         return {
           eventType: "ISSUE_LABELED",
-          triggerContext: `issue labeled with '${eventData.labelTrigger}'`,
+          triggerContext: eventData.labelTrigger
+            ? `issue labeled with '${eventData.labelTrigger}'`
+            : "issue labeled",
         };
       }
       return {
@@ -433,11 +437,11 @@ function getCommitInstructions(
       return `
       - Use git commands via the Bash tool to commit and push your changes:
         - Stage files: Bash(git add <files>)
-        - Commit with a descriptive message: Bash(git commit -m "<message>")
+        - Commit with a descriptive message: Bash(${GIT_COMMIT_WRAPPER} -m "<message>")
         ${
           coAuthorLine
             ? `- When committing and the trigger user is not "Unknown", include a Co-authored-by trailer:
-          Bash(git commit -m "<message>\\n\\n${coAuthorLine}")`
+          Bash(${GIT_COMMIT_WRAPPER} -m "<message>\\n\\n${coAuthorLine}")`
             : ""
         }
         - Push to the remote: Bash(${GIT_PUSH_WRAPPER} origin HEAD)`;
@@ -447,11 +451,11 @@ function getCommitInstructions(
       - You are already on the correct branch (${eventData.claudeBranch || "the PR branch"}). Do not create a new branch.
       - Use git commands via the Bash tool to commit and push your changes:
         - Stage files: Bash(git add <files>)
-        - Commit with a descriptive message: Bash(git commit -m "<message>")
+        - Commit with a descriptive message: Bash(${GIT_COMMIT_WRAPPER} -m "<message>")
         ${
           coAuthorLine
             ? `- When committing and the trigger user is not "Unknown", include a Co-authored-by trailer:
-          Bash(git commit -m "<message>\\n\\n${coAuthorLine}")`
+          Bash(${GIT_COMMIT_WRAPPER} -m "<message>\\n\\n${coAuthorLine}")`
             : ""
         }
         - Push to the remote: Bash(${GIT_PUSH_WRAPPER} origin ${branchName})`;
@@ -827,8 +831,8 @@ ${
   - mcp__github_file_ops__delete_files: {"paths": ["path/to/old.js"], "message": "chore: remove deprecated file"}`
     : `- Use git commands via the Bash tool for version control (remember that you have access to these git commands):
   - Stage files: Bash(git add <files>)
-  - Commit changes: Bash(git commit -m "<message>")
-  - Push to remote: Bash(${GIT_PUSH_WRAPPER} origin <branch>)
+  - Commit changes: Bash(${GIT_COMMIT_WRAPPER} -m "<message>")
+  - Push to remote: Bash(${GIT_PUSH_WRAPPER} origin HEAD)
   - Delete files: Bash(git rm <files>) followed by commit and push
   - Check status: Bash(git status)
   - View diff: Bash(git diff)${eventData.isPR && eventData.baseBranch ? `\n  - IMPORTANT: For PR diffs, use: Bash(git diff origin/${eventData.baseBranch}...HEAD)` : ""}`
@@ -877,6 +881,22 @@ f. If you are unable to complete certain steps, such as running a linter or test
   return promptContent;
 }
 
+function getCommentOrReviewAuthor(
+  context: GitHubContext | undefined,
+): string | undefined {
+  if (!context) return undefined;
+  if (
+    isIssueCommentEvent(context) ||
+    isPullRequestReviewCommentEvent(context)
+  ) {
+    return context.payload.comment.user?.login;
+  }
+  if (isPullRequestReviewEvent(context)) {
+    return context.payload.review.user?.login;
+  }
+  return undefined;
+}
+
 /**
  * Extracts the user's request from the prepared context and GitHub data.
  *
@@ -893,11 +913,16 @@ f. If you are unable to complete certain steps, such as running a linter or test
  * // Issue body with "@claude fix this" -> returns "fix this"
  * // Issue assigned without @claude in body -> returns null
  */
-function extractUserRequestFromContext(
+export function extractUserRequestFromContext(
   context: PreparedContext,
   githubData: FetchDataResult,
 ): string | null {
   const { eventData, triggerPhrase } = context;
+
+  // The request gets the highest trust in the prompt and can run slash commands,
+  // so it only comes from the person who passed the permission check. When
+  // someone else triggers the run, for example by labeling another person's
+  // issue or editing their comment, that text stays ordinary context.
 
   // For comment events, extract from comment body
   if (
@@ -907,11 +932,23 @@ function extractUserRequestFromContext(
       eventData.eventName === "pull_request_review_comment" ||
       eventData.eventName === "pull_request_review")
   ) {
-    return extractUserRequest(eventData.commentBody, triggerPhrase);
+    return isSameLogin(
+      getCommentOrReviewAuthor(context.githubContext),
+      context.githubContext?.actor,
+    )
+      ? extractUserRequest(eventData.commentBody, triggerPhrase)
+      : null;
   }
 
-  // For issue/PR events triggered by body content, extract from the body
-  if (githubData.contextData?.body) {
+  // For issue/PR events triggered by body content, extract from the body.
+  // GraphQL gives a bot's login without the "[bot]" suffix that actors have.
+  const author = githubData.contextData?.author;
+  const authorLogin =
+    author?.__typename === "Bot" ? `${author.login}[bot]` : author?.login;
+  if (
+    githubData.contextData?.body &&
+    isSameLogin(authorLogin, context.githubContext?.actor)
+  ) {
     const request = extractUserRequest(
       githubData.contextData.body,
       triggerPhrase,
