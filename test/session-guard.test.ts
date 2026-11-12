@@ -145,16 +145,57 @@ describe("session guard", () => {
     expect(statSync(path).mode & 0o777).toBe(0o640);
   });
 
-  test("keeps the real file's mode when restoring through a symlink", () => {
-    const target = join(dir, "real-gitconfig");
-    writeFileSync(target, "[user]\n");
-    execFileSync("chmod", ["600", target]);
-    const link = join(dir, "home", ".gitconfig");
-    symlinkSync(target, link);
-    const restore = snapshotSessionFiles();
-    writeFileSync(target, "[core]\n");
-    restore();
-    expect(statSync(link).mode & 0o777).toBe(0o600);
+  describe("a config that was already a symlink", () => {
+    let target: string;
+    let link: string;
+    let outside: string;
+
+    beforeEach(() => {
+      target = join(dir, "real-gitconfig");
+      writeFileSync(target, "[user]\n");
+      execFileSync("chmod", ["600", target]);
+      link = join(dir, "home", ".gitconfig");
+      symlinkSync(target, link);
+      outside = join(dir, "outside");
+      writeFileSync(outside, "untouched\n");
+    });
+
+    test("keeps the link and restores the file it points to", () => {
+      const restore = snapshotSessionFiles();
+      writeFileSync(target, "[core]\n");
+      restore();
+      expect(lstatSync(link).isSymbolicLink()).toBe(true);
+      expect(readFileSync(target, "utf8")).toBe("[user]\n");
+      expect(statSync(link).mode & 0o777).toBe(0o600);
+    });
+
+    test("replaces the link if a session re-pointed it", () => {
+      const restore = snapshotSessionFiles();
+      rmSync(link);
+      symlinkSync(outside, link);
+      restore();
+      expect(lstatSync(link).isSymbolicLink()).toBe(false);
+      expect(readFileSync(link, "utf8")).toBe("[user]\n");
+      expect(readFileSync(outside, "utf8")).toBe("untouched\n");
+    });
+
+    test("doesn't write through a symlink swapped in for the file it points to", () => {
+      const restore = snapshotSessionFiles();
+      rmSync(target);
+      symlinkSync(outside, target);
+      restore();
+      expect(lstatSync(link).isSymbolicLink()).toBe(false);
+      expect(readFileSync(link, "utf8")).toBe("[user]\n");
+      expect(readFileSync(outside, "utf8")).toBe("untouched\n");
+    });
+
+    test("replaces the link if a session deleted the file it points to", () => {
+      const restore = snapshotSessionFiles();
+      rmSync(target);
+      restore();
+      expect(lstatSync(link).isSymbolicLink()).toBe(false);
+      expect(readFileSync(link, "utf8")).toBe("[user]\n");
+    });
   });
 
   test("replaces a directory a session put in a file's place", () => {

@@ -7,6 +7,8 @@ import {
   lstatSync,
   openSync,
   readFileSync,
+  readlinkSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "fs";
@@ -22,6 +24,8 @@ type FileSnapshot = TrackedFile & {
   wasSymlink: boolean;
   content?: Buffer;
   mode?: number;
+  // For a symlink: what it points to, and the regular file that ends up at.
+  link?: { target: string; resolved: string };
 };
 
 const MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024;
@@ -119,6 +123,12 @@ function readSnapshot(file: TrackedFile): FileSnapshot {
       wasSymlink,
       content: readFileSync(fd),
       mode: stats.mode & 0o777,
+      ...(wasSymlink && {
+        link: {
+          target: readlinkSync(file.path),
+          resolved: realpathSync(file.path),
+        },
+      }),
     };
   } catch {
     return { ...file, state: "opaque", wasSymlink };
@@ -132,6 +142,23 @@ function isUnchanged(before: FileSnapshot, now: FileSnapshot): boolean {
     return false;
   }
   return before.state !== "file" || before.content!.equals(now.content!);
+}
+
+/**
+ * Where to restore a file. A symlink that was there before the session and still
+ * leads to the same file is left alone, and that file is restored, so a runner's
+ * own link keeps working. One a session added or re-pointed gets replaced.
+ */
+function restorePath(before: FileSnapshot): string {
+  if (!before.link) return before.path;
+  try {
+    return readlinkSync(before.path) === before.link.target &&
+      realpathSync(before.path) === before.link.resolved
+      ? before.link.resolved
+      : before.path;
+  } catch {
+    return before.path;
+  }
 }
 
 /**
@@ -158,9 +185,10 @@ export function snapshotSessionFiles(): () => void {
           );
           continue;
         }
-        rmSync(before.path, { force: true, recursive: true });
+        const path = restorePath(before);
+        rmSync(path, { force: true, recursive: true });
         if (before.state === "file") {
-          writeFileSync(before.path, before.content!, { mode: before.mode });
+          writeFileSync(path, before.content!, { mode: before.mode });
         }
         restored.push(before.label);
       } catch (error) {
