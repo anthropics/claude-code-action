@@ -355,7 +355,7 @@ describe("session guard", () => {
             flattenSymlinks: { except: [] },
           }),
         );
-        git("rm", "-q", "leak");
+        git("rm", "-q", "--sparse", "leak");
         restore();
         restoreTrackedSymlinks();
         expect(existsSync("leak")).toBe(false);
@@ -484,16 +484,41 @@ describe("session guard", () => {
         expect(warnings().join(" ")).toContain("edited 1 tracked symlink");
       });
 
-      test("warns about a committed edit to one of the plain files", () => {
+      test("git can't commit an edit to one of the plain files", () => {
         commitLinks("leak");
         const restore = flatten();
         writeFileSync("leak", "elsewhere");
-        git("add", "leak");
-        git("-c", "user.name=a", "-c", "user.email=a@b", "commit", "-qm", "x");
+        git("add", "-A");
+        expect(git("diff", "--cached", "--name-only")).toBe("");
+        expect(() => git("add", "leak")).toThrow();
         restore();
         restoreTrackedSymlinks();
-        expect(warnings().join(" ")).toContain("edited 1 tracked symlink");
+        expect(lstatSync("leak").isSymbolicLink()).toBe(true);
         expect(git("status", "--short")).toBe("");
+      });
+
+      test("a clean filter doesn't make an untouched link look changed", () => {
+        git("config", "--local", "filter.x.clean", "sed s/e/Z/");
+        writeFileSync(".gitattributes", "leak filter=x\n");
+        commitLinks("leak");
+        const restore = flatten();
+        expect(git("status", "--short")).toBe("");
+        git("add", "-A");
+        expect(git("diff", "--cached", "--name-only")).toBe("");
+        restore();
+        restoreTrackedSymlinks();
+        expect(git("status", "--short")).toBe("");
+      });
+
+      test("the plain file holds the link on disk, not the index's text", () => {
+        commitLinks("leak");
+        // As when a name in the index aliases a restored file on another filesystem.
+        rmSync("leak");
+        symlinkSync("from-the-base-branch", "leak");
+        const restore = flatten();
+        expect(readFileSync("leak", "utf8")).toBe("from-the-base-branch");
+        restore();
+        restoreTrackedSymlinks();
       });
 
       test("stay links without the option", () => {

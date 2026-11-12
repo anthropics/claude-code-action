@@ -36,10 +36,8 @@ const SESSION_STATE_FILES = [".push-branch", ".no-hooks", ".git-repo"];
 // How many GIT_CONFIG_* entries were there before disableGitPrograms added any.
 let entriesBeforeAction: number | undefined;
 
-type TrackedSymlink = { path: string; sha: string };
-
 // Tracked symlinks turned into plain files for the session, with each link's target.
-let flattenedLinks: (TrackedSymlink & { target: Buffer })[] = [];
+let flattenedLinks = new Map<string, Buffer>();
 let flattenFailed = false;
 
 const codeOf = (error: unknown): string =>
@@ -313,7 +311,7 @@ const gitOutput = (...args: string[]): string | null => {
 // an invalid name into one that doesn't exist on disk.
 const fsPath = (path: string): Buffer => Buffer.from(path, "latin1");
 
-function trackedSymlinks(): TrackedSymlink[] {
+function trackedSymlinks(): string[] {
   const listing = execFileSync("git", ["ls-files", "--stage", "-z"], {
     encoding: "latin1",
     stdio: ["ignore", "pipe", "ignore"],
@@ -322,15 +320,14 @@ function trackedSymlinks(): TrackedSymlink[] {
   });
   return listing.split("\0").flatMap((entry) => {
     const [info, path] = entry.split(/\t(.*)/s);
-    const [mode, sha, stage] = info?.split(" ") ?? [];
-    return mode === "120000" && stage === "0" && sha && path
-      ? [{ path, sha }]
+    return info?.startsWith("120000 ") && info.endsWith(" 0") && path
+      ? [path]
       : [];
   });
 }
 
-function checkOutFromIndex(paths: string[]): void {
-  execFileSync("git", ["checkout-index", "-f", "-u", "-z", "--stdin"], {
+function gitWithPaths(args: string[], paths: string[]): void {
+  execFileSync("git", [...args, "-z", "--stdin"], {
     input: fsPath(paths.join("\0")),
     stdio: ["pipe", "ignore", "ignore"],
     env: { ...process.env },
@@ -349,9 +346,11 @@ function isSymlinkOnDisk(path: string): boolean {
 
 /**
  * Makes each tracked symlink a plain file that holds the link's target, so reading
- * it can't reach a file outside the checkout. Git sees no change, because
- * core.symlinks=false tells it to expect this. Paths in `except` came from the base
- * branch, so a link there stays. Any failure is recorded for requireFlattenedSymlinks.
+ * it can't reach a file outside the checkout. The text comes from the link on disk,
+ * so a name that aliases a restored file can't put pull request text there. Git
+ * ignores these paths for the session, so it won't commit them whatever filters or
+ * edits apply. Paths in `except` came from the base branch, so a link there stays.
+ * Any failure is recorded for requireFlattenedSymlinks.
  */
 function flattenTrackedSymlinks(except: string[]): void {
   flattenFailed = true;
@@ -367,16 +366,19 @@ function flattenTrackedSymlinks(except: string[]): void {
   const isExcepted = (path: string): boolean =>
     kept.some((k) => fold(path) === k || fold(path).startsWith(`${k}/`));
   try {
-    const links = trackedSymlinks().filter(
-      ({ path }) => !isExcepted(path) && isSymlinkOnDisk(path),
+    const paths = trackedSymlinks().filter(
+      (path) => !isExcepted(path) && isSymlinkOnDisk(path),
     );
-    flattenedLinks = links.map((link) => ({
-      ...link,
-      target: readlinkSync(fsPath(link.path), "buffer"),
-    }));
-    for (const { path } of links) rmSync(fsPath(path), { force: true });
-    if (links.length > 0) checkOutFromIndex(links.map(({ path }) => path));
-    flattenFailed = links.some(({ path }) => isSymlinkOnDisk(path));
+    for (const path of paths) {
+      const target = readlinkSync(fsPath(path), "buffer");
+      flattenedLinks.set(path, target);
+      rmSync(fsPath(path), { force: true });
+      writeFileSync(fsPath(path), target);
+    }
+    if (paths.length > 0) {
+      gitWithPaths(["update-index", "--skip-worktree"], paths);
+    }
+    flattenFailed = paths.some(isSymlinkOnDisk);
   } catch (error) {
     core.warning(`Could not replace symlinks (${codeOf(error)})`);
   }
@@ -390,14 +392,12 @@ export function requireFlattenedSymlinks(): void {
 }
 
 /**
- * Puts back the links flattenTrackedSymlinks replaced. Call it after git's config is
- * restored. Otherwise the action's own commit after the session would record each
- * link as a plain file. An edit to one of these files can't be kept as a file, so
- * this warns about any.
+ * Puts back the links flattenTrackedSymlinks replaced, once git's config is restored.
+ * An edit to one of these files can't be kept, so this warns about any.
  */
 export function restoreTrackedSymlinks(): void {
-  const flattened = new Map(flattenedLinks.map((link) => [link.path, link]));
-  flattenedLinks = [];
+  const flattened = flattenedLinks;
+  flattenedLinks = new Map();
   if (flattened.size === 0) return;
 
   const holdsTarget = (path: string, target: Buffer): boolean => {
@@ -408,17 +408,19 @@ export function restoreTrackedSymlinks(): void {
     }
   };
   try {
-    const links = trackedSymlinks().filter(({ path }) => flattened.has(path));
-    const edited = links.filter(({ path, sha }) => {
-      const before = flattened.get(path)!;
-      return sha !== before.sha || !holdsTarget(path, before.target);
-    });
+    const paths = trackedSymlinks().filter((path) => flattened.has(path));
+    const edited = paths.filter(
+      (path) => !holdsTarget(path, flattened.get(path)!),
+    );
     if (edited.length > 0) {
       core.warning(
-        `The session edited ${edited.length} tracked symlink(s) as files. An uncommitted edit is discarded, and a committed one changes the link's target.`,
+        `The session edited ${edited.length} tracked symlink(s) as files. Those edits were discarded.`,
       );
     }
-    if (links.length > 0) checkOutFromIndex(links.map(({ path }) => path));
+    if (paths.length > 0) {
+      gitWithPaths(["update-index", "--no-skip-worktree"], paths);
+      gitWithPaths(["checkout-index", "-f", "-u"], paths);
+    }
   } catch (error) {
     core.warning(`Could not put symlinks back (${codeOf(error)})`);
   }
