@@ -95,12 +95,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NEXT_VERSION: ${{ steps.next_version.outputs.next_version }}
-          LATEST_TAG: ${{ steps.get_latest_tag.outputs.latest_tag }}
         run: |
+          # Start from the last published release, not the highest tag: a failed run
+          # can leave a tag with no release, and its pull requests would be dropped.
+          previous_release=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=10" \
+            --jq '[.[] | select(.draft | not) | .tag_name | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))][0]')
+
           notes_file="$RUNNER_TEMP/release-notes.md"
           gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
             -f tag_name="$NEXT_VERSION" \
-            -f previous_tag_name="$LATEST_TAG" \
+            -f previous_tag_name="$previous_release" \
             --jq .body > "$notes_file"
 
           # The heading comes from .github/release.yml. Matching it, not the words
