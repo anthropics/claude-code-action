@@ -42,8 +42,8 @@ jobs:
           anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           # --permission-mode auto: a tool call that needs permission and that the allowed tools
-          # do not cover runs only if Claude Code's safety review passes it. The action sets
-          # --permission-mode acceptEdits for @claude mentions, and this one, which comes after it, wins.
+          # do not cover runs only if Claude Code's safety review passes it. This is also the
+          # action's default, and it is set here so that the workflow hardening check can see it.
           claude_args: |
             --allowedTools "Bash(bun install),Bash(bun test:*),Bash(bun run format),Bash(bun typecheck)"
             --model "claude-opus-4-7"

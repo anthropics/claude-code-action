@@ -1074,7 +1074,7 @@ describe("buildAllowedToolsString", () => {
     const result = buildAllowedToolsString();
 
     // The base tools should be in the result
-    // Edit/MultiEdit/Write are NOT in allowedTools — acceptEdits permission mode handles them
+    // Edit/MultiEdit/Write are NOT in allowedTools — the permission mode handles them
     expect(result).not.toContain("Edit");
     expect(result).not.toContain("Write");
     expect(result).toContain("Glob");
