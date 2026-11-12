@@ -302,7 +302,9 @@ describe("git wrappers", () => {
         });
       expect(run(scripts).status).toBe(0);
       expect(existsSync(marker)).toBe(false);
-      // Without the recorded home, that config is read, so the check above means something.
+      // Without the recorded home, that config is read, so the check above means
+      // something. The new content makes git read the file again.
+      writeFileSync(join(repo, "a.txt"), "b");
       run(SCRIPTS);
       expect(existsSync(marker)).toBe(true);
     });
