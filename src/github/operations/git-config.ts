@@ -141,7 +141,7 @@ export async function replaceCheckoutCredentials(
     await $`git config ${helperKey} ${`!'${shellSafePath}'`}`;
     console.log("✓ Configured credential helper");
     console.log(
-      "Later steps that use the origin remote need their own credentials",
+      "Later steps that use the origin remote need their own credentials: GH_TOKEN, GIT_ASKPASS, a credential saved for the username x-access-token, or their own remote URL",
     );
   } else {
     // Update the remote URL to include the token for authentication
