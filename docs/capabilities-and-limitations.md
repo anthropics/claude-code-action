@@ -19,7 +19,7 @@ The action doesn't give Claude tools for these. In [auto mode](./usage.md#permis
 
 - **Submit PR Reviews**: Claude cannot submit formal GitHub PR reviews
 - **Approve PRs**: For security reasons, Claude cannot approve pull requests
-- **Push to Other Branches**: By default, Claude can only push to the branch it was set up on: a new branch for an issue or closed PR, or the branch of an open PR
+- **Push to Other Branches**: By default, Claude can only push to the branch it was set up on: a new branch for an issue or closed PR, or the branch of an open PR. For a PR from a fork, that is a `pr-N` branch in your repository, and the fork's branch is not updated
 - **Post Multiple Comments**: Claude only acts by updating its initial comment
 - **Execute Commands Outside Its Context**: Claude only has access to the repository and PR/issue context it's triggered in
 - **Run Bash Commands Unchecked**: A Bash command runs only if an allow rule covers it or the safety review passes it
