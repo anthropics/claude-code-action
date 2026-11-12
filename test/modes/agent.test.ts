@@ -286,19 +286,37 @@ describe("Agent Mode", () => {
       }
     });
 
-    test("leaves a comment on an issue on the workflow's branch", async () => {
-      delete process.env.GITHUB_HEAD_REF;
-      process.env.GITHUB_REF_NAME = "main";
+    test.each(["issue_comment", "issues"])(
+      "uses issue-N for %s, not the default branch",
+      async (eventName) => {
+        delete process.env.GITHUB_HEAD_REF;
+        process.env.GITHUB_REF_NAME = "main";
+        try {
+          expect(
+            await branchFor(null, {
+              eventName,
+              isPR: false,
+              payload: { issue: { number: 5 } },
+            }),
+          ).toBe("issue-5");
+        } finally {
+          delete process.env.GITHUB_REF_NAME;
+        }
+      },
+    );
+
+    test("a workflow's CLAUDE_BRANCH wins over issue-N", async () => {
+      process.env.CLAUDE_BRANCH = "prepared";
       try {
         expect(
           await branchFor(null, {
-            eventName: "issue_comment",
+            eventName: "issues",
             isPR: false,
             payload: { issue: { number: 5 } },
           }),
-        ).toBe("main");
+        ).toBe("prepared");
       } finally {
-        delete process.env.GITHUB_REF_NAME;
+        delete process.env.CLAUDE_BRANCH;
       }
     });
   });

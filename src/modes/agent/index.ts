@@ -12,12 +12,16 @@ import type { Octokits } from "../../github/api/client";
 
 /**
  * Commits made through the API land on the branch of this name in this repository,
- * so a pull request run has to use its own branch. A fork's branch name means nothing
- * here, and a comment event only knows the default branch. Tag mode uses pr-N too.
+ * so a run on a pull request or issue has to use its own branch. A fork's branch name
+ * means nothing here, and a comment event only knows the default branch. Tag mode uses
+ * pr-N too.
  */
-function getPullRequestBranch(context: GitHubContext): string | undefined {
-  if (!isEntityContext(context) || !context.isPR) {
+function getEntityBranch(context: GitHubContext): string | undefined {
+  if (!isEntityContext(context)) {
     return process.env.GITHUB_HEAD_REF;
+  }
+  if (!context.isPR) {
+    return `issue-${context.entityNumber}`;
   }
   const head =
     "pull_request" in context.payload
@@ -120,7 +124,7 @@ export async function prepareAgentMode({
   // Detect current branch from GitHub environment
   const currentBranch =
     claudeBranch ||
-    getPullRequestBranch(context) ||
+    getEntityBranch(context) ||
     process.env.GITHUB_REF_NAME ||
     defaultBranch;
 
