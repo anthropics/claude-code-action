@@ -54,6 +54,13 @@ describe("deniesCommand", () => {
 });
 
 describe("parseAllowedTools", () => {
+  test("keeps unquoted Bash rules whole", () => {
+    expect(parseAllowedTools("--allowedTools Bash(gh:*),Read")).toEqual([
+      "Bash(gh:*)",
+      "Read",
+    ]);
+  });
+
   test("parses unquoted tools", () => {
     const args = "--allowedTools mcp__github__*,mcp__github_comment__*";
     expect(parseAllowedTools(args)).toEqual([

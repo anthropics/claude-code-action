@@ -1,5 +1,9 @@
 import { parse as parseShellArgs } from "shell-quote";
-import { parseClaudeArgsToExtraArgs } from "../../../base-action/src/parse-sdk-options";
+import {
+  escapeShellMeta,
+  parseClaudeArgsToExtraArgs,
+  unescapeShellMeta,
+} from "../../../base-action/src/parse-sdk-options";
 
 // Flags whose values make up the allowed-tools list.
 // Include both camelCase and hyphenated variants for CLI compatibility.
@@ -10,7 +14,7 @@ const ALLOWED_TOOLS_FLAGS = new Set(["allowedTools", "allowed-tools"]);
  * Lines whose first non-whitespace character is `#` are removed entirely.
  * Mirrors stripShellComments in base-action/src/parse-sdk-options.ts.
  */
-function stripShellComments(input: string): string {
+export function stripShellComments(input: string): string {
   return input
     .split("\n")
     .filter((line) => !line.trim().startsWith("#"))
@@ -19,17 +23,17 @@ function stripShellComments(input: string): string {
 
 /**
  * Tokenize a claude_args string the same way base-action/src/parse-sdk-options.ts
- * does: strip full comment lines, then run shell-quote. shell-quote returns
- * unquoted glob patterns (e.g. `mcp__github__*`) as `{ op: "glob", pattern }`
- * objects rather than strings, so recover their literal text; drop operator
- * tokens (`|`, `>`, `;`, ...) which carry no value.
+ * does: strip full comment lines, escape shell metacharacters so that an unquoted
+ * `Bash(gh:*)` stays one token, then run shell-quote. shell-quote returns unquoted
+ * glob patterns (e.g. `mcp__github__*`) as `{ op: "glob", pattern }` objects rather
+ * than strings, so recover their literal text.
  */
 function tokenize(claudeArgs: string): string[] {
-  return parseShellArgs(stripShellComments(claudeArgs))
+  return parseShellArgs(escapeShellMeta(stripShellComments(claudeArgs)))
     .map((token) => {
-      if (typeof token === "string") return token;
+      if (typeof token === "string") return unescapeShellMeta(token);
       if (token && typeof token === "object" && "pattern" in token) {
-        return (token as { pattern: string }).pattern;
+        return unescapeShellMeta((token as { pattern: string }).pattern);
       }
       return null;
     })

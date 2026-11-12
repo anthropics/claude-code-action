@@ -241,6 +241,8 @@ Claude does **not** have access to execute arbitrary Bash commands by default. I
     # ... other inputs
 ```
 
+**Note**: On pull requests whose author does not have write access, commands that commonly run repository code, such as `npm`, are denied even if you allow them here. See [Security](./security.md#running-code-from-pull-requests).
+
 **Note**: The base GitHub tools are always included. Use `--allowedTools` to add additional tools (including specific Bash commands), and `--disallowedTools` to prevent specific tools from being used.
 
 ## Custom Model
