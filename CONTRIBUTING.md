@@ -83,6 +83,12 @@ Thank you for your interest in contributing to Claude Code Action! This document
 
 6. Request review from maintainers
 
+### Breaking changes
+
+Add the `breaking-change` label if a workflow that works today could fail or behave differently after upgrading, with no change on the workflow's side. Workflows on `@v1` get each release straight away, so this is their only warning.
+
+Labeled pull requests go in their own section of the release notes, and the release title says `(breaking changes)`. The notes show only the pull request's title, so make it say what changes.
+
 ## Action Development
 
 ### Testing Your Changes

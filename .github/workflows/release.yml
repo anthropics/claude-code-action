@@ -94,12 +94,25 @@ jobs:
         if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
+          NEXT_VERSION: ${{ steps.next_version.outputs.next_version }}
+          LATEST_TAG: ${{ steps.get_latest_tag.outputs.latest_tag }}
         run: |
-          next_version="${{ steps.next_version.outputs.next_version }}"
+          notes_file="$RUNNER_TEMP/release-notes.md"
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            -f tag_name="$NEXT_VERSION" \
+            -f previous_tag_name="$LATEST_TAG" \
+            --jq .body > "$notes_file"
 
-          gh release create "$next_version" \
-            --title "$next_version" \
-            --generate-notes \
+          # The heading comes from .github/release.yml. Matching it, not the words
+          # alone, keeps a pull request's title from flagging the release.
+          title="$NEXT_VERSION"
+          if grep -qxF "### ⚠️ Breaking changes" "$notes_file"; then
+            title="$NEXT_VERSION (breaking changes)"
+          fi
+
+          gh release create "$NEXT_VERSION" \
+            --title "$title" \
+            --notes-file "$notes_file" \
             --latest=false # keep v1 as latest
 
   update-major-tag:
