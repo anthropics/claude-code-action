@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { execFileSync } from "child_process";
-import { mkdtempSync, rmSync, statSync } from "fs";
+import { existsSync, mkdtempSync, rmSync, statSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
@@ -18,6 +18,11 @@ const NOREPLY_DOMAIN =
     ? "users.noreply.github.com"
     : `users.noreply.${SERVER.hostname}`;
 const EXTRAHEADER_KEY = `http.${GITHUB_SERVER_URL}/.extraheader`;
+const SSH_SIGNING_PROBE = join(
+  import.meta.dir,
+  "fixtures",
+  "ssh-signing-probe.ts",
+);
 
 // git exports these into hooks (e.g. a pre-commit hook running the test
 // suite); if inherited they would point every git command below at the
@@ -179,8 +184,64 @@ describe("git-config", () => {
     });
   });
 
+  describe("cleanupSshSigning", () => {
+    test("removes the signing config so a later commit succeeds", () => {
+      runWithTempHome(["bun", "run", SSH_SIGNING_PROBE, "setup"]);
+      const keyPath = join(tempDir, ".ssh", "claude_signing_key");
+      expect(gitConfigGetAll("user.signingkey")).toBe(keyPath);
+      expect(gitConfigGetAll("commit.gpgsign")).toBe("true");
+
+      runWithTempHome(["bun", "run", SSH_SIGNING_PROBE, "cleanup"]);
+
+      expect(existsSync(keyPath)).toBe(false);
+      expect(gitConfigGetAll("gpg.format")).toBe("");
+      expect(gitConfigGetAll("user.signingkey")).toBe("");
+      expect(gitConfigGetAll("commit.gpgsign")).toBe("");
+      runWithTempHome([
+        "git",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "later step",
+      ]);
+    });
+
+    test("leaves signing config that points at another key", () => {
+      git(["config", "--local", "gpg.format", "ssh"]);
+      git(["config", "--local", "user.signingkey", "/home/user/.ssh/own_key"]);
+      git(["config", "--local", "commit.gpgsign", "true"]);
+
+      runWithTempHome(["bun", "run", SSH_SIGNING_PROBE, "cleanup"]);
+
+      expect(gitConfigGetAll("gpg.format")).toBe("ssh");
+      expect(gitConfigGetAll("user.signingkey")).toBe(
+        "/home/user/.ssh/own_key",
+      );
+      expect(gitConfigGetAll("commit.gpgsign")).toBe("true");
+    });
+  });
+
   function git(args: string[]): void {
     runGit(args, repoDir);
+  }
+
+  // HOME points at the temp dir so the action's signing key path and git's
+  // global config both resolve inside it instead of the developer's home.
+  function runWithTempHome(cmd: string[]): void {
+    const result = Bun.spawnSync({
+      cmd,
+      cwd: repoDir,
+      env: { ...process.env, HOME: tempDir },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    if (result.exitCode !== 0) {
+      throw new Error(
+        `${cmd.join(" ")} failed (exit ${result.exitCode}): ${result.stderr.toString()}`,
+      );
+    }
   }
 });
 
