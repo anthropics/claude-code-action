@@ -5,6 +5,7 @@
 - **Repository Access**: The action can only be triggered by users with write access to the repository. This is checked for issue, pull request, comment, and review events, and for `workflow_run` events, where both the workflow actor and the actor that started the upstream run are checked. `workflow_dispatch`, `repository_dispatch`, and `schedule` events are not checked separately — GitHub itself requires write access to dispatch a workflow, and scheduled runs have no external actor.
 - **Bot User Control**: By default, GitHub Apps and bots cannot trigger this action for security reasons. Use the `allowed_bots` parameter to enable specific bots or all bots
   - **⚠️ Allowed bots are not checked for repository permissions.** A bot that matches an entry does **not** need to be installed on your repository or have write access. On a **public repository**, external parties — including GitHub Apps created by anyone — may be able to trigger workflow events such as opening issues, commenting, or reviewing pull requests. If your workflow listens on those events and `allowed_bots` is set to `'*'`, any such App can invoke this action with a prompt it controls.
+  - When `allowed_bots` is set, the token stays out of `.git/config` and git gets it from a credential helper that reads `GH_TOKEN`. A later step that uses the `origin` remote to push, or to fetch, pull or update submodules on a private repository, then needs its own credentials. `origin` names the username `x-access-token`, so those must come from `GH_TOKEN`, `GIT_ASKPASS`, a credential saved under that username, or a remote URL the step sets itself. The token is still in Claude's environment.
   - Prefer an explicit list over `'*'`
   - Only list App names you trust
   - If you need `'*'`, scope workflow `permissions:` to the minimum required
@@ -15,6 +16,7 @@
   - Is designed for automation workflows where user permissions are already restricted by the workflow's permission scope
   - When set, Claude does a best-effort scrub of Anthropic, cloud, and GitHub Actions secrets from subprocess environments. On Linux runners with bubblewrap available, subprocesses additionally run with PID-namespace isolation. This reduces but does not eliminate prompt injection risk — keep workflow permissions minimal and validate all outputs. Set `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: 0` in your workflow or job `env:` block to opt out.
   - Optionally set `CLAUDE_CODE_SCRIPT_CAPS` in your workflow `env:` block to limit how many times Claude can call specific scripts per run. Value is JSON: `{"script-name.sh": maxCalls}`. Example: `CLAUDE_CODE_SCRIPT_CAPS: '{"edit-issue-labels.sh":2}'` allows at most 2 calls to `edit-issue-labels.sh`. Useful for write-capable helper scripts.
+  - Runs with this input or `allowed_bots` keep the earlier permission defaults instead of auto mode, so the safety review can't pass a call those defaults deny, unless `claude_args` sets another [permission mode](./usage.md#permission-mode)
   - When using `allowed_non_write_users`, always pass `github_token: ${{ secrets.GITHUB_TOKEN }}`. The auto-generated workflow token is scoped to the job's declared permissions and expires when the job completes. **Do not use a personal access token** — a static token does not rotate between runs and could be partially or fully recovered over time via prompt injection. Restricting allowed tools via `claude_args` reduces the rate of recovery but may not eliminate the risk. We recommend restricting allowed tools (e.g. `claude_args: '--allowedTools "Bash(gh issue view:*)"'`) to the minimum required when using `allowed_non_write_users`.
 - **Token Permissions**: The GitHub app receives only a short-lived token scoped specifically to the repository it's operating in
 - **No Cross-Repository Access**: Each action invocation is limited to the repository where it was triggered
@@ -59,9 +61,23 @@ Everything else in the working tree — including `package.json`, lockfiles, `Ma
 
 Note that the runtime executing the tool also reads project config. `bunx <tool>` runs the tool's script under `node` when `node` is on `PATH` (as it is on GitHub-hosted runners); when only Bun is available, Bun executes the script itself and reads `bunfig.toml` from the checkout — including `preload` entries — which comes from the PR head. On such runners, make sure `node` is on `PATH` for the hook, and treat `bunfig.toml` and `.npmrc` in the checkout as PR-controlled runtime config.
 
+### Running code from pull requests
+
+A command that runs repository code (`npm install`, `bun test`, `make`) runs whatever the checkout contains, in a job that holds your workflow's tokens. Tag mode checks out the pull request's head, so on a pull request from an outside contributor that code is theirs, even when a maintainer triggered the run.
+
+By default, when the pull request's author does not have write access, the action denies commands that commonly run repository code (package managers, test runners, interpreters and shells), even if `claude_args` allows them. Claude can still read and edit files, commit and push. Bots count as authors without write access, even if they are listed in `allowed_bots`, and if the check fails the author is treated the same way. Issues and pull requests from authors with write access are not affected. Runs on `workflow_run`, `workflow_dispatch`, `repository_dispatch` and `schedule` events are not covered, so follow the checkout guidance above if those check out pull request code. On a closed or merged pull request, tag mode works from the base branch rather than the pull request's code, so nothing is denied.
+
+- **This is a list of common commands, not a sandbox.** A rule such as `Bash(./scripts/test.sh)` stays allowed, and the action logs a warning with the number of `Bash` rules in `claude_args` that the list does not cover. Rules in the `settings` input or settings files are not checked. Other ways of writing a command, such as `git --no-pager -c`, may not match the list. Add your own rules with `--disallowedTools` if they can run pull request code.
+- **Trust follows the pull request's author.** If someone with write access opens a pull request from another person's branch, or pushes someone else's commits, that code is treated as theirs. Review it before asking Claude to run it.
+- **Commands outside the list follow your permission mode.** With `--permission-mode auto`, a command that no rule covers runs only if Claude Code's safety review passes it, which we recommend where it is available. In the modes that ask for approval, such a command is denied, because a workflow has no one to approve it. Either way, a rule in `--allowedTools` skips that decision, so don't rely on the review for commands you allow. If `claude_args` turns off permission checks, for example with `bypassPermissions`, commands outside the list run without approval, and the action logs a warning.
+- **Text can still steer Claude.** On an issue or a trusted author's pull request these commands stay allowed, so text from an outside contributor could try to get Claude to edit a file and then run it. Keep the rules you grant in `claude_args` as narrow as you can.
+- **Other broad rules weaken the protections.** `Write` lets Claude write outside the workspace, and `Bash(git:*)` can still run programs through forms this list does not deny, such as `git rebase --exec`. Avoid them in workflows that handle outside contributions.
+
+**Upgrading:** workflows that use a floating tag or branch such as `@v1` or `@main` get this behavior without changing anything. If a workflow relied on commands like `npm test` running on pull requests from outside contributors or bots, those commands are now denied. The run still succeeds, so check the log for the warning. Set `restrict_untrusted_prs: false` to turn this off.
+
 ### `claude-code-action` vs `claude-code-base-action`
 
-`claude-code-base-action` is a lower-level building block that installs and runs Claude Code with the inputs you provide. It does not perform actor permission checks or restore project configuration from the base ref. If you need those behaviors, use this action (`claude-code-action`). See the [base-action README](../base-action/README.md#trust-model) for details.
+`claude-code-base-action` is a lower-level building block that installs and runs Claude Code with the inputs you provide. It does not perform actor permission checks, restrict commands on pull requests from outside contributors, or restore project configuration from the base ref. If you need those behaviors, use this action (`claude-code-action`). See the [base-action README](../base-action/README.md#trust-model) for details.
 
 ## Pull Request Creation
 
@@ -78,6 +94,10 @@ This design ensures that users retain full control over what pull requests are c
 **Beware of potential hidden markdown when tagging Claude on untrusted content.** External contributors may include hidden instructions through HTML comments, invisible characters, hidden attributes, or other techniques. The action sanitizes content by stripping HTML comments, invisible characters, markdown image alt text, hidden HTML attributes, and HTML entities, but new bypass techniques may emerge. We recommend reviewing the raw content of all input coming from external contributors before allowing Claude to process it.
 
 On public repos, you can also use `include_comments_by_actor` to allowlist which users' comments are passed to Claude, reducing exposure to untrusted input. Use `exclude_comments_by_actor` to filter out noisy bot comments (e.g., `dependabot[bot]`, `renovate[bot]`). If an actor matches both lists, exclusion takes priority. See [Usage](./usage.md) for details.
+
+### Auto mode is a review, not a boundary
+
+By default the action uses [auto mode](./usage.md#permission-mode), where a safety review decides tool calls that your allow rules don't cover. It catches many unsafe actions, but a call can still run if the review passes it. For a strict list of what Claude may run, use `--permission-mode acceptEdits` or `default`.
 
 ## GitHub App Permissions
 

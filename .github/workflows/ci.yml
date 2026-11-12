@@ -12,7 +12,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.2.12
+          bun-version: 1.4.4
 
       - name: Install dependencies
         run: bun install
@@ -25,9 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: oven-sh/setup-bun@v1
+      - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.4.4
 
       - name: Install dependencies
         run: bun install
@@ -42,7 +42,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.2.12
+          bun-version: 1.4.4
 
       - name: Install dependencies
         run: bun install
