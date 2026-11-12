@@ -20,6 +20,7 @@ import {
   disableGitPrograms,
   pinPushBranch,
   prepareGitForSession,
+  requireFlattenedSymlinks,
   restoreTrackedSymlinks,
   snapshotSessionFiles,
 } from "../src/github/operations/session-guard";
@@ -412,6 +413,88 @@ describe("session guard", () => {
           expect(warnings()).toEqual([]);
         },
       );
+
+      const flatten = (except: string[] = []) =>
+        snapshotSessionFiles(() =>
+          prepareGitForSession({ hooks: true, flattenSymlinks: { except } }),
+        );
+
+      test("a path that can't be read doesn't leave other links real", () => {
+        mkdirSync("blocked");
+        commitLinks("blocked/inner", "leak");
+        // As when the action writes a file where the index expects a directory.
+        rmSync("blocked", { recursive: true });
+        writeFileSync("blocked", "");
+        const restore = flatten();
+        expect(lstatSync("leak").isSymbolicLink()).toBe(false);
+        expect(() => requireFlattenedSymlinks()).not.toThrow();
+        restore();
+        restoreTrackedSymlinks();
+      });
+
+      test("the run stops if the links can't be replaced", () => {
+        commitLinks("leak");
+        writeFileSync(join(dir, "repo/.git/config.lock"), "");
+        prepareGitForSession({
+          hooks: true,
+          flattenSymlinks: { except: [] },
+        });
+        expect(() => requireFlattenedSymlinks()).toThrow(
+          "Could not replace symlinks",
+        );
+        rmSync(join(dir, "repo/.git/config.lock"));
+        const restore = flatten();
+        expect(() => requireFlattenedSymlinks()).not.toThrow();
+        restore();
+        restoreTrackedSymlinks();
+      });
+
+      test("handles a repeated core.symlinks entry", () => {
+        commitLinks("leak");
+        git("config", "--local", "--add", "core.symlinks", "true");
+        git("config", "--local", "--add", "core.symlinks", "true");
+        const restore = flatten();
+        expect(lstatSync("leak").isSymbolicLink()).toBe(false);
+        restore();
+        restoreTrackedSymlinks();
+      });
+
+      test("compares restored paths by the filesystem's case rules", () => {
+        commitLinks("claude.md", "leak");
+        const restore = flatten(["CLAUDE.md"]);
+        // Case-sensitive: claude.md isn't the restored file.
+        expect(lstatSync("claude.md").isSymbolicLink()).toBe(false);
+        restore();
+        restoreTrackedSymlinks();
+
+        git("config", "--local", "core.ignorecase", "true");
+        const restoreAgain = flatten(["CLAUDE.md"]);
+        expect(lstatSync("claude.md").isSymbolicLink()).toBe(true);
+        expect(lstatSync("leak").isSymbolicLink()).toBe(false);
+        restoreAgain();
+        restoreTrackedSymlinks();
+      });
+
+      test("warns about an edit to one of the plain files", () => {
+        commitLinks("leak", "other");
+        const restore = flatten();
+        writeFileSync("leak", "edited\n");
+        restore();
+        restoreTrackedSymlinks();
+        expect(warnings().join(" ")).toContain("edited 1 tracked symlink");
+      });
+
+      test("warns about a committed edit to one of the plain files", () => {
+        commitLinks("leak");
+        const restore = flatten();
+        writeFileSync("leak", "elsewhere");
+        git("add", "leak");
+        git("-c", "user.name=a", "-c", "user.email=a@b", "commit", "-qm", "x");
+        restore();
+        restoreTrackedSymlinks();
+        expect(warnings().join(" ")).toContain("edited 1 tracked symlink");
+        expect(git("status", "--short")).toBe("");
+      });
 
       test("stay links without the option", () => {
         commitLinks("leak");

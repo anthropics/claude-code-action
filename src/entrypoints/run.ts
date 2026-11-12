@@ -36,6 +36,7 @@ import {
   clearSessionState,
   disableGitPrograms,
   prepareGitForSession,
+  requireFlattenedSymlinks,
   restoreTrackedSymlinks,
   snapshotSessionFiles,
 } from "../github/operations/session-guard";
@@ -342,6 +343,7 @@ async function run() {
 
     let claudeResult: ClaudeRunResult;
     try {
+      requireFlattenedSymlinks();
       claudeResult = await runClaude(promptConfig.path, {
         claudeArgs: prepareResult.claudeArgs,
         disallowedTools: disallowedTools.join(","),
