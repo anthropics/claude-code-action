@@ -667,6 +667,13 @@ describe("fallbackPermissionMode", () => {
     ).toBeUndefined();
   });
 
+  test("applies when auto mode is set with an equals sign", () => {
+    expect(fallback("--permission-mode=auto")).toBe("acceptEdits");
+    expect(fallback("--permission-mode default --permission-mode=auto")).toBe(
+      "acceptEdits",
+    );
+  });
+
   test("does not apply with no mode", () => {
     expect(fallback("--model x")).toBeUndefined();
   });

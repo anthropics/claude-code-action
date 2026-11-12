@@ -13,6 +13,8 @@ type SettingsInput = {
  * - A custom ANTHROPIC_BASE_URL, in the environment or the settings input: auto
  *   mode's safety check can depend on what an LLM gateway passes through, and a
  *   session that gets no verdict denies calls and can stop.
+ * - path_to_claude_code_executable: the action doesn't install that CLI, and one
+ *   that predates auto mode exits on the flag before the session starts.
  * - A settings input that chooses a permission mode other than auto: the default
  *   must not silently replace a mode the workflow chose.
  * - A settings input that is a file path: a pull request can change that file, and
@@ -22,7 +24,8 @@ export function defaultsToAutoMode(): boolean {
   if (
     process.env.ALLOWED_NON_WRITE_USERS?.trim() ||
     process.env.ALLOWED_BOTS?.trim() ||
-    process.env.ANTHROPIC_BASE_URL?.trim()
+    process.env.ANTHROPIC_BASE_URL?.trim() ||
+    process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE?.trim()
   ) {
     return false;
   }

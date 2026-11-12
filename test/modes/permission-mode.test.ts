@@ -6,12 +6,14 @@ describe("defaultsToAutoMode", () => {
   const savedNonWriteUsers = process.env.ALLOWED_NON_WRITE_USERS;
   const savedSettings = process.env.INPUT_SETTINGS;
   const savedBots = process.env.ALLOWED_BOTS;
+  const savedExecutable = process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
 
   beforeEach(() => {
     delete process.env.ANTHROPIC_BASE_URL;
     delete process.env.ALLOWED_NON_WRITE_USERS;
     delete process.env.INPUT_SETTINGS;
     delete process.env.ALLOWED_BOTS;
+    delete process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
   });
 
   afterEach(() => {
@@ -26,6 +28,11 @@ describe("defaultsToAutoMode", () => {
     else process.env.INPUT_SETTINGS = savedSettings;
     if (savedBots === undefined) delete process.env.ALLOWED_BOTS;
     else process.env.ALLOWED_BOTS = savedBots;
+    if (savedExecutable === undefined) {
+      delete process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
+    } else {
+      process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE = savedExecutable;
+    }
   });
 
   describe("settings input", () => {
@@ -95,6 +102,16 @@ describe("defaultsToAutoMode", () => {
 
   test("treats the empty value action.yml passes as no allowed users", () => {
     process.env.ALLOWED_NON_WRITE_USERS = "";
+    expect(defaultsToAutoMode()).toBe(true);
+  });
+
+  test("is off with a custom Claude Code executable", () => {
+    process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE = "/opt/claude";
+    expect(defaultsToAutoMode()).toBe(false);
+  });
+
+  test("treats the empty value action.yml passes as no custom executable", () => {
+    process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE = "";
     expect(defaultsToAutoMode()).toBe(true);
   });
 

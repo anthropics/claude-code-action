@@ -21,11 +21,13 @@ describe("Agent Mode", () => {
   const savedBaseUrl = process.env.ANTHROPIC_BASE_URL;
   const savedNonWriteUsers = process.env.ALLOWED_NON_WRITE_USERS;
   const savedSettings = process.env.INPUT_SETTINGS;
+  const savedExecutable = process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
 
   beforeEach(() => {
     delete process.env.ANTHROPIC_BASE_URL;
     delete process.env.ALLOWED_NON_WRITE_USERS;
     delete process.env.INPUT_SETTINGS;
+    delete process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
     exportVariableSpy = spyOn(core, "exportVariable").mockImplementation(
       () => {},
     );
@@ -53,6 +55,11 @@ describe("Agent Mode", () => {
     }
     if (savedSettings === undefined) delete process.env.INPUT_SETTINGS;
     else process.env.INPUT_SETTINGS = savedSettings;
+    if (savedExecutable === undefined) {
+      delete process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
+    } else {
+      process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE = savedExecutable;
+    }
     exportVariableSpy?.mockClear();
     setOutputSpy?.mockClear();
     configureGitAuthSpy?.mockClear();
