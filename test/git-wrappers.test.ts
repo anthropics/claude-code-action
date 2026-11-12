@@ -37,8 +37,6 @@ describe("git wrappers", () => {
   };
   const commit = (...args: string[]) =>
     run(join(SCRIPTS, "git-commit.sh"), ...args);
-  const push = (...args: string[]) =>
-    run(join(SCRIPTS, "git-push.sh"), ...args);
   const remoteHead = () =>
     spawnSync("git", ["-C", remote, "rev-parse", "main"], {
       env: env(),
@@ -140,33 +138,111 @@ describe("git wrappers", () => {
   });
 
   describe("git-push.sh", () => {
-    const rewriteHistory = () => {
-      git("commit", "-q", "--amend", "--allow-empty", "-m", "rewritten");
-    };
+    const SESSION_BRANCH = "claude/issue-1";
 
-    test("pushes a fast-forward", () => {
-      git("commit", "-q", "--allow-empty", "-m", "second");
-      expect(push("origin", "main").status).toBe(0);
-      expect(remoteHead()).toBe(git("rev-parse", "HEAD"));
+    const push = (
+      ref: string,
+      branch: string | null = SESSION_BRANCH,
+      remoteName = "origin",
+    ) => {
+      const pushEnv: Record<string, string | undefined> = { ...env() };
+      if (branch === null) delete pushEnv.CLAUDE_PUSH_BRANCH;
+      else pushEnv.CLAUDE_PUSH_BRANCH = branch;
+      return spawnSync(join(SCRIPTS, "git-push.sh"), [remoteName, ref], {
+        cwd: repo,
+        env: pushEnv,
+        encoding: "utf8",
+      });
+    };
+    const remoteBranch = (branch: string) =>
+      spawnSync(
+        "git",
+        ["-C", remote, "rev-parse", "--verify", "-q", `refs/heads/${branch}`],
+        { env: env(), encoding: "utf8" },
+      ).stdout.trim();
+
+    beforeEach(() => {
+      git("checkout", "-q", "-b", SESSION_BRANCH);
+      git("commit", "-q", "--allow-empty", "-m", "session work");
     });
 
-    test.each(["+main", "+HEAD", "+refs/heads/main", "+"])(
-      "rejects a forced ref: %p",
+    test.each(["HEAD", SESSION_BRANCH])(
+      "pushes %p to the session branch",
       (ref) => {
-        const before = remoteHead();
-        rewriteHistory();
-        const result = push("origin", ref);
-        expect(result.status).toBe(1);
-        expect(result.stderr).toContain("forced pushes are not allowed");
-        expect(remoteHead()).toBe(before);
+        expect(push(ref).status).toBe(0);
+        expect(remoteBranch(SESSION_BRANCH)).toBe(git("rev-parse", "HEAD"));
       },
     );
 
-    test("a non-fast-forward without + still fails on the remote", () => {
+    test("pushes to main when main is the session branch", () => {
+      git("checkout", "-q", "main");
+      git("commit", "-q", "--allow-empty", "-m", "second");
+      expect(push("main", "main").status).toBe(0);
+      expect(remoteHead()).toBe(git("rev-parse", "HEAD"));
+    });
+
+    test("doesn't push local main moved onto the session's commit", () => {
       const before = remoteHead();
-      rewriteHistory();
-      expect(push("origin", "main").status).not.toBe(0);
+      git("update-ref", "refs/heads/main", git("rev-parse", "HEAD"));
+      const result = push("main");
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(`can only push to ${SESSION_BRANCH}`);
       expect(remoteHead()).toBe(before);
+    });
+
+    test("HEAD moved onto main still only updates the session branch", () => {
+      const before = remoteHead();
+      git("update-ref", "refs/heads/main", git("rev-parse", "HEAD"));
+      git("symbolic-ref", "HEAD", "refs/heads/main");
+      expect(push("HEAD").status).toBe(0);
+      expect(remoteHead()).toBe(before);
+      expect(remoteBranch(SESSION_BRANCH)).toBe(git("rev-parse", "HEAD"));
+    });
+
+    test.each([
+      "main",
+      "other",
+      "refs/heads/main",
+      `HEAD:refs/heads/main`,
+      `${SESSION_BRANCH}:main`,
+      "HEAD:main",
+      ":main",
+      `+${SESSION_BRANCH}`,
+      "+HEAD",
+      "+main",
+      "+",
+    ])("rejects %p", (ref) => {
+      const before = remoteHead();
+      const result = push(ref);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(`can only push to ${SESSION_BRANCH}`);
+      expect(remoteHead()).toBe(before);
+      expect(remoteBranch(SESSION_BRANCH)).toBe("");
+    });
+
+    test("rejects flags and other remotes", () => {
+      expect(push("--force").stderr).toContain("flags are not allowed");
+      expect(push("HEAD", SESSION_BRANCH, "other").stderr).toContain(
+        "remote must be 'origin'",
+      );
+    });
+
+    test.each([null, ""])(
+      "refuses to push when no session branch is set: %p",
+      (branch) => {
+        const result = push("HEAD", branch);
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain("CLAUDE_PUSH_BRANCH is not set");
+        expect(remoteBranch(SESSION_BRANCH)).toBe("");
+      },
+    );
+
+    test("a non-fast-forward fails on the remote", () => {
+      expect(push("HEAD").status).toBe(0);
+      const before = remoteBranch(SESSION_BRANCH);
+      git("commit", "-q", "--amend", "--allow-empty", "-m", "rewritten");
+      expect(push("HEAD").status).not.toBe(0);
+      expect(remoteBranch(SESSION_BRANCH)).toBe(before);
     });
   });
 });
