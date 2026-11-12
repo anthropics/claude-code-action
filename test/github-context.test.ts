@@ -6,6 +6,7 @@ import type {
   PullRequestReviewEvent,
   PullRequestReviewCommentEvent,
   WorkflowRunEvent,
+  MergeGroupEvent,
 } from "@octokit/webhooks-types";
 
 // parseGitHubContext() reads the singleton `github.context` from
@@ -34,6 +35,7 @@ import {
   isEntityContext,
   isAutomationContext,
   isWorkflowRunEvent,
+  isMergeGroupEvent,
 } from "../src/github/context";
 import { CLAUDE_APP_BOT_ID, CLAUDE_BOT_LOGIN } from "../src/github/constants";
 import { createMockContext, createMockAutomationContext } from "./mockContext";
@@ -298,6 +300,31 @@ describe("parseGitHubContext", () => {
       expect(context.eventName).toBe("workflow_run");
       expect(isAutomationContext(context)).toBe(true);
     });
+
+    test("merge_group produces an automation context", () => {
+      setEvent("merge_group", {
+        action: "checks_requested",
+        merge_group: {
+          head_sha: "abc123",
+          head_ref: "refs/heads/gh-readonly-queue/main/pr-42-def456",
+          base_ref: "refs/heads/main",
+          base_sha: "def456",
+        },
+        repository: repositoryPayload,
+        sender: { login: "octocat" },
+      } as unknown as MergeGroupEvent);
+
+      const context = parseGitHubContext();
+
+      expect(context.eventName).toBe("merge_group");
+      expect(context.eventAction).toBe("checks_requested");
+      expect(isAutomationContext(context)).toBe(true);
+      expect(isEntityContext(context)).toBe(false);
+      if (!isMergeGroupEvent(context)) {
+        throw new Error("expected merge_group context");
+      }
+      expect(context.payload.merge_group.base_ref).toBe("refs/heads/main");
+    });
   });
 
   describe("invalid partition", () => {
@@ -499,7 +526,7 @@ describe("type guards", () => {
     expect(isEntityContext(workflowDispatchContext)).toBe(false);
   });
 
-  test("isAutomationContext accepts the four automation events", () => {
+  test("isAutomationContext accepts the five automation events", () => {
     expect(isAutomationContext(workflowDispatchContext)).toBe(true);
     expect(
       isAutomationContext(
@@ -516,6 +543,11 @@ describe("type guards", () => {
         createMockAutomationContext({ eventName: "workflow_run" }),
       ),
     ).toBe(true);
+    expect(
+      isAutomationContext(
+        createMockAutomationContext({ eventName: "merge_group" }),
+      ),
+    ).toBe(true);
     expect(isAutomationContext(issuesContext)).toBe(false);
   });
 
@@ -527,5 +559,18 @@ describe("type guards", () => {
     ).toBe(true);
     expect(isWorkflowRunEvent(workflowDispatchContext)).toBe(false);
     expect(isWorkflowRunEvent(issuesContext)).toBe(false);
+  });
+
+  test("isMergeGroupEvent accepts only merge_group", () => {
+    expect(
+      isMergeGroupEvent(
+        createMockAutomationContext({ eventName: "merge_group" }),
+      ),
+    ).toBe(true);
+    expect(isMergeGroupEvent(workflowDispatchContext)).toBe(false);
+    expect(isMergeGroupEvent(issuesContext)).toBe(false);
+    expect(
+      isMergeGroupEvent(createMockContext({ eventName: "pull_request" })),
+    ).toBe(false);
   });
 });

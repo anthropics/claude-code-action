@@ -23,6 +23,7 @@ This action supports the following GitHub events ([learn more GitHub event trigg
 - `pull_request_review_comment` - When comments are made on PR reviews
 - `repository_dispatch` - Custom events triggered via API
 - `workflow_dispatch` - Manual workflow triggers (coming soon)
+- `merge_group` - When pull requests enter a merge queue
 
 ## Automated Documentation Updates
 
@@ -44,6 +45,46 @@ steps:
 ```
 
 When API files are modified, the action automatically detects that a `prompt` is provided and runs in agent mode. Claude updates your README with the latest endpoint documentation and pushes the changes back to the PR, keeping your docs in sync with your code.
+
+## Merge Queue Checks
+
+Run Claude on each merge group before it lands (see [`examples/merge-queue-check.yml`](../examples/merge-queue-check.yml)):
+
+```yaml
+on:
+  pull_request:
+  merge_group:
+    types: [checks_requested]
+
+jobs:
+  claude-merge-check:
+    if: github.event_name == 'merge_group'
+    permissions:
+      contents: read
+    steps:
+      # The example writes merge-group.diff in an earlier step and fails the
+      # job in a later one unless Claude approves.
+      - uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            merge-group.diff contains every change this merge group would bring
+            into the target branch. Decide whether anything in it must not merge.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --restricted
+            --strict-mcp-config
+            --tools "Read,Grep,Glob"
+            --settings '{"includeGitInstructions":false}'
+```
+
+`merge_group` runs in agent mode, so it needs a `prompt` and does not support `track_progress`. The action step succeeds whatever Claude concludes, and with read-only tools and the default output settings nothing Claude finds shows up in the run. To make the queue wait for a verdict, add a step that fails the job when Claude finds a problem, as the example does with `--json-schema` and `structured_output`, then add the job as a required status check. GitHub also requires a required check to pass on the pull request before it can join the queue; the `pull_request` trigger and job-level `if` above handle this, since a job skipped by `if` reports success.
+
+GitHub attributes a `merge_group` run to whoever queued the pull request. A person passes the action's bot check, and an app that queues pull requests, such as a merge bot, needs an `allowed_bots` entry (see [access control](./security.md#access-control)).
+
+Pass `github_token: ${{ secrets.GITHUB_TOKEN }}` for merge queue checks. Without it, the action exchanges an OIDC token for a Claude GitHub App token, and that exchange skips the run whenever the workflow file differs from the default branch's copy. In a merge queue that happens every time a queued pull request edits the workflow, and on queues for branches whose copy of the workflow differs, so a required check would never get a verdict.
+
+The merge group commit contains the queued pull requests' changes, so before Claude starts the action restores its configuration files from the branch the group merges into, [as it does for pull requests](./security.md#which-files-come-from-the-base-branch-on-pull-requests). Those paths in the working tree then hold the target branch's versions, so give Claude the changes as a diff. The comments in the example explain how it keeps queued changes from shaping that diff and what the `claude_args` above switch off; keep those flags if you adapt it. See [security](./security.md#using-this-action-with-merge_group) for how to limit what these runs can reach.
 
 ## Author-Specific Code Reviews
 

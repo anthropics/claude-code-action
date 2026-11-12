@@ -3,7 +3,7 @@
 import { describe, test, expect } from "bun:test";
 import { checkHumanActor } from "../src/github/validation/actor";
 import type { Octokit } from "@octokit/rest";
-import { createMockContext } from "./mockContext";
+import { createMockAutomationContext, createMockContext } from "./mockContext";
 
 function createMockOctokit(userType: string): Octokit {
   return {
@@ -161,6 +161,53 @@ describe("checkHumanActor", () => {
       const context = createMockContext();
       context.actor = "Copilot";
       context.inputs.allowedBots = "COPILOT";
+
+      await expect(
+        checkHumanActor(mockOctokit, context),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe("merge_group events", () => {
+    // GitHub attributes a merge_group run to whoever queued the pull request,
+    // so the actor gets the same check as on any other event.
+
+    test("should pass when a person queued the pull request", async () => {
+      const mockOctokit = createMockOctokit("User");
+      const context = createMockAutomationContext({
+        eventName: "merge_group",
+        actor: "human-user",
+        inputs: { allowedBots: "" },
+      });
+
+      await expect(
+        checkHumanActor(mockOctokit, context),
+      ).resolves.toBeUndefined();
+    });
+
+    test.each(["merge-bot", "github-merge-queue"])(
+      "should reject %s[bot] without allowed_bots",
+      async (name) => {
+        const mockOctokit = createMockOctokit("Bot");
+        const context = createMockAutomationContext({
+          eventName: "merge_group",
+          actor: `${name}[bot]`,
+          inputs: { allowedBots: "" },
+        });
+
+        await expect(checkHumanActor(mockOctokit, context)).rejects.toThrow(
+          `Workflow initiated by non-human actor: ${name} (type: Bot). Add bot to allowed_bots list or use '*' to allow all bots.`,
+        );
+      },
+    );
+
+    test("should pass for an app that queued the pull request when it is in allowed_bots", async () => {
+      const mockOctokit = createMockOctokit("Bot");
+      const context = createMockAutomationContext({
+        eventName: "merge_group",
+        actor: "merge-bot[bot]",
+        inputs: { allowedBots: "merge-bot" },
+      });
 
       await expect(
         checkHumanActor(mockOctokit, context),
