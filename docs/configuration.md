@@ -140,9 +140,12 @@ To allow Claude to view workflow run results, job logs, and CI status:
 
 3. **Claude will automatically get access to CI/CD tools**:
    When you enable `actions: read`, Claude can use the following MCP tools:
+
    - `mcp__github_ci__get_ci_status` - View workflow run statuses
    - `mcp__github_ci__get_workflow_run_details` - Get detailed workflow information
    - `mcp__github_ci__download_job_log` - Download and analyze job logs
+
+   On pull requests from outside contributors, the contributor can control the text of job logs. See [Security](./security.md#running-code-from-pull-requests) for how to turn off the tools that read them.
 
 ### Example: Debugging Failed CI Runs
 
