@@ -8,6 +8,8 @@ set -euo pipefail
 # Usage:
 #   git-commit.sh -m "<message>" [-m "<message>"] [-a] [--allow-empty] [-- <paths>]
 
+source "$(dirname "${BASH_SOURCE[0]}")/git-env.sh"
+
 has_message=false
 expect_message=false
 paths_only=false
@@ -50,4 +52,4 @@ if [[ "$has_message" != true ]]; then
   exit 1
 fi
 
-exec git commit "$@"
+exec git "${git_args[@]}" commit "$@"

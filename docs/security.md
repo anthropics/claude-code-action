@@ -94,7 +94,9 @@ Bots often open pull requests from branches in your own repository. Runs there u
 
 Steps that run after Claude, including post steps such as `actions/checkout`'s cleanup, trust `GITHUB_ENV`, `GITHUB_PATH` and git's config files. When the session ends, the action restores those files, including config pulled in through `include.path`, to how they were before it started, and logs a warning naming any it changed. A session therefore can't pass environment variables to later steps through `GITHUB_ENV`, and `git config` changes it made, such as the upstream that `git push -u` records, don't last. Use `GITHUB_OUTPUT` or `--json-schema` to pass results on.
 
-While Claude runs, and for the action's own git commands afterwards, git ignores `core.fsmonitor`. Git hooks are off for the action's own commits after the session, and from before the checkout on pull requests that `restrict_untrusted_prs` applies to. Git LFS uploads through a hook, so the action uploads objects itself for its own commits, but a push Claude makes on such a pull request won't include them.
+While Claude runs, and for the action's own git commands afterwards, git ignores `core.fsmonitor`. Git hooks are off for the action's own commits after the session, and from before the checkout on pull requests that `restrict_untrusted_prs` applies to. During the session these are set in the repository's git config and by the wrapper scripts. Git LFS uploads through a hook, so the action uploads objects itself for its own commits, but a push Claude makes on such a pull request won't include them.
+
+Claude's wrapper scripts for `git add`, `git rm`, `git commit` and `git push` always work on the repository the action checked out, and take only a short list of flags, so `git add -f` is refused. They ignore settings from the environment: `GIT_SSH_COMMAND`, `GIT_ASKPASS`, `GIT_CONFIG_*`, any other `GIT_*` variable except the author and committer ones, and `XDG_CONFIG_HOME`. A workflow that relies on one of those, such as pushing over SSH with `GIT_SSH_COMMAND`, can allow its own command in `claude_args`, such as `Bash(git push:*)`, which gives up these protections for that workflow.
 
 This has limits:
 
@@ -111,7 +113,7 @@ This has limits:
 
 In its default configuration, **Claude does not create pull requests automatically** when responding to `@claude` mentions. Instead:
 
-- Claude commits code changes to a new branch, or to the pull request's branch, through wrapper scripts in the action. A deny rule for `git commit` or `git push` in `claude_args` also covers those scripts. A deny rule in a settings file doesn't, so pass it in `claude_args`
+- Claude commits code changes to a new branch, or to the pull request's branch, through wrapper scripts in the action. A deny rule for `git add`, `git rm`, `git commit` or `git push` in `claude_args` also covers those scripts. A deny rule in a settings file doesn't, so pass it in `claude_args`
 - Claude's push command can't update any other branch. For a pull request from a fork, its branch is `pr-N` in your repository, and the fork's branch is not updated
 - Branch protection on your default branch is still worth having: a workflow can allow other push commands, and a pull request opened from the default branch has that branch as its own
 - Claude provides a **link to the GitHub PR creation page** in its response

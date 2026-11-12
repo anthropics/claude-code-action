@@ -24,6 +24,8 @@ import { GITHUB_SERVER_URL } from "../github/api/config";
 import { extractUserRequest } from "../utils/extract-user-request";
 export type { CommonFields, PreparedContext } from "./types";
 
+const GIT_ADD_WRAPPER = `${process.env.GITHUB_ACTION_PATH}/scripts/git-add.sh`;
+const GIT_RM_WRAPPER = `${process.env.GITHUB_ACTION_PATH}/scripts/git-rm.sh`;
 const GIT_PUSH_WRAPPER = `${process.env.GITHUB_ACTION_PATH}/scripts/git-push.sh`;
 const GIT_COMMIT_WRAPPER = `${process.env.GITHUB_ACTION_PATH}/scripts/git-commit.sh`;
 
@@ -55,10 +57,10 @@ export function buildAllowedToolsString(
   } else {
     // When not using commit signing, add specific Bash git commands
     baseTools.push(
-      "Bash(git add:*)",
+      `Bash(${GIT_ADD_WRAPPER}:*)`,
       `Bash(${GIT_COMMIT_WRAPPER}:*)`,
       `Bash(${GIT_PUSH_WRAPPER}:*)`,
-      "Bash(git rm:*)",
+      `Bash(${GIT_RM_WRAPPER}:*)`,
     );
   }
 
@@ -436,7 +438,7 @@ function getCommitInstructions(
     if (eventData.isPR && !eventData.claudeBranch) {
       return `
       - Use git commands via the Bash tool to commit and push your changes:
-        - Stage files: Bash(git add <files>)
+        - Stage files: Bash(${GIT_ADD_WRAPPER} <files>)
         - Commit with a descriptive message: Bash(${GIT_COMMIT_WRAPPER} -m "<message>")
         ${
           coAuthorLine
@@ -450,7 +452,7 @@ function getCommitInstructions(
       return `
       - You are already on the correct branch (${eventData.claudeBranch || "the PR branch"}). Do not create a new branch.
       - Use git commands via the Bash tool to commit and push your changes:
-        - Stage files: Bash(git add <files>)
+        - Stage files: Bash(${GIT_ADD_WRAPPER} <files>)
         - Commit with a descriptive message: Bash(${GIT_COMMIT_WRAPPER} -m "<message>")
         ${
           coAuthorLine
@@ -830,10 +832,10 @@ ${
   - mcp__github_file_ops__commit_files: {"files": ["path/to/file1.js", "path/to/file2.py"], "message": "feat: add new feature"}
   - mcp__github_file_ops__delete_files: {"paths": ["path/to/old.js"], "message": "chore: remove deprecated file"}`
     : `- Use git commands via the Bash tool for version control (remember that you have access to these git commands):
-  - Stage files: Bash(git add <files>)
+  - Stage files: Bash(${GIT_ADD_WRAPPER} <files>)
   - Commit changes: Bash(${GIT_COMMIT_WRAPPER} -m "<message>")
   - Push to remote: Bash(${GIT_PUSH_WRAPPER} origin HEAD)
-  - Delete files: Bash(git rm <files>) followed by commit and push
+  - Delete files: Bash(${GIT_RM_WRAPPER} <files>) followed by commit and push
   - Check status: Bash(git status)
   - View diff: Bash(git diff)${eventData.isPR && eventData.baseBranch ? `\n  - IMPORTANT: For PR diffs, use: Bash(git diff origin/${eventData.baseBranch}...HEAD)` : ""}`
 }

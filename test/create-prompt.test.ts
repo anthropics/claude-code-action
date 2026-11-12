@@ -790,7 +790,7 @@ describe("generatePrompt", () => {
 
     // Should have git command instructions
     expect(prompt).toContain("Use git commands via the Bash tool");
-    expect(prompt).toContain("git add");
+    expect(prompt).toContain("scripts/git-add.sh");
     expect(prompt).toContain("scripts/git-commit.sh -m");
     expect(prompt).toContain("scripts/git-push.sh origin");
 
@@ -1083,7 +1083,7 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("Read");
 
     // Default is no commit signing, so should have specific Bash git commands
-    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("scripts/git-add.sh:*)");
     expect(result).toContain("scripts/git-commit.sh:*)");
     expect(result).not.toContain("Bash(git commit:*)");
     expect(result).toContain("scripts/git-push.sh:*)");
@@ -1106,7 +1106,7 @@ describe("buildAllowedToolsString", () => {
     expect(result).not.toContain("Write");
 
     // Should have specific Bash git commands for non-signing mode
-    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("scripts/git-add.sh:*)");
     expect(result).toContain("scripts/git-commit.sh:*)");
     expect(result).toContain("mcp__github_comment__update_claude_comment");
 
@@ -1199,10 +1199,10 @@ describe("buildAllowedToolsString", () => {
     expect(result).not.toContain("Write");
 
     // Specific Bash git commands should be included
-    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("scripts/git-add.sh:*)");
     expect(result).toContain("scripts/git-commit.sh:*)");
     expect(result).toContain("scripts/git-push.sh:*)");
-    expect(result).toContain("Bash(git rm:*)");
+    expect(result).toContain("scripts/git-rm.sh:*)");
 
     // Comment tool from minimal server should be included
     expect(result).toContain("mcp__github_comment__update_claude_comment");
@@ -1218,7 +1218,7 @@ describe("buildAllowedToolsString", () => {
 
     // Base tools should be present
     expect(result).toContain("Read");
-    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("scripts/git-add.sh:*)");
 
     // Custom tools should be included
     expect(result).toContain("CustomTool1");

@@ -5,6 +5,7 @@ import {
   constants,
   fstatSync,
   lstatSync,
+  mkdirSync,
   openSync,
   readFileSync,
   readlinkSync,
@@ -13,7 +14,7 @@ import {
   writeFileSync,
 } from "fs";
 import { homedir } from "os";
-import { isAbsolute, join, resolve } from "path";
+import { dirname, isAbsolute, join, resolve } from "path";
 
 type TrackedFile = { label: string; path: string };
 
@@ -29,6 +30,23 @@ type FileSnapshot = TrackedFile & {
 };
 
 const MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024;
+
+const SESSION_STATE_FILES = [".push-branch", ".no-hooks", ".git-repo"];
+
+// How many GIT_CONFIG_* entries were there before disableGitPrograms added any.
+let entriesBeforeAction: number | undefined;
+
+const codeOf = (error: unknown): string =>
+  (error as { code?: string }).code ?? "unknown error";
+
+function gitProgramSettings({ hooks }: { hooks: boolean }): [string, string][] {
+  return hooks
+    ? [
+        ["core.fsmonitor", "false"],
+        ["core.hooksPath", "/dev/null"],
+      ]
+    : [["core.fsmonitor", "false"]];
+}
 
 function resolveGitPath(file: string): string | null {
   try {
@@ -171,14 +189,20 @@ function restorePath(before: FileSnapshot): string {
  * sandbox: code running as the runner's user can stop the action before it
  * restores anything.
  */
-export function snapshotSessionFiles(): () => void {
-  const snapshots = filesLaterStepsTrust().map(readSnapshot);
+export function snapshotSessionFiles(beforeSession?: () => void): () => void {
+  const files = filesLaterStepsTrust();
+  const snapshots = files.map(readSnapshot);
+  // What the action changes for the session goes back too, without a warning.
+  beforeSession?.();
+  const atStart = files.map(readSnapshot);
 
   return () => {
     const restored: string[] = [];
-    for (const before of snapshots) {
+    for (const [index, before] of snapshots.entries()) {
       try {
-        if (isUnchanged(before, readSnapshot(before))) continue;
+        const now = readSnapshot(before);
+        if (isUnchanged(before, now)) continue;
+        const changedBySession = !isUnchanged(atStart[index]!, now);
         if (before.state === "opaque") {
           core.warning(
             `Could not restore ${before.label} after the session: it was not a regular file before`,
@@ -190,12 +214,11 @@ export function snapshotSessionFiles(): () => void {
         if (before.state === "file") {
           writeFileSync(path, before.content!, { mode: before.mode });
         }
-        restored.push(before.label);
+        if (changedBySession) restored.push(before.label);
       } catch (error) {
         // The label is fixed text, and the error code carries no file content.
-        const { code } = error as { code?: string };
         core.warning(
-          `Could not restore ${before.label} after the session (${code ?? "unknown error"})`,
+          `Could not restore ${before.label} after the session (${codeOf(error)})`,
         );
       }
     }
@@ -213,10 +236,8 @@ export function snapshotSessionFiles(): () => void {
  * kept. It is not written to GITHUB_ENV, so later steps are unaffected.
  */
 export function disableGitPrograms({ hooks }: { hooks: boolean }): void {
-  const settings: [string, string][] = [["core.fsmonitor", "false"]];
-  if (hooks) settings.push(["core.hooksPath", "/dev/null"]);
-
   let count = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? "", 10) || 0;
+  entriesBeforeAction ??= count;
   const current = new Map<string, string | undefined>();
   for (let i = 0; i < count; i++) {
     current.set(
@@ -224,11 +245,94 @@ export function disableGitPrograms({ hooks }: { hooks: boolean }): void {
       process.env[`GIT_CONFIG_VALUE_${i}`],
     );
   }
-  for (const [key, value] of settings) {
+  for (const [key, value] of gitProgramSettings({ hooks })) {
     if (current.get(key) === value) continue;
     process.env[`GIT_CONFIG_KEY_${count}`] = key;
     process.env[`GIT_CONFIG_VALUE_${count}`] = value;
     count++;
   }
   process.env.GIT_CONFIG_COUNT = String(count);
+}
+
+const sessionFile = (name: string): string | undefined =>
+  process.env.GITHUB_ACTION_PATH
+    ? join(process.env.GITHUB_ACTION_PATH, "scripts", name)
+    : undefined;
+
+function writeSessionFile(name: string, content: string): void {
+  const path = sessionFile(name);
+  if (!path) return;
+  mkdirSync(dirname(path), { recursive: true });
+  rmSync(path, { force: true, recursive: true });
+  writeFileSync(path, content, { mode: 0o444 });
+}
+
+/** Records the only branch the push wrapper may update. */
+export function pinPushBranch(branch: string): void {
+  try {
+    writeSessionFile(".push-branch", branch);
+  } catch (error) {
+    // With no file and no variable, the wrapper refuses to push.
+    core.warning(`Could not record the session's branch (${codeOf(error)})`);
+  }
+}
+
+/** Removes what the wrappers read, so another step in this job can't inherit it. */
+export function clearSessionState(): void {
+  for (const name of SESSION_STATE_FILES) {
+    const path = sessionFile(name);
+    if (!path) continue;
+    try {
+      rmSync(path, { force: true, recursive: true });
+    } catch (error) {
+      core.warning(`Could not remove ${name} (${codeOf(error)})`);
+    }
+  }
+}
+
+const gitOutput = (...args: string[]): string | null => {
+  try {
+    return execFileSync("git", args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      env: { ...process.env },
+    }).trim();
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Moves the settings from disableGitPrograms out of the environment for the session.
+ * Repository config and the wrappers keep them in force instead, and
+ * snapshotSessionFiles puts the config back afterwards.
+ */
+export function prepareGitForSession({ hooks }: { hooks: boolean }): void {
+  const count = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? "", 10) || 0;
+  const before = entriesBeforeAction ?? count;
+  for (let i = before; i < count; i++) {
+    delete process.env[`GIT_CONFIG_KEY_${i}`];
+    delete process.env[`GIT_CONFIG_VALUE_${i}`];
+  }
+  if (before > 0) process.env.GIT_CONFIG_COUNT = String(before);
+  else delete process.env.GIT_CONFIG_COUNT;
+  entriesBeforeAction = undefined;
+
+  const gitDir = gitOutput("rev-parse", "--absolute-git-dir");
+  if (!gitDir) return;
+
+  for (const [key, value] of gitProgramSettings({ hooks })) {
+    if (gitOutput("config", "--local", "--replace-all", key, value) === null) {
+      core.warning(`Could not set ${key} for the session`);
+    }
+  }
+  const workTree = gitOutput("rev-parse", "--show-toplevel");
+  try {
+    if (hooks) writeSessionFile(".no-hooks", "");
+    if (workTree) writeSessionFile(".git-repo", `${gitDir}\n${workTree}\n`);
+  } catch (error) {
+    core.warning(
+      `Could not record git settings for the wrappers (${codeOf(error)})`,
+    );
+  }
 }

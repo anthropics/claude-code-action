@@ -33,7 +33,9 @@ import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
 import { checkContainsTrigger } from "../github/validation/trigger";
 import {
+  clearSessionState,
   disableGitPrograms,
+  prepareGitForSession,
   snapshotSessionFiles,
 } from "../github/operations/session-guard";
 import { restoreConfigFromBase } from "../github/operations/restore-config";
@@ -249,7 +251,9 @@ async function run() {
     const untrustedPrDisallowedTools = isEntityContext(context)
       ? await getUntrustedPrDisallowedTools(octokit.rest, context)
       : [];
-    disableGitPrograms({ hooks: untrustedPrDisallowedTools.length > 0 });
+    const hooksOff = untrustedPrDisallowedTools.length > 0;
+    disableGitPrograms({ hooks: hooksOff });
+    clearSessionState();
 
     console.log(
       `Preparing with mode: ${modeName} for event: ${context.eventName}`,
@@ -326,7 +330,9 @@ async function run() {
     const checkedOutPrHead = modeName !== "tag" || !claudeBranch;
     const disallowedTools = checkedOutPrHead ? untrustedPrDisallowedTools : [];
 
-    const restoreSessionFiles = snapshotSessionFiles();
+    const restoreSessionFiles = snapshotSessionFiles(() =>
+      prepareGitForSession({ hooks: hooksOff }),
+    );
 
     let claudeResult: ClaudeRunResult;
     try {
@@ -342,6 +348,7 @@ async function run() {
       });
     } finally {
       restoreSessionFiles();
+      clearSessionState();
       // The action's own git commands from here on hold the job's credentials,
       // and the session could have edited a tracked hook.
       disableGitPrograms({ hooks: true });

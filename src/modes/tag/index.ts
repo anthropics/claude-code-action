@@ -1,5 +1,6 @@
 import { checkHumanActor } from "../../github/validation/actor";
 import { defaultsToAutoMode } from "../permission-mode";
+import { pinPushBranch } from "../../github/operations/session-guard";
 import { createInitialComment } from "../../github/operations/comments/create-initial";
 import { setupBranch } from "../../github/operations/branch";
 import {
@@ -160,8 +161,10 @@ export async function prepareTagMode({
 
   const sessionBranch = branchInfo.claudeBranch || branchInfo.currentBranch;
   // scripts/git-push.sh refuses to update any other branch.
-  process.env.CLAUDE_PUSH_BRANCH = sessionBranch;
+  pinPushBranch(sessionBranch);
 
+  const gitAddWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-add.sh`;
+  const gitRmWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-rm.sh`;
   const gitPushWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-push.sh`;
   const gitCommitWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-commit.sh`;
 
@@ -185,10 +188,10 @@ export async function prepareTagMode({
   // SSH signing still uses git CLI, just with signing enabled
   if (!useApiCommitSigning) {
     tagModeTools.push(
-      "Bash(git add:*)",
+      `Bash(${gitAddWrapper}:*)`,
       `Bash(${gitCommitWrapper}:*)`,
       `Bash(${gitPushWrapper}:*)`,
-      "Bash(git rm:*)",
+      `Bash(${gitRmWrapper}:*)`,
     );
   } else {
     // When using API commit signing, use MCP file ops tools
@@ -226,8 +229,8 @@ export async function prepareTagMode({
   const permissionMode = defaultsToAutoMode() ? "auto" : "acceptEdits";
   claudeArgs += ` --permission-mode ${permissionMode} --allowedTools "${tagModeTools.join(",")}"`;
 
-  // Deny rules match the command's text, so a workflow's deny of `git commit` or
-  // `git push` wouldn't match the wrappers that run them. Deny the wrappers too.
+  // Deny rules match the command's text, so a workflow's deny of a git command
+  // wouldn't match the wrapper that runs it. Deny the wrappers too.
   const userDeniedTools = parseDeniedBashPatterns(userClaudeArgs);
   const deniedWrappers = [
     ...(deniesCommand(userDeniedTools, "git commit")
@@ -235,6 +238,12 @@ export async function prepareTagMode({
       : []),
     ...(deniesCommand(userDeniedTools, "git push")
       ? [`Bash(${gitPushWrapper}:*)`]
+      : []),
+    ...(deniesCommand(userDeniedTools, "git add")
+      ? [`Bash(${gitAddWrapper}:*)`]
+      : []),
+    ...(deniesCommand(userDeniedTools, "git rm")
+      ? [`Bash(${gitRmWrapper}:*)`]
       : []),
   ];
   if (deniedWrappers.length > 0) {
