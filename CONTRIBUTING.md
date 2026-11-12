@@ -79,7 +79,7 @@ Thank you for your interest in contributing to Claude Code Action! This document
    git push origin feature/your-feature-name
    ```
 
-5. Ensure all CI checks pass
+5. Ensure all CI checks pass. On a pull request from a fork, checks usually start only after a maintainer approves them, and jobs that call Claude are skipped because forks don't get the credentials they need.
 
 6. Request review from maintainers
 
@@ -88,6 +88,15 @@ Thank you for your interest in contributing to Claude Code Action! This document
 Add the `breaking-change` label if a workflow that works today could fail or behave differently after upgrading, with no change on the workflow's side. Workflows on `@v1` get each release straight away, so this is their only warning.
 
 Labeled pull requests go in their own section of the release notes, and the release title says `(breaking changes)`. The notes show only the pull request's title, so make it say what changes.
+
+### For Maintainers: Pull Requests from Outside Contributors
+
+These steps are for pull requests from forks whose author does not have write access.
+
+1. Review the changes, including any to workflow files and test scripts.
+2. Select **Approve and run**, which starts every waiting workflow. `ci.yml` runs the tests, type check and format check. GitHub gives these runs a read-only token and no secrets. New commits can need a new approval.
+3. Check the result. Jobs that call Claude, such as `claude-review.yml` and the ones in `test-*.yml`, show as skipped, which doesn't mean they passed. The `test-*.yml` jobs run on `main` after the merge.
+4. If you want help, mention `@claude` in a comment on the conversation, not in a review. Claude can see whether `ci.yml` passed, but commands such as `bun` are denied. See [Running code from pull requests](./docs/security.md#running-code-from-pull-requests).
 
 ## Action Development
 
