@@ -17,6 +17,9 @@ if [[ -e "$script_dir/.no-hooks" ]]; then
   git_args+=(-c core.hooksPath=/dev/null)
 fi
 if [[ -e "$script_dir/.git-repo" ]]; then
-  { IFS= read -r git_dir; IFS= read -r work_tree; } <"$script_dir/.git-repo"
+  { IFS= read -r git_dir; IFS= read -r work_tree; IFS= read -r home || true; } <"$script_dir/.git-repo"
   git_args+=("--git-dir=$git_dir" "--work-tree=$work_tree")
+  if [[ -n "$home" ]]; then
+    export HOME="$home"
+  fi
 fi

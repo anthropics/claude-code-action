@@ -25,9 +25,9 @@ import { updateClaudeComment } from "../../github/operations/comments/update-cla
 import type { GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
 import {
-  deniesCommand,
   parseAllowedTools,
   parseDeniedBashPatterns,
+  wrapperDenyRules,
 } from "../agent/parse-tools";
 
 /**
@@ -232,22 +232,19 @@ export async function prepareTagMode({
   // Deny rules match the command's text, so a workflow's deny of a git command
   // wouldn't match the wrapper that runs it. Deny the wrappers too.
   const userDeniedTools = parseDeniedBashPatterns(userClaudeArgs);
-  const deniedWrappers = [
-    ...(deniesCommand(userDeniedTools, "git commit")
-      ? [`Bash(${gitCommitWrapper}:*)`]
-      : []),
-    ...(deniesCommand(userDeniedTools, "git push")
-      ? [`Bash(${gitPushWrapper}:*)`]
-      : []),
-    ...(deniesCommand(userDeniedTools, "git add")
-      ? [`Bash(${gitAddWrapper}:*)`]
-      : []),
-    ...(deniesCommand(userDeniedTools, "git rm")
-      ? [`Bash(${gitRmWrapper}:*)`]
-      : []),
+  const wrappers: [string, string][] = [
+    ["git commit", gitCommitWrapper],
+    ["git push", gitPushWrapper],
+    ["git add", gitAddWrapper],
+    ["git rm", gitRmWrapper],
   ];
+  const deniedWrappers = wrappers.flatMap(([command, wrapper]) =>
+    wrapperDenyRules(userDeniedTools, command, wrapper),
+  );
   if (deniedWrappers.length > 0) {
-    claudeArgs += ` --disallowedTools "${deniedWrappers.join(",")}"`;
+    // A narrower rule can hold quotes or a $, and this string gets parsed again.
+    const rules = deniedWrappers.join(",").replace(/'/g, "'\\''");
+    claudeArgs += ` --disallowedTools '${rules}'`;
   }
 
   // Append user's claude_args (which may have more --mcp-config flags, or another

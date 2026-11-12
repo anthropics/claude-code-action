@@ -101,6 +101,7 @@ function filesLaterStepsTrust(): TrackedFile[] {
     [".git/config", resolveGitPath("config")],
     [".git/config.worktree", resolveGitPath("config.worktree")],
     ["~/.gitconfig", join(home, ".gitconfig")],
+    ["GIT_CONFIG_GLOBAL", process.env.GIT_CONFIG_GLOBAL],
     [
       "git config in XDG_CONFIG_HOME",
       join(process.env.XDG_CONFIG_HOME || join(home, ".config"), "git/config"),
@@ -305,7 +306,9 @@ const gitOutput = (...args: string[]): string | null => {
 /**
  * Moves the settings from disableGitPrograms out of the environment for the session.
  * Repository config and the wrappers keep them in force instead, and
- * snapshotSessionFiles puts the config back afterwards.
+ * snapshotSessionFiles puts the config back afterwards. Elsewhere the concern is a
+ * repository git finds in a plain folder, with its own config. Git only reads
+ * safe.bareRepository from global config or the command line.
  */
 export function prepareGitForSession({ hooks }: { hooks: boolean }): void {
   const count = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? "", 10) || 0;
@@ -318,18 +321,26 @@ export function prepareGitForSession({ hooks }: { hooks: boolean }): void {
   else delete process.env.GIT_CONFIG_COUNT;
   entriesBeforeAction = undefined;
 
-  const gitDir = gitOutput("rev-parse", "--absolute-git-dir");
-  if (!gitDir) return;
-
-  for (const [key, value] of gitProgramSettings({ hooks })) {
-    if (gitOutput("config", "--local", "--replace-all", key, value) === null) {
-      core.warning(`Could not set ${key} for the session`);
+  const setConfig = (scope: string, entries: [string, string][]): void => {
+    for (const [key, value] of entries) {
+      if (gitOutput("config", scope, "--replace-all", key, value) === null) {
+        core.warning(`Could not set ${key} for the session`);
+      }
     }
-  }
-  const workTree = gitOutput("rev-parse", "--show-toplevel");
+  };
+
+  // Before the global setting, which stops git from finding a bare repository here.
+  const gitDir = gitOutput("rev-parse", "--absolute-git-dir");
+  const workTree = gitDir && gitOutput("rev-parse", "--show-toplevel");
+  if (gitDir) setConfig("--local", gitProgramSettings({ hooks }));
+  setConfig("--global", [["safe.bareRepository", "explicit"]]);
+
   try {
     if (hooks) writeSessionFile(".no-hooks", "");
-    if (workTree) writeSessionFile(".git-repo", `${gitDir}\n${workTree}\n`);
+    if (gitDir && workTree) {
+      const home = process.env.HOME || homedir();
+      writeSessionFile(".git-repo", `${gitDir}\n${workTree}\n${home}\n`);
+    }
   } catch (error) {
     core.warning(
       `Could not record git settings for the wrappers (${codeOf(error)})`,

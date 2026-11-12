@@ -348,7 +348,6 @@ async function run() {
       });
     } finally {
       restoreSessionFiles();
-      clearSessionState();
       // The action's own git commands from here on hold the job's credentials,
       // and the session could have edited a tracked hook.
       disableGitPrograms({ hooks: true });
@@ -381,6 +380,7 @@ async function run() {
     core.setFailed(`Action failed with error: ${redactSecrets(errorMessage)}`);
   } finally {
     // Phase 4: Cleanup (always runs)
+    clearSessionState();
 
     // Stop refreshing the workload identity token file and delete the token
     // material so it doesn't outlive this step

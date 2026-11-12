@@ -182,6 +182,12 @@ describe("git wrappers", () => {
       expect(git("diff", "--cached", "--name-only")).toBe("-e");
     });
 
+    test("git-add.sh records the executable bit", () => {
+      writeFileSync(join(repo, "run.sh"), "#!/bin/sh\n");
+      run(join(SCRIPTS, "git-add.sh"), "--chmod=+x", "run.sh");
+      expect(git("ls-files", "--stage", "run.sh")).toStartWith("100755");
+    });
+
     test("git-rm.sh removes files and rejects other flags", () => {
       writeFileSync(join(repo, "a.txt"), "a");
       git("add", "a.txt");
@@ -271,6 +277,33 @@ describe("git wrappers", () => {
 
       rmSync(join(dir, "scripts/.no-hooks"));
       expect(commitWith(join(dir, "scripts")).status).toBe(0);
+      expect(existsSync(marker)).toBe(true);
+    });
+
+    test("the wrappers use the recorded home", () => {
+      const { marker, program } = withMarker();
+      const fakeHome = join(dir, "fake-home");
+      mkdirSync(fakeHome);
+      writeFileSync(join(fakeHome, "attributes"), "a.txt filter=x\n");
+      writeFileSync(
+        join(fakeHome, ".gitconfig"),
+        `[core]\n\tattributesFile = ${join(fakeHome, "attributes")}\n[filter "x"]\n\tclean = ${program}\n`,
+      );
+      writeFileSync(join(repo, "a.txt"), "a");
+      const gitDir = join(repo, ".git");
+      const scripts = copyScripts({
+        ".git-repo": `${gitDir}\n${repo}\n${testHome}\n`,
+      });
+      const run = (path: string) =>
+        spawnSync(join(path, "git-add.sh"), ["a.txt"], {
+          cwd: repo,
+          env: { ...env(), HOME: fakeHome },
+          encoding: "utf8",
+        });
+      expect(run(scripts).status).toBe(0);
+      expect(existsSync(marker)).toBe(false);
+      // Without the recorded home, that config is read, so the check above means something.
+      run(SCRIPTS);
       expect(existsSync(marker)).toBe(true);
     });
 

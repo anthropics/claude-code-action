@@ -1,3 +1,4 @@
+import { parseDeniedBashPatterns } from "../../src/modes/agent/parse-tools";
 import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import { prepareTagMode } from "../../src/modes/tag";
 import { mockIssueCommentContext } from "../mockContext";
@@ -158,14 +159,14 @@ describe("Tag Mode", () => {
       ])("a deny of %s also denies its wrapper", async (command, wrapper) => {
         expect(
           await prepare(`--disallowedTools "Bash(${command}:*)"`),
-        ).toContain(`--disallowedTools "Bash(/action/scripts/${wrapper}:*)"`);
+        ).toContain(`--disallowedTools 'Bash(/action/scripts/${wrapper}:*)'`);
       });
 
       test("a deny of git commit also denies the commit wrapper", async () => {
         expect(
           await prepare(`--disallowedTools "Bash(git commit:*)"`),
         ).toContain(
-          `--disallowedTools "Bash(/action/scripts/git-commit.sh:*)"`,
+          `--disallowedTools 'Bash(/action/scripts/git-commit.sh:*)'`,
         );
       });
 
@@ -175,19 +176,31 @@ describe("Tag Mode", () => {
         `--disallowedTools "Bash(git comm*)"`,
       ])("carries over %s", async (args) => {
         expect(await prepare(args)).toContain(
-          `--disallowedTools "Bash(/action/scripts/git-commit.sh:*)`,
+          `--disallowedTools 'Bash(/action/scripts/git-commit.sh:*)`,
         );
       });
 
       test("a deny of git push also denies the push wrapper", async () => {
         expect(await prepare(`--disallowedTools "Bash(git push:*)"`)).toContain(
-          `--disallowedTools "Bash(/action/scripts/git-push.sh:*)"`,
+          `--disallowedTools 'Bash(/action/scripts/git-push.sh:*)'`,
         );
       });
 
       test("adds no deny rule of its own otherwise", async () => {
+        const args = await prepare(`--disallowedTools "Bash(git add -A:*)"`);
+        expect(args).toContain(
+          `--disallowedTools 'Bash(/action/scripts/git-add.sh -A:*)'`,
+        );
+        for (const rest of [`"a b"`, "it's", "$HOME/x"]) {
+          const denied = await prepare(
+            `--disallowedTools 'Bash(git add ${rest.replace(/'/g, "'\\''")}:*)'`,
+          );
+          expect(parseDeniedBashPatterns(denied)).toContain(
+            `/action/scripts/git-add.sh ${rest}:*`,
+          );
+        }
         expect(await prepare(`--disallowedTools "WebFetch"`)).not.toContain(
-          `--disallowedTools "Bash(`,
+          `--disallowedTools 'Bash(`,
         );
         expect(await prepare("")).not.toContain("--disallowedTools");
       });

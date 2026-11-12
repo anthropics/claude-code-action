@@ -5,7 +5,7 @@ set -euo pipefail
 # `git add` also permits flags that open an editor or read a file of paths.
 #
 # Usage:
-#   git-add.sh [-A] [-u] [-v] [--] <paths>
+#   git-add.sh [-A] [-u] [-v] [--chmod=+x|--chmod=-x] [--] <paths>
 
 source "$(dirname "${BASH_SOURCE[0]}")/git-env.sh"
 
@@ -15,10 +15,10 @@ for arg in "$@"; do
     continue
   fi
   case "$arg" in
-    -A | --all | -u | --update | -v | --verbose) ;;
+    -A | --all | -u | --update | -v | --verbose | --chmod=+x | --chmod=-x) ;;
     --) paths_only=true ;;
     -*)
-      echo "Error: only -A, -u, -v and file paths are allowed (got: $arg)" >&2
+      echo "Error: only -A, -u, -v, --chmod and file paths are allowed (got: $arg)" >&2
       exit 1
       ;;
   esac

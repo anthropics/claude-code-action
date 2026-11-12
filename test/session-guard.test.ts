@@ -29,6 +29,7 @@ const KEYS = [
   "GITHUB_PATH",
   "HOME",
   "XDG_CONFIG_HOME",
+  "GIT_CONFIG_GLOBAL",
   "GIT_CONFIG_COUNT",
   "GIT_CONFIG_KEY_0",
   "GIT_CONFIG_VALUE_0",
@@ -235,6 +236,58 @@ describe("session guard", () => {
       expect(warnings()).toEqual([]);
     });
 
+    const globalConfig = (key: string) => {
+      try {
+        return git("config", "--global", "--get", key).trim();
+      } catch {
+        return "";
+      }
+    };
+
+    test("refuses repositories in plain folders, and puts that back", () => {
+      const restore = snapshotSessionFiles(() =>
+        prepareGitForSession({ hooks: true }),
+      );
+      expect(globalConfig("safe.bareRepository")).toBe("explicit");
+      expect(globalConfig("core.hooksPath")).toBe("");
+
+      restore();
+      expect(globalConfig("safe.bareRepository")).toBe("");
+      expect(warnings()).toEqual([]);
+    });
+
+    test("restores a global config file named by GIT_CONFIG_GLOBAL", () => {
+      process.env.GIT_CONFIG_GLOBAL = join(dir, "global-config");
+      const restore = snapshotSessionFiles(() =>
+        prepareGitForSession({ hooks: false }),
+      );
+      expect(readFileSync(process.env.GIT_CONFIG_GLOBAL, "utf8")).toContain(
+        "explicit",
+      );
+      restore();
+      expect(existsSync(process.env.GIT_CONFIG_GLOBAL)).toBe(false);
+    });
+
+    test("outside a repository, still refuses them and records the hook setting", () => {
+      process.env.GITHUB_ACTION_PATH = dir;
+      const outside = join(dir, "outside");
+      mkdirSync(outside);
+      process.chdir(outside);
+      prepareGitForSession({ hooks: true });
+      expect(globalConfig("safe.bareRepository")).toBe("explicit");
+      expect(existsSync(join(dir, "scripts/.no-hooks"))).toBe(true);
+      expect(existsSync(join(dir, "scripts/.git-repo"))).toBe(false);
+    });
+
+    test("sets repository config in a bare working directory", () => {
+      const bare = join(dir, "bare.git");
+      git("init", "-q", "--bare", bare);
+      process.chdir(bare);
+      prepareGitForSession({ hooks: false });
+      expect(warnings()).toEqual([]);
+      expect(readFileSync(join(bare, "config"), "utf8")).toContain("fsmonitor");
+    });
+
     test("keeps a workflow's own entries in the environment", () => {
       process.env.GIT_CONFIG_COUNT = "1";
       process.env.GIT_CONFIG_KEY_0 = "user.name";
@@ -278,7 +331,7 @@ describe("session guard", () => {
       const repoFile = join(dir, "scripts/.git-repo");
       const repoRoot = realpathSync(join(dir, "repo"));
       expect(readFileSync(repoFile, "utf8")).toBe(
-        `${repoRoot}/.git\n${repoRoot}\n`,
+        `${repoRoot}/.git\n${repoRoot}\n${process.env.HOME}\n`,
       );
       clearSessionState();
       expect(existsSync(join(dir, "scripts/.push-branch"))).toBe(false);
