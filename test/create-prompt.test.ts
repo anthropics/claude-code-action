@@ -790,7 +790,7 @@ describe("generatePrompt", () => {
     // Should have git command instructions
     expect(prompt).toContain("Use git commands via the Bash tool");
     expect(prompt).toContain("git add");
-    expect(prompt).toContain("git commit");
+    expect(prompt).toContain("scripts/git-commit.sh -m");
     expect(prompt).toContain("scripts/git-push.sh origin");
 
     // Should use the minimal comment tool
@@ -1083,7 +1083,8 @@ describe("buildAllowedToolsString", () => {
 
     // Default is no commit signing, so should have specific Bash git commands
     expect(result).toContain("Bash(git add:*)");
-    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("scripts/git-commit.sh:*)");
+    expect(result).not.toContain("Bash(git commit:*)");
     expect(result).toContain("scripts/git-push.sh:*)");
     expect(result).toContain("mcp__github_comment__update_claude_comment");
 
@@ -1105,7 +1106,7 @@ describe("buildAllowedToolsString", () => {
 
     // Should have specific Bash git commands for non-signing mode
     expect(result).toContain("Bash(git add:*)");
-    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("scripts/git-commit.sh:*)");
     expect(result).toContain("mcp__github_comment__update_claude_comment");
 
     // Should not have commit signing tools
@@ -1198,7 +1199,7 @@ describe("buildAllowedToolsString", () => {
 
     // Specific Bash git commands should be included
     expect(result).toContain("Bash(git add:*)");
-    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("scripts/git-commit.sh:*)");
     expect(result).toContain("scripts/git-push.sh:*)");
     expect(result).toContain("Bash(git rm:*)");
 

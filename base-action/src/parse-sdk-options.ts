@@ -131,7 +131,7 @@ function stripShellComments(input: string): string {
  * Accumulating flags also consume all consecutive non-flag values
  * (e.g., --allowed-tools "Tool1" "Tool2" "Tool3" captures all three).
  */
-function parseClaudeArgsToExtraArgs(
+export function parseClaudeArgsToExtraArgs(
   claudeArgs?: string,
 ): Record<string, string | null> {
   if (!claudeArgs?.trim()) return {};
