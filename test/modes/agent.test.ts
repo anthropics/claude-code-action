@@ -220,6 +220,158 @@ describe("Agent Mode", () => {
       process.env.GITHUB_REF_NAME = originalRefName;
   });
 
+  describe("the branch for pull request events", () => {
+    const originalHeadRef = process.env.GITHUB_HEAD_REF;
+    const originalClaudeBranch = process.env.CLAUDE_BRANCH;
+
+    beforeEach(() => {
+      process.env.GITHUB_HEAD_REF = "release";
+      delete process.env.CLAUDE_BRANCH;
+    });
+
+    afterEach(() => {
+      if (originalHeadRef === undefined) delete process.env.GITHUB_HEAD_REF;
+      else process.env.GITHUB_HEAD_REF = originalHeadRef;
+      if (originalClaudeBranch !== undefined) {
+        process.env.CLAUDE_BRANCH = originalClaudeBranch;
+      }
+    });
+
+    const branchFor = async (
+      headRepository: string | null,
+      overrides: Record<string, unknown> = {},
+    ) => {
+      const context = {
+        ...createMockAutomationContext({
+          repository: {
+            owner: "test-owner",
+            repo: "test-repo",
+            full_name: "test-owner/test-repo",
+            default_branch: "main",
+          },
+        }),
+        eventName: "pull_request",
+        entityNumber: 5,
+        isPR: true,
+        inputs: {
+          ...createMockAutomationContext().inputs,
+          useCommitSigning: true,
+        },
+        payload: {
+          pull_request: {
+            number: 5,
+            head: headRepository
+              ? { ref: "release", repo: { full_name: headRepository } }
+              : { ref: "release" },
+          },
+        },
+        ...overrides,
+      } as any;
+      const octokit = {
+        rest: {
+          users: {
+            getAuthenticated: mock(() =>
+              Promise.resolve({
+                data: { login: "test-user", id: 1, type: "User" },
+              }),
+            ),
+            getByUsername: mock(() =>
+              Promise.resolve({
+                data: { login: "test-user", id: 1, type: "User" },
+              }),
+            ),
+          },
+        },
+      } as any;
+      const result = await prepareAgentMode({
+        context,
+        octokit,
+        githubToken: "test-token",
+      });
+      // The branch commit_files writes to through the API
+      return JSON.parse(result.mcpConfig).mcpServers.github_file_ops.env
+        .BRANCH_NAME;
+    };
+
+    test("uses pr-N for a fork, not the fork's branch name", async () => {
+      expect(await branchFor("attacker/test-repo")).toBe("pr-5");
+    });
+
+    test("uses pr-N when the head repository is unknown", async () => {
+      expect(await branchFor(null)).toBe("pr-5");
+    });
+
+    test("keeps the branch name for the same repository", async () => {
+      expect(await branchFor("Test-Owner/test-repo")).toBe("release");
+    });
+
+    test("uses pr-N for a fork's review event", async () => {
+      expect(
+        await branchFor("attacker/test-repo", {
+          eventName: "pull_request_review",
+        }),
+      ).toBe("pr-5");
+    });
+
+    test("keeps the branch name for a review in the same repository", async () => {
+      delete process.env.GITHUB_HEAD_REF;
+      expect(
+        await branchFor("test-owner/test-repo", {
+          eventName: "pull_request_review",
+        }),
+      ).toBe("release");
+    });
+
+    test("uses pr-N for a comment on a PR, not the default branch", async () => {
+      delete process.env.GITHUB_HEAD_REF;
+      process.env.GITHUB_REF_NAME = "main";
+      try {
+        expect(
+          await branchFor(null, {
+            eventName: "issue_comment",
+            payload: { issue: { number: 5, pull_request: {} } },
+          }),
+        ).toBe("pr-5");
+      } finally {
+        delete process.env.GITHUB_REF_NAME;
+      }
+    });
+
+    test.each(["issue_comment", "issues"])(
+      "uses issue-N for %s, not the default branch",
+      async (eventName) => {
+        delete process.env.GITHUB_HEAD_REF;
+        process.env.GITHUB_REF_NAME = "main";
+        try {
+          expect(
+            await branchFor(null, {
+              eventName,
+              isPR: false,
+              payload: { issue: { number: 5 } },
+            }),
+          ).toBe("issue-5");
+        } finally {
+          delete process.env.GITHUB_REF_NAME;
+        }
+      },
+    );
+
+    test("a workflow's CLAUDE_BRANCH wins over issue-N", async () => {
+      process.env.CLAUDE_BRANCH = "prepared";
+      try {
+        expect(
+          await branchFor(null, {
+            eventName: "issues",
+            isPR: false,
+            payload: { issue: { number: 5 } },
+          }),
+        ).toBe("prepared");
+      } finally {
+        delete process.env.CLAUDE_BRANCH;
+      }
+    });
+  });
+
   test("prepare rejects bot actors without allowed_bots", async () => {
     const contextWithPrompts = createMockAutomationContext({
       eventName: "workflow_dispatch",
