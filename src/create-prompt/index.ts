@@ -3,6 +3,7 @@
 import * as core from "@actions/core";
 import { writeFile, mkdir, rm } from "fs/promises";
 import type { FetchDataResult } from "../github/data/fetcher";
+import { isSameLogin } from "../github/validation/actor";
 import {
   formatContext,
   formatBody,
@@ -17,7 +18,7 @@ import {
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
 } from "../github/context";
-import type { ParsedGitHubContext } from "../github/context";
+import type { GitHubContext, ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import { extractUserRequest } from "../utils/extract-user-request";
@@ -283,7 +284,7 @@ export function prepareContext(
           ...(assigneeTrigger && { assigneeTrigger }),
         };
       } else if (eventAction === "labeled") {
-        if (!labelTrigger) {
+        if (!labelTrigger && !prompt) {
           throw new Error("LABEL_TRIGGER is required for issue labeled event");
         }
         eventData = {
@@ -293,7 +294,7 @@ export function prepareContext(
           issueNumber,
           baseBranch,
           claudeBranch,
-          labelTrigger,
+          ...(labelTrigger && { labelTrigger }),
         };
       } else if (eventAction === "opened") {
         eventData = {
@@ -371,7 +372,9 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
       } else if (eventData.eventAction === "labeled") {
         return {
           eventType: "ISSUE_LABELED",
-          triggerContext: `issue labeled with '${eventData.labelTrigger}'`,
+          triggerContext: eventData.labelTrigger
+            ? `issue labeled with '${eventData.labelTrigger}'`
+            : "issue labeled",
         };
       }
       return {
@@ -878,6 +881,22 @@ f. If you are unable to complete certain steps, such as running a linter or test
   return promptContent;
 }
 
+function getCommentOrReviewAuthor(
+  context: GitHubContext | undefined,
+): string | undefined {
+  if (!context) return undefined;
+  if (
+    isIssueCommentEvent(context) ||
+    isPullRequestReviewCommentEvent(context)
+  ) {
+    return context.payload.comment.user?.login;
+  }
+  if (isPullRequestReviewEvent(context)) {
+    return context.payload.review.user?.login;
+  }
+  return undefined;
+}
+
 /**
  * Extracts the user's request from the prepared context and GitHub data.
  *
@@ -894,11 +913,16 @@ f. If you are unable to complete certain steps, such as running a linter or test
  * // Issue body with "@claude fix this" -> returns "fix this"
  * // Issue assigned without @claude in body -> returns null
  */
-function extractUserRequestFromContext(
+export function extractUserRequestFromContext(
   context: PreparedContext,
   githubData: FetchDataResult,
 ): string | null {
   const { eventData, triggerPhrase } = context;
+
+  // The request gets the highest trust in the prompt and can run slash commands,
+  // so it only comes from the person who passed the permission check. When
+  // someone else triggers the run, for example by labeling another person's
+  // issue or editing their comment, that text stays ordinary context.
 
   // For comment events, extract from comment body
   if (
@@ -908,11 +932,23 @@ function extractUserRequestFromContext(
       eventData.eventName === "pull_request_review_comment" ||
       eventData.eventName === "pull_request_review")
   ) {
-    return extractUserRequest(eventData.commentBody, triggerPhrase);
+    return isSameLogin(
+      getCommentOrReviewAuthor(context.githubContext),
+      context.githubContext?.actor,
+    )
+      ? extractUserRequest(eventData.commentBody, triggerPhrase)
+      : null;
   }
 
-  // For issue/PR events triggered by body content, extract from the body
-  if (githubData.contextData?.body) {
+  // For issue/PR events triggered by body content, extract from the body.
+  // GraphQL gives a bot's login without the "[bot]" suffix that actors have.
+  const author = githubData.contextData?.author;
+  const authorLogin =
+    author?.__typename === "Bot" ? `${author.login}[bot]` : author?.login;
+  if (
+    githubData.contextData?.body &&
+    isSameLogin(authorLogin, context.githubContext?.actor)
+  ) {
     const request = extractUserRequest(
       githubData.contextData.body,
       triggerPhrase,
