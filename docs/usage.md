@@ -83,6 +83,7 @@ jobs:
 | `bot_name`                       | GitHub username to use for git operations (defaults to Claude's bot name). Required with `ssh_signing_key` for verified commits                                                                                                        | No       | `claude[bot]`               |
 | `include_comments_by_actor`      | Comma-separated list of actor usernames to INCLUDE in comments. Supports the `*[bot]` wildcard to match all bot accounts. Empty (default) includes all actors                                                                          | No       | ""                          |
 | `exclude_comments_by_actor`      | Comma-separated list of actor usernames to EXCLUDE from comments. Supports the `*[bot]` wildcard to match all bot accounts. If an actor matches both lists, exclusion takes priority                                                   | No       | ""                          |
+| `exclude_changed_files`          | Newline-separated globs for omitting paths from the changed-file list in tag-mode PR prompts                                                                                                                                           | No       | ""                          |
 | `allowed_bots`                   | Comma-separated list of allowed bot usernames, or '\*' to allow all bots. Empty string (default) allows no bots. **⚠️ On public repos with `'*'`, external Apps may be able to invoke this action.** See [Security](./security.md)     | No       | ""                          |
 | `allowed_non_write_users`        | **⚠️ RISKY**: Comma-separated list of usernames to allow without write permissions, or '\*' for all users. Only works with `github_token` input. See [Security](./security.md)                                                         | No       | ""                          |
 | `path_to_claude_code_executable` | Optional path to a custom Claude Code executable. Skips automatic installation. Useful for Nix, custom containers, or specialized environments                                                                                         | No       | ""                          |
@@ -193,6 +194,23 @@ For a comprehensive guide on migrating from v0.x to v1.0, including step-by-step
       Analyze PR #${{ github.event.pull_request.number }} for security issues.
       Focus on the changed files in this PR.
 ```
+
+## Omit generated files from the pull request prompt
+
+Set `exclude_changed_files` to omit generated paths from the changed-file list
+the action supplies in tag-mode PR prompts. Patterns match paths relative to
+the repository root. Use `**/` to match across directories.
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    exclude_changed_files: |
+      **/*.generated.go
+      **/dist/**
+      **/*.min.js
+```
+
+Claude can still inspect those files through its enabled tools.
 
 ## Structured Outputs
 

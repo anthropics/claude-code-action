@@ -373,6 +373,7 @@ type FetchDataParams = {
   originalBody?: string | null;
   includeCommentsByActor?: string;
   excludeCommentsByActor?: string;
+  excludeChangedFiles?: string;
 };
 
 export type GitHubFileWithSHA = GitHubFile & {
@@ -400,6 +401,7 @@ export async function fetchGitHubData({
   originalBody,
   includeCommentsByActor,
   excludeCommentsByActor,
+  excludeChangedFiles,
 }: FetchDataParams): Promise<FetchDataResult> {
   const [owner, repo] = repository.split("/");
   if (!owner || !repo) {
@@ -476,6 +478,17 @@ export async function fetchGitHubData({
   } catch (error) {
     console.error(`Failed to fetch ${isPR ? "PR" : "issue"} data:`, error);
     throw new Error(`Failed to fetch ${isPR ? "PR" : "issue"} data`);
+  }
+
+  if (excludeChangedFiles && changedFiles.length > 0) {
+    const patterns = excludeChangedFiles
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((pattern) => new Bun.Glob(pattern));
+    changedFiles = changedFiles.filter(
+      (file) => !patterns.some((pattern) => pattern.match(file.path)),
+    );
   }
 
   // Compute SHAs for changed files

@@ -888,6 +888,62 @@ describe("isBodySafeToUse", () => {
   });
 });
 
+describe("fetchGitHubData changed file filtering", () => {
+  const paths = [
+    "root.generated.go",
+    "packages/service/client.generated.go",
+    "packages/web/dist/app.js",
+    "assets/app, compressed.js",
+    "packages/web/dist-tools/app.js",
+    "src/main.go",
+  ];
+
+  it.each([
+    [undefined, paths],
+    ["  \r\n  ", paths],
+    [
+      "  **/*.generated.go\r\n\r\n**/dist/**\nassets/app, compressed.js  ",
+      ["packages/web/dist-tools/app.js", "src/main.go"],
+    ],
+  ])(
+    "filters the paths and SHA entries for input %j",
+    async (patterns, expected) => {
+      const octokits = {
+        graphql: jest.fn().mockResolvedValue({
+          repository: {
+            pullRequest: {
+              title: "Test PR",
+              body: "",
+              files: {
+                nodes: paths.map((path) => ({
+                  path,
+                  changeType: "DELETED",
+                  additions: 0,
+                  deletions: 1,
+                })),
+              },
+            },
+          },
+        }),
+        rest: jest.fn() as any,
+      };
+
+      const result = await fetchGitHubData({
+        octokits: octokits as any,
+        repository: "test-owner/test-repo",
+        prNumber: "123",
+        isPR: true,
+        excludeChangedFiles: patterns,
+      });
+
+      expect(result.changedFiles.map((file) => file.path)).toEqual(expected);
+      expect(result.changedFilesWithSHA.map((file) => file.path)).toEqual(
+        expected,
+      );
+    },
+  );
+});
+
 describe("fetchGitHubData integration with time filtering", () => {
   it("should filter comments based on trigger time when provided", async () => {
     const mockOctokits = {

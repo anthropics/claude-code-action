@@ -52,6 +52,10 @@ inputs:
     description: "Comma-separated list of actor usernames to EXCLUDE from comments. Supports wildcards: '*[bot]' matches all bots, 'renovate[bot]' matches specific bot. Empty (default) excludes none. If actor is in both lists, exclusion takes priority."
     required: false
     default: ""
+  exclude_changed_files:
+    description: "Newline-separated glob patterns for omitting changed paths from the tag-mode PR prompt."
+    required: false
+    default: ""
 
   # Claude Code configuration
   prompt:
@@ -302,6 +306,7 @@ runs:
         CLAUDE_CODE_SCRIPT_CAPS: ${{ env.CLAUDE_CODE_SCRIPT_CAPS || '' }}
         INCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.include_comments_by_actor }}
         EXCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.exclude_comments_by_actor }}
+        EXCLUDE_CHANGED_FILES: ${{ inputs.exclude_changed_files }}
         GITHUB_RUN_ID: ${{ github.run_id }}
         USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
         CLASSIFY_INLINE_COMMENTS: ${{ inputs.classify_inline_comments }}
