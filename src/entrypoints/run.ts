@@ -29,6 +29,7 @@ import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
 import { checkContainsTrigger } from "../github/validation/trigger";
 import { restoreConfigFromBase } from "../github/operations/restore-config";
+import { saveCheckoutGitAuth } from "../github/operations/git-config";
 import { validateBranchName } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
@@ -162,6 +163,7 @@ async function run() {
   // Paths reverted to the PR base branch, which cleanup must not commit back
   // onto the PR author's branch. Empty unless restoreConfigFromBase ran.
   let restoredConfigPaths: string[] = [];
+  let restoreCheckoutGitAuth: (() => Promise<void>) | undefined;
   // Track whether we've completed prepare phase, so we can attribute errors correctly
   let prepareCompleted = false;
   try {
@@ -226,6 +228,7 @@ async function run() {
     console.log(
       `Preparing with mode: ${modeName} for event: ${context.eventName}`,
     );
+    restoreCheckoutGitAuth = await saveCheckoutGitAuth();
     const prepareResult =
       modeName === "tag"
         ? await prepareTagMode({ context, octokit, githubToken })
@@ -356,6 +359,14 @@ async function run() {
       } catch (error) {
         console.error("Error updating comment with job link:", error);
       }
+    }
+
+    try {
+      await restoreCheckoutGitAuth?.();
+    } catch (error) {
+      core.setFailed(
+        redactSecrets(error instanceof Error ? error.message : String(error)),
+      );
     }
 
     // Write step summary (unless display_report is set to false)
