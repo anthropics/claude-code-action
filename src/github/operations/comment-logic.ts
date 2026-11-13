@@ -1,6 +1,10 @@
 import { GITHUB_SERVER_URL } from "../api/config";
 import { redactSecrets } from "../utils/sanitizer";
 import { encodeBranchNameForUrl } from "./comments/common";
+import {
+  appendPullRequestTemplate,
+  type PullRequestTemplate,
+} from "./comments/pull-request-template";
 
 export type ExecutionDetails = {
   total_cost_usd?: number;
@@ -15,6 +19,7 @@ export type CommentUpdateInput = {
   jobUrl: string;
   branchLink?: string;
   prLink?: string;
+  pullRequestTemplate?: PullRequestTemplate;
   branchName?: string;
   triggerUsername?: string;
   errorDetails?: string;
@@ -75,6 +80,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     jobUrl,
     branchLink,
     prLink,
+    pullRequestTemplate,
     actionFailed,
     branchName,
     triggerUsername,
@@ -174,10 +180,12 @@ export function updateCommentBody(input: CommentUpdateInput): string {
   }
 
   // Add PR link (either from content or provided)
-  const prUrl =
-    prLinkFromContent || (prLink ? prLink.match(/\(([^)]+)\)/)?.[1] : "");
+  const prUrl = prLinkFromContent || prLink?.match(prLinkPattern)?.[1];
   if (prUrl) {
-    links += ` • [Create PR ➔](${prUrl})`;
+    const url = pullRequestTemplate
+      ? appendPullRequestTemplate(prUrl, pullRequestTemplate)
+      : prUrl;
+    links += ` • [Create PR ➔](${url})`;
   }
 
   // Build the new body with blank line between header and separator
