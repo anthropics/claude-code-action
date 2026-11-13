@@ -26,7 +26,8 @@ SECURITY MODEL:
     check, including this one.
 
 AGENT DETECTION:
-    A commit is agent-authored if its committer email is in `agent_emails`.
+    A commit is agent-authored if its committer email is in `agent_emails`, or if
+    it is a GitHub noreply address whose login is in `agent_logins`.
     A PR is agent-authored if its creator login is in `agent_app_logins`.
     A PR also counts as having agent activity if an `agent_app_logins` identity
     has submitted an APPROVED review (so an agent's approval can never satisfy
@@ -494,10 +495,28 @@ def get_committer_email(commit: dict) -> str:
     return commit.get("commit", {}).get("committer", {}).get("email", "")
 
 
+# A GitHub noreply committer address is "<user id>+<login>@users.noreply.github.com",
+# which is what `git config user.email` gets set to for a push. The id is not stable
+# enough to match on, since claude-code-action takes it from the bot_id input, but
+# the login is, and it is already configured as agent_logins.
+_GITHUB_NOREPLY_EMAIL = re.compile(
+    r"^(?:\d+\+)?(?P<login>[^@+]+)@users\.noreply\.github\.com$", re.IGNORECASE
+)
+
+
+def login_from_noreply_email(email: str) -> str:
+    """The GitHub login a noreply committer address names, or an empty string."""
+    match = _GITHUB_NOREPLY_EMAIL.match(email.strip())
+    return match.group("login") if match else ""
+
+
 def is_agent_commit(commit: dict, config: AgentConfig) -> bool:
     # Case-insensitive comparison per RFC 5321 (email addresses are case-insensitive)
     email = get_committer_email(commit).lower()
-    return email in (e.lower() for e in config.agent_emails)
+    if email in (e.lower() for e in config.agent_emails):
+        return True
+    login = login_from_noreply_email(email)
+    return bool(login) and is_agent_user(login, config)
 
 
 # --- User/PR Helpers ---
@@ -852,10 +871,13 @@ def get_detection_reason(commit: dict, config: AgentConfig) -> str:
     short_sha = commit.get("sha", "")[:12]
     # Case-insensitive check to match is_agent_commit behavior
     email_lower = email.lower()
-    assert email_lower in (e.lower() for e in config.agent_emails), (
-        f"Expected agent email but got {email}"
+    if email_lower in (e.lower() for e in config.agent_emails):
+        return f"Commit {short_sha} has agent email ({email})"
+    login = login_from_noreply_email(email_lower)
+    assert login and is_agent_user(login, config), (
+        f"Expected agent commit but got {email}"
     )
-    return f"Commit {short_sha} has agent email ({email})"
+    return f"Commit {short_sha} was committed by agent {login} ({email})"
 
 
 def has_agent_approval(
