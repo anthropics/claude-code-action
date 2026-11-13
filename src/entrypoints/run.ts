@@ -348,6 +348,12 @@ async function run() {
         ]
       : [];
 
+    // A hook runs in the session's current directory, and only the repository root's tool
+    // config comes from the base branch. This keeps Bash from moving the session.
+    if (isUntrustedCheckout) {
+      process.env.CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR = "1";
+    }
+
     const restoreSessionFiles = snapshotSessionFiles(() =>
       prepareGitForSession({ hooks: hooksOff }),
     );

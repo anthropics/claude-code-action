@@ -3,6 +3,8 @@ import { execFileSync } from "child_process";
 import {
   lstatSync,
   mkdirSync,
+  readdirSync,
+  readFileSync,
   rmdirSync,
   rmSync,
   symlinkSync,
@@ -25,6 +27,7 @@ const PACKAGE_JSON = "package.json";
 // and npx looks in workspaces too.
 const COMMAND_FIELDS = ["name", "bin", "directories", "workspaces"];
 const NO_COMMANDS = "none";
+const ENCODING = "working-tree-encoding";
 
 const MAX_OUTPUT_BYTES = 1024 ** 3;
 const MAX_PACKAGE_JSON_BYTES = 4 * 1024 * 1024;
@@ -44,7 +47,7 @@ function warn(what: string, error: unknown): void {
   core.warning(`${what} (${code ?? `exit code ${status ?? "unknown"}`})`);
 }
 
-function git(args: string[], input = ""): Buffer {
+function git(args: string[], input: string | Buffer = ""): Buffer {
   return execFileSync("git", args, {
     stdio: ["pipe", "pipe", "ignore"],
     input,
@@ -66,6 +69,20 @@ function onDisk(path: string) {
 const fold = (path: string): string =>
   fsPath(path).toString().normalize("NFKC").toLowerCase();
 
+/**
+ * Whether a path is in a directory that comes from the base branch already. The index
+ * has the pull request's version of it, so nothing there may be rebuilt from that.
+ */
+function isRestored(path: string, topLevel: Set<string>): boolean {
+  const [dir] = path.split("/") as [string];
+  return SENSITIVE_PATHS.some(
+    (restored) =>
+      dir === restored ||
+      // Another spelling is a directory of its own only if the file system lists it.
+      (fold(dir) === fold(restored) && !topLevel.has(dir)),
+  );
+}
+
 /** Which tool config a path belongs to. */
 function rootName(path: string): string | undefined {
   const folded = fold(path);
@@ -74,13 +91,7 @@ function rootName(path: string): string | undefined {
     (name) => folded === name || folded.startsWith(`${name}/`),
   );
   if (name) return name;
-  // These come from the base branch already, and the index still has the pull
-  // request's version, so nothing here may be rebuilt from it.
-  const isRestored = SENSITIVE_PATHS.some((restored) =>
-    folded.startsWith(`${fold(restored)}/`),
-  );
-  return !isRestored &&
-    (folded === PACKAGE_JSON || folded.endsWith(`/${PACKAGE_JSON}`))
+  return folded === PACKAGE_JSON || folded.endsWith(`/${PACKAGE_JSON}`)
     ? PACKAGE_JSON
     : undefined;
 }
@@ -108,9 +119,16 @@ function remove(path: string): void {
 // Each entry is "<mode> <other fields>\t<path>", relative to the working directory.
 function parseEntries(listing: Buffer, oidField: number): Map<string, Entry> {
   const entries = new Map<string, Entry>();
+  const topLevel = new Set(
+    readdirSync(".", { encoding: "buffer" }).map((name) =>
+      name.toString("latin1"),
+    ),
+  );
   for (const line of listing.toString("latin1").split("\0")) {
     const [info, path] = line.split(/\t(.*)/s);
-    if (!info || !path || !rootName(path)) continue;
+    if (!info || !path || !rootName(path) || isRestored(path, topLevel)) {
+      continue;
+    }
     const fields = info.split(" ");
     entries.set(path, { mode: fields[0]!, oid: fields[oidField]! });
   }
@@ -151,60 +169,99 @@ function readBlobs(entries: Entry[]): Map<string, Buffer> {
 
 type Json = Record<string, unknown>;
 
-/** Reads a package.json, or returns undefined if it can't be understood. */
+/** Parses a package.json, or returns undefined if it can't be understood. */
+function parsePackageJson(size: number, read: () => Buffer): Json | undefined {
+  if (size > MAX_PACKAGE_JSON_BYTES) return undefined;
+  // trimStart also drops a byte order mark.
+  const json = JSON.parse(read().toString().trimStart());
+  return json && typeof json === "object" ? json : undefined;
+}
+
+/** The package.json that git stores. */
 function readPackageJson(entry: Entry): Json | undefined {
   if (!isFile(entry)) return undefined;
   try {
     const size = Number(git(["cat-file", "-s", entry.oid]).toString());
-    if (size > MAX_PACKAGE_JSON_BYTES) return undefined;
-    // trimStart also drops a byte order mark.
-    const content = git(["cat-file", "blob", entry.oid]).toString().trimStart();
-    const json = JSON.parse(content);
-    return json && typeof json === "object" ? json : undefined;
+    return parsePackageJson(size, () => git(["cat-file", "blob", entry.oid]));
+  } catch {
+    return undefined;
+  }
+}
+
+/** The package.json on disk, which .gitattributes can make differ from what git stores. */
+function readPackageJsonOnDisk(path: string): Json | undefined {
+  try {
+    const { size } = lstatSync(fsPath(path));
+    return parsePackageJson(size, () => readFileSync(fsPath(path)));
   } catch {
     return undefined;
   }
 }
 
 /** The commands a package.json provides, or undefined if that can't be told. */
-function commands(entry: Entry | undefined): string | undefined {
-  if (!entry) return NO_COMMANDS;
-  const json = readPackageJson(entry);
+function commands(json: Json | undefined): string | undefined {
   if (!json) return undefined;
-  if (!json.bin && !json.directories && !json.workspaces) return NO_COMMANDS;
-  return JSON.stringify(COMMAND_FIELDS.map((field) => json[field] ?? null));
+  // Other directories, such as the one for tests, provide no commands.
+  const directories = (json.directories as Json | null | undefined)?.bin;
+  if (!json.bin && !directories && !json.workspaces) return NO_COMMANDS;
+  const provided: Json = { ...json, directories };
+  return JSON.stringify(COMMAND_FIELDS.map((field) => provided[field] ?? null));
 }
 
 /**
- * The root files that .gitattributes makes git write in another encoding, so that what
- * is on disk is not what git has. The pull request controls .gitattributes.
+ * The attributes that make git write each file differently from what it stores. The
+ * pull request controls .gitattributes.
  */
-function reencodedFiles(): Set<string> {
-  const names = TOOL_CONFIG.filter((name) => name !== "node_modules");
-  const fields = git([
-    "check-attr",
-    "-z",
-    "working-tree-encoding",
-    "--",
-    ...names,
-  ])
-    .toString()
-    .split("\0");
-  // "<path> <attribute> <value>", each ended by a NUL
-  return new Set(
-    names.filter((_, i) => {
-      const value = fields[i * 3 + 2];
-      return value !== "unspecified" && value !== "unset";
-    }),
-  );
+function conversions(paths: string[]): Map<string, Set<string>> {
+  const found = new Map<string, Set<string>>();
+  if (paths.length === 0) return found;
+  // Checkout uses the index's .gitattributes, and the one on disk can be converted too.
+  // If the index has none, it uses the one on disk.
+  for (const source of [["--cached"], []]) {
+    const fields = git(
+      ["check-attr", ...source, "-z", "--stdin", ENCODING, "ident", "filter"],
+      Buffer.from(paths.map((path) => `${path}\0`).join(""), "latin1"),
+    )
+      .toString("latin1")
+      .split("\0");
+    // "<path> <attribute> <value>", each ended by a NUL
+    for (let i = 0; i + 2 < fields.length; i += 3) {
+      const [path, attribute, value] = fields.slice(i) as [
+        string,
+        string,
+        string,
+      ];
+      if (value === "unspecified" || value === "unset") continue;
+      // Git takes this as no conversion.
+      if (attribute === ENCODING && /^utf-?8$/i.test(value)) continue;
+      found.set(path, (found.get(path) ?? new Set()).add(attribute));
+    }
+  }
+  return found;
 }
 
-function differs(path: string, pr?: Entry, base?: Entry): boolean {
-  if (pr?.oid === base?.oid && pr?.mode === base?.mode) return false;
-  if (rootName(path) !== PACKAGE_JSON) return true;
+function differs(
+  path: string,
+  converted: Set<string> | undefined,
+  pr?: Entry,
+  base?: Entry,
+): boolean {
+  const isSame = pr?.oid === base?.oid && pr?.mode === base?.mode;
+  // Even an unchanged file can then be one that npm or Bun can't read.
+  if (converted?.has(ENCODING)) return true;
+  if (rootName(path) !== PACKAGE_JSON) return !isSame;
+  if (!pr || isSame) return false;
+  const provided = [commands(readPackageJson(pr))];
+  // npm reads what is on disk, unless an earlier step removed it.
+  if (converted && hasRealParents(path) && onDisk(path)?.isFile()) {
+    provided.push(commands(readPackageJsonOnDisk(path)));
+  }
   // Only one that provides commands matters, so most pull requests keep their own.
-  const provided = pr ? commands(pr) : NO_COMMANDS;
-  return provided !== NO_COMMANDS && (!provided || provided !== commands(base));
+  const allowed = [
+    NO_COMMANDS,
+    base ? commands(readPackageJson(base)) : NO_COMMANDS,
+  ];
+  return provided.some((value) => !value || !allowed.includes(value));
 }
 
 /** The pull request's package.json with the base branch's commands. */
@@ -273,14 +330,20 @@ function restoreToolConfig(baseBranch: string): string[] {
   const matters = (path: string): boolean =>
     hasWorkspaces || rootName(path) !== PACKAGE_JSON || !path.includes("/");
 
-  const reencoded = reencodedFiles();
+  const converted = conversions(
+    [...pr].flatMap(([path, entry]) =>
+      isFile(entry) && matters(path) && rootName(path) !== "node_modules"
+        ? [path]
+        : [],
+    ),
+  );
   // Names that differ only in case can be the same file.
   const differing = new Set(
     all
       .filter(
         (path) =>
           matters(path) &&
-          (reencoded.has(path) || differs(path, pr.get(path), base.get(path))),
+          differs(path, converted.get(path), pr.get(path), base.get(path)),
       )
       .map(fold),
   );
@@ -348,7 +411,8 @@ function restoreToolConfig(baseBranch: string): string[] {
 
 /**
  * Rules that stop a session from editing tool config, for a pull request whose author
- * doesn't have write access. Other package.json edits are ordinary work.
+ * doesn't have write access. Other package.json edits are ordinary work. The rules
+ * cover subdirectories too, because a hook runs in the session's current directory.
  */
 export const toolConfigDenyRules = (replaced: string[]): string[] => [
   ...TOOL_CONFIG.map((name) =>
