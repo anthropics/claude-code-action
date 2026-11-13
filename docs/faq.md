@@ -191,14 +191,23 @@ Comments appear as claude[bot] when the action uses its built-in authentication.
 
 ## MCP Servers and Extended Functionality
 
-### What MCP servers are available by default?
+### How do I enable inline pull request comments?
 
-Claude Code Action automatically configures two MCP servers:
+In a pull request workflow, allow the built-in inline comment tool in the
+action's inputs.
 
-1. **GitHub MCP server**: For GitHub API operations
-2. **File operations server**: For advanced file manipulation
+```yaml
+claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment"'
+```
 
-However, tools from these servers still need to be explicitly allowed via `claude_args` with `--allowedTools`.
+The action starts the inline comment server and passes its GitHub token. It
+uses the Claude GitHub App token by default or the token supplied in
+`github_token`. The token needs **Pull requests: Read and write** access to
+post inline comments.
+
+The general GitHub MCP server is enabled separately when you allow
+`mcp__github` or one of its `mcp__github__*` tools.
+The file operations server is available with `use_commit_signing`.
 
 ## Troubleshooting
 
