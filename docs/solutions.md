@@ -54,7 +54,7 @@ jobs:
 
             Note: The PR branch is already checked out in the current working directory.
 
-            Use `gh pr comment` for top-level feedback.
+            Use `gh pr comment` for top-level feedback. Preserve actual line breaks in Markdown.
             Use `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`) to highlight specific code issues.
             Only post GitHub comments - don't submit review text as messages.
 
@@ -70,6 +70,20 @@ jobs:
 - PR branch is pre-checked out
 
 **Expected Output:** Claude posts review comments directly to the PR with inline annotations where appropriate.
+
+If a top-level comment shows literal `\n` characters, pass the Markdown through
+[`gh pr comment --body-file`](https://cli.github.com/manual/gh_pr_comment).
+Use a file with real line breaks, or read the body from standard input with
+`--body-file -`. The quoted here-document sends a heading and a separate
+paragraph.
+
+```bash
+gh pr comment 123 --body-file - <<'REVIEW'
+### Review summary
+
+The new tests cover the reported failure.
+REVIEW
+```
 
 ### Enhanced Example (With Progress Tracking)
 
