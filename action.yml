@@ -153,6 +153,14 @@ inputs:
     description: "Optional path to a custom Bun executable. If provided, skips automatic Bun installation and uses this executable instead. WARNING: Using an incompatible version may cause problems if the action requires specific Bun features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
     required: false
     default: ""
+  npm_registry:
+    description: "Optional npm registry URL (e.g. an internal Artifactory/Nexus mirror) used to install the action's own dependencies. Defaults to https://registry.npmjs.org/. Useful on runners that cannot reach npmjs.org."
+    required: false
+    default: ""
+  npm_auth_token:
+    description: "Optional auth token for npm_registry, if the registry requires one. Pass it from a secret."
+    required: false
+    default: ""
   display_report:
     description: "Whether to display the Claude Code Report in GitHub Step Summary. Set to 'false' to disable when using custom formatting solutions. WARNING: This outputs Claude-authored content in the GitHub Step Summary. This should only be used in cases where the action is used solely with trusted input."
     required: false
@@ -222,7 +230,11 @@ runs:
 
     - name: Install Dependencies
       shell: bash
+      env:
+        NPM_REGISTRY: ${{ inputs.npm_registry }}
+        NPM_AUTH_TOKEN: ${{ inputs.npm_auth_token }}
       run: |
+        "${GITHUB_ACTION_PATH}/scripts/configure-npm-registry.sh" "${GITHUB_ACTION_PATH}"
         cd ${GITHUB_ACTION_PATH}
         bun install --production
 
