@@ -425,6 +425,11 @@ async function run() {
       context,
       executionFile,
       octokit: githubToken ? octokit : undefined,
+      tokenType: !process.env.OVERRIDE_GITHUB_TOKEN
+        ? "claude-app"
+        : githubToken === process.env.DEFAULT_WORKFLOW_TOKEN
+          ? "workflow"
+          : "custom",
     });
 
     // Write step summary (unless display_report is set to false)

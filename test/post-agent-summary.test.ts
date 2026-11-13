@@ -20,7 +20,14 @@ const prContext = createMockContext({
   runId: "456",
 });
 
-function makeOctokit(comments: Array<{ id: number; body?: string }> = []) {
+function makeOctokit(
+  comments: Array<{
+    id: number;
+    body?: string;
+    user?: { id: number; login: string; type: string } | null;
+  }> = [],
+  authenticatedUser: { id: number } | Error = new Error("No user token"),
+) {
   const calls = {
     paginationParams: [] as Array<Record<string, unknown>>,
     created: [] as Array<Record<string, unknown>>,
@@ -29,6 +36,12 @@ function makeOctokit(comments: Array<{ id: number; body?: string }> = []) {
 
   const octokit = {
     rest: {
+      users: {
+        getAuthenticated: async () => {
+          if (authenticatedUser instanceof Error) throw authenticatedUser;
+          return { data: authenticatedUser };
+        },
+      },
       paginate: async (_method: unknown, params: Record<string, unknown>) => {
         calls.paginationParams.push(params);
         return comments;
@@ -115,11 +128,23 @@ describe("postAgentSummaryComment", () => {
   });
 
   test("updates the existing summary comment returned by the paginated lookup", async () => {
-    const comments = Array.from({ length: 101 }, (_, index) => ({
-      id: index + 1,
-      body: `Regular comment ${index + 1}`,
-    }));
-    comments[100] = { id: 101, body: `${SUMMARY_MARKER}\n\nPrevious response` };
+    const comments: Parameters<typeof makeOctokit>[0] = Array.from(
+      { length: 101 },
+      (_, index) => ({
+        id: index + 1,
+        body: `Regular comment ${index + 1}`,
+      }),
+    );
+    comments[0] = {
+      id: 1,
+      body: `${SUMMARY_MARKER}\n\nUnrelated comment`,
+      user: { id: 42, login: "someone", type: "User" },
+    };
+    comments[100] = {
+      id: 101,
+      body: `${SUMMARY_MARKER}\n\nPrevious response`,
+      user: { id: 209825114, login: "claude[bot]", type: "Bot" },
+    };
     const { octokit, calls } = makeOctokit(comments);
 
     await postSummary(
@@ -135,6 +160,65 @@ describe("postAgentSummaryComment", () => {
     });
     expect(calls.created).toHaveLength(0);
     expect(String(calls.updated[0]?.body)).toContain("Updated response");
+  });
+
+  test("creates a summary when only an unrelated commenter used the marker", async () => {
+    const { octokit, calls } = makeOctokit([
+      {
+        id: 17,
+        body: `${SUMMARY_MARKER}\n\nUnrelated comment`,
+        user: { id: 42, login: "someone", type: "User" },
+      },
+    ]);
+    await postSummary(
+      [{ type: "result", subtype: "success", result: "New summary" }],
+      octokit,
+    );
+    expect(calls.updated).toHaveLength(0);
+    expect(calls.created).toHaveLength(1);
+  });
+
+  test.each([
+    ["workflow", 41898282],
+    ["custom", 17],
+  ] as const)(
+    "updates the summary for a %s token's author",
+    async (tokenType, id) => {
+      const { octokit, calls } = makeOctokit(
+        [
+          {
+            id: 11,
+            body: `${SUMMARY_MARKER}\n\nPrevious response`,
+            user: { id, login: "summary-author", type: "User" },
+          },
+        ],
+        { id },
+      );
+      await postSummary(
+        [{ type: "result", subtype: "success", result: "Updated summary" }],
+        octokit,
+        { tokenType },
+      );
+      expect(calls.updated[0]?.comment_id).toBe(11);
+      expect(calls.created).toHaveLength(0);
+    },
+  );
+
+  test("creates a comment when a custom token's author cannot be verified", async () => {
+    const { octokit, calls } = makeOctokit([
+      {
+        id: 11,
+        body: `${SUMMARY_MARKER}\n\nExisting response`,
+        user: { id: 209825114, login: "claude[bot]", type: "Bot" },
+      },
+    ]);
+    await postSummary(
+      [{ type: "result", subtype: "success", result: "New summary" }],
+      octokit,
+      { tokenType: "custom" },
+    );
+    expect(calls.updated).toHaveLength(0);
+    expect(calls.created).toHaveLength(1);
   });
 
   const missingSummaries: [string, Turn[]][] = [

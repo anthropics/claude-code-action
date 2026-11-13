@@ -9,6 +9,9 @@ import { redactSecrets, sanitizeContent } from "../github/utils/sanitizer";
 import type { Turn } from "./format-turns";
 
 const SUMMARY_COMMENT_MARKER = "<!-- claude-code-action:agent-summary -->";
+// These are the REST comment author IDs, separate from the git commit identity.
+const CLAUDE_COMMENT_AUTHOR_ID = 209825114;
+const WORKFLOW_COMMENT_AUTHOR_ID = 41898282;
 const MAX_SUMMARY_COMMENT_LENGTH = 60_000;
 const TRUNCATION_NOTICE = "\n\n_(Summary truncated.)_";
 
@@ -19,6 +22,7 @@ type PostAgentSummaryOptions = {
   context: GitHubContext | undefined;
   executionFile: string | undefined;
   octokit: Octokits | undefined;
+  tokenType?: "claude-app" | "workflow" | "custom";
   serverUrl?: string;
 };
 
@@ -57,6 +61,7 @@ async function upsertSummaryComment(
   context: ParsedGitHubContext,
   octokit: Octokits,
   serverUrl: string,
+  tokenType: NonNullable<PostAgentSummaryOptions["tokenType"]>,
 ): Promise<"created" | "updated"> {
   const { owner, repo } = context.repository;
   const normalizedServerUrl = serverUrl.replace(/\/+$/, "");
@@ -79,9 +84,24 @@ async function upsertSummaryComment(
       per_page: 100,
     },
   );
-  const existingComment = comments.find((comment) =>
-    comment.body?.includes(SUMMARY_COMMENT_MARKER),
+  const summaries = comments.filter((comment) =>
+    comment.body?.startsWith(`${SUMMARY_COMMENT_MARKER}\n\n`),
   );
+  let authorId: number | undefined =
+    tokenType === "claude-app" ? CLAUDE_COMMENT_AUTHOR_ID : undefined;
+  if (tokenType === "workflow") authorId = WORKFLOW_COMMENT_AUTHOR_ID;
+  if (tokenType === "custom" && summaries.length > 0) {
+    try {
+      authorId = (await octokit.rest.users.getAuthenticated()).data.id;
+    } catch {
+      // Installation tokens cannot use /user. Without a verified author,
+      // create a comment instead of attempting to overwrite someone else's.
+    }
+  }
+  const existingComment =
+    authorId === undefined
+      ? undefined
+      : summaries.find((comment) => comment.user?.id === authorId);
 
   if (existingComment) {
     await octokit.rest.issues.updateComment({
@@ -109,6 +129,7 @@ export async function postAgentSummaryComment({
   context,
   executionFile,
   octokit,
+  tokenType = "claude-app",
   serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com",
 }: PostAgentSummaryOptions): Promise<void> {
   if (
@@ -138,6 +159,7 @@ export async function postAgentSummaryComment({
       context,
       octokit,
       serverUrl,
+      tokenType,
     );
     console.log(
       `${result === "created" ? "Posted" : "Updated"} final Claude response on pull request #${context.entityNumber}`,
