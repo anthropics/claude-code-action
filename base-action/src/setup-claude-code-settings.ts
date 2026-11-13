@@ -1,6 +1,12 @@
 import { $ } from "bun";
 import { homedir } from "os";
 import { readFile } from "fs/promises";
+import {
+  ORCAROUTER_PROVIDER,
+  orcaRouterEnvironment,
+  resolveOrcaRouter,
+} from "./orcarouter/provider";
+import { maskSecret } from "./orcarouter/endpoints";
 
 export async function setupClaudeCodeSettings(
   settingsInput?: string,
@@ -62,6 +68,33 @@ export async function setupClaudeCodeSettings(
   // Always set enableAllProjectMcpServers to true
   settings.enableAllProjectMcpServers = true;
   console.log(`Updated settings with enableAllProjectMcpServers: true`);
+
+  // When OrcaRouter is the selected provider, inject the resolved credential
+  // into user-scope settings.env. This is the single write path for provider
+  // credentials: the API-key and PKCE adapters both land here, and the key is
+  // never written to a repository-scoped file (which is attacker-controlled on
+  // pull requests).
+  if (process.env.INPUT_ORCAROUTER_SETTINGS !== "false") {
+    const orca = await resolveOrcaRouter();
+    if (orca.enabled) {
+      if (orca.errors.length > 0) {
+        throw new Error(
+          `OrcaRouter configuration is incomplete:\n${orca.errors.map((e) => `  - ${e}`).join("\n")}`,
+        );
+      }
+      for (const warning of orca.warnings) console.warn(`Warning: ${warning}`);
+      const injected = orcaRouterEnvironment(orca);
+      const existingEnv = (settings.env as Record<string, string>) ?? {};
+      settings.env = { ...existingEnv, ...injected };
+      console.log(
+        `Configured OrcaRouter provider (${ORCAROUTER_PROVIDER.displayName}) with credential ${maskSecret(orca.credential?.key)} from ${orca.credential?.source === "pkce" ? "account login" : "API key"}`,
+      );
+      console.log(
+        `Inference base URL: ${orca.origins.apiBaseV1Url}; ${orca.modelOptions.length} compatible model(s) discovered` +
+          (orca.degraded ? " (degraded: verified fallback catalog)" : ""),
+      );
+    }
+  }
 
   await $`echo ${JSON.stringify(settings, null, 2)} > ${settingsPath}`.quiet();
   console.log(`Settings saved successfully`);
