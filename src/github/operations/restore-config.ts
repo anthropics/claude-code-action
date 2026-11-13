@@ -5,6 +5,7 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   readlinkSync,
   realpathSync,
@@ -35,6 +36,17 @@ export const SENSITIVE_PATHS = [
 ];
 
 const CLAUDE_PR_EXCLUDE_PATTERN = "/.claude-pr/";
+const AGENT_INSTRUCTION_FILE_NAMES = new Set(["AGENTS.md", "AGENTS.local.md"]);
+const AGENT_SNAPSHOT_SUFFIX = ".pr-snapshot";
+const GITLINK_MODE = "160000";
+const SYMLINK_MODE = "120000";
+
+type GitTreeEntry = {
+  mode: string;
+  type: string;
+  objectId: string;
+  path: string;
+};
 
 function isSameOrInside(child: string, parent: string): boolean {
   return child === parent || child.startsWith(`${parent}${sep}`);
@@ -78,6 +90,219 @@ function listTrackedPaths(): TrackedPaths {
     }
   }
   return tracked;
+}
+
+// AGENTS.md files can be loaded directly from the working tree or imported by
+// restored project instructions, so limiting the restore to repository-root
+// paths leaves nested instructions controlled by the PR. Read names from Git
+// trees rather than the filesystem: this includes files deleted by either side
+// and excludes directory entries that merely have an instruction-file name.
+function listTreeEntries(treeish: string): GitTreeEntry[] {
+  const records = execFileSync(
+    "git",
+    ["ls-tree", "-r", "-t", "-z", "--full-tree", treeish],
+    {
+      encoding: "utf8",
+      maxBuffer: Infinity,
+    },
+  )
+    .split("\0")
+    .filter(Boolean);
+
+  return records.map((record) => {
+    const tab = record.indexOf("\t");
+    if (tab === -1) {
+      throw new Error("Git returned an invalid ls-tree record");
+    }
+    const [mode, type, objectId] = record.slice(0, tab).split(" ");
+    const path = record.slice(tab + 1);
+    if (!mode || !type || !objectId || !path) {
+      throw new Error("Git returned an incomplete ls-tree record");
+    }
+    return { mode, type, objectId, path };
+  });
+}
+
+function listNestedAgentInstructionFiles(entries: GitTreeEntry[]): string[] {
+  const paths: string[] = [];
+  for (const entry of entries) {
+    if (entry.type !== "blob") {
+      continue;
+    }
+    const repoPath = entry.path;
+    if (
+      repoPath.includes("/") &&
+      AGENT_INSTRUCTION_FILE_NAMES.has(posix.basename(repoPath))
+    ) {
+      paths.push(repoPath);
+    }
+  }
+  return paths;
+}
+
+function resolveBaseInstructionPaths(
+  baseRef: string,
+  entries: GitTreeEntry[],
+  instructionPaths: string[],
+): string[] {
+  const byPath = new Map(entries.map((entry) => [entry.path, entry]));
+  const gitlinks = entries
+    .filter((entry) => entry.mode === GITLINK_MODE)
+    .map((entry) => entry.path);
+  const protectedPaths = new Set(instructionPaths);
+  const resolved = new Set<string>();
+  const visiting = new Set<string>();
+
+  const visit = (repoPath: string): void => {
+    if (resolved.has(repoPath)) {
+      return;
+    }
+    if (visiting.has(repoPath)) {
+      throw new Error(
+        `Trusted base instruction symlink cycle includes ${JSON.stringify(repoPath)}`,
+      );
+    }
+
+    const entry = byPath.get(repoPath);
+    if (!entry || entry.type !== "blob") {
+      throw new Error(
+        `Trusted base instruction target ${JSON.stringify(repoPath)} is not a blob`,
+      );
+    }
+    if (entry.mode !== SYMLINK_MODE) {
+      resolved.add(repoPath);
+      return;
+    }
+
+    visiting.add(repoPath);
+    const target = execFileSync("git", ["cat-file", "blob", entry.objectId], {
+      encoding: "utf8",
+      maxBuffer: Infinity,
+    });
+    if (
+      target.length === 0 ||
+      target.includes("\0") ||
+      posix.isAbsolute(target)
+    ) {
+      throw new Error(
+        `Trusted base instruction link ${JSON.stringify(repoPath)} has an unsafe target`,
+      );
+    }
+    const targetPath = posix.normalize(
+      posix.join(posix.dirname(repoPath), target),
+    );
+    if (
+      targetPath === "." ||
+      targetPath === ".." ||
+      targetPath.startsWith("../") ||
+      targetPath.split("/").includes(".git") ||
+      targetPath === ".claude-pr" ||
+      targetPath.startsWith(".claude-pr/")
+    ) {
+      throw new Error(
+        `Trusted base instruction link ${JSON.stringify(repoPath)} escapes the repository or enters a reserved path`,
+      );
+    }
+    const gitlink = gitlinks.find(
+      (path) => targetPath === path || targetPath.startsWith(`${path}/`),
+    );
+    if (gitlink) {
+      throw new Error(
+        `Trusted base instruction link ${JSON.stringify(repoPath)} enters gitlink ${JSON.stringify(gitlink)}`,
+      );
+    }
+
+    const targetEntry = byPath.get(targetPath);
+    if (!targetEntry || targetEntry.type !== "blob") {
+      throw new Error(
+        `Trusted base instruction link ${JSON.stringify(repoPath)} targets missing or non-blob path ${JSON.stringify(targetPath)}`,
+      );
+    }
+    protectedPaths.add(targetPath);
+    visit(targetPath);
+    visiting.delete(repoPath);
+    resolved.add(repoPath);
+  };
+
+  for (const instructionPath of instructionPaths) {
+    visit(instructionPath);
+  }
+  if (protectedPaths.size > 0) {
+    console.log(
+      `Validated trusted instruction symlinks from ${baseRef}: ${protectedPaths.size} protected paths`,
+    );
+  }
+  return [...protectedPaths];
+}
+
+function assertPopulatedGitlinksContainNoAgentInstructions(
+  entries: GitTreeEntry[],
+): void {
+  const scan = (absoluteDir: string, gitlinkPath: string, relativeDir = "") => {
+    for (const name of readdirSync(absoluteDir)) {
+      if (name === ".git") {
+        continue;
+      }
+      const relativePath = relativeDir ? `${relativeDir}/${name}` : name;
+      const absolutePath = join(absoluteDir, name);
+      const stats = lstatSync(absolutePath);
+      if (AGENT_INSTRUCTION_FILE_NAMES.has(name) && !stats.isDirectory()) {
+        throw new Error(
+          `Refusing to continue: populated gitlink ${JSON.stringify(gitlinkPath)} contains instruction file ${JSON.stringify(relativePath)}`,
+        );
+      }
+      if (stats.isDirectory() && !stats.isSymbolicLink()) {
+        scan(absolutePath, gitlinkPath, relativePath);
+      }
+    }
+  };
+
+  for (const entry of entries) {
+    if (entry.mode !== GITLINK_MODE) {
+      continue;
+    }
+    if (AGENT_INSTRUCTION_FILE_NAMES.has(posix.basename(entry.path))) {
+      throw new Error(
+        `Refusing to continue: gitlink ${JSON.stringify(entry.path)} has an instruction-file name`,
+      );
+    }
+    let absolutePath = process.cwd();
+    let populated = true;
+    for (const component of entry.path.split("/")) {
+      absolutePath = join(absolutePath, component);
+      const stats = lstatSync(absolutePath, { throwIfNoEntry: false });
+      if (!stats) {
+        populated = false;
+        break;
+      }
+      if (!stats.isDirectory() || stats.isSymbolicLink()) {
+        throw new Error(
+          `Refusing to inspect populated gitlink ${JSON.stringify(entry.path)} through a non-directory or symlink`,
+        );
+      }
+    }
+    if (populated) {
+      scan(absolutePath, entry.path);
+    }
+  }
+}
+
+function isCoveredBySensitivePath(repoPath: string): boolean {
+  return SENSITIVE_PATHS.some(
+    (sensitivePath) =>
+      repoPath === sensitivePath || repoPath.startsWith(`${sensitivePath}/`),
+  );
+}
+
+function uniquePaths(paths: string[]): string[] {
+  return [...new Set(paths)];
+}
+
+function snapshotPath(repoPath: string): string {
+  const suffix = AGENT_INSTRUCTION_FILE_NAMES.has(posix.basename(repoPath))
+    ? AGENT_SNAPSHOT_SUFFIX
+    : "";
+  return `.claude-pr/${repoPath}${suffix}`;
 }
 
 // The snapshot is scoped to tracked repository content and never contains
@@ -206,6 +431,38 @@ function snapshotSensitivePath(
   }
 }
 
+// Remove a repository path without ever resolving through a linked (or
+// non-directory) parent. This matters when the base contains nested
+// instructions below a directory that the PR replaced with a symlink: writing
+// the base file through that parent could modify a path outside the checkout.
+// Obstructing parents are preserved in the review snapshot and returned so
+// callers can keep their restore-induced replacement out of auto-commits.
+function removeInstructionPathSafely(
+  repoPath: string,
+  workTreeRealPath: string,
+  tracked: TrackedPaths,
+): string | null {
+  const parts = repoPath.split("/");
+  for (let end = 1; end < parts.length; end += 1) {
+    const parent = parts.slice(0, end).join("/");
+    const stats = lstatSync(parent, { throwIfNoEntry: false });
+    if (!stats) {
+      return null;
+    }
+    if (!stats.isDirectory()) {
+      const destination = snapshotPath(parent);
+      if (!lstatSync(destination, { throwIfNoEntry: false })) {
+        snapshotSensitivePath(parent, destination, workTreeRealPath, tracked);
+      }
+      rmSync(parent, { recursive: true, force: true });
+      return parent;
+    }
+  }
+
+  rmSync(repoPath, { recursive: true, force: true });
+  return null;
+}
+
 function ensureClaudePrExcludedFromGit(): void {
   const excludePath = execFileSync(
     "git",
@@ -247,12 +504,13 @@ function ensureClaudePrExcludedFromGit(): void {
  * commits with `git add -A`, the revert will be included in that commit. This
  * is a narrow UX tradeoff for closing the RCE surface.
  *
- * Only the paths listed in SENSITIVE_PATHS come from the base branch; the rest
- * of the working tree stays at the PR head. A base-branch hook or setting that
- * calls out through files a PR can change — package-manager scripts
- * (`bun run`, `npm run`, `yarn`, `pnpm run`), Makefile or task-runner targets,
- * repo-relative script paths, or tools that load executable project config —
- * therefore runs whatever the PR head provides. Keep restored hooks
+ * Only the paths listed in SENSITIVE_PATHS and nested instruction files named
+ * AGENTS.md or AGENTS.local.md come from the base branch; the rest of the
+ * working tree stays at the PR head. A base-branch hook or setting that calls
+ * out through files a PR can change — package-manager scripts (`bun run`,
+ * `npm run`, `yarn`, `pnpm run`), Makefile or task-runner targets, repo-relative
+ * script paths, or tools that load executable project config — therefore runs
+ * whatever the PR head provides. Keep restored hooks
  * self-contained: invoke the tool binary directly, pin its version, and pass
  * config on the command line rather than reading it from the checkout. This
  * extends to the runtime itself: `bunx <tool>` runs the tool under `node` when
@@ -267,8 +525,17 @@ function ensureClaudePrExcludedFromGit(): void {
  *   will commit the revert back onto the PR author's branch.
  */
 export function restoreConfigFromBase(baseBranch: string): string[] {
+  const headTreeEntries = listTreeEntries("HEAD");
+  assertPopulatedGitlinksContainNoAgentInstructions(headTreeEntries);
+  const prInstructionPaths = listNestedAgentInstructionFiles(
+    headTreeEntries,
+  ).filter((repoPath) => !isCoveredBySensitivePath(repoPath));
+  const preFetchPaths = uniquePaths([
+    ...SENSITIVE_PATHS,
+    ...prInstructionPaths,
+  ]);
   console.log(
-    `Restoring ${SENSITIVE_PATHS.join(", ")} from origin/${baseBranch} (PR head is untrusted)`,
+    `Restoring ${preFetchPaths.join(", ")} from origin/${baseBranch} (PR head is untrusted)`,
   );
 
   // Snapshot every PR-authored sensitive path into .claude-pr/ before deletion
@@ -276,13 +543,14 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
   // being executed. Captured before the security delete so it reflects the
   // PR-authored version. Links are followed only to tracked, unmodified content
   // inside the working tree; anything else is recorded as a placeholder file,
-  // so the snapshot itself never contains links.
+  // so the snapshot itself never contains links. AGENTS files get a suffix in
+  // the snapshot so inspecting .claude-pr cannot load them as instructions.
   rmSync(".claude-pr", { recursive: true, force: true });
   const workTreeRealPath = realpathSync(process.cwd());
   const tracked = listTrackedPaths();
-  for (const p of SENSITIVE_PATHS) {
+  for (const p of preFetchPaths) {
     if (lstatSync(p, { throwIfNoEntry: false })) {
-      snapshotSensitivePath(p, `.claude-pr/${p}`, workTreeRealPath, tracked);
+      snapshotSensitivePath(p, snapshotPath(p), workTreeRealPath, tracked);
     }
   }
   if (existsSync(".claude-pr")) {
@@ -304,6 +572,17 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
   for (const p of SENSITIVE_PATHS) {
     rmSync(p, { recursive: true, force: true });
   }
+  const removedInstructionParents: string[] = [];
+  for (const p of prInstructionPaths) {
+    const removedParent = removeInstructionPathSafely(
+      p,
+      workTreeRealPath,
+      tracked,
+    );
+    if (removedParent) {
+      removedInstructionParents.push(removedParent);
+    }
+  }
 
   // --no-recurse-submodules: explicitly suppress submodule fetching regardless of
   // fetch.recurseSubmodules config. Defense-in-depth alongside the delete above.
@@ -322,11 +601,55 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
     },
   );
 
-  for (const p of SENSITIVE_PATHS) {
+  const baseRef = `origin/${baseBranch}`;
+  const baseTreeEntries = listTreeEntries(baseRef);
+  const baseInstructionPaths = listNestedAgentInstructionFiles(
+    baseTreeEntries,
+  ).filter((repoPath) => !isCoveredBySensitivePath(repoPath));
+  const baseProtectedPaths = resolveBaseInstructionPaths(
+    baseRef,
+    baseTreeEntries,
+    baseInstructionPaths,
+  ).filter((repoPath) => !isCoveredBySensitivePath(repoPath));
+  const restoredPaths = uniquePaths([
+    ...SENSITIVE_PATHS,
+    ...prInstructionPaths,
+    ...baseProtectedPaths,
+    ...removedInstructionParents,
+  ]);
+
+  // A PR can replace a base directory with a symlink or regular file. Remove
+  // that obstruction itself before checkout, never a child reached through it.
+  // Report the parent as restored too so auto-commit excludes the resulting
+  // type change rather than pushing it back to the contributor's branch.
+  for (const p of baseProtectedPaths) {
+    const destination = snapshotPath(p);
+    if (
+      lstatSync(p, { throwIfNoEntry: false }) &&
+      !lstatSync(destination, { throwIfNoEntry: false })
+    ) {
+      snapshotSensitivePath(p, destination, workTreeRealPath, tracked);
+    }
+    const removedParent = removeInstructionPathSafely(
+      p,
+      workTreeRealPath,
+      tracked,
+    );
+    if (removedParent) {
+      restoredPaths.push(removedParent);
+    }
+  }
+  if (existsSync(".claude-pr")) {
+    ensureClaudePrExcludedFromGit();
+  }
+
+  for (const p of uniquePaths([...SENSITIVE_PATHS, ...baseProtectedPaths])) {
     try {
-      execFileSync("git", ["checkout", `origin/${baseBranch}`, "--", p], {
-        stdio: "pipe",
-      });
+      execFileSync(
+        "git",
+        ["checkout", `origin/${baseBranch}`, "--", `:(literal)${p}`],
+        { stdio: "pipe" },
+      );
     } catch {
       // Path doesn't exist on base — it stays deleted.
     }
@@ -335,9 +658,15 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
   // `git checkout <ref> -- <path>` stages the restored files. Unstage so the
   // revert doesn't silently leak into commits the CLI makes later.
   try {
-    execFileSync("git", ["reset", "--", ...SENSITIVE_PATHS], {
-      stdio: "pipe",
-    });
+    execFileSync(
+      "git",
+      [
+        "reset",
+        "--",
+        ...uniquePaths(restoredPaths).map((p) => `:(literal)${p}`),
+      ],
+      { stdio: "pipe" },
+    );
   } catch {
     // Nothing was staged, or paths don't exist on HEAD — either is fine.
   }
@@ -345,5 +674,5 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
   // Every sensitive path is reported, not just the ones that changed: the
   // restore also deletes paths the PR added that are absent on base, and those
   // deletions are stageable too.
-  return [...SENSITIVE_PATHS];
+  return uniquePaths(restoredPaths);
 }
