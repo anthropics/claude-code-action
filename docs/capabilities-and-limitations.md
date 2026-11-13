@@ -15,12 +15,15 @@
 
 ## What Claude Cannot Do
 
+The action doesn't give Claude tools for these. In [auto mode](./usage.md#permission-mode), the default, a tool call outside your allow rules can still run if the safety review passes it. For a strict list, use `--permission-mode acceptEdits`.
+
 - **Submit PR Reviews**: Claude cannot submit formal GitHub PR reviews
 - **Approve PRs**: For security reasons, Claude cannot approve pull requests
+- **Push to Other Branches**: By default, Claude can only push to the branch it was set up on: a new branch for an issue or closed PR, or the branch of an open PR. For a PR from a fork, that is a `pr-N` branch in your repository, and the fork's branch is not updated
 - **Post Multiple Comments**: Claude only acts by updating its initial comment
 - **Execute Commands Outside Its Context**: Claude only has access to the repository and PR/issue context it's triggered in
-- **Run Arbitrary Bash Commands**: By default, Claude cannot execute Bash commands unless explicitly allowed using the `allowed_tools` configuration
-- **Perform Branch Operations**: Cannot merge branches, rebase, or perform other git operations beyond pushing commits
+- **Run Bash Commands Unchecked**: A Bash command runs only if an allow rule covers it or the safety review passes it
+- **Perform Branch Operations**: Claude is instructed not to merge branches, rebase, or perform other git operations beyond pushing commits
 
 ## How It Works
 
