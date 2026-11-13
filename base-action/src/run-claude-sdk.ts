@@ -221,6 +221,18 @@ export async function runClaudeWithSdk(
       messages.push(message);
 
       if (message.type === "system" && message.subtype === "init") {
+        for (const { name, status } of message.mcp_servers ?? []) {
+          if (status === "failed") {
+            core.warning(
+              `MCP server ${JSON.stringify(name)} failed to connect. Use --debug-file in claude_args to capture connection details.`,
+            );
+          } else if (status === "needs-auth") {
+            core.warning(
+              `MCP server ${JSON.stringify(name)} requires authentication. Check the credentials configured for this server.`,
+            );
+          }
+        }
+
         // A session that can't use auto mode starts in Manual without an error.
         if (fallbackPermissionMode && message.permissionMode === "default") {
           core.warning(

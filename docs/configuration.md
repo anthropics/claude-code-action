@@ -107,6 +107,14 @@ You can add multiple MCP servers by using multiple `--mcp-config` flags:
 - Your custom servers will override any built-in servers with the same name.
 - The `claude_args` supports multiple `--mcp-config` flags that will be merged together.
 
+### Troubleshooting MCP connections
+
+The action warns when Claude Code reports a failed MCP connection or a server that needs authentication at startup. Servers can also be pending while they connect asynchronously.
+
+For the underlying connection error, append `--debug-file "${{ runner.temp }}/claude-mcp.log"` to your existing `claude_args`. This writes Claude Code's diagnostic log to the runner. Inspect it in a later workflow step using `if: always()` if the action can fail. Debug logs can contain sensitive data, so review them before printing or uploading them.
+
+For a remote server, check that the configured transport matches the endpoint. Use `"type": "http"` for Streamable HTTP endpoints and `"type": "sse"` for endpoints that use the older SSE transport.
+
 ## Additional Permissions for CI/CD Integration
 
 The `additional_permissions` input allows Claude to access GitHub Actions workflow information when you grant the necessary permissions. This is particularly useful for analyzing CI/CD failures and debugging workflow issues.
