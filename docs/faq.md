@@ -10,7 +10,21 @@ The `github-actions` user cannot trigger subsequent GitHub Actions workflows. Th
 
 ### Why does Claude say I don't have permission to trigger it?
 
-Only users with **write permissions** to the repository can trigger Claude. This is a security feature to prevent unauthorized use. Make sure the user commenting has at least write access to the repository.
+By default, the action requires the user who triggered the workflow to have
+write access to the repository. The action checks that user's access separately
+from the workflow token's permissions.
+
+To allow specific trusted contributors without write access, set
+`allowed_non_write_users` to their GitHub usernames, separated by commas, and
+explicitly pass the short-lived workflow token as `github_token`. Keep the job's
+permissions limited to the review task. See the
+[security guidance for non-write users](./security.md#access-control).
+
+```yaml
+with:
+  allowed_non_write_users: "trusted-reviewer"
+  github_token: ${{ secrets.GITHUB_TOKEN }}
+```
 
 ### Why can't I assign @claude to an issue on my repository?
 
