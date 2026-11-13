@@ -8,6 +8,23 @@ This FAQ addresses common questions and gotchas when using the Claude Code GitHu
 
 The `github-actions` user cannot trigger subsequent GitHub Actions workflows. This is a GitHub security feature to prevent infinite loops. To make this work, you need to use a Personal Access Token (PAT) instead, which will act as a regular user, or use a separate app token of your own. When posting a comment on an issue or PR from your workflow, use your PAT instead of the `GITHUB_TOKEN` generated in your workflow.
 
+### Why does a Claude bot reply create a skipped workflow run?
+
+GitHub creates a run for each matching `issue_comment` or `pull_request_review_comment` event, including comments posted by the Claude GitHub App. A job's `if` condition can skip the Claude job, and the skipped run still appears in the Actions tab. See [GitHub's workflow event reference](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#issue_comment).
+
+If a skipped run interferes with an active Claude job, move the workflow's top-level `concurrency` block into the Claude job alongside its `if` condition. For a workflow that listens only for new issue and PR review comments, add these keys to the job:
+
+```yaml
+if: |
+  github.event.comment.user.type != 'Bot' &&
+  contains(github.event.comment.body, '@claude')
+concurrency:
+  group: ${{ github.workflow }}-claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+```
+
+Keep any additional author or event checks from your existing job. A skipped job never enters the concurrency group. Eligible jobs for the same issue or PR share a group, and `cancel-in-progress: false` lets the active job finish. GitHub can still replace a pending job by default. See [GitHub's concurrency documentation](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
+
 ### Why does Claude say I don't have permission to trigger it?
 
 Only users with **write permissions** to the repository can trigger Claude. This is a security feature to prevent unauthorized use. Make sure the user commenting has at least write access to the repository.
