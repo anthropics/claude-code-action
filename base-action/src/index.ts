@@ -56,6 +56,7 @@ async function run() {
       model: process.env.ANTHROPIC_MODEL,
       pathToClaudeCodeExecutable: claudeExecutable,
       showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
+      disallowUnlistedMcpTools: process.env.INPUT_DISALLOW_UNLISTED_MCP_TOOLS,
     });
 
     // Set outputs for the standalone base-action
