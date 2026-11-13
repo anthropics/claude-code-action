@@ -12,7 +12,10 @@ import { spawn } from "child_process";
 import { appendFile } from "fs/promises";
 import { existsSync, readFileSync } from "fs";
 import { setupGitHubToken, WorkflowValidationSkipError } from "../github/token";
-import { checkWritePermissions } from "../github/validation/permissions";
+import {
+  checkBotActorPullRequestAuthor,
+  checkWritePermissions,
+} from "../github/validation/permissions";
 import { getUntrustedPrDisallowedTools } from "../github/validation/untrusted-pr";
 import { createOctokit } from "../github/api/client";
 import type { Octokits } from "../github/api/client";
@@ -29,6 +32,12 @@ import { detectMode } from "../modes/detector";
 import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
 import { checkContainsTrigger } from "../github/validation/trigger";
+import {
+  clearSessionState,
+  disableGitPrograms,
+  prepareGitForSession,
+  snapshotSessionFiles,
+} from "../github/operations/session-guard";
 import { restoreConfigFromBase } from "../github/operations/restore-config";
 import { validateBranchName } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
@@ -78,7 +87,7 @@ async function installClaudeCode(): Promise<string> {
     return customExecutable;
   }
 
-  const claudeCodeVersion = "2.1.322";
+  const claudeCodeVersion = "2.1.323";
   console.log(`Installing Claude Code v${claudeCodeVersion}...`);
 
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -223,7 +232,29 @@ async function run() {
       return;
     }
 
+    const botActorAllowed = await checkBotActorPullRequestAuthor(
+      octokit.rest,
+      context,
+      context.inputs.allowedNonWriteUsers,
+      !!process.env.OVERRIDE_GITHUB_TOKEN,
+    );
+    if (!botActorAllowed) {
+      throw new Error(
+        "A bot acted on this pull request, but its author does not have write access",
+      );
+    }
+
     // Run prepare
+    // Commands that run checkout code are denied on PRs from authors without write
+    // access. Hooks go off here, before the action checks out such a PR's head, and
+    // keep running for trusted authors, whose repositories may rely on them.
+    const untrustedPrDisallowedTools = isEntityContext(context)
+      ? await getUntrustedPrDisallowedTools(octokit.rest, context)
+      : [];
+    const hooksOff = untrustedPrDisallowedTools.length > 0;
+    disableGitPrograms({ hooks: hooksOff });
+    clearSessionState();
+
     console.log(
       `Preparing with mode: ${modeName} for event: ${context.eventName}`,
     );
@@ -292,27 +323,37 @@ async function run() {
       promptFile,
     });
 
-    // Deny commands that run checkout code on PRs from authors without write
-    // access. These are passed separately because text added to claudeArgs can
-    // be lost: a comment at the end of the user's claude_args would swallow it.
     // Tag mode sets claudeBranch only when it branched from the base instead of
-    // checking out the PR's head, as for a closed or merged PR.
+    // checking out the PR's head, as for a closed or merged PR. The deny rules are
+    // passed separately because text added to claudeArgs can be lost: a comment at
+    // the end of the user's claude_args would swallow it.
     const checkedOutPrHead = modeName !== "tag" || !claudeBranch;
-    const disallowedTools =
-      isEntityContext(context) && checkedOutPrHead
-        ? await getUntrustedPrDisallowedTools(octokit.rest, context)
-        : [];
+    const disallowedTools = checkedOutPrHead ? untrustedPrDisallowedTools : [];
 
-    const claudeResult: ClaudeRunResult = await runClaude(promptConfig.path, {
-      claudeArgs: prepareResult.claudeArgs,
-      disallowedTools: disallowedTools.join(","),
-      appendSystemPrompt: process.env.APPEND_SYSTEM_PROMPT,
-      model: process.env.ANTHROPIC_MODEL,
-      pathToClaudeCodeExecutable: claudeExecutable,
-      showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
-      // Tag mode has no allow rules for file edits, so it needs a mode that allows them.
-      ...(modeName === "tag" && { fallbackPermissionMode: "acceptEdits" }),
-    });
+    const restoreSessionFiles = snapshotSessionFiles(() =>
+      prepareGitForSession({ hooks: hooksOff }),
+    );
+
+    let claudeResult: ClaudeRunResult;
+    try {
+      claudeResult = await runClaude(promptConfig.path, {
+        claudeArgs: prepareResult.claudeArgs,
+        disallowedTools: disallowedTools.join(","),
+        appendSystemPrompt: process.env.APPEND_SYSTEM_PROMPT,
+        model: process.env.ANTHROPIC_MODEL,
+        pathToClaudeCodeExecutable: claudeExecutable,
+        showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
+        // Tag mode has no allow rules for file edits, so it needs a mode that allows them.
+        ...(modeName === "tag" && { fallbackPermissionMode: "acceptEdits" }),
+      });
+    } finally {
+      restoreSessionFiles();
+      // The action's own git commands from here on hold the job's credentials,
+      // and the session could have edited a tracked hook.
+      disableGitPrograms({ hooks: true });
+      // Revoking the app token depends on this output, and a session can write it.
+      core.setOutput("skipped_due_to_workflow_validation_mismatch", "false");
+    }
 
     claudeSuccess = claudeResult.conclusion === "success";
     executionFile = claudeResult.executionFile;
@@ -339,6 +380,7 @@ async function run() {
     core.setFailed(`Action failed with error: ${redactSecrets(errorMessage)}`);
   } finally {
     // Phase 4: Cleanup (always runs)
+    clearSessionState();
 
     // Stop refreshing the workload identity token file and delete the token
     // material so it doesn't outlive this step

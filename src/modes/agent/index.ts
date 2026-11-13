@@ -8,8 +8,7 @@ import {
 } from "../../github/operations/git-config";
 import { checkHumanActor } from "../../github/validation/actor";
 import { defaultsToAutoMode } from "../permission-mode";
-import { isEntityContext } from "../../github/context";
-import type { GitHubContext } from "../../github/context";
+import { isEntityContext, type GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
 
 const PULL_REQUEST_REVIEW_COMMAND = /(^|\s)\/(code-review|review-pr)(\s|$)/;
@@ -52,6 +51,29 @@ async function getPullRequestChangedFiles(
   });
 
   return files.map((file) => file.filename);
+}
+
+/**
+ * Commits made through the API land on the branch of this name in this repository,
+ * so a run on a pull request or issue has to use its own branch. A fork's branch name
+ * means nothing here, and a comment event only knows the default branch. Tag mode uses
+ * pr-N too.
+ */
+function getEntityBranch(context: GitHubContext): string | undefined {
+  if (!isEntityContext(context)) {
+    return process.env.GITHUB_HEAD_REF;
+  }
+  if (!context.isPR) {
+    return `issue-${context.entityNumber}`;
+  }
+  const head =
+    "pull_request" in context.payload
+      ? context.payload.pull_request.head
+      : undefined;
+  const isSameRepository =
+    head?.repo?.full_name?.toLowerCase() ===
+    context.repository.full_name.toLowerCase();
+  return isSameRepository && head ? head.ref : `pr-${context.entityNumber}`;
 }
 
 /**
@@ -151,7 +173,7 @@ export async function prepareAgentMode({
   // Detect current branch from GitHub environment
   const currentBranch =
     claudeBranch ||
-    process.env.GITHUB_HEAD_REF ||
+    getEntityBranch(context) ||
     process.env.GITHUB_REF_NAME ||
     defaultBranch;
 

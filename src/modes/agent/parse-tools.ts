@@ -1,6 +1,7 @@
 import { parse as parseShellArgs } from "shell-quote";
 import {
   escapeShellMeta,
+  parseClaudeArgsToExtraArgs,
   unescapeShellMeta,
 } from "../../../base-action/src/parse-sdk-options";
 
@@ -82,4 +83,54 @@ export function parseAllowedTools(claudeArgs: string): string[] {
   }
 
   return tools;
+}
+
+/**
+ * The patterns of the `Bash(...)` deny rules in a claude_args string. It reads the
+ * arguments the same way as the code that passes them to the CLI, including the
+ * `--disallowedTools=...` form, so it sees every rule the CLI receives.
+ */
+export function parseDeniedBashPatterns(claudeArgs: string): string[] {
+  const values = Object.entries(parseClaudeArgsToExtraArgs(claudeArgs)).flatMap(
+    ([key, value]) => {
+      const [flag, inlineValue] = key.split(/=(.*)/s);
+      return flag === "disallowedTools" || flag === "disallowed-tools"
+        ? [inlineValue ?? "", value ?? ""]
+        : [];
+    },
+  );
+  return values.flatMap((value) =>
+    [...value.matchAll(/Bash\(([^)]*)\)/g)].map((match) => match[1]!),
+  );
+}
+
+/**
+ * The deny rules a wrapper needs so a workflow's rules for the command it runs still
+ * apply: all of it for a rule that covers every use, otherwise each narrower form, so
+ * `git add -A:*` becomes `<wrapper> -A:*`.
+ */
+export function wrapperDenyRules(
+  patterns: string[],
+  command: string,
+  wrapper: string,
+): string[] {
+  if (deniesCommand(patterns, command)) return [`Bash(${wrapper}:*)`];
+  return patterns
+    .filter((pattern) => pattern.startsWith(`${command} `))
+    .map((pattern) => `Bash(${wrapper}${pattern.slice(command.length)})`);
+}
+
+/**
+ * Whether a Bash deny pattern covers every use of a command. Narrower patterns,
+ * such as `git commit --amend:*`, don't count.
+ */
+export function deniesCommand(patterns: string[], command: string): boolean {
+  return patterns.some((pattern) => {
+    const escape = (text: string) => text.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+    const toRegex = (glob: string) => glob.split("*").map(escape).join(".*");
+    const source = pattern.endsWith(":*")
+      ? `${toRegex(pattern.slice(0, -2))}( .*)?`
+      : toRegex(pattern);
+    return new RegExp(`^${source}$`, "s").test(`${command} \0`);
+  });
 }

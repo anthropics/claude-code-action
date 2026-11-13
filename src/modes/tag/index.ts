@@ -1,5 +1,6 @@
 import { checkHumanActor } from "../../github/validation/actor";
 import { defaultsToAutoMode } from "../permission-mode";
+import { pinPushBranch } from "../../github/operations/session-guard";
 import { createInitialComment } from "../../github/operations/comments/create-initial";
 import { setupBranch } from "../../github/operations/branch";
 import {
@@ -23,7 +24,11 @@ import {
 import { updateClaudeComment } from "../../github/operations/comments/update-claude-comment";
 import type { GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
-import { parseAllowedTools } from "../agent/parse-tools";
+import {
+  parseAllowedTools,
+  parseDeniedBashPatterns,
+  wrapperDenyRules,
+} from "../agent/parse-tools";
 
 /**
  * Prepares the tag mode execution context.
@@ -154,7 +159,14 @@ export async function prepareTagMode({
     tool.startsWith("mcp__github_"),
   );
 
+  const sessionBranch = branchInfo.claudeBranch || branchInfo.currentBranch;
+  // scripts/git-push.sh refuses to update any other branch.
+  pinPushBranch(sessionBranch);
+
+  const gitAddWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-add.sh`;
+  const gitRmWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-rm.sh`;
   const gitPushWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-push.sh`;
+  const gitCommitWrapper = `${process.env.GITHUB_ACTION_PATH}/scripts/git-commit.sh`;
 
   // Build claude_args for tag mode with required tools.
   // Edit/MultiEdit/Write are intentionally omitted: the permission mode (set below) allows
@@ -176,10 +188,10 @@ export async function prepareTagMode({
   // SSH signing still uses git CLI, just with signing enabled
   if (!useApiCommitSigning) {
     tagModeTools.push(
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
+      `Bash(${gitAddWrapper}:*)`,
+      `Bash(${gitCommitWrapper}:*)`,
       `Bash(${gitPushWrapper}:*)`,
-      "Bash(git rm:*)",
+      `Bash(${gitRmWrapper}:*)`,
     );
   } else {
     // When using API commit signing, use MCP file ops tools
@@ -194,7 +206,7 @@ export async function prepareTagMode({
     githubToken,
     owner: context.repository.owner,
     repo: context.repository.repo,
-    branch: branchInfo.claudeBranch || branchInfo.currentBranch,
+    branch: sessionBranch,
     baseBranch: branchInfo.baseBranch,
     claudeCommentId: commentId.toString(),
     allowedTools: Array.from(new Set(tagModeTools)),
@@ -216,6 +228,24 @@ export async function prepareTagMode({
   // prompt handler, so anything that falls through to "ask" is denied.
   const permissionMode = defaultsToAutoMode() ? "auto" : "acceptEdits";
   claudeArgs += ` --permission-mode ${permissionMode} --allowedTools "${tagModeTools.join(",")}"`;
+
+  // Deny rules match the command's text, so a workflow's deny of a git command
+  // wouldn't match the wrapper that runs it. Deny the wrappers too.
+  const userDeniedTools = parseDeniedBashPatterns(userClaudeArgs);
+  const wrappers: [string, string][] = [
+    ["git commit", gitCommitWrapper],
+    ["git push", gitPushWrapper],
+    ["git add", gitAddWrapper],
+    ["git rm", gitRmWrapper],
+  ];
+  const deniedWrappers = wrappers.flatMap(([command, wrapper]) =>
+    wrapperDenyRules(userDeniedTools, command, wrapper),
+  );
+  if (deniedWrappers.length > 0) {
+    // A narrower rule can hold quotes or a $, and this string gets parsed again.
+    const rules = deniedWrappers.join(",").replace(/'/g, "'\\''");
+    claudeArgs += ` --disallowedTools '${rules}'`;
+  }
 
   // Append user's claude_args (which may have more --mcp-config flags, or another
   // --permission-mode, where the last one wins)

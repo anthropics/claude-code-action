@@ -1,5 +1,81 @@
 import { describe, test, expect } from "bun:test";
-import { parseAllowedTools } from "../../src/modes/agent/parse-tools";
+import {
+  deniesCommand,
+  wrapperDenyRules,
+  parseAllowedTools,
+  parseDeniedBashPatterns,
+} from "../../src/modes/agent/parse-tools";
+
+describe("parseDeniedBashPatterns", () => {
+  test.each([
+    [`--disallowedTools "Bash(git commit:*)"`, ["git commit:*"]],
+    [`--disallowed-tools "Bash(git commit:*)"`, ["git commit:*"]],
+    [`--disallowedTools Bash(git:*)`, ["git:*"]],
+    [`--disallowedTools="Bash(git commit:*)"`, ["git commit:*"]],
+    [`--disallowedTools "Bash(a:*),WebFetch,Bash(b:*)"`, ["a:*", "b:*"]],
+    [`--disallowedTools "Bash(a:*) Bash(b:*)"`, ["a:*", "b:*"]],
+    [`--disallowedTools "Bash(a:*)" "Bash(b:*)"`, ["a:*", "b:*"]],
+    [`--disallowedTools Bash(a:*) --disallowedTools Bash(b:*)`, ["a:*", "b:*"]],
+    [`--allowedTools "Bash(git commit:*)"`, []],
+    [`# --disallowedTools "Bash(git commit:*)"`, []],
+    ["", []],
+  ])("reads %s", (args, expected) => {
+    expect(parseDeniedBashPatterns(args as string)).toEqual(
+      expected as string[],
+    );
+  });
+});
+
+describe("deniesCommand", () => {
+  test.each([
+    "git commit:*",
+    "git commit *",
+    "git commit*",
+    "git comm*",
+    "gi*",
+    "*git commit*",
+    "git:*",
+    "git *",
+    "*",
+  ])("%p covers git commit", (pattern) => {
+    expect(deniesCommand([pattern], "git commit")).toBe(true);
+  });
+
+  test.each([
+    "git commit --amend:*",
+    "git commit x:*",
+    "git commit x*",
+    "git committed:*",
+    "git commit",
+    "git push:*",
+    "gi:*",
+    "git.commit:*",
+    "",
+  ])("%p doesn't cover git commit", (pattern) => {
+    expect(deniesCommand([pattern], "git commit")).toBe(false);
+  });
+});
+
+describe("wrapperDenyRules", () => {
+  const rules = (...patterns: string[]) =>
+    wrapperDenyRules(patterns, "git add", "/a/git-add.sh");
+
+  test("denies the whole wrapper for a rule that covers every use", () => {
+    expect(rules("git add:*")).toEqual(["Bash(/a/git-add.sh:*)"]);
+    expect(rules("git:*", "git add -A:*")).toEqual(["Bash(/a/git-add.sh:*)"]);
+  });
+
+  test("keeps the arguments of a narrower rule", () => {
+    expect(rules("git add -A:*", "git add .")).toEqual([
+      "Bash(/a/git-add.sh -A:*)",
+      "Bash(/a/git-add.sh .)",
+    ]);
+  });
+
+  test("ignores rules for other commands", () => {
+    expect(rules("git push:*", "git addendum:*", "")).toEqual([]);
+  });
+});
 
 describe("parseAllowedTools", () => {
   test("keeps unquoted Bash rules whole", () => {
