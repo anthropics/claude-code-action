@@ -10,6 +10,7 @@ import {
   isPullRequestReviewCommentEvent,
 } from "../context";
 import type { ParsedGitHubContext } from "../context";
+import { isSameLogin } from "./actor";
 
 /**
  * Matches the trigger phrase as a whole token: preceded by start-of-string or
@@ -27,34 +28,63 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     inputs: { assigneeTrigger, labelTrigger, triggerPhrase, prompt },
   } = context;
 
-  const triggerRegex = buildTriggerRegex(triggerPhrase);
+  // Deleting or editing someone else's comment or review fires these events with
+  // the moderator as the actor. The text must come from the person who was checked.
+  if (
+    (isIssueCommentEvent(context) ||
+      isPullRequestReviewCommentEvent(context)) &&
+    (context.eventAction === "deleted" ||
+      !isSameLogin(context.payload.comment.user?.login, context.actor))
+  ) {
+    console.log("Comment was not written by the actor, or was deleted");
+    return false;
+  }
+  if (
+    isPullRequestReviewEvent(context) &&
+    !isSameLogin(context.payload.review.user?.login, context.actor)
+  ) {
+    console.log("Review was written by someone other than the actor");
+    return false;
+  }
 
-  // If prompt is provided, always trigger
+  // A prompt replaces the trigger phrase, but a configured label or assignee
+  // still decides which label or assignment event starts a run. Otherwise any
+  // triage action on an issue would start one.
   if (prompt) {
+    if (
+      isIssuesEvent(context) &&
+      context.eventAction === "labeled" &&
+      labelTrigger &&
+      !matchesLabelTrigger(context, labelTrigger)
+    ) {
+      console.log(`Issue label is not the trigger label '${labelTrigger}'`);
+      return false;
+    }
+    if (
+      isIssuesAssignedEvent(context) &&
+      assigneeTrigger &&
+      !matchesAssigneeTrigger(context, assigneeTrigger)
+    ) {
+      console.log(`Issue was not assigned to '${assigneeTrigger}'`);
+      return false;
+    }
     console.log(`Prompt provided, triggering action`);
     return true;
   }
 
+  const triggerRegex = buildTriggerRegex(triggerPhrase);
+
   // Check for assignee trigger
   if (isIssuesAssignedEvent(context)) {
-    // Remove @ symbol from assignee_trigger if present
-    let triggerUser = assigneeTrigger.replace(/^@/, "");
-    const assigneeUsername = context.payload.assignee?.login || "";
-
-    if (triggerUser && assigneeUsername === triggerUser) {
-      console.log(`Issue assigned to trigger user '${triggerUser}'`);
+    if (matchesAssigneeTrigger(context, assigneeTrigger)) {
+      console.log(`Issue assigned to trigger user '${assigneeTrigger}'`);
       return true;
     }
   }
 
   // Check for label trigger
   if (isIssuesEvent(context) && context.eventAction === "labeled") {
-    const labelName = (context.payload as any).label?.name || "";
-
-    if (
-      labelTrigger &&
-      labelName.toLowerCase() === labelTrigger.toLowerCase()
-    ) {
+    if (matchesLabelTrigger(context, labelTrigger)) {
       console.log(`Issue labeled with trigger label '${labelTrigger}'`);
       return true;
     }
@@ -133,6 +163,26 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   console.log(`No trigger was met for ${triggerPhrase}`);
 
   return false;
+}
+
+function matchesLabelTrigger(
+  context: ParsedGitHubContext,
+  labelTrigger: string,
+): boolean {
+  const labelName = (context.payload as any).label?.name || "";
+  return (
+    !!labelTrigger && labelName.toLowerCase() === labelTrigger.toLowerCase()
+  );
+}
+
+function matchesAssigneeTrigger(
+  context: ParsedGitHubContext,
+  assigneeTrigger: string,
+): boolean {
+  // Remove @ symbol from assignee_trigger if present
+  const triggerUser = assigneeTrigger.replace(/^@/, "");
+  const assigneeUsername = (context.payload as any).assignee?.login || "";
+  return !!triggerUser && assigneeUsername === triggerUser;
 }
 
 export function escapeRegExp(string: string) {

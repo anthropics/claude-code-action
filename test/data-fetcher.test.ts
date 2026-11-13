@@ -182,25 +182,72 @@ describe("resolveTriggerTimestamp", () => {
     };
   };
 
+  it("should match an assignment by its assigner when the actor is the assignee", async () => {
+    const { octokits } = createEventsOctokits([
+      {
+        event: "assigned",
+        actor: { login: "claude-bot" },
+        assignee: { login: "claude-bot" },
+        assigner: { login: "admin-user" },
+        created_at: "2024-01-15T11:50:00Z",
+      },
+    ]);
+
+    const timestamp = await resolveTriggerTimestamp(
+      mockIssueAssignedContext,
+      octokits,
+    );
+
+    expect(timestamp).toBe("2024-01-15T11:50:00Z");
+  });
+
+  it("should ignore a later matching event from someone other than the actor", async () => {
+    const { octokits } = createEventsOctokits([
+      {
+        event: "labeled",
+        actor: { login: "admin-user" },
+        label: { name: "claude-task" },
+        created_at: "2024-01-15T11:45:00Z",
+      },
+      {
+        event: "labeled",
+        actor: { login: "triage-user" },
+        label: { name: "claude-task" },
+        created_at: "2024-01-15T12:30:00Z",
+      },
+    ]);
+
+    const timestamp = await resolveTriggerTimestamp(
+      mockIssueLabeledContext,
+      octokits,
+    );
+
+    expect(timestamp).toBe("2024-01-15T11:45:00Z");
+  });
+
   it("should use the labeled event time for issues labeled event", async () => {
     const { octokits, paginate } = createEventsOctokits([
       {
         event: "labeled",
+        actor: { login: "admin-user" },
         label: { name: "other-label" },
         created_at: "2024-01-15T10:45:00Z",
       },
       {
         event: "labeled",
+        actor: { login: "admin-user" },
         label: { name: "claude-task" },
         created_at: "2024-01-15T10:50:00Z",
       },
       {
         event: "labeled",
+        actor: { login: "admin-user" },
         label: { name: "claude-task" },
         created_at: "2024-01-15T11:45:00Z",
       },
       {
         event: "assigned",
+        actor: { login: "admin-user" },
         assignee: { login: "claude-bot" },
         created_at: "2024-01-15T11:50:00Z",
       },
@@ -224,11 +271,13 @@ describe("resolveTriggerTimestamp", () => {
     const { octokits } = createEventsOctokits([
       {
         event: "assigned",
+        actor: { login: "admin-user" },
         assignee: { login: "someone-else" },
         created_at: "2024-01-15T10:40:00Z",
       },
       {
         event: "assigned",
+        actor: { login: "admin-user" },
         assignee: { login: "claude-bot" },
         created_at: "2024-01-15T11:05:00Z",
       },
@@ -248,6 +297,7 @@ describe("resolveTriggerTimestamp", () => {
     const { octokits } = createEventsOctokits([
       {
         event: "labeled",
+        actor: { login: "admin-user" },
         label: { name: "claude-task" },
         created_at: "2024-01-15T10:50:00Z",
       },
@@ -265,6 +315,7 @@ describe("resolveTriggerTimestamp", () => {
     const { octokits } = createEventsOctokits([
       {
         event: "labeled",
+        actor: { login: "admin-user" },
         label: { name: "unrelated" },
         created_at: "2024-01-15T10:45:00Z",
       },
@@ -1003,6 +1054,7 @@ describe("fetchGitHubData integration with time filtering", () => {
         paginate: jest.fn().mockResolvedValue([
           {
             event: "labeled",
+            actor: { login: "admin-user" },
             label: { name: "claude-task" },
             created_at: "2024-01-15T11:45:00Z",
           },
