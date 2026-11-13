@@ -108,12 +108,8 @@ export async function prepareMcpConfig(
       mcpServers: {},
     };
 
-    // Include comment server:
-    // - Always in tag mode (for updating Claude comments)
-    // - Only with explicit tools in agent mode
-    const shouldIncludeCommentServer = !isAgentMode || hasGitHubCommentTools;
-
-    if (shouldIncludeCommentServer) {
+    // The comment server updates a tracking comment created during preparation.
+    if (claudeCommentId && (!isAgentMode || hasGitHubCommentTools)) {
       baseMcpConfig.mcpServers.github_comment = {
         command: "bun",
         args: bunServerArgs("src/mcp/github-comment-server.ts"),
@@ -121,11 +117,15 @@ export async function prepareMcpConfig(
           GITHUB_TOKEN: githubToken,
           REPO_OWNER: owner,
           REPO_NAME: repo,
-          ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
+          CLAUDE_COMMENT_ID: claudeCommentId,
           GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
           GITHUB_API_URL: GITHUB_API_URL,
         },
       };
+    } else if (hasGitHubCommentTools) {
+      core.warning(
+        "The github_comment tools require a tracking comment. Set track_progress: true on a supported event to enable them.",
+      );
     }
 
     // Include file ops server when commit signing is enabled
