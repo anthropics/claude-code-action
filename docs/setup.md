@@ -223,6 +223,21 @@ We also recommend that you always use short-lived tokens when possible
    - OAuth Token: Name: `CLAUDE_CODE_OAUTH_TOKEN`, Value: Your Claude Code OAuth token (Pro and Max users can generate this by running `claude setup-token` locally)
 5. Click "Add secret"
 
+### Reviewing Dependabot pull requests
+
+For `pull_request` workflows triggered by Dependabot, GitHub fills the
+`secrets` context from Dependabot secrets. If your review workflow also runs
+for other contributors, add the credential it uses under **Settings →
+Secrets and variables → Dependabot** with the same name as its Actions secret
+(`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`). Both runs can then use the
+same `secrets` expression.
+
+To let Dependabot trigger the action, set `allowed_bots: "dependabot[bot]"`.
+Dependabot's `GITHUB_TOKEN` is read-only by default, so check the workflow's
+permissions if it posts review comments. See
+[GitHub's Dependabot workflow troubleshooting guide](https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/dependabot-on-actions)
+for the secret and token rules.
+
 ### Best Practices for Authentication
 
 1. ✅ Always use `${{ secrets.ANTHROPIC_API_KEY }}` or `${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}` in workflows
