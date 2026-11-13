@@ -72,6 +72,7 @@ export async function prepareTagMode({
     originalBody,
     includeCommentsByActor: context.inputs.includeCommentsByActor,
     excludeCommentsByActor: context.inputs.excludeCommentsByActor,
+    excludeChangedFiles: context.inputs.excludeChangedFiles,
   });
 
   // Setup branch

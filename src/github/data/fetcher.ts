@@ -387,6 +387,7 @@ type FetchDataParams = {
   originalBody?: string | null;
   includeCommentsByActor?: string;
   excludeCommentsByActor?: string;
+  excludeChangedFiles?: string;
 };
 
 export type GitHubFileWithSHA = GitHubFile & {
@@ -398,6 +399,7 @@ export type FetchDataResult = {
   comments: GitHubComment[];
   changedFiles: GitHubFile[];
   changedFilesWithSHA: GitHubFileWithSHA[];
+  excludedChangedFileCount?: number;
   reviewData: { nodes: GitHubReview[] } | null;
   imageUrlMap: Map<string, string>;
   triggerDisplayName?: string | null;
@@ -414,6 +416,7 @@ export async function fetchGitHubData({
   originalBody,
   includeCommentsByActor,
   excludeCommentsByActor,
+  excludeChangedFiles,
 }: FetchDataParams): Promise<FetchDataResult> {
   const [owner, repo] = repository.split("/");
   if (!owner || !repo) {
@@ -490,6 +493,18 @@ export async function fetchGitHubData({
   } catch (error) {
     console.error(`Failed to fetch ${isPR ? "PR" : "issue"} data:`, error);
     throw new Error(`Failed to fetch ${isPR ? "PR" : "issue"} data`);
+  }
+
+  const changedFileCount = changedFiles.length;
+  if (excludeChangedFiles && changedFileCount > 0) {
+    const patterns = excludeChangedFiles
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((pattern) => new Bun.Glob(pattern));
+    changedFiles = changedFiles.filter(
+      (file) => !patterns.some((pattern) => pattern.match(file.path)),
+    );
   }
 
   // Compute SHAs for changed files
@@ -648,6 +663,7 @@ export async function fetchGitHubData({
     comments,
     changedFiles,
     changedFilesWithSHA,
+    excludedChangedFileCount: changedFileCount - changedFiles.length,
     reviewData,
     imageUrlMap,
     triggerDisplayName,

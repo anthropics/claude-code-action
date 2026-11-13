@@ -1070,4 +1070,10 @@ describe("formatChangedFilesWithSHA", () => {
     const result = formatChangedFilesWithSHA([]);
     expect(result).toBe("");
   });
+
+  test("reports omitted files when every path is filtered", () => {
+    expect(formatChangedFilesWithSHA([], 2)).toBe(
+      "Workflow filters omitted 2 of the changed files.",
+    );
+  });
 });
