@@ -444,7 +444,89 @@ describe("parseSdkOptions", () => {
     });
   });
 
+  describe("plugin-dir handling", () => {
+    test("should accumulate multiple plugin-dir flags into plugins", () => {
+      const options: ClaudeOptions = {
+        claudeArgs:
+          '--plugin-dir "/path/to/plugin-a"\n--plugin-dir "/path/to/plugin-b" --plugin-dir "/path/to/plugin-c"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.plugins).toEqual([
+        { type: "local", path: "/path/to/plugin-a" },
+        { type: "local", path: "/path/to/plugin-b" },
+        { type: "local", path: "/path/to/plugin-c" },
+      ]);
+      expect(result.sdkOptions.extraArgs?.["plugin-dir"]).toBeUndefined();
+    });
+
+    test("should map a single plugin-dir flag to plugins", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: '--plugin-dir "/path/to/plugin"',
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.plugins).toEqual([
+        { type: "local", path: "/path/to/plugin" },
+      ]);
+      expect(result.sdkOptions.extraArgs?.["plugin-dir"]).toBeUndefined();
+    });
+
+    test("should preserve other extraArgs when extracting plugin-dir", () => {
+      const options: ClaudeOptions = {
+        claudeArgs: `--plugin-dir "/path/to/plugin-a" --json-schema '{"type":"object"}' --plugin-dir "/path/to/plugin-b"`,
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.plugins).toEqual([
+        { type: "local", path: "/path/to/plugin-a" },
+        { type: "local", path: "/path/to/plugin-b" },
+      ]);
+      expect(result.sdkOptions.extraArgs?.["json-schema"]).toBe(
+        '{"type":"object"}',
+      );
+      expect(result.sdkOptions.extraArgs?.["plugin-dir"]).toBeUndefined();
+    });
+
+    test("should leave a bare plugin-dir flag for the CLI to reject", () => {
+      // e.g. `--plugin-dir ${{ vars.PLUGIN }}` with the variable unset
+      const options: ClaudeOptions = {
+        claudeArgs: "--plugin-dir",
+      };
+
+      const result = parseSdkOptions(options);
+
+      expect(result.sdkOptions.plugins).toBeUndefined();
+      expect(result.sdkOptions.extraArgs?.["plugin-dir"]).toBeNull();
+    });
+  });
+
   describe("other extraArgs passthrough", () => {
+    test("should not leave NUL-joined values in extraArgs", () => {
+      // Each extraArgs value is spawned as a single CLI argument, and spawn
+      // rejects arguments containing null bytes (ERR_INVALID_ARG_VALUE), so
+      // every repeated accumulating flag must be unpacked before the SDK call.
+      const options: ClaudeOptions = {
+        claudeArgs: [
+          "--allowedTools Edit --allowedTools Read",
+          "--allowed-tools Glob --allowed-tools Grep",
+          "--disallowedTools Bash --disallowedTools Write",
+          "--disallowed-tools WebFetch --disallowed-tools WebSearch",
+          `--mcp-config '{"mcpServers":{"a":{}}}' --mcp-config '{"mcpServers":{"b":{}}}'`,
+          "--add-dir ./dir-a --add-dir ./dir-b",
+          "--plugin-dir ./plugin-a --plugin-dir ./plugin-b",
+        ].join("\n"),
+      };
+
+      const result = parseSdkOptions(options);
+
+      const values = Object.values(result.sdkOptions.extraArgs ?? {});
+      expect(values.filter((value) => value?.includes("\x00"))).toEqual([]);
+    });
+
     test("should pass through json-schema in extraArgs", () => {
       const options: ClaudeOptions = {
         claudeArgs: `--json-schema '{"type":"object"}'`,
