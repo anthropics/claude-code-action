@@ -18,6 +18,7 @@ import {
   toolConfigDenyRules,
   restoreToolConfigFromBase,
 } from "../src/github/operations/tool-config";
+import { restoreConfigFromBase } from "../src/github/operations/restore-config";
 
 describe("restoreToolConfigFromBase", () => {
   let originalCwd: string;
@@ -239,6 +240,36 @@ describe("restoreToolConfigFromBase", () => {
     expect(read(".npmrc")).toBe("base\n");
   });
 
+  test("replaces a directory that holds a package.json too", () => {
+    write(".npmrc", "base\n");
+    startPr();
+    rmSync(".npmrc");
+    write(".npmrc/package.json", "{}");
+    commit("pr");
+
+    restoreToolConfigFromBase("main");
+
+    expect(read(".npmrc")).toBe("base\n");
+  });
+
+  test("rewrites an unchanged file that .gitattributes re-encodes", () => {
+    write(".npmrc", "ignore-scripts=true\n");
+    startPr();
+    write(".gitattributes", ".npmrc working-tree-encoding=UTF-16LE-BOM\n");
+    git("add", ".gitattributes");
+    git("commit", "-qm", "pr");
+    expect(git("rev-parse", "HEAD:.npmrc")).toBe(
+      git("rev-parse", "main:.npmrc"),
+    );
+    rmSync(".npmrc");
+    git("checkout", "--", ".npmrc");
+    expect(read(".npmrc")).not.toBe("ignore-scripts=true\n");
+
+    expect(restoreToolConfigFromBase("main")).toEqual([".npmrc"]);
+
+    expect(read(".npmrc")).toBe("ignore-scripts=true\n");
+  });
+
   test("matches names without regard to case", () => {
     write(".npmrc", "base\n");
     startPr();
@@ -431,10 +462,31 @@ describe("restoreToolConfigFromBase", () => {
       write("pkgs/p/package.json", tool);
       commit("pr2");
       expect(restoreToolConfigFromBase("main")).toEqual(["package.json"]);
-      expect(JSON.parse(read("pkgs/p/package.json"))).toEqual({ version: "1" });
+      expect(JSON.parse(read("pkgs/p/package.json"))).toEqual({
+        name: "tool",
+        version: "1",
+      });
       expect(JSON.parse(read(".claude-pr/pkgs/p/package.json")).name).toBe(
         "tool",
       );
+    });
+
+    test("leaves what the base branch's .claude and .husky hold", () => {
+      const base = '{"name":"hooks","bin":"a.js","scripts":{"check":"base"}}';
+      write("package.json", '{"name":"x","workspaces":["pkgs/*"]}');
+      write(".claude/hooks/package.json", base);
+      write(".husky/package.json", base);
+      startPr();
+      for (const dir of [".claude/hooks", ".husky"]) {
+        write(`${dir}/package.json`, '{"bin":"b.js","scripts":{"check":"pr"}}');
+      }
+      commit("pr");
+      restoreConfigFromBase("main");
+
+      expect(restoreToolConfigFromBase("main")).toEqual([]);
+
+      expect(read(".claude/hooks/package.json")).toBe(base);
+      expect(read(".husky/package.json")).toBe(base);
     });
 
     test("takes the commands out of a new package.json", () => {
@@ -446,7 +498,10 @@ describe("restoreToolConfigFromBase", () => {
       write("package.json", '{"name":"x","version":"1","bin":{"t":"a.js"}}');
       commit("pr 2");
       expect(restoreToolConfigFromBase("main")).toEqual(["package.json"]);
-      expect(JSON.parse(read("package.json"))).toEqual({ version: "1" });
+      expect(JSON.parse(read("package.json"))).toEqual({
+        name: "x",
+        version: "1",
+      });
     });
   });
 });

@@ -9,7 +9,10 @@ import {
   writeFileSync,
 } from "fs";
 import { dirname } from "path";
-import { ensureClaudePrExcludedFromGit } from "./restore-config";
+import {
+  ensureClaudePrExcludedFromGit,
+  SENSITIVE_PATHS,
+} from "./restore-config";
 
 // What npm and Bun read from the repository root to decide which program to run and
 // where to download it from. Config from the base branch can start them, for example
@@ -66,12 +69,20 @@ const fold = (path: string): string =>
 /** Which tool config a path belongs to. */
 function rootName(path: string): string | undefined {
   const folded = fold(path);
-  if (folded === PACKAGE_JSON || folded.endsWith(`/${PACKAGE_JSON}`)) {
-    return folded.startsWith("node_modules/") ? "node_modules" : PACKAGE_JSON;
-  }
-  return TOOL_CONFIG.find(
+  // A directory with one of these names is in the file's place, whatever it holds.
+  const name = TOOL_CONFIG.find(
     (name) => folded === name || folded.startsWith(`${name}/`),
   );
+  if (name) return name;
+  // These come from the base branch already, and the index still has the pull
+  // request's version, so nothing here may be rebuilt from it.
+  const isRestored = SENSITIVE_PATHS.some((restored) =>
+    folded.startsWith(`${fold(restored)}/`),
+  );
+  return !isRestored &&
+    (folded === PACKAGE_JSON || folded.endsWith(`/${PACKAGE_JSON}`))
+    ? PACKAGE_JSON
+    : undefined;
 }
 
 /** Whether no parent of a path is a link, which could lead out of the checkout. */
@@ -164,6 +175,30 @@ function commands(entry: Entry | undefined): string | undefined {
   return JSON.stringify(COMMAND_FIELDS.map((field) => json[field] ?? null));
 }
 
+/**
+ * The root files that .gitattributes makes git write in another encoding, so that what
+ * is on disk is not what git has. The pull request controls .gitattributes.
+ */
+function reencodedFiles(): Set<string> {
+  const names = TOOL_CONFIG.filter((name) => name !== "node_modules");
+  const fields = git([
+    "check-attr",
+    "-z",
+    "working-tree-encoding",
+    "--",
+    ...names,
+  ])
+    .toString()
+    .split("\0");
+  // "<path> <attribute> <value>", each ended by a NUL
+  return new Set(
+    names.filter((_, i) => {
+      const value = fields[i * 3 + 2];
+      return value !== "unspecified" && value !== "unset";
+    }),
+  );
+}
+
 function differs(path: string, pr?: Entry, base?: Entry): boolean {
   if (pr?.oid === base?.oid && pr?.mode === base?.mode) return false;
   if (rootName(path) !== PACKAGE_JSON) return true;
@@ -181,6 +216,8 @@ function withBaseCommands(
   const baseJson = base ? readPackageJson(base) : {};
   if (!json || !baseJson) return undefined;
   for (const field of COMMAND_FIELDS) {
+    // Without a bin, a new package's name provides no command.
+    if (field === "name" && !base) continue;
     if (baseJson[field] === undefined) delete json[field];
     else json[field] = baseJson[field];
   }
@@ -236,11 +273,14 @@ function restoreToolConfig(baseBranch: string): string[] {
   const matters = (path: string): boolean =>
     hasWorkspaces || rootName(path) !== PACKAGE_JSON || !path.includes("/");
 
+  const reencoded = reencodedFiles();
   // Names that differ only in case can be the same file.
   const differing = new Set(
     all
       .filter(
-        (path) => matters(path) && differs(path, pr.get(path), base.get(path)),
+        (path) =>
+          matters(path) &&
+          (reencoded.has(path) || differs(path, pr.get(path), base.get(path))),
       )
       .map(fold),
   );
