@@ -145,8 +145,12 @@ export function prepareContext(
     triggerUsername = context.payload.comment.user.login;
     triggerUserId = context.payload.comment.user.id;
   } else if (isIssuesEvent(context)) {
-    triggerUsername = context.payload.issue.user.login;
-    triggerUserId = context.payload.issue.user.id;
+    // The sender is who opened, labeled or assigned the issue. For labeled and
+    // assigned events that is often not the issue author, and the display name
+    // in the co-author trailer is looked up for the sender (the workflow actor).
+    const triggerUser = context.payload.sender ?? context.payload.issue.user;
+    triggerUsername = triggerUser.login;
+    triggerUserId = triggerUser.id;
   }
 
   // Create infrastructure fields object

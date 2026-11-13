@@ -1463,3 +1463,57 @@ describe("extractUserRequestFromContext", () => {
     expect(extract(null, "maintainer")).toBeNull();
   });
 });
+
+describe("prepareContext trigger user for issues events", () => {
+  const issue = {
+    number: 7,
+    title: "Search is slow",
+    body: "Please speed it up",
+    user: { login: "issue-author", id: 111 },
+  };
+
+  for (const eventAction of ["labeled", "assigned"] as const) {
+    test(`uses the sender, not the issue author, for ${eventAction} events`, () => {
+      const context = createMockContext({
+        eventName: "issues",
+        eventAction,
+        isPR: false,
+        entityNumber: 7,
+        actor: "maintainer",
+        payload: {
+          action: eventAction,
+          issue,
+          label: { name: "claude" },
+          assignee: { login: "claude-bot" },
+          sender: { login: "maintainer", id: 222 },
+        } as any,
+        inputs: { labelTrigger: "claude", assigneeTrigger: "claude-bot" },
+      });
+
+      const prepared = prepareContext(
+        context,
+        "12345",
+        "main",
+        "claude/issue-7",
+      );
+
+      expect(prepared.triggerUsername).toBe("maintainer");
+      expect(prepared.triggerUserId).toBe(222);
+    });
+  }
+
+  test("falls back to the issue author when the payload has no sender", () => {
+    const context = createMockContext({
+      eventName: "issues",
+      eventAction: "opened",
+      isPR: false,
+      entityNumber: 7,
+      payload: { action: "opened", issue } as any,
+    });
+
+    const prepared = prepareContext(context, "12345", "main", "claude/issue-7");
+
+    expect(prepared.triggerUsername).toBe("issue-author");
+    expect(prepared.triggerUserId).toBe(111);
+  });
+});
