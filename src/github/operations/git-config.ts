@@ -50,15 +50,27 @@ export async function configureGitAuth(
 /**
  * git invokes a credential helper by handing its configured value to a shell.
  * On Git for Windows that shell is a POSIX sh, which treats each backslash as an
- * escape, so a Windows helper path collapses into a string the shell cannot run.
- * Rewriting the path with forward slashes keeps it runnable on Windows, and a
- * POSIX path has no backslash to rewrite.
+ * escape, so a Windows helper path is first rewritten with forward slashes. The
+ * shell also splits an unquoted value at whitespace, so a helper path with a
+ * space (common for self-hosted runner directories) would be cut in two.
+ *
+ * A bare absolute path is passed to the shell unquoted, and a value git does not
+ * see as an absolute path is treated as `git credential-<value>`. Quoting the
+ * path therefore requires the `!` form, which git runs verbatim as a shell
+ * snippet and appends the operation (`get`, `store`, `erase`) to.
  */
 export function gitCredentialHelperValue(
   helperPath: string,
   platform: NodeJS.Platform = process.platform,
 ): string {
-  return platform === "win32" ? helperPath.replace(/\\/g, "/") : helperPath;
+  const normalized =
+    platform === "win32" ? helperPath.replace(/\\/g, "/") : helperPath;
+  return `!${shellQuote(normalized)}`;
+}
+
+/** Single-quote a value for a POSIX shell, escaping embedded single quotes. */
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 /**

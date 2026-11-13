@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { execFileSync } from "child_process";
-import { mkdtempSync, rmSync, statSync } from "fs";
+import { chmodSync, mkdtempSync, rmSync, statSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
@@ -146,7 +146,7 @@ describe("git-config", () => {
         `https://${SERVER.host}/test-owner/test-repo.git`,
       );
       const helperPath = join(tempDir, ".git-credential-gh-token");
-      expect(gitConfigGetAll("credential.helper")).toBe(helperPath);
+      expect(gitConfigGetAll("credential.helper")).toBe(`!'${helperPath}'`);
       expect(statSync(helperPath).mode & 0o777).toBe(0o700);
       expect(process.env.GH_TOKEN).toBe("helper-token");
     });
@@ -191,25 +191,71 @@ describe("gitCredentialHelperValue", () => {
   const posixHelperPath =
     "/home/runner/work/_actions/anthropics/claude-code-action/abc123/.git-credential-gh-token";
 
-  test("rewrites a Windows helper path to forward slashes so git's shell can invoke it", () => {
+  test("rewrites a Windows helper path to forward slashes and quotes it", () => {
     const value = gitCredentialHelperValue(windowsHelperPath, "win32");
     expect(value).not.toContain("\\");
     expect(value).toBe(
-      "D:/a/_actions/anthropics/claude-code-action/abc123/.git-credential-gh-token",
+      "!'D:/a/_actions/anthropics/claude-code-action/abc123/.git-credential-gh-token'",
     );
   });
 
-  test("leaves a POSIX helper path unchanged", () => {
-    expect(gitCredentialHelperValue(posixHelperPath, "linux")).toBe(
-      posixHelperPath,
+  test("quotes a Windows helper path that contains spaces", () => {
+    const value = gitCredentialHelperValue(
+      "D:\\actions\\My Builds\\.git-credential-gh-token",
+      "win32",
     );
+    expect(value).toBe("!'D:/actions/My Builds/.git-credential-gh-token'");
+  });
+
+  test("quotes a POSIX helper path", () => {
+    expect(gitCredentialHelperValue(posixHelperPath, "linux")).toBe(
+      `!'${posixHelperPath}'`,
+    );
+  });
+
+  test("escapes embedded single quotes", () => {
+    expect(
+      gitCredentialHelperValue(
+        "/tmp/it's here/.git-credential-gh-token",
+        "linux",
+      ),
+    ).toBe("!'/tmp/it'\\''s here/.git-credential-gh-token'");
   });
 
   test("does not touch backslashes on a non-Windows platform", () => {
     const quirkyPosixPath = "/home/runner/a\\b/.git-credential-gh-token";
     expect(gitCredentialHelperValue(quirkyPosixPath, "linux")).toBe(
-      quirkyPosixPath,
+      `!'${quirkyPosixPath}'`,
     );
+  });
+
+  test("git can invoke a helper whose path contains spaces and quotes", () => {
+    const dir = mkdtempSync(join(tmpdir(), "action path 'q' "));
+    try {
+      const helperPath = join(dir, ".git-credential-gh-token");
+      writeFileSync(
+        helperPath,
+        "#!/bin/sh\necho username=x-access-token\necho password=from-helper\n",
+      );
+      chmodSync(helperPath, 0o755);
+      const output = execFileSync(
+        "git",
+        [
+          "-c",
+          `credential.helper=${gitCredentialHelperValue(helperPath, "linux")}`,
+          "credential",
+          "fill",
+        ],
+        {
+          input: "protocol=https\nhost=github.com\n\n",
+          encoding: "utf8",
+          env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+        },
+      );
+      expect(output).toContain("password=from-helper");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
