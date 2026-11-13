@@ -17,6 +17,62 @@ describe("runClaudeWithSdk", () => {
     process.env.RUNNER_TEMP = originalRunnerTemp;
   });
 
+  test.each([false, true])(
+    "publishes denied-tool counts without tool inputs when is_error=%j",
+    async (isError) => {
+      tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+      process.env.RUNNER_TEMP = tempDir;
+      const promptPath = join(tempDir, "prompt.txt");
+      await writeFile(promptPath, "test prompt");
+      const setOutput = spyOn(
+        await import("@actions/core"),
+        "setOutput",
+      ).mockImplementation(() => {});
+
+      mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+        query: async function* () {
+          yield {
+            type: "result",
+            subtype: "success",
+            is_error: isError,
+            permission_denials: [
+              {
+                tool_name: "Bash",
+                tool_input: { command: "private argument" },
+              },
+              {
+                tool_name: "Bash",
+                tool_input: { command: "another argument" },
+              },
+              { tool_name: "Read", tool_input: { file_path: "/private/path" } },
+            ],
+          };
+        },
+      }));
+
+      try {
+        const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+        const result = runClaudeWithSdk(promptPath, {
+          sdkOptions: {},
+          showFullOutput: false,
+          hasJsonSchema: false,
+        });
+        if (isError) {
+          await expect(result).rejects.toThrow("result is_error:true");
+        } else {
+          await expect(result).resolves.toMatchObject({
+            conclusion: "success",
+          });
+        }
+        expect(setOutput.mock.calls).toEqual([
+          ["permission_denials", '{"Bash":2,"Read":1}'],
+        ]);
+      } finally {
+        setOutput.mockRestore();
+      }
+    },
+  );
+
   test("writes the execution file when the SDK throws after yielding messages", async () => {
     const consoleErrorSpy = spyOn(console, "error").mockImplementation(
       () => {},
