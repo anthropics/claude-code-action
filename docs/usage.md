@@ -30,7 +30,7 @@ jobs:
           # Optional: pass advanced arguments to Claude CLI
           # claude_args: |
           #   --max-turns 10
-          #   --model claude-4-0-sonnet-20250805
+          #   --model sonnet
 
           # Optional: add custom plugin marketplaces
           # plugin_marketplaces: "https://github.com/anthropics/claude-plugins-official.git\nhttps://github.com/user/marketplace.git"
@@ -64,7 +64,7 @@ jobs:
 | `prompt`                         | Instructions for Claude. Can be a direct prompt or custom template for automation workflows                                                                                                                                            | No       | -                           |
 | `track_progress`                 | Force tag mode with tracking comments. Only works with specific PR/issue events. Preserves GitHub context                                                                                                                              | No       | `false`                     |
 | `include_fix_links`              | Include 'Fix this' links in PR code review feedback that open Claude Code with context to fix the identified issue                                                                                                                     | No       | `true`                      |
-| `claude_args`                    | Additional [arguments to pass directly to Claude CLI](https://docs.claude.com/en/docs/claude-code/cli-reference#cli-flags) (e.g., `--max-turns 10 --model claude-4-0-sonnet-20250805`)                                                 | No       | ""                          |
+| `claude_args`                    | Additional [arguments to pass directly to Claude CLI](https://docs.claude.com/en/docs/claude-code/cli-reference#cli-flags) (e.g., `--max-turns 10 --model sonnet`)                                                                     | No       | ""                          |
 | `base_branch`                    | The base branch to use for creating new branches (e.g., 'main', 'develop')                                                                                                                                                             | No       | -                           |
 | `use_sticky_comment`             | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                                                                                                                                            | No       | `false`                     |
 | `classify_inline_comments`       | Buffer inline comments without `confirmed: true` and classify them (real review vs test/probe) via Haiku before posting after the session ends. Prevents subagent test comments. Set `'false'` to post all inline comments immediately | No       | `true`                      |
@@ -102,7 +102,7 @@ These inputs are deprecated and will be removed in a future version:
 | `override_prompt`     | **DEPRECATED**: Use `prompt` with template variables or `claude_args` with `--system-prompt` | Use `prompt` for templates or `claude_args` for system prompts |
 | `custom_instructions` | **DEPRECATED**: Use `claude_args` with `--append-system-prompt` or include in `prompt`       | Move instructions to `prompt` or use `claude_args`             |
 | `max_turns`           | **DEPRECATED**: Use `claude_args` with `--max-turns` instead                                 | Use `claude_args: "--max-turns 5"`                             |
-| `model`               | **DEPRECATED**: Use `claude_args` with `--model` instead                                     | Use `claude_args: "--model claude-4-0-sonnet-20250805"`        |
+| `model`               | **DEPRECATED**: Use `claude_args` with `--model` instead                                     | Use `claude_args: "--model sonnet"`                            |
 | `fallback_model`      | **DEPRECATED**: Use `claude_args` with fallback configuration                                | Configure fallback in `claude_args` or `settings`              |
 | `allowed_tools`       | **DEPRECATED**: Use `claude_args` with `--allowedTools` instead                              | Use `claude_args: "--allowedTools Edit,Read,Write"`            |
 | `disallowed_tools`    | **DEPRECATED**: Use `claude_args` with `--disallowedTools` instead                           | Use `claude_args: "--disallowedTools WebSearch"`               |
@@ -193,7 +193,7 @@ For a comprehensive guide on migrating from v0.x to v1.0, including step-by-step
     mode: "agent"
     direct_prompt: "Update the API documentation"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    model: "claude-4-0-sonnet-20250805"
+    model: "claude-sonnet-4-20250514"
     allowed_tools: "Edit,Read,Write"
 ```
 
@@ -209,7 +209,7 @@ For a comprehensive guide on migrating from v0.x to v1.0, including step-by-step
       Update the API documentation to reflect changes in this PR
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     claude_args: |
-      --model claude-4-0-sonnet-20250805
+      --model sonnet
       --allowedTools Edit,Read,Write
 ```
 
