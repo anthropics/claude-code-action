@@ -218,6 +218,72 @@ describe("runClaudeWithSdk", () => {
     }
   });
 
+  test("fails when the CLI reports a zero-turn prompt-size rejection as success", async () => {
+    const consoleErrorSpy = spyOn(console, "error").mockImplementation(
+      () => {},
+    );
+    const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+    const coreErrorSpy = spyOn(
+      await import("@actions/core"),
+      "error",
+    ).mockImplementation(() => {});
+
+    tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+    process.env.RUNNER_TEMP = tempDir;
+
+    const promptPath = join(tempDir, "prompt.txt");
+    await writeFile(promptPath, "oversized test prompt");
+
+    const initMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "session-123",
+      model: "claude-sonnet-5",
+    };
+    const resultMessage = {
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      duration_ms: 5,
+      duration_api_ms: 0,
+      num_turns: 0,
+      result: "Prompt is too long",
+      total_cost_usd: 0,
+      permission_denials: [],
+    };
+
+    mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+      query: async function* () {
+        yield initMessage;
+        yield resultMessage;
+      },
+    }));
+
+    try {
+      const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+      const message =
+        "Claude rejected the prompt as too long before making an API request";
+
+      await expect(
+        runClaudeWithSdk(promptPath, {
+          sdkOptions: {},
+          showFullOutput: false,
+          hasJsonSchema: false,
+        }),
+      ).rejects.toThrow(message);
+
+      expect(coreErrorSpy).toHaveBeenCalledWith(message);
+      const executionFile = join(tempDir, "claude-execution-output.json");
+      await expect(readFile(executionFile, "utf-8")).resolves.toBe(
+        JSON.stringify([initMessage, resultMessage], null, 2),
+      );
+    } finally {
+      consoleErrorSpy.mockRestore();
+      consoleLogSpy.mockRestore();
+      coreErrorSpy.mockRestore();
+    }
+  });
+
   test("fails closed when a successful result exceeds maxTurns", async () => {
     const consoleErrorSpy = spyOn(console, "error").mockImplementation(
       () => {},
