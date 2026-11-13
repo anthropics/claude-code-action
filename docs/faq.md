@@ -6,7 +6,12 @@ This FAQ addresses common questions and gotchas when using the Claude Code GitHu
 
 ### Why doesn't tagging @claude from my automated workflow work?
 
-The `github-actions` user cannot trigger subsequent GitHub Actions workflows. This is a GitHub security feature to prevent infinite loops. To make this work, you need to use a Personal Access Token (PAT) instead, which will act as a regular user, or use a separate app token of your own. When posting a comment on an issue or PR from your workflow, use your PAT instead of the `GITHUB_TOKEN` generated in your workflow.
+GitHub suppresses `issue_comment` workflows for comments posted with the
+repository's automatic `GITHUB_TOKEN`. Use a GitHub App installation token or
+a personal access token to post the comment. If an App posts the comment, the
+Action must also allow that specific bot to trigger it. See the
+[bot access rules](./security.md#access-control) and
+[GitHub's workflow trigger rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow).
 
 ### Why does Claude say I don't have permission to trigger it?
 
@@ -15,6 +20,25 @@ Only users with **write permissions** to the repository can trigger Claude. This
 ### Why can't I assign @claude to an issue on my repository?
 
 If you're in a public repository, you should be able to assign to Claude without issue. If it's a private organization repository, you can only assign to users in your own organization, which Claude isn't. In this case, you'll need to make a custom user in that case.
+
+### Why don't CI checks run automatically after Claude pushes a commit?
+
+Check which token the Action used to push the commit. A push authenticated
+with the repository's automatic `GITHUB_TOKEN` does not start a `push`
+workflow. If that token creates or updates a pull request, the associated
+`opened`, `synchronize`, or `reopened` workflow runs require approval.
+
+If your workflow passes `github_token: ${{ github.token }}` and needs to
+trigger CI on its pushes, use a GitHub App installation token with the
+required repository permissions instead. Pass the generated token as
+`github_token`, as shown in the [custom App setup guide](./setup.md#using-a-custom-github-app).
+Without a `github_token` override, the Action requests a Claude GitHub App
+installation token. The `bot_id` and `bot_name` inputs configure attribution
+for Git CLI commits. GitHub decides whether to start the workflow based on
+the credential that performed the operation.
+
+For pull requests with pending runs, a user with write access can approve
+them from the merge box. [GitHub's workflow trigger rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow)
 
 ### Why am I getting OIDC authentication errors?
 
