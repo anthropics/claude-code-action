@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createOctokit } from "../github/api/client";
 import { redactSecrets, sanitizeContent } from "../github/utils/sanitizer";
 import { removeBufferedComment } from "./inline-comment-buffer";
+import { validateCommentLines } from "./inline-comment-lines";
 
 // Get repository and PR information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -51,14 +52,16 @@ server.tool(
       ),
     line: z
       .number()
-      .nonnegative()
+      .int()
+      .positive()
       .optional()
       .describe(
-        "Line number for single-line comments (required if startLine is not provided)",
+        "Line number (starting at 1) for a single-line comment, or the end line of a multi-line comment. Always required.",
       ),
     startLine: z
       .number()
-      .nonnegative()
+      .int()
+      .positive()
       .optional()
       .describe(
         "Start line for multi-line comments (use with line parameter for the end line)",
@@ -101,11 +104,10 @@ server.tool(
       // Sanitize the comment body to remove potential prompt injections and redact secrets
       const sanitizedBody = redactSecrets(sanitizeContent(body));
 
-      // Validate that either line or both startLine and line are provided
-      if (!line && !startLine) {
-        throw new Error(
-          "Either 'line' for single-line comments or both 'startLine' and 'line' for multi-line comments must be provided",
-        );
+      // Validate the line range before buffering or posting it
+      const lineError = validateCommentLines(line, startLine);
+      if (lineError) {
+        throw new Error(lineError);
       }
 
       if (CLASSIFY_ENABLED && confirmed !== true) {
@@ -147,7 +149,7 @@ server.tool(
 
       // If only line is provided, it's a single-line comment
       // If both startLine and line are provided, it's a multi-line comment
-      const isSingleLine = !startLine;
+      const isSingleLine = startLine === undefined;
 
       const octokit = createOctokit(githubToken).rest;
 
