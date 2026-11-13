@@ -63,11 +63,110 @@ export function buildInstallCommand(version: string): string {
   return `set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash -s -- ${version}`;
 }
 
+// The limits base-action/action.yml applies when `timeout` is available.
+const INSTALL_TIMEOUT_MS = 120_000;
+const INSTALL_KILL_GRACE_MS = 10_000;
+
+/**
+ * Run the install pipeline with a deadline, so a stalled download fails into
+ * the retry loop instead of hanging until the job times out.
+ *
+ * The pipeline gets its own process group because signalling only `bash` would
+ * leave `curl` and the installer running alongside the next attempt.
+ */
+export function runInstallCommand(
+  command: string,
+  timeoutMs: number = INSTALL_TIMEOUT_MS,
+  killGraceMs: number = INSTALL_KILL_GRACE_MS,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const useProcessGroup = process.platform !== "win32";
+    const child = spawn("bash", ["-c", command], {
+      stdio: "inherit",
+      detached: useProcessGroup,
+    });
+
+    const signalInstall = (signal: NodeJS.Signals) => {
+      try {
+        if (useProcessGroup && child.pid) {
+          process.kill(-child.pid, signal);
+        } else {
+          child.kill(signal);
+        }
+      } catch {
+        // The process group has already exited.
+      }
+    };
+
+    let timedOut = false;
+    let receivedSignal: NodeJS.Signals | undefined;
+    let killTimer: ReturnType<typeof setTimeout> | undefined;
+    const terminate = (signal: NodeJS.Signals) => {
+      signalInstall(signal);
+      killTimer ??= setTimeout(() => signalInstall("SIGKILL"), killGraceMs);
+    };
+
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      terminate("SIGTERM");
+    }, timeoutMs);
+
+    // The detached group no longer receives signals sent to Bun's own group, so
+    // pass them on. Bun stays alive until the group has exited so the SIGKILL
+    // escalation can run, then cleanup() re-raises the signal.
+    const forwardedSignals: NodeJS.Signals[] = useProcessGroup
+      ? ["SIGINT", "SIGTERM", "SIGHUP"]
+      : [];
+    const onSignal = (signal: NodeJS.Signals) => {
+      receivedSignal = signal;
+      clearTimeout(deadline);
+      terminate(signal);
+    };
+    for (const signal of forwardedSignals) {
+      process.on(signal, onSignal);
+    }
+
+    const cleanup = () => {
+      clearTimeout(deadline);
+      clearTimeout(killTimer);
+      for (const signal of forwardedSignals) {
+        process.off(signal, onSignal);
+      }
+      if (receivedSignal) {
+        process.kill(process.pid, receivedSignal);
+      }
+    };
+
+    child.on("close", (code) => {
+      if (timedOut || receivedSignal) {
+        // bash can exit while a descendant ignores the signal.
+        signalInstall("SIGKILL");
+      }
+      cleanup();
+      if (timedOut) {
+        // Exit 0 after the deadline may be a SIGTERM handler, not a finished
+        // install.
+        reject(new Error(`Install timed out after ${timeoutMs}ms`));
+      } else if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Install failed with exit code ${code}`));
+      }
+    });
+    child.on("error", (error) => {
+      cleanup();
+      reject(error);
+    });
+  });
+}
+
 /**
  * Install Claude Code CLI, handling retry logic and custom executable paths.
  * Returns the absolute path to the claude executable.
  */
-async function installClaudeCode(): Promise<string> {
+export async function installClaudeCode(
+  installTimeoutMs?: number,
+): Promise<string> {
   const customExecutable = process.env.PATH_TO_CLAUDE_CODE_EXECUTABLE;
   if (customExecutable) {
     if (/[\x00-\x1f\x7f]/.test(customExecutable)) {
@@ -93,18 +192,10 @@ async function installClaudeCode(): Promise<string> {
   for (let attempt = 1; attempt <= 3; attempt++) {
     console.log(`Installation attempt ${attempt}...`);
     try {
-      await new Promise<void>((resolve, reject) => {
-        const child = spawn(
-          "bash",
-          ["-c", buildInstallCommand(claudeCodeVersion)],
-          { stdio: "inherit" },
-        );
-        child.on("close", (code) => {
-          if (code === 0) resolve();
-          else reject(new Error(`Install failed with exit code ${code}`));
-        });
-        child.on("error", reject);
-      });
+      await runInstallCommand(
+        buildInstallCommand(claudeCodeVersion),
+        installTimeoutMs,
+      );
       console.log("Claude Code installed successfully");
       // Add to PATH
       const homeBin = `${process.env.HOME}/.local/bin`;
@@ -120,7 +211,7 @@ async function installClaudeCode(): Promise<string> {
           `Failed to install Claude Code after 3 attempts: ${error}`,
         );
       }
-      console.log("Installation failed, retrying...");
+      console.log(`Installation failed, retrying: ${error}`);
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   }
