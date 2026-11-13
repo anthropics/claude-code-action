@@ -39,6 +39,10 @@ import {
   snapshotSessionFiles,
 } from "../github/operations/session-guard";
 import { restoreConfigFromBase } from "../github/operations/restore-config";
+import {
+  restoreToolConfigFromBase,
+  toolConfigDenyRules,
+} from "../github/operations/tool-config";
 import { validateBranchName } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
@@ -283,6 +287,13 @@ async function run() {
 
     validateEnvironmentVariables();
 
+    // Tag mode sets claudeBranch only when it branched from the base instead of
+    // checking out the PR's head, as for a closed or merged PR.
+    const checkedOutPrHead = modeName !== "tag" || !claudeBranch;
+    const isUntrustedCheckout =
+      checkedOutPrHead && untrustedPrDisallowedTools.length > 0;
+    let restoredToolConfig: string[] = [];
+
     // On PRs, .claude/ and .mcp.json in the checkout are attacker-controlled.
     // Restore them from the base branch before the CLI reads them.
     //
@@ -304,6 +315,11 @@ async function run() {
       }
       if (restoreBase) {
         restoredConfigPaths = restoreConfigFromBase(restoreBase);
+        // Before plugins are installed, which can already start package managers here.
+        if (isUntrustedCheckout) {
+          restoredToolConfig = restoreToolConfigFromBase(restoreBase);
+          restoredConfigPaths.push(...restoredToolConfig);
+        }
       }
     }
 
@@ -323,12 +339,14 @@ async function run() {
       promptFile,
     });
 
-    // Tag mode sets claudeBranch only when it branched from the base instead of
-    // checking out the PR's head, as for a closed or merged PR. The deny rules are
-    // passed separately because text added to claudeArgs can be lost: a comment at
+    // Passed separately because text added to claudeArgs can be lost: a comment at
     // the end of the user's claude_args would swallow it.
-    const checkedOutPrHead = modeName !== "tag" || !claudeBranch;
-    const disallowedTools = checkedOutPrHead ? untrustedPrDisallowedTools : [];
+    const disallowedTools = isUntrustedCheckout
+      ? [
+          ...untrustedPrDisallowedTools,
+          ...toolConfigDenyRules(restoredToolConfig),
+        ]
+      : [];
 
     const restoreSessionFiles = snapshotSessionFiles(() =>
       prepareGitForSession({ hooks: hooksOff }),
