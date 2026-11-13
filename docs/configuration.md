@@ -353,6 +353,14 @@ The settings support all Claude Code settings options including:
 - `hooks`: Pre/post tool execution hooks
 - And more...
 
+### Validating changes with Claude Code hooks
+
+The action loads Claude Code hooks from the `settings` input and from the enabled settings sources. In a normal checkout, project hooks can live in `.claude/settings.json`. On pull request events, the action restores that file from the trusted base branch. Add your hook there before relying on it in PR runs, or define it in the trusted workflow's `settings` input. See [pull request checkout security](./security.md#which-files-come-from-the-base-branch-on-pull-requests).
+
+A command hook runs on the Actions runner with the tools available there. For example, a `PreToolUse` hook with a `Bash` matcher can run a validation script before a Bash tool call. When validation should block that call, print the reason to stderr and exit with code 2 so Claude receives the failure. An ordinary nonzero exit such as 1 reports an error without blocking the call. A `PostToolUse` hook can provide feedback after an edit.
+
+Hooks apply to the Claude Code session. Use a separate CI validation step for checks that must run regardless of what tools Claude calls. See the [Claude Code hooks reference](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event) for each event's behavior.
+
 For a complete list of available settings and their descriptions, see the [Claude Code settings documentation](https://docs.anthropic.com/en/docs/claude-code/settings).
 
 **Notes**:
