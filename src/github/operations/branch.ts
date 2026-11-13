@@ -152,6 +152,7 @@ export type BranchInfo = {
   baseBranch: string;
   claudeBranch?: string;
   currentBranch: string;
+  reusedIssueBranch?: boolean;
 };
 
 export async function setupBranch(
@@ -301,27 +302,55 @@ export async function setupBranch(
     // Extract title from GitHub data
     const title = githubData.contextData.title;
 
-    // Generate branch name using template or default format
-    let newBranch = generateBranchName(
-      branchNameTemplate,
-      branchPrefix,
-      entityType,
-      entityNumber,
-      sourceSHA,
-      firstLabel,
-      title,
-    );
+    const reuseIssueBranch = !isPR && context.inputs.reuseIssueBranch;
+    let newBranch = reuseIssueBranch
+      ? `${branchPrefix}issue-${entityNumber}`
+      : generateBranchName(
+          branchNameTemplate,
+          branchPrefix,
+          entityType,
+          entityNumber,
+          sourceSHA,
+          firstLabel,
+          title,
+        );
 
-    // Check if generated branch already exists on remote
-    try {
-      await $`git ls-remote --exit-code origin refs/heads/${newBranch}`.quiet();
+    // Validate before either path hands the name to git or the file ops server.
+    validateBranchName(newBranch);
+    if (reuseIssueBranch && newBranch === sourceBranch) {
+      throw new Error(
+        "The reusable issue branch must differ from the base branch",
+      );
+    }
 
-      // If we get here, branch exists (exit code 0)
+    const remoteRef = `refs/heads/${newBranch}`;
+    const branchLookup = await $`git ls-remote --exit-code origin ${remoteRef}`
+      .quiet()
+      .nothrow();
+    if (branchLookup.exitCode === 0) {
+      if (reuseIssueBranch) {
+        console.log(`Continuing issue #${entityNumber} on branch ${newBranch}`);
+        execGit([
+          "fetch",
+          "--no-recurse-submodules",
+          "origin",
+          ...fetchDepthArgs(20),
+          remoteRef,
+        ]);
+        execGit(["checkout", "-B", newBranch, "FETCH_HEAD", "--"]);
+        return {
+          baseBranch: sourceBranch,
+          claudeBranch: newBranch,
+          currentBranch: newBranch,
+          reusedIssueBranch: true,
+        };
+      }
+
       console.log(
         `Branch '${newBranch}' already exists, falling back to default format`,
       );
       newBranch = generateBranchName(
-        undefined, // Force default template
+        undefined,
         branchPrefix,
         entityType,
         entityNumber,
@@ -329,14 +358,12 @@ export async function setupBranch(
         firstLabel,
         title,
       );
-    } catch {
-      // Branch doesn't exist (non-zero exit code), continue with generated name
+      validateBranchName(newBranch);
+    } else if (reuseIssueBranch && branchLookup.exitCode !== 2) {
+      throw new Error(
+        `Could not check remote issue branch '${newBranch}' (git exited ${branchLookup.exitCode})`,
+      );
     }
-
-    // Validate before either path uses the name. The signing path hands it to
-    // the file ops server rather than to git, so without this an invalid
-    // template only surfaces as a 422 on the first commit.
-    validateBranchName(newBranch);
 
     // For commit signing, defer branch creation to the file ops server
     if (context.inputs.useCommitSigning) {
