@@ -200,6 +200,40 @@ Claude Code Action automatically configures two MCP servers:
 
 However, tools from these servers still need to be explicitly allowed via `claude_args` with `--allowedTools`.
 
+### How do I run Claude in plan mode?
+
+Use an explicit `prompt` for an automation run and pass
+`--permission-mode plan` in `claude_args`. Ask Claude to return the plan as its
+final response and enable `display_report` to see it in the Actions summary.
+This example uses a read-only GitHub token and selects file inspection tools.
+
+```yaml
+name: Plan changes
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ github.token }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: "Inspect the project and return a plan for adding input validation."
+          claude_args: "--permission-mode plan --tools Read,Glob,Grep"
+          display_report: "true"
+```
+
+Review the plan before starting a separate implementation run. The Action runs
+headlessly, so approval and implementation belong in a separate step or
+workflow. [Claude Code plan mode](https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode)
+
 ## Troubleshooting
 
 ### How can I debug what Claude is doing?
