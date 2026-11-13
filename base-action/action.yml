@@ -55,7 +55,7 @@ inputs:
     required: false
     default: ""
   use_bedrock:
-    description: "Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API"
+    description: "Use Amazon Bedrock instead of the direct Anthropic API"
     required: false
     default: "false"
   use_vertex:
