@@ -354,6 +354,21 @@ function isSymlinkOnDisk(path: string): boolean {
  */
 function flattenTrackedSymlinks(except: string[]): void {
   flattenFailed = true;
+  // In a sparse checkout, git drops skip-worktree from any file that exists unless
+  // told to expect them, and would then commit these files in place of the links.
+  if (
+    gitOutput("config", "--bool", "core.sparseCheckout") === "true" &&
+    gitOutput(
+      "config",
+      "--local",
+      "--replace-all",
+      "sparse.expectFilesOutsideOfPatterns",
+      "true",
+    ) === null
+  ) {
+    core.warning("Could not set up the sparse checkout for the session");
+    return;
+  }
   const ignoreCase =
     gitOutput("config", "--bool", "core.ignorecase") === "true";
   const fold = (path: string) => (ignoreCase ? path.toLowerCase() : path);

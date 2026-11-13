@@ -528,6 +528,24 @@ describe("session guard", () => {
         restoreTrackedSymlinks();
       });
 
+      test("git still ignores the plain files in a sparse checkout", () => {
+        mkdirSync("in");
+        mkdirSync("out");
+        writeFileSync("out/g", "g\n");
+        commitLinks("in/leak");
+        git("sparse-checkout", "set", "in");
+        const restore = flatten();
+        expect(lstatSync("in/leak").isFile()).toBe(true);
+        expect(git("status", "--short")).toBe("");
+        git("add", "-A");
+        expect(git("diff", "--cached", "--name-only")).toBe("");
+        restore();
+        restoreTrackedSymlinks();
+        expect(lstatSync("in/leak").isSymbolicLink()).toBe(true);
+        expect(git("status", "--short")).toBe("");
+        expect(local("sparse.expectFilesOutsideOfPatterns")).toBe("");
+      });
+
       test("doesn't touch git's config", () => {
         commitLinks("leak");
         const restore = flatten();
