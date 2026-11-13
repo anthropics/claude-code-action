@@ -328,7 +328,6 @@ describe("session guard", () => {
           expect(lstatSync(name).isSymbolicLink()).toBe(true);
         }
         expect(git("status", "--short")).toBe("");
-        expect(local("core.symlinks")).toBe("");
         expect(warnings()).toEqual([]);
       });
 
@@ -434,7 +433,7 @@ describe("session guard", () => {
 
       test("the run stops if the links can't be replaced", () => {
         commitLinks("leak");
-        writeFileSync(join(dir, "repo/.git/config.lock"), "");
+        writeFileSync(join(dir, "repo/.git/index.lock"), "");
         prepareGitForSession({
           hooks: true,
           flattenSymlinks: { except: [] },
@@ -442,19 +441,9 @@ describe("session guard", () => {
         expect(() => requireFlattenedSymlinks()).toThrow(
           "Could not replace symlinks",
         );
-        rmSync(join(dir, "repo/.git/config.lock"));
+        rmSync(join(dir, "repo/.git/index.lock"));
         const restore = flatten();
         expect(() => requireFlattenedSymlinks()).not.toThrow();
-        restore();
-        restoreTrackedSymlinks();
-      });
-
-      test("handles a repeated core.symlinks entry", () => {
-        commitLinks("leak");
-        git("config", "--local", "--add", "core.symlinks", "true");
-        git("config", "--local", "--add", "core.symlinks", "true");
-        const restore = flatten();
-        expect(lstatSync("leak").isSymbolicLink()).toBe(false);
         restore();
         restoreTrackedSymlinks();
       });
@@ -525,7 +514,26 @@ describe("session guard", () => {
         commitLinks("leak");
         prepareGitForSession({ hooks: true });
         expect(lstatSync("leak").isSymbolicLink()).toBe(true);
+      });
+
+      test("a restored file over a pull request's link stays a regular file", () => {
+        commitLinks("CLAUDE.md");
+        rmSync("CLAUDE.md");
+        writeFileSync("CLAUDE.md", "base instructions\n");
+        const restore = flatten(["CLAUDE.md"]);
+        git("add", "-A");
+        expect(git("diff", "--cached", "--raw").split(" ")[1]).toBe("100644");
+        git("reset", "-q");
+        restore();
+        restoreTrackedSymlinks();
+      });
+
+      test("doesn't touch git's config", () => {
+        commitLinks("leak");
+        const restore = flatten();
         expect(local("core.symlinks")).toBe("");
+        restore();
+        restoreTrackedSymlinks();
       });
     });
 

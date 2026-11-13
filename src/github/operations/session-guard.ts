@@ -354,11 +354,6 @@ function isSymlinkOnDisk(path: string): boolean {
  */
 function flattenTrackedSymlinks(except: string[]): void {
   flattenFailed = true;
-  const set = ["config", "--local", "--replace-all", "core.symlinks", "false"];
-  if (gitOutput(...set) === null) {
-    core.warning("Could not set core.symlinks for the session");
-    return;
-  }
   const ignoreCase =
     gitOutput("config", "--bool", "core.ignorecase") === "true";
   const fold = (path: string) => (ignoreCase ? path.toLowerCase() : path);
