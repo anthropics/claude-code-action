@@ -235,6 +235,22 @@ For a comprehensive guide on migrating from v0.x to v1.0, including step-by-step
       Focus on the changed files in this PR.
 ```
 
+## Scope automated reviews to the pull request
+
+The action restores [configuration from the PR base branch](./security.md#which-files-come-from-the-base-branch-on-pull-requests) before starting Claude. If the PR edits a restored file, the checkout can show an uncommitted change that reverses the PR's edit. The bundled `/code-review` includes working-tree changes when called without a target.
+
+In a `pull_request` workflow, pass the PR number so the review targets the committed PR diff:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    prompt: /code-review ${{ github.event.pull_request.number }}
+    claude_args: '--allowedTools "Bash(gh pr diff:*)"'
+```
+
+Use the committed PR diff when reviewing changes to the restored paths. The active files contain the base branch's configuration. See [how `/code-review` selects its target](https://code.claude.com/docs/en/code-review-local#choose-what-to-review).
+
 ## Structured Outputs
 
 Get validated JSON results from Claude that automatically become GitHub Action outputs. This enables building complex automation workflows where Claude analyzes data and subsequent steps use the results.
