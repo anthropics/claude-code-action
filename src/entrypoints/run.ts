@@ -42,6 +42,7 @@ import { restoreConfigFromBase } from "../github/operations/restore-config";
 import { validateBranchName } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
+import { postAgentSummaryComment } from "./post-agent-summary";
 import { formatTurnsFromData } from "./format-turns";
 import type { Turn } from "./format-turns";
 import { redactSecrets } from "../github/utils/sanitizer";
@@ -172,6 +173,7 @@ async function run() {
   // Paths reverted to the PR base branch, which cleanup must not commit back
   // onto the PR author's branch. Empty unless restoreConfigFromBase ran.
   let restoredConfigPaths: string[] = [];
+  let agentMode = false;
   // Track whether we've completed prepare phase, so we can attribute errors correctly
   let prepareCompleted = false;
   try {
@@ -179,6 +181,7 @@ async function run() {
     const actionInputsPresent = collectActionInputsPresence();
     context = parseGitHubContext();
     const modeName = detectMode(context);
+    agentMode = modeName === "agent";
     console.log(
       `Auto-detected mode: ${modeName} for event: ${context.eventName}`,
     );
@@ -414,6 +417,20 @@ async function run() {
         console.error("Error updating comment with job link:", error);
       }
     }
+
+    await postAgentSummaryComment({
+      agentMode,
+      enabled: process.env.POST_SUMMARY === "true",
+      claudeSuccess,
+      context,
+      executionFile,
+      octokit: githubToken ? octokit : undefined,
+      tokenType: !process.env.OVERRIDE_GITHUB_TOKEN
+        ? "claude-app"
+        : githubToken === process.env.DEFAULT_WORKFLOW_TOKEN
+          ? "workflow"
+          : "custom",
+    });
 
     // Write step summary (unless display_report is set to false)
     if (
