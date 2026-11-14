@@ -86,48 +86,6 @@ export function parseAllowedTools(claudeArgs: string): string[] {
 }
 
 /**
- * Index of the first/last occurrence of `ch` in `d` that is not escaped by a
- * (even-length-prefix) run of backslashes. Mirrors the Claude Code CLI's own
- * spec parser (z5/G5 in the shipped @anthropic-ai/claude-agent-sdk bundle),
- * so a `Bash(...)` rule is split on the same boundary the CLI itself will use
- * when it later parses this exact rule text.
- */
-function firstUnescapedIndex(d: string, ch: string): number {
-  for (let i = 0; i < d.length; i++) {
-    if (d[i] === ch) {
-      let backslashes = 0;
-      let j = i - 1;
-      while (j >= 0 && d[j] === "\\") {
-        backslashes++;
-        j--;
-      }
-      if (backslashes % 2 === 0) return i;
-    }
-  }
-  return -1;
-}
-
-function lastUnescapedIndex(d: string, ch: string): number {
-  for (let i = d.length - 1; i >= 0; i--) {
-    if (d[i] === ch) {
-      let backslashes = 0;
-      let j = i - 1;
-      while (j >= 0 && d[j] === "\\") {
-        backslashes++;
-        j--;
-      }
-      if (backslashes % 2 === 0) return i;
-    }
-  }
-  return -1;
-}
-
-/** Mirrors B5 in the shipped CLI bundle. */
-function unescapeParens(d: string): string {
-  return d.replaceAll("\\(", "(").replaceAll("\\)", ")");
-}
-
-/**
  * The content of every `Bash(...)` spec in one flag value. Specs are separated by
  * commas or spaces. A spec's content is the text between `Bash(` and its closing
  * `)`, tracking nested parens so a pattern like `git commit -m "fix(auth): x":*`
