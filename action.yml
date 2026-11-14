@@ -122,7 +122,7 @@ inputs:
     required: false
     default: "true"
   use_commit_signing:
-    description: "Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands"
+    description: "Create unsigned commits through the GitHub REST API in tag mode. When false, Claude uses standard git commands."
     required: false
     default: "false"
   ssh_signing_key:

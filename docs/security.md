@@ -156,23 +156,9 @@ The following permissions are requested but not yet actively used. These will en
 
 ## Commit Signing
 
-By default, commits made by Claude are unsigned. You can enable commit signing using one of two methods:
+The action uses unsigned commits by default. To create signed commits with Git, configure `ssh_signing_key`.
 
-### Option 1: GitHub API Commit Signing (use_commit_signing)
-
-This uses GitHub's API to create commits, which automatically signs them as verified from the GitHub App:
-
-```yaml
-- uses: anthropics/claude-code-action@main
-  with:
-    use_commit_signing: true
-```
-
-This is the simplest option and requires no additional setup. However, because it uses the GitHub API instead of git CLI, it cannot perform complex git operations like rebasing, cherry-picking, or interactive history manipulation.
-
-With `prompt`, a run on an issue commits to `issue-N`. A run on a pull request commits to the pull request's branch, or to `pr-N` if that branch isn't known to be in this repository. `issue-N` and `pr-N` start from the base branch. To use another branch, set `CLAUDE_BRANCH` in the step's `env`.
-
-### Option 2: SSH Signing Key (ssh_signing_key)
+### SSH Signing Key (ssh_signing_key)
 
 This uses an SSH key to sign commits via git CLI. Use this option when you need both signed commits AND standard git operations (rebasing, cherry-picking, etc.):
 
@@ -215,7 +201,13 @@ Commits will show as verified and attributed to the GitHub account that owns the
 
 5. Update your workflow with `bot_id` and `bot_name` matching the account where you added the signing key.
 
-**Note:** If both `ssh_signing_key` and `use_commit_signing` are provided, `ssh_signing_key` takes precedence.
+### API-Based Commits (use_commit_signing)
+
+In tag mode, `use_commit_signing: true` selects the [GitHub REST commit API](https://docs.github.com/en/rest/git/commits#create-a-commit). The action sends the commit without a signature, so GitHub attributes it to the authenticated identity and reports its verification reason as `unsigned`. Repositories that require signed commits need the SSH signing configuration above.
+
+With `prompt`, a run on an issue commits to `issue-N`. A run on a pull request commits to the pull request's branch, or to `pr-N` if that branch isn't known to be in this repository. `issue-N` and `pr-N` start from the base branch. To use another branch, set `CLAUDE_BRANCH` in the step's `env`.
+
+If both `ssh_signing_key` and `use_commit_signing` are provided, `ssh_signing_key` takes precedence.
 
 ## ⚠️ Authentication Protection
 
