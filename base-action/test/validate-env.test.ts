@@ -21,6 +21,8 @@ describe("validateEnvironmentVariables", () => {
     delete process.env.AWS_SECRET_ACCESS_KEY;
     delete process.env.AWS_SESSION_TOKEN;
     delete process.env.AWS_BEARER_TOKEN_BEDROCK;
+    delete process.env.AWS_ROLE_ARN;
+    delete process.env.AWS_WEB_IDENTITY_TOKEN_FILE;
     delete process.env.ANTHROPIC_BEDROCK_BASE_URL;
     delete process.env.ANTHROPIC_VERTEX_PROJECT_ID;
     delete process.env.CLOUD_ML_REGION;
@@ -129,7 +131,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.AWS_SECRET_ACCESS_KEY = "test-secret-key";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+        "AWS Bedrock requires AWS_BEARER_TOKEN_BEDROCK, both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or both AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE.",
       );
     });
 
@@ -139,7 +141,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.AWS_ACCESS_KEY_ID = "test-access-key";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+        "AWS Bedrock requires AWS_BEARER_TOKEN_BEDROCK, both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or both AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE.",
       );
     });
 
@@ -150,6 +152,29 @@ describe("validateEnvironmentVariables", () => {
 
       expect(() => validateEnvironmentVariables()).not.toThrow();
     });
+
+    test("accepts Bedrock web identity credentials without static credentials", () => {
+      process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+      process.env.AWS_REGION = "us-west-2";
+      process.env.AWS_ROLE_ARN = "arn:aws:iam::123456789012:role/fixture";
+      process.env.AWS_WEB_IDENTITY_TOKEN_FILE =
+        "/path/to/service-account-token";
+
+      expect(() => validateEnvironmentVariables()).not.toThrow();
+    });
+
+    test.each(["AWS_ROLE_ARN", "AWS_WEB_IDENTITY_TOKEN_FILE"])(
+      "rejects incomplete web identity credentials with only %s set",
+      (key) => {
+        process.env.CLAUDE_CODE_USE_BEDROCK = "1";
+        process.env.AWS_REGION = "us-west-2";
+        process.env[key] = "fixture";
+
+        expect(() => validateEnvironmentVariables()).toThrow(
+          "AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE",
+        );
+      },
+    );
 
     test("should pass when both bearer token and access keys are provided", () => {
       process.env.CLAUDE_CODE_USE_BEDROCK = "1";
@@ -166,7 +191,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.AWS_REGION = "us-east-1";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+        "AWS Bedrock requires AWS_BEARER_TOKEN_BEDROCK, both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or both AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE.",
       );
     });
 
@@ -174,7 +199,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.CLAUDE_CODE_USE_BEDROCK = "1";
 
       expect(() => validateEnvironmentVariables()).toThrow(
-        /AWS_REGION is required when using AWS Bedrock.*Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock/s,
+        /AWS_REGION is required when using AWS Bedrock.*AWS Bedrock requires AWS_BEARER_TOKEN_BEDROCK/s,
       );
     });
   });
@@ -356,7 +381,7 @@ describe("validateEnvironmentVariables", () => {
         "  - AWS_REGION is required when using AWS Bedrock.",
       );
       expect(error!.message).toContain(
-        "  - Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+        "  - AWS Bedrock requires AWS_BEARER_TOKEN_BEDROCK, both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or both AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE.",
       );
     });
   });
