@@ -12,6 +12,10 @@ import fs from "fs/promises";
 import { downloadCommentImages } from "../src/github/utils/image-downloader";
 import type { CommentWithImages } from "../src/github/utils/image-downloader";
 import type { Octokits } from "../src/github/api/client";
+import {
+  createCommentBody,
+  SPINNER_HTML,
+} from "../src/github/operations/comments/common";
 
 // Asset URLs and their signed download URLs share the asset's GUID.
 const GUID_1 = "f871c23e-a84d-4f1f-b9a0-86626c63f161";
@@ -106,6 +110,20 @@ describe("downloadCommentImages", () => {
     );
   });
 
+  test("skips the built-in tracking spinner when collecting images", async () => {
+    const mockOctokit = createMockOctokit();
+    const result = await downloadCommentImages(mockOctokit, "owner", "repo", [
+      {
+        type: "issue_comment",
+        id: "123",
+        body: createCommentBody("[View job run](https://example.com/run)"),
+      },
+    ]);
+
+    expect(mockOctokit.rest.issues.getComment).not.toHaveBeenCalled();
+    expect(result.size).toBe(0);
+  });
+
   test("should detect and download images from issue comments", async () => {
     const mockOctokit = createMockOctokit();
     const imageUrl = assetUrl(GUID_1);
@@ -130,7 +148,7 @@ describe("downloadCommentImages", () => {
       {
         type: "issue_comment",
         id: "123",
-        body: `Here's an image: ![test](${imageUrl})`,
+        body: `${SPINNER_HTML}\nHere's an image: ![test](${imageUrl})`,
       },
     ];
 

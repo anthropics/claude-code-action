@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
+import { SPINNER_URL } from "../operations/comments/common";
 
 const escapedUrl = GITHUB_SERVER_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const IMAGE_REGEX = new RegExp(
@@ -118,8 +119,10 @@ export async function downloadCommentImages(
     const htmlMatches = [...comment.body.matchAll(HTML_IMG_REGEX)];
     const htmlUrls = htmlMatches.map((match) => match[1] as string);
 
-    // Combine and deduplicate URLs
-    const urls = [...new Set([...markdownUrls, ...htmlUrls])];
+    // The tracking spinner is UI decoration, not a user attachment.
+    const urls = [...new Set([...markdownUrls, ...htmlUrls])].filter(
+      (url) => url !== SPINNER_URL,
+    );
 
     if (urls.length > 0) {
       commentsWithImages.push({ comment, urls });
