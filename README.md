@@ -32,6 +32,8 @@ This command will guide you through setting up the GitHub app and required secre
 - You must be a repository admin to install the GitHub app and add secrets
 - This quickstart method is only available for direct Anthropic API users. For AWS Bedrock, Google Vertex AI, or Microsoft Foundry setup, see [docs/cloud-providers.md](./docs/cloud-providers.md).
 
+Workflow runs authenticated with `claude_code_oauth_token` count toward the connected Claude subscription's usage limits. See [subscription usage](./docs/setup.md#subscription-usage) for details.
+
 ## 📚 Solutions & Use Cases
 
 Looking for specific automation patterns? Check our **[Solutions Guide](./docs/solutions.md)** for complete working examples including:
