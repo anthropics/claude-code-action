@@ -418,7 +418,9 @@ export function formatGroupedContent(groupedContent: GroupedContent[]): string {
       const failed =
         item.data?.is_error === true ||
         (item.data?.subtype !== undefined && item.data.subtype !== "success");
-      markdown += failed ? "## ❌ Session Failed\n\n" : "## ✅ Final Result\n\n";
+      markdown += failed
+        ? "## ❌ Session Failed\n\n"
+        : "## ✅ Final Result\n\n";
       if (resultText) {
         markdown += `${resultText}\n\n`;
       }
