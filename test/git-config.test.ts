@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { execFileSync } from "child_process";
-import { mkdtempSync, rmSync, statSync } from "fs";
+import { mkdirSync, mkdtempSync, rmSync, statSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
@@ -19,6 +19,7 @@ const NOREPLY_DOMAIN =
     ? "users.noreply.github.com"
     : `users.noreply.${SERVER.hostname}`;
 const EXTRAHEADER_KEY = `http.${GITHUB_SERVER_URL}/.extraheader`;
+const HELPER_KEY = `credential.https://${SERVER.host}.helper`;
 
 // git exports these into hooks (e.g. a pre-commit hook running the test
 // suite); if inherited they would point every git command below at the
@@ -143,12 +144,95 @@ describe("git-config", () => {
 
       expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe("");
       expect(remoteUrl()).toBe(
-        `https://${SERVER.host}/test-owner/test-repo.git`,
+        `https://x-access-token@${SERVER.host}/test-owner/test-repo.git`,
       );
       const helperPath = join(tempDir, ".git-credential-gh-token");
-      expect(gitConfigGetAll("credential.helper")).toBe(helperPath);
+      expect(gitConfigGetAll(HELPER_KEY)).toBe(`!'${helperPath}'`);
       expect(statSync(helperPath).mode & 0o777).toBe(0o700);
       expect(process.env.GH_TOKEN).toBe("helper-token");
+    });
+
+    describe("credential helper answers", () => {
+      const fill = (host: string, token: string) =>
+        execFileSync("git", ["credential", "fill"], {
+          cwd: repoDir,
+          encoding: "utf8",
+          input: `protocol=https\nhost=${host}\n\n`,
+          env: {
+            ...process.env,
+            GH_TOKEN: token,
+            GIT_CONFIG_GLOBAL: "/dev/null",
+            GIT_CONFIG_NOSYSTEM: "1",
+            GIT_ASKPASS: "echo",
+            GIT_TERMINAL_PROMPT: "0",
+          },
+        });
+
+      beforeEach(() => {
+        process.env.ALLOWED_NON_WRITE_USERS = "someone";
+      });
+
+      test("gives the token to this server", async () => {
+        await replaceCheckoutCredentials(
+          "helper-token",
+          createMockAutomationContext(),
+        );
+        expect(fill(SERVER.host, "helper-token")).toContain(
+          "password=helper-token",
+        );
+      });
+
+      test("gives the token to no other host", async () => {
+        await replaceCheckoutCredentials(
+          "helper-token",
+          createMockAutomationContext(),
+        );
+        expect(fill("other.example.com", "helper-token")).not.toContain(
+          "helper-token",
+        );
+      });
+
+      test("leaves it to other credentials when there is no token", async () => {
+        await replaceCheckoutCredentials(
+          "helper-token",
+          createMockAutomationContext(),
+        );
+        // GIT_ASKPASS is `echo`, which prints its prompt, so a password that
+        // isn't empty came from the next credential source.
+        expect(fill(SERVER.host, "")).toMatch(/password=.+/);
+      });
+
+      test("runs from a path with a space", async () => {
+        const spaced = join(tempDir, "action dir");
+        mkdirSync(spaced);
+        process.env.GITHUB_ACTION_PATH = spaced;
+        await replaceCheckoutCredentials(
+          "helper-token",
+          createMockAutomationContext(),
+        );
+        expect(fill(SERVER.host, "helper-token")).toContain(
+          "password=helper-token",
+        );
+      });
+    });
+
+    test("uses a credential helper when bots are allowed", async () => {
+      const context = createMockAutomationContext({
+        inputs: {
+          ...createMockAutomationContext().inputs,
+          allowedBots: "sentry-io[bot]",
+        },
+      } as any);
+
+      await replaceCheckoutCredentials("bot-token", context);
+
+      expect(remoteUrl()).toBe(
+        `https://x-access-token@${SERVER.host}/test-owner/test-repo.git`,
+      );
+      expect(gitConfigGetAll(HELPER_KEY)).toBe(
+        `!'${join(tempDir, ".git-credential-gh-token")}'`,
+      );
+      expect(process.env.GH_TOKEN).toBe("bot-token");
     });
 
     test("succeeds when there is no checkout extraheader to remove", async () => {
