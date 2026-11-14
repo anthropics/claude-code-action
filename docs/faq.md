@@ -148,6 +148,19 @@ prompt: "Review this PR for security vulnerabilities"
 # (no prompt provided)
 ```
 
+### Can I pass the prompt in a file?
+
+Use `prompt` for the task text when calling `anthropics/claude-code-action@v1`. If that text lives in a trusted file, read it in an earlier workflow step and pass the step output to `prompt`.
+
+The [standalone base action](../base-action/README.md#usage) accepts either `prompt` or `prompt_file`. After checking out a trusted repository, use a path relative to the checkout:
+
+```yaml
+- uses: anthropics/claude-code-action/base-action@v1
+  with:
+    prompt_file: .github/prompts/review.txt
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
 ### What happened to `direct_prompt` and `custom_instructions`?
 
 **These inputs are deprecated in v1.0:**
