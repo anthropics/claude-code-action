@@ -97,6 +97,33 @@ describe("stripMarkdownLinkTitles", () => {
   it("should preserve links without titles", () => {
     expect(stripMarkdownLinkTitles("[Link](url.com)")).toBe("[Link](url.com)");
   });
+
+  it("preserves title content when its quote is not closed", () => {
+    const input = `[Doc](url "unfinished) and more text`;
+    expect(stripMarkdownLinkTitles(input)).toBe(input);
+  });
+
+  it("removes titles containing a closing parenthesis", () => {
+    expect(stripMarkdownLinkTitles(`[Doc](url "note ) here")`)).toBe(
+      "[Doc](url)",
+    );
+  });
+});
+
+describe("sanitizer malformed-input performance", () => {
+  it("handles long unmatched Markdown delimiters without repeated scans", () => {
+    const input = "![".repeat(100_000);
+    const start = performance.now();
+    expect(sanitizeContent(input)).toBe(input);
+    expect(performance.now() - start).toBeLessThan(1500);
+  });
+
+  it("handles long unmatched HTML comment openers without repeated scans", () => {
+    const input = "<!--".repeat(100_000);
+    const start = performance.now();
+    expect(stripHtmlComments(input)).toBe(input);
+    expect(performance.now() - start).toBeLessThan(1500);
+  });
 });
 
 describe("stripHiddenAttributes", () => {
