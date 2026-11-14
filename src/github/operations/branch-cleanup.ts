@@ -1,3 +1,4 @@
+import * as core from "@actions/core";
 import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
 import { encodeBranchNameForUrl } from "./comments/common";
@@ -59,6 +60,17 @@ export async function checkAndCommitOrDeleteBranch(
     } catch (error: any) {
       if (error.status === 404) {
         console.log(`Branch ${claudeBranch} does not exist remotely`);
+        if (!useCommitSigning) {
+          const localCommits =
+            await $`git rev-list --max-count=1 refs/heads/${baseBranch}..refs/heads/${claudeBranch} --`
+              .quiet()
+              .nothrow();
+          if (localCommits.exitCode === 0 && localCommits.stdout.length > 0) {
+            core.warning(
+              `Branch ${claudeBranch} has local commits but does not exist on GitHub. Check the Claude run logs for the push step before retrying.`,
+            );
+          }
+        }
       } else {
         console.error("Error checking if branch exists:", error);
       }
