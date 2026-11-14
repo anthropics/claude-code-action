@@ -31,6 +31,7 @@ export const SENSITIVE_PATHS = [
   ".ripgreprc",
   "CLAUDE.md",
   "CLAUDE.local.md",
+  "AGENTS.md",
   ".husky",
 ];
 
