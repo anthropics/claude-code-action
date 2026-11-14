@@ -152,7 +152,7 @@ runs:
         PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
       run: |
         if [ -z "$PATH_TO_CLAUDE_CODE_EXECUTABLE" ]; then
-          CLAUDE_CODE_VERSION="2.1.322"
+          CLAUDE_CODE_VERSION="2.1.325"
           CLAUDE_CODE_VERSION="${INPUT_CLAUDE_CODE_VERSION:-$CLAUDE_CODE_VERSION}"
           if [[ ! "$CLAUDE_CODE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::claude_code_version must be an exact version in X.Y.Z format."
