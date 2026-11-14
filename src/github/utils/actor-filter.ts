@@ -44,13 +44,15 @@ export function resolveActorName(
  * @returns true if actor matches pattern
  */
 export function actorMatchesPattern(actor: string, pattern: string): boolean {
-  // Exact match
-  if (actor === pattern) return true;
+  const login = actor.toLowerCase();
+  const filter = pattern.toLowerCase();
 
-  // Wildcard bot pattern: "*[bot]" matches any username ending with [bot]
-  if (pattern === "*[bot]" && actor.endsWith("[bot]")) return true;
+  // GitHub logins are case-insensitive.
+  if (login === filter) return true;
 
-  // No match
+  // Wildcard bot pattern: "*[bot]" matches any username ending with [bot].
+  if (filter === "*[bot]" && login.endsWith("[bot]")) return true;
+
   return false;
 }
 
