@@ -7,7 +7,9 @@
  */
 
 import * as core from "@actions/core";
-import { dirname } from "path";
+import { dirname, join } from "path";
+import { randomUUID } from "crypto";
+import { tmpdir } from "os";
 import { spawn } from "child_process";
 import { appendFile } from "fs/promises";
 import { existsSync, readFileSync } from "fs";
@@ -21,6 +23,7 @@ import { createOctokit } from "../github/api/client";
 import type { Octokits } from "../github/api/client";
 import {
   parseGitHubContext,
+  getInlineCommentPullRequestNumber,
   isEntityContext,
   isPullRequestEvent,
   isPullRequestReviewEvent,
@@ -167,6 +170,8 @@ async function run() {
   let claudeBranch: string | undefined;
   let baseBranch: string | undefined;
   let executionFile: string | undefined;
+  let inlineCommentBufferPath: string | undefined;
+  let inlineCommentPullRequest: number | undefined;
   let claudeSuccess = false;
   let prepareSuccess = true;
   let prepareError: string | undefined;
@@ -246,6 +251,16 @@ async function run() {
       throw new Error(
         "A bot acted on this pull request, but its author does not have write access",
       );
+    }
+
+    inlineCommentPullRequest = getInlineCommentPullRequestNumber(context);
+    if (inlineCommentPullRequest && context.inputs.classifyInlineComments) {
+      // Each action invocation owns its buffer, even on a shared runner.
+      inlineCommentBufferPath = join(
+        process.env.RUNNER_TEMP || tmpdir(),
+        `claude-inline-comments-${randomUUID()}.jsonl`,
+      );
+      process.env.INLINE_COMMENTS_BUFFER_PATH = inlineCommentBufferPath;
     }
 
     // Run prepare
@@ -398,6 +413,8 @@ async function run() {
     core.setFailed(`Action failed with error: ${redactSecrets(errorMessage)}`);
   } finally {
     // Phase 4: Cleanup (always runs)
+    core.setOutput("inline_comment_buffer_path", inlineCommentBufferPath ?? "");
+    core.setOutput("inline_comment_pr_number", inlineCommentPullRequest ?? "");
     clearSessionState();
 
     // Stop refreshing the workload identity token file and delete the token

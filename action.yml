@@ -19,6 +19,9 @@ inputs:
   base_branch:
     description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
     required: false
+  pull_request_number:
+    description: "Pull request number for inline review comments on workflow_dispatch runs."
+    required: false
   branch_prefix:
     description: "The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)"
     required: false
@@ -297,6 +300,7 @@ runs:
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
         LABEL_TRIGGER: ${{ inputs.label_trigger }}
         BASE_BRANCH: ${{ inputs.base_branch }}
+        PULL_REQUEST_NUMBER: ${{ inputs.pull_request_number }}
         BRANCH_PREFIX: ${{ inputs.branch_prefix }}
         BRANCH_NAME_TEMPLATE: ${{ inputs.branch_name_template }}
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
@@ -434,13 +438,14 @@ runs:
           run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
 
     - name: Post buffered inline comments
-      if: always() && inputs.classify_inline_comments != 'false'
+      if: always() && steps.run.outputs.inline_comment_buffer_path != ''
       shell: bash
       env:
         GITHUB_TOKEN: ${{ steps.run.outputs.github_token || inputs.github_token || github.token }}
         REPO_OWNER: ${{ github.event.repository.owner.login }}
         REPO_NAME: ${{ github.event.repository.name }}
-        PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        PR_NUMBER: ${{ steps.run.outputs.inline_comment_pr_number }}
+        INLINE_COMMENTS_BUFFER_PATH: ${{ steps.run.outputs.inline_comment_buffer_path }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
       run: |
         BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"

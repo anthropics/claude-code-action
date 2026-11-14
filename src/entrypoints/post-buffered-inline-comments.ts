@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Reads buffered inline-comment calls from /tmp/inline-comments-buffer.jsonl,
+ * Reads buffered inline-comment calls from this action invocation's file,
  * classifies each as "real review" vs "test/probe" using Haiku, and posts
  * only the real ones. Calls with confirmed=false are never posted.
  *
@@ -9,11 +9,20 @@
  * preserves backward compatibility — before this change, all unconfirmed
  * calls posted immediately.
  */
-import { readFileSync } from "fs";
+import { lstatSync, readFileSync, rmSync } from "fs";
+import { basename, dirname, resolve } from "path";
 import { createOctokit } from "../github/api/client";
 import { redactSecrets } from "../github/utils/sanitizer";
 
-const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
+const bufferPath = process.env.INLINE_COMMENTS_BUFFER_PATH;
+const runnerTemp = process.env.RUNNER_TEMP;
+const BUFFER_PATH =
+  bufferPath &&
+  runnerTemp &&
+  dirname(resolve(bufferPath)) === resolve(runnerTemp) &&
+  /^claude-inline-comments-[0-9a-f-]{36}\.jsonl$/i.test(basename(bufferPath))
+    ? resolve(bufferPath)
+    : undefined;
 
 type BufferedComment = {
   ts: string;
@@ -145,8 +154,11 @@ async function postComment(
 }
 
 async function main() {
+  if (!BUFFER_PATH) return;
+
   let raw: string;
   try {
+    if (!lstatSync(BUFFER_PATH).isFile()) return;
     raw = readFileSync(BUFFER_PATH, "utf8");
   } catch {
     console.log("No buffered inline comments");
@@ -228,7 +240,11 @@ async function main() {
   console.log(`Posted ${posted}/${toPost.length}`);
 }
 
-main().catch((e) => {
-  console.error("post-buffered-inline-comments failed:", e);
-  process.exit(1);
-});
+main()
+  .finally(() => {
+    if (BUFFER_PATH) rmSync(BUFFER_PATH, { force: true });
+  })
+  .catch((e) => {
+    console.error("post-buffered-inline-comments failed:", e);
+    process.exit(1);
+  });

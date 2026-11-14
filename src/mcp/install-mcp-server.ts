@@ -1,7 +1,10 @@
 import * as core from "@actions/core";
 import { GITHUB_API_URL, GITHUB_SERVER_URL } from "../github/api/config";
 import type { GitHubContext } from "../github/context";
-import { isEntityContext } from "../github/context";
+import {
+  getInlineCommentPullRequestNumber,
+  isEntityContext,
+} from "../github/context";
 import { Octokit } from "@octokit/rest";
 import type { AutoDetectedMode } from "../modes/detector";
 
@@ -148,9 +151,9 @@ export async function prepareMcpConfig(
     }
 
     // Include inline comment server for PRs when requested via allowed tools
+    const inlineCommentPullRequest = getInlineCommentPullRequestNumber(context);
     if (
-      isEntityContext(context) &&
-      context.isPR &&
+      inlineCommentPullRequest &&
       (hasGitHubMcpTools || hasInlineCommentTools)
     ) {
       baseMcpConfig.mcpServers.github_inline_comment = {
@@ -160,7 +163,9 @@ export async function prepareMcpConfig(
           GITHUB_TOKEN: githubToken,
           REPO_OWNER: owner,
           REPO_NAME: repo,
-          PR_NUMBER: context.entityNumber?.toString() || "",
+          PR_NUMBER: inlineCommentPullRequest.toString(),
+          INLINE_COMMENTS_BUFFER_PATH:
+            process.env.INLINE_COMMENTS_BUFFER_PATH || "",
           GITHUB_API_URL: GITHUB_API_URL,
           CLASSIFY_INLINE_COMMENTS: context.inputs.classifyInlineComments
             ? "true"

@@ -3,6 +3,7 @@ import { prepareMcpConfig } from "../src/mcp/install-mcp-server";
 import * as core from "@actions/core";
 import type { ParsedGitHubContext } from "../src/github/context";
 import { CLAUDE_APP_BOT_ID, CLAUDE_BOT_LOGIN } from "../src/github/constants";
+import { createMockAutomationContext } from "./mockContext";
 
 describe("prepareMcpConfig", () => {
   let consoleInfoSpy: any;
@@ -174,6 +175,30 @@ describe("prepareMcpConfig", () => {
     );
     expect(parsed.mcpServers.github_inline_comment.env.PR_NUMBER).toBe("456");
   });
+
+  test.each([undefined, 42])(
+    "workflow_dispatch configures inline comments only with a PR target (%s)",
+    async (pullRequestNumber) => {
+      const result = await prepareMcpConfig({
+        githubToken: "test-token",
+        owner: "test-owner",
+        repo: "test-repo",
+        branch: "main",
+        baseBranch: "main",
+        allowedTools: ["mcp__github_inline_comment__create_inline_comment"],
+        mode: "agent",
+        context: createMockAutomationContext({
+          eventName: "workflow_dispatch",
+          inputs: { pullRequestNumber },
+        }),
+      });
+
+      const parsed = JSON.parse(result);
+      expect(parsed.mcpServers.github_inline_comment?.env.PR_NUMBER).toBe(
+        pullRequestNumber?.toString(),
+      );
+    },
+  );
 
   test("should include comment server when no GitHub tools are allowed and signing disabled", async () => {
     const result = await prepareMcpConfig({
