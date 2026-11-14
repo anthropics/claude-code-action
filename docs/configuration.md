@@ -231,16 +231,18 @@ By default, Claude only has access to:
 - Comment management (creating/updating comments)
 - Basic GitHub operations
 
+Use the [Claude Code tools reference](https://code.claude.com/docs/en/tools-reference) to find built-in tool names such as `Read`, `Edit`, `Write`, and `NotebookEdit`. Available tools can vary with the Claude Code version and runner. The [permission rules reference](https://code.claude.com/docs/en/permissions#permission-rule-syntax) explains how to narrow an entry to a command or path.
+
 In [auto mode](./usage.md#permission-mode), the default, a safety review decides any Bash command that no allow rule covers. To let specific commands (e.g., npm install, npm test) run without review, or to allow them under `--permission-mode acceptEdits`, add them with `--allowedTools`:
 
-**Note**: If your repository has a `.mcp.json` file in the root directory, Claude will automatically detect and use the MCP server tools defined there. However, these tools still need to be explicitly allowed.
+To allow a specific Bash command, use a rule such as `Bash(npm run test)`. For a configured MCP server, use `mcp__<server>__<tool>`, for example `mcp__github_ci__get_ci_status`.
 
 ```yaml
 - uses: anthropics/claude-code-action@v1
   with:
     claude_args: |
-      --allowedTools "Bash(npm install),Bash(npm run test),Edit,Replace,NotebookEditCell"
-      --disallowedTools "TaskOutput,KillTask"
+      --allowedTools "Read,Edit,Bash(npm run test)"
+      --disallowedTools "WebSearch"
     # ... other inputs
 ```
 
