@@ -9,11 +9,20 @@
  * preserves backward compatibility — before this change, all unconfirmed
  * calls posted immediately.
  */
-import { readFileSync, rmSync } from "fs";
+import { lstatSync, readFileSync, rmSync } from "fs";
+import { basename, dirname, resolve } from "path";
 import { createOctokit } from "../github/api/client";
 import { redactSecrets } from "../github/utils/sanitizer";
 
-const BUFFER_PATH = process.env.INLINE_COMMENTS_BUFFER_PATH;
+const bufferPath = process.env.INLINE_COMMENTS_BUFFER_PATH;
+const runnerTemp = process.env.RUNNER_TEMP;
+const BUFFER_PATH =
+  bufferPath &&
+  runnerTemp &&
+  dirname(resolve(bufferPath)) === resolve(runnerTemp) &&
+  /^claude-inline-comments-[0-9a-f-]{36}\.jsonl$/i.test(basename(bufferPath))
+    ? resolve(bufferPath)
+    : undefined;
 
 type BufferedComment = {
   ts: string;
@@ -149,6 +158,7 @@ async function main() {
 
   let raw: string;
   try {
+    if (!lstatSync(BUFFER_PATH).isFile()) return;
     raw = readFileSync(BUFFER_PATH, "utf8");
   } catch {
     console.log("No buffered inline comments");
