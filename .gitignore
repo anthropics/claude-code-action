@@ -1,4 +1,7 @@
 .DS_Store
 node_modules
+scripts/.push-branch
+scripts/.no-hooks
+scripts/.git-repo
 
 **/.claude/settings.local.json

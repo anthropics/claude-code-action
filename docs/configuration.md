@@ -140,9 +140,12 @@ To allow Claude to view workflow run results, job logs, and CI status:
 
 3. **Claude will automatically get access to CI/CD tools**:
    When you enable `actions: read`, Claude can use the following MCP tools:
+
    - `mcp__github_ci__get_ci_status` - View workflow run statuses
    - `mcp__github_ci__get_workflow_run_details` - Get detailed workflow information
    - `mcp__github_ci__download_job_log` - Download and analyze job logs
+
+   On pull requests from outside contributors, the contributor can control the text of job logs. See [Security](./security.md#running-code-from-pull-requests) for how to turn off the tools that read them.
 
 ### Example: Debugging Failed CI Runs
 
@@ -230,6 +233,8 @@ By default, Claude only has access to:
 
 Use the [Claude Code tools reference](https://code.claude.com/docs/en/tools-reference) to find built-in tool names such as `Read`, `Edit`, `Write`, and `NotebookEdit`. Available tools can vary with the Claude Code version and runner. The [permission rules reference](https://code.claude.com/docs/en/permissions#permission-rule-syntax) explains how to narrow an entry to a command or path.
 
+In [auto mode](./usage.md#permission-mode), the default, a safety review decides any Bash command that no allow rule covers. To let specific commands (e.g., npm install, npm test) run without review, or to allow them under `--permission-mode acceptEdits`, add them with `--allowedTools`:
+
 To allow a specific Bash command, use a rule such as `Bash(npm run test)`. For a configured MCP server, use `mcp__<server>__<tool>`, for example `mcp__github_ci__get_ci_status`.
 
 ```yaml
@@ -240,6 +245,8 @@ To allow a specific Bash command, use a rule such as `Bash(npm run test)`. For a
       --disallowedTools "WebSearch"
     # ... other inputs
 ```
+
+**Note**: On pull requests whose author does not have write access, commands that commonly run repository code, such as `npm`, are denied even if you allow them here. See [Security](./security.md#running-code-from-pull-requests).
 
 **Note**: The base GitHub tools are always included. Use `--allowedTools` to add additional tools (including specific Bash commands), and `--disallowedTools` to prevent specific tools from being used.
 
