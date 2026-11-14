@@ -64,6 +64,11 @@ import { setExecutionFileOutputIfPresent } from "../../base-action/src/execution
 // propagate through the pipe so the install retry logic actually triggers
 // on 429/403 instead of silently succeeding (see #1136).
 export function buildInstallCommand(version: string): string {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) {
+    throw new Error(
+      "claude_code_version must be an exact version in X.Y.Z format.",
+    );
+  }
   return `set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash -s -- ${version}`;
 }
 
@@ -92,17 +97,17 @@ async function installClaudeCode(): Promise<string> {
   }
 
   const claudeCodeVersion = "2.1.325";
-  console.log(`Installing Claude Code v${claudeCodeVersion}...`);
+  const version = process.env.INPUT_CLAUDE_CODE_VERSION || claudeCodeVersion;
+  const installCommand = buildInstallCommand(version);
+  console.log(`Installing Claude Code v${version}...`);
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     console.log(`Installation attempt ${attempt}...`);
     try {
       await new Promise<void>((resolve, reject) => {
-        const child = spawn(
-          "bash",
-          ["-c", buildInstallCommand(claudeCodeVersion)],
-          { stdio: "inherit" },
-        );
+        const child = spawn("bash", ["-c", installCommand], {
+          stdio: "inherit",
+        });
         child.on("close", (code) => {
           if (code === 0) resolve();
           else reject(new Error(`Install failed with exit code ${code}`));

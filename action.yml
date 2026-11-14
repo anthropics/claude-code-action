@@ -145,6 +145,10 @@ inputs:
     description: "Include 'Fix this' links in PR code review feedback that open Claude Code with context to fix the identified issue"
     required: false
     default: "true"
+  claude_code_version:
+    description: "Exact Claude Code CLI version to install (for example, 2.1.322). Defaults to the version pinned by this action release. Ignored when path_to_claude_code_executable is set."
+    required: false
+    default: ""
   path_to_claude_code_executable:
     description: "Optional path to a custom Claude Code executable. If provided, skips automatic installation and uses this executable instead. WARNING: Using an older version may cause problems if the action begins taking advantage of new Claude Code features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
     required: false
@@ -331,6 +335,7 @@ runs:
         DISPLAY_REPORT: ${{ inputs.display_report }}
         INPUT_PLUGINS: ${{ inputs.plugins }}
         INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
+        INPUT_CLAUDE_CODE_VERSION: ${{ inputs.claude_code_version }}
         PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
 
         # Model configuration
