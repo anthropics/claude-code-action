@@ -2,6 +2,7 @@
 
 import { describe, test, expect, beforeAll } from "bun:test";
 import {
+  extractUserRequestFromContext,
   generatePrompt,
   getEventTypeAndContext,
   buildAllowedToolsString,
@@ -789,8 +790,8 @@ describe("generatePrompt", () => {
 
     // Should have git command instructions
     expect(prompt).toContain("Use git commands via the Bash tool");
-    expect(prompt).toContain("git add");
-    expect(prompt).toContain("git commit");
+    expect(prompt).toContain("scripts/git-add.sh");
+    expect(prompt).toContain("scripts/git-commit.sh -m");
     expect(prompt).toContain("scripts/git-push.sh origin");
 
     // Should use the minimal comment tool
@@ -1073,7 +1074,7 @@ describe("buildAllowedToolsString", () => {
     const result = buildAllowedToolsString();
 
     // The base tools should be in the result
-    // Edit/MultiEdit/Write are NOT in allowedTools — acceptEdits permission mode handles them
+    // Edit/MultiEdit/Write are NOT in allowedTools — the permission mode handles them
     expect(result).not.toContain("Edit");
     expect(result).not.toContain("Write");
     expect(result).toContain("Glob");
@@ -1082,8 +1083,9 @@ describe("buildAllowedToolsString", () => {
     expect(result).toContain("Read");
 
     // Default is no commit signing, so should have specific Bash git commands
-    expect(result).toContain("Bash(git add:*)");
-    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("scripts/git-add.sh:*)");
+    expect(result).toContain("scripts/git-commit.sh:*)");
+    expect(result).not.toContain("Bash(git commit:*)");
     expect(result).toContain("scripts/git-push.sh:*)");
     expect(result).toContain("mcp__github_comment__update_claude_comment");
 
@@ -1104,8 +1106,8 @@ describe("buildAllowedToolsString", () => {
     expect(result).not.toContain("Write");
 
     // Should have specific Bash git commands for non-signing mode
-    expect(result).toContain("Bash(git add:*)");
-    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("scripts/git-add.sh:*)");
+    expect(result).toContain("scripts/git-commit.sh:*)");
     expect(result).toContain("mcp__github_comment__update_claude_comment");
 
     // Should not have commit signing tools
@@ -1197,10 +1199,10 @@ describe("buildAllowedToolsString", () => {
     expect(result).not.toContain("Write");
 
     // Specific Bash git commands should be included
-    expect(result).toContain("Bash(git add:*)");
-    expect(result).toContain("Bash(git commit:*)");
+    expect(result).toContain("scripts/git-add.sh:*)");
+    expect(result).toContain("scripts/git-commit.sh:*)");
     expect(result).toContain("scripts/git-push.sh:*)");
-    expect(result).toContain("Bash(git rm:*)");
+    expect(result).toContain("scripts/git-rm.sh:*)");
 
     // Comment tool from minimal server should be included
     expect(result).toContain("mcp__github_comment__update_claude_comment");
@@ -1216,7 +1218,7 @@ describe("buildAllowedToolsString", () => {
 
     // Base tools should be present
     expect(result).toContain("Read");
-    expect(result).toContain("Bash(git add:*)");
+    expect(result).toContain("scripts/git-add.sh:*)");
 
     // Custom tools should be included
     expect(result).toContain("CustomTool1");
@@ -1385,5 +1387,79 @@ describe("prepareContext validation errors", () => {
     expect(() => prepareContext(context, commentId)).toThrow(
       "CLAUDE_BRANCH is required for issue_comment event",
     );
+  });
+});
+
+describe("extractUserRequestFromContext", () => {
+  const extract = (
+    bodyAuthor: string | null,
+    actor: string,
+    typename = "User",
+  ) =>
+    extractUserRequestFromContext(
+      {
+        repository: "o/r",
+        triggerPhrase: "@claude",
+        claudeCommentId: "1",
+        eventData: {
+          eventName: "issues",
+          eventAction: "labeled",
+          issueNumber: "1",
+          labelTrigger: "claude",
+        },
+        githubContext: { actor },
+      } as any,
+      {
+        contextData: {
+          body: "A bug. @claude /deploy now",
+          author: bodyAuthor
+            ? { __typename: typename, login: bodyAuthor }
+            : null,
+        },
+      } as any,
+    );
+
+  test("uses the body when its author is the person who triggered the run", () => {
+    expect(extract("maintainer", "maintainer")).toBe("/deploy now");
+    expect(extract("Maintainer", "maintainer")).toBe("/deploy now");
+  });
+
+  test("matches a bot's GraphQL login to its actor name", () => {
+    expect(extract("some-app", "some-app[bot]", "Bot")).toBe("/deploy now");
+  });
+
+  test("does not treat a person as a bot with the same name", () => {
+    expect(extract("some-app", "some-app[bot]", "User")).toBeNull();
+  });
+
+  test("ignores the body when someone else wrote it", () => {
+    expect(extract("outsider", "maintainer")).toBeNull();
+  });
+
+  test("uses a comment only when its author triggered the run", () => {
+    const fromComment = (commentAuthor: string, actor: string) =>
+      extractUserRequestFromContext(
+        {
+          repository: "o/r",
+          triggerPhrase: "@claude",
+          claudeCommentId: "1",
+          eventData: {
+            eventName: "issue_comment",
+            commentBody: "@claude /deploy now",
+          },
+          githubContext: {
+            eventName: "issue_comment",
+            actor,
+            payload: { comment: { user: { login: commentAuthor } } },
+          },
+        } as any,
+        { contextData: {} } as any,
+      );
+    expect(fromComment("maintainer", "maintainer")).toBe("/deploy now");
+    expect(fromComment("outsider", "maintainer")).toBeNull();
+  });
+
+  test("ignores the body when its author is unknown", () => {
+    expect(extract(null, "maintainer")).toBeNull();
   });
 });

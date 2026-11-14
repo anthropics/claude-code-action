@@ -37,11 +37,14 @@ async function fileExists(path: string): Promise<boolean> {
  * Creates a prompt configuration for the SDK.
  * If a user request file exists alongside the prompt file, returns a multi-block
  * SDKUserMessage that enables slash command processing in the CLI.
- * Otherwise, returns the prompt as a simple string.
+ * Otherwise, returns the prompt as a simple string, or as a single-block message
+ * when the session has to take control requests. Those need its input open, and
+ * the SDK closes it once the prompt ends, so the prompt then waits for holdOpenUntil.
  */
 async function createPromptConfig(
   promptPath: string,
   showFullOutput: boolean,
+  holdOpenUntil?: Promise<void>,
 ): Promise<string | AsyncIterable<SDKUserMessage>> {
   const promptContent = await readFile(promptPath, "utf-8");
 
@@ -51,7 +54,19 @@ async function createPromptConfig(
 
   if (!hasUserRequest) {
     // No user request file - use simple string prompt
-    return promptContent;
+    if (!holdOpenUntil) return promptContent;
+    return (async function* (): AsyncGenerator<SDKUserMessage> {
+      yield {
+        type: "user",
+        session_id: "",
+        message: {
+          role: "user",
+          content: [{ type: "text", text: promptContent }],
+        },
+        parent_tool_use_id: null,
+      };
+      await holdOpenUntil;
+    })();
   }
 
   // User request file exists - create multi-block message
@@ -78,6 +93,7 @@ async function createPromptConfig(
       },
       parent_tool_use_id: null,
     };
+    await holdOpenUntil;
   }
 
   return createMultiBlockMessage();
@@ -170,6 +186,7 @@ export async function runClaudeWithSdk(
     showFullOutput,
     hasJsonSchema,
     schemaViolationPolicy = "fail",
+    fallbackPermissionMode,
   }: ParsedSdkOptions,
 ): Promise<ClaudeRunResult> {
   const validateOutput =
@@ -178,7 +195,15 @@ export async function runClaudeWithSdk(
       : undefined;
 
   // Create prompt configuration - may be a string or multi-block message
-  const prompt = await createPromptConfig(promptPath, showFullOutput);
+  let releasePrompt = () => {};
+  const promptHeldOpen = new Promise<void>((resolve) => {
+    releasePrompt = resolve;
+  });
+  const prompt = await createPromptConfig(
+    promptPath,
+    showFullOutput,
+    fallbackPermissionMode ? promptHeldOpen : undefined,
+  );
 
   if (!showFullOutput) {
     console.log(
@@ -198,8 +223,26 @@ export async function runClaudeWithSdk(
   let resultMessage: SDKResultMessage | undefined;
 
   try {
-    for await (const message of query({ prompt, options: sdkOptions })) {
+    const session = query({ prompt, options: sdkOptions });
+    for await (const message of session) {
       messages.push(message);
+
+      if (message.type === "system" && message.subtype === "init") {
+        // A session that can't use auto mode starts in Manual without an error.
+        if (fallbackPermissionMode && message.permissionMode === "default") {
+          core.warning(
+            `Auto mode is not available for this run, for example because of its model. Using ${fallbackPermissionMode} instead.`,
+          );
+          try {
+            await session.setPermissionMode(fallbackPermissionMode);
+          } catch {
+            core.warning(
+              `Could not switch to ${fallbackPermissionMode}, so tool calls that need permission will be denied.`,
+            );
+          }
+        }
+        releasePrompt();
+      }
 
       const sanitized = sanitizeSdkOutput(message, showFullOutput);
       if (sanitized) {
@@ -224,6 +267,8 @@ export async function runClaudeWithSdk(
     console.error("SDK execution error:", error);
     await writeExecutionFile(messages);
     throw new Error(`SDK execution error: ${error}`);
+  } finally {
+    releasePrompt();
   }
 
   const result: ClaudeRunResult = {
