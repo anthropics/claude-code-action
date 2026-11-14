@@ -62,6 +62,10 @@ inputs:
     description: "Instructions for Claude. Can be a direct prompt or custom template."
     required: false
     default: ""
+  trigger_prompt:
+    description: "Default task for a triggered tag-mode run when the trigger does not include a request"
+    required: false
+    default: ""
   settings:
     description: "Claude Code settings as JSON string or path to settings JSON file"
     required: false
@@ -293,6 +297,7 @@ runs:
         # Prepare inputs
         MODE: ${{ inputs.mode }}
         PROMPT: ${{ inputs.prompt }}
+        TRIGGER_PROMPT: ${{ inputs.trigger_prompt }}
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
         LABEL_TRIGGER: ${{ inputs.label_trigger }}
