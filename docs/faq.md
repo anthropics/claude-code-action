@@ -210,6 +210,17 @@ Check the GitHub Action log for Claude's run for the full execution trace.
 
 The trigger uses word boundaries, so `@claude` must be a complete word. Variations like `@claude-bot`, `@claude!`, or `claude@mention` won't work unless you customize the `trigger_phrase`.
 
+### How can Claude find tools installed on my runner or in my job container?
+
+If a tool works when you log into the image but the action reports `command not found`, add the tool's directory to [`GITHUB_PATH`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-system-path) in a step before Claude runs. Replace `/opt/tools/bin` with the directory where the tool is installed.
+
+```yaml
+- name: Add custom tools to PATH
+  run: echo "/opt/tools/bin" >> "$GITHUB_PATH"
+```
+
+To check the path before starting Claude, use `command -v your-tool` in a following workflow step. Bash tool permissions still apply when Claude runs the command.
+
 ### How can I use custom executables in specialized environments?
 
 For specialized environments like Nix, NixOS, or custom container setups where you need to provide your own executables:
