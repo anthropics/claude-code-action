@@ -3,7 +3,10 @@ import { execFileSync } from "child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { setupBranch } from "../src/github/operations/branch";
-import { fetchDepthArgs } from "../src/github/operations/fetch-depth";
+import {
+  fetchDepthArgs,
+  getShallowCheckoutContext,
+} from "../src/github/operations/fetch-depth";
 import { createMockContext } from "./mockContext";
 
 const octokits = {
@@ -100,10 +103,14 @@ describe("setupBranch fetch depth", () => {
       }).trim(),
     ).toBe("true");
     expect(fetchDepthArgs(20)).toEqual(["--depth=20"]);
+    expect(getShallowCheckoutContext()).toContain(
+      "Older commits may be missing",
+    );
   });
 
   test("drops the depth limit on a complete checkout", () => {
     expect(fetchDepthArgs(20)).toEqual([]);
+    expect(getShallowCheckoutContext()).toBeUndefined();
   });
 
   function git(args: string[]): string {

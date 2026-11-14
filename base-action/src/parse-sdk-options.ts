@@ -310,14 +310,33 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   delete env.ALL_INPUTS;
 
   // Build system prompt option - default to claude_code preset
+  let appendSystemPrompt = options.appendSystemPrompt;
+  if (
+    options.systemPromptContext &&
+    !options.systemPrompt &&
+    !["system-prompt", "system-prompt-file", "append-system-prompt-file"].some(
+      (flag) => flag in extraArgs,
+    )
+  ) {
+    const cliAppend = extraArgs["append-system-prompt"];
+    if (cliAppend) {
+      extraArgs["append-system-prompt"] =
+        `${cliAppend}\n\n${options.systemPromptContext}`;
+    } else if (!("append-system-prompt" in extraArgs)) {
+      appendSystemPrompt = [appendSystemPrompt, options.systemPromptContext]
+        .filter(Boolean)
+        .join("\n\n");
+    }
+  }
+
   let systemPrompt: SdkOptions["systemPrompt"];
   if (options.systemPrompt) {
     systemPrompt = options.systemPrompt;
-  } else if (options.appendSystemPrompt) {
+  } else if (appendSystemPrompt) {
     systemPrompt = {
       type: "preset",
       preset: "claude_code",
-      append: options.appendSystemPrompt,
+      append: appendSystemPrompt,
     };
   } else {
     // Default to claude_code preset when no custom prompt is specified

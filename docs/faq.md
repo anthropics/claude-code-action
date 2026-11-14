@@ -116,16 +116,16 @@ Claude's branch behavior depends on the context:
 
 ### Why are my commits shallow/missing history?
 
-For performance, Claude uses shallow clones:
+The action limits additional fetches when the runner's checkout is already
+shallow. Its default prompt tells Claude that older commits may be missing from
+local Git output. A checkout with full history stays complete.
 
-- PRs: `--depth=20` (last 20 commits)
-- New branches: `--depth=1` (single commit)
+If a task needs older commits, fetch the full history before calling Claude:
 
-If you need full history, you can configure this in your workflow before calling Claude in the `actions/checkout` step.
-
-```
+```yaml
 - uses: actions/checkout@v6
-  depth: 0 # will fetch full repo history
+  with:
+    fetch-depth: 0
 ```
 
 ## Configuration and Tools
