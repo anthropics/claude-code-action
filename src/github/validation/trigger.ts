@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 
-import * as core from "@actions/core";
 import {
   isIssuesEvent,
   isIssuesAssignedEvent,
@@ -194,10 +193,4 @@ function matchesAssigneeTrigger(
 
 export function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-export async function checkTriggerAction(context: ParsedGitHubContext) {
-  const containsTrigger = checkContainsTrigger(context);
-  core.setOutput("contains_trigger", containsTrigger.toString());
-  return containsTrigger;
 }
