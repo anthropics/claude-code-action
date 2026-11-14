@@ -1,6 +1,7 @@
 import type { Octokits } from "../api/client";
 import { GITHUB_SERVER_URL } from "../api/config";
 import { encodeBranchNameForUrl } from "./comments/common";
+import { validateBranchName } from "./branch";
 import { $ } from "bun";
 
 async function pushLfsObjects(branch: string): Promise<void> {
@@ -24,6 +25,7 @@ export async function checkAndCommitOrDeleteBranch(
 ): Promise<{ shouldDeleteBranch: boolean; branchLink: string }> {
   let branchLink = "";
   let shouldDeleteBranch = false;
+  let observedBranchSha: string | undefined;
 
   // On pull requests, restoreConfigFromBase replaces .claude/, CLAUDE.md and
   // friends with the base branch's versions and leaves them unstaged so the
@@ -50,12 +52,13 @@ export async function checkAndCommitOrDeleteBranch(
     // First check if the branch exists remotely
     let branchExistsRemotely = false;
     try {
-      await octokit.rest.repos.getBranch({
+      const { data: branch } = await octokit.rest.repos.getBranch({
         owner,
         repo,
         branch: claudeBranch,
       });
       branchExistsRemotely = true;
+      observedBranchSha = branch.commit?.sha;
     } catch (error: any) {
       if (error.status === 404) {
         console.log(`Branch ${claudeBranch} does not exist remotely`);
@@ -72,13 +75,24 @@ export async function checkAndCommitOrDeleteBranch(
       return { shouldDeleteBranch: false, branchLink: "" };
     }
 
+    if (!observedBranchSha || !/^[0-9a-f]{40}$/.test(observedBranchSha)) {
+      console.error(
+        `Cannot safely clean up branch ${claudeBranch}: missing commit SHA`,
+      );
+      const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${encodeBranchNameForUrl(claudeBranch)}`;
+      return {
+        shouldDeleteBranch: false,
+        branchLink: `\n[View branch](${branchUrl})`,
+      };
+    }
+
     // Check if Claude made any commits to the branch
     try {
       const { data: comparison } =
         await octokit.rest.repos.compareCommitsWithBasehead({
           owner,
           repo,
-          basehead: `${baseBranch}...${claudeBranch}`,
+          basehead: `${baseBranch}...${observedBranchSha}`,
         });
 
       // If there are no commits, check for uncommitted changes if not using commit signing
@@ -156,15 +170,18 @@ export async function checkAndCommitOrDeleteBranch(
   // Delete the branch if it has no commits
   if (shouldDeleteBranch && claudeBranch) {
     try {
-      await octokit.rest.git.deleteRef({
-        owner,
-        repo,
-        ref: `heads/${claudeBranch}`,
-      });
+      validateBranchName(claudeBranch);
+      // The comparison describes this exact commit. REST deleteRef has no
+      // expected-SHA guard, so use the authenticated origin with a lease to
+      // preserve any work pushed after we observed the branch.
+      const branchRef = `refs/heads/${claudeBranch}`;
+      await $`git push ${`--force-with-lease=${branchRef}:${observedBranchSha}`} origin ${`:${branchRef}`}`.quiet();
       console.log(`✅ Deleted empty branch: ${claudeBranch}`);
     } catch (deleteError) {
       console.error(`Failed to delete branch ${claudeBranch}:`, deleteError);
-      // Continue even if deletion fails
+      shouldDeleteBranch = false;
+      const branchUrl = `${GITHUB_SERVER_URL}/${owner}/${repo}/tree/${encodeBranchNameForUrl(claudeBranch)}`;
+      branchLink = `\n[View branch](${branchUrl})`;
     }
   }
 
