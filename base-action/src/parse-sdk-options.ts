@@ -1,6 +1,10 @@
 import { parse as parseShellArgs } from "shell-quote";
 import type { ClaudeOptions } from "./run-claude";
 import type { Options as SdkOptions } from "@anthropic-ai/claude-agent-sdk";
+import {
+  parseSchemaViolationPolicy,
+  type SchemaViolationPolicy,
+} from "./structured-output-validation";
 
 /**
  * Result of parsing ClaudeOptions for SDK usage
@@ -9,6 +13,7 @@ export type ParsedSdkOptions = {
   sdkOptions: SdkOptions;
   showFullOutput: boolean;
   hasJsonSchema: boolean;
+  schemaViolationPolicy?: SchemaViolationPolicy;
   fallbackPermissionMode?: SdkOptions["permissionMode"];
 };
 
@@ -367,6 +372,9 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     sdkOptions,
     showFullOutput,
     hasJsonSchema,
+    schemaViolationPolicy: parseSchemaViolationPolicy(
+      options.onSchemaViolation,
+    ),
     // Only when auto mode is what the session ends up asking for: a mode someone
     // chose in claude_args must stay as they set it.
     ...(lastPermissionMode(extraArgs) === "auto" && {

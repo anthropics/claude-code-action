@@ -16,6 +16,7 @@ export type ClaudeOptions = {
   appendSystemPrompt?: string;
   fallbackModel?: string;
   showFullOutput?: string;
+  onSchemaViolation?: string;
   /** Mode to switch to when auto mode was asked for but isn't available. */
   fallbackPermissionMode?: PermissionMode;
 };

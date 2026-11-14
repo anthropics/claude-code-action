@@ -65,6 +65,7 @@ jobs:
 | `track_progress`                 | Force tag mode with tracking comments. Only works with specific PR/issue events. Preserves GitHub context                                                                                                                              | No       | `false`                     |
 | `include_fix_links`              | Include 'Fix this' links in PR code review feedback that open Claude Code with context to fix the identified issue                                                                                                                     | No       | `true`                      |
 | `claude_args`                    | Additional [arguments to pass directly to Claude CLI](https://docs.claude.com/en/docs/claude-code/cli-reference#cli-flags) (e.g., `--max-turns 10 --model claude-4-0-sonnet-20250805`)                                                 | No       | ""                          |
+| `on_schema_violation`            | Handling for structured output that fails local schema validation. See [Schema validation](#schema-validation).                                                                                                                        | No       | `fail`                      |
 | `base_branch`                    | The base branch to use for creating new branches (e.g., 'main', 'develop')                                                                                                                                                             | No       | -                           |
 | `use_sticky_comment`             | Use just one comment to deliver PR comments (only applies for pull_request event workflows)                                                                                                                                            | No       | `false`                     |
 | `classify_inline_comments`       | Buffer inline comments without `confirmed: true` and classify them (real review vs test/probe) via Haiku before posting after the session ends. Prevents subagent test comments. Set `'false'` to post all inline comments immediately | No       | `true`                      |
@@ -254,7 +255,9 @@ Get validated JSON results from Claude that automatically become GitHub Action o
       --json-schema '{"type":"object","properties":{"is_flaky":{"type":"boolean"},"confidence":{"type":"number"},"summary":{"type":"string"}},"required":["is_flaky"]}'
 
 - name: Retry if flaky
-  if: fromJSON(steps.analyze.outputs.structured_output).is_flaky == true
+  if: >
+    steps.analyze.outputs.structured_output_valid == 'true' &&
+    fromJSON(steps.analyze.outputs.structured_output).is_flaky == true
   run: gh workflow run CI
 ```
 
@@ -264,6 +267,24 @@ Get validated JSON results from Claude that automatically become GitHub Action o
 2. **Claude Executes**: Claude uses tools to complete your task
 3. **Validated Output**: Result is validated against your schema
 4. **JSON Output**: All fields are returned in a single `structured_output` JSON string
+
+### Schema validation
+
+When you pass `--json-schema`, the action checks the SDK result against your
+original schema before exposing it to downstream steps. The validator supports
+draft-07 (the default), draft 2019-09, and draft 2020-12.
+
+| `on_schema_violation` | Behavior for a result that violates the schema       |
+| --------------------- | ---------------------------------------------------- |
+| `fail` (default)      | Fail the action and leave `structured_output` unset. |
+| `warn`                | Log a warning and publish the result.                |
+| `ignore`              | Skip local validation and publish the SDK result.    |
+
+When the action validates a result, `structured_output_valid` is `'true'` or
+`'false'`. `structured_output_violations` contains a JSON array with each
+violation's `instancePath`, `schemaPath`, and `keyword`, or `[]` for a valid
+result. Both outputs are unset when validation is skipped. If the schema cannot
+be compiled, the action fails before invoking Claude unless validation is skipped.
 
 ### Accessing Structured Outputs
 

@@ -109,6 +109,10 @@ inputs:
     description: "Additional arguments to pass directly to Claude CLI"
     required: false
     default: ""
+  on_schema_violation:
+    description: "How to handle structured output that does not match --json-schema: fail, warn, or ignore"
+    required: false
+    default: "fail"
   additional_permissions:
     description: "Additional GitHub permissions to request (e.g., 'actions: read')"
     required: false
@@ -186,6 +190,12 @@ outputs:
   structured_output:
     description: "JSON string containing all structured output fields when --json-schema is provided in claude_args. Use fromJSON() to parse: fromJSON(steps.id.outputs.structured_output).field_name"
     value: ${{ steps.run.outputs.structured_output }}
+  structured_output_valid:
+    description: "'true' or 'false' when structured output was checked against --json-schema"
+    value: ${{ steps.run.outputs.structured_output_valid }}
+  structured_output_violations:
+    description: "JSON array of schema violation locations and keywords, empty when valid"
+    value: ${{ steps.run.outputs.structured_output_violations }}
   session_id:
     description: "The Claude Code session ID that can be used with --resume to continue this conversation"
     value: ${{ steps.run.outputs.session_id }}
@@ -319,6 +329,7 @@ runs:
         INCLUDE_FIX_LINKS: ${{ inputs.include_fix_links }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         CLAUDE_ARGS: ${{ inputs.claude_args }}
+        INPUT_ON_SCHEMA_VIOLATION: ${{ inputs.on_schema_violation }}
         ALL_INPUTS: ${{ toJson(inputs) }}
 
         # Base-action inputs
