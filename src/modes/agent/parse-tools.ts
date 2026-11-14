@@ -128,16 +128,53 @@ function unescapeParens(d: string): string {
 }
 
 /**
+ * The content of every `Bash(...)` spec in one flag value. Specs are separated by
+ * commas or spaces. A spec's content is the text between `Bash(` and its closing
+ * `)`, tracking nested parens so a pattern like `git commit -m "fix(auth): x":*`
+ * keeps its parens, and unescaping `\(` and `\)`. A spec that is never closed
+ * falls back to the text up to the value's last `)`, like the CLI's parser.
+ */
+function bashRuleContents(value: string): string[] {
+  const contents: string[] = [];
+  for (
+    let start = value.indexOf("Bash(");
+    start !== -1;
+    start = value.indexOf("Bash(", start + 1)
+  ) {
+    let content = "";
+    let depth = 1;
+    let closed = false;
+    for (let i = start + 5; i < value.length; i++) {
+      const char = value[i]!;
+      if (char === "\\" && (value[i + 1] === "(" || value[i + 1] === ")")) {
+        content += char + value[i + 1]!; // keep the escape, unescaped below
+        i++;
+        continue;
+      }
+      if (char === "(") depth++;
+      if (char === ")") {
+        depth--;
+        if (depth === 0) {
+          closed = true;
+          break;
+        }
+      }
+      content += char;
+    }
+    if (!closed) {
+      const last = value.lastIndexOf(")");
+      if (last <= start + 5) continue; // no closing paren at all: not a spec
+      content = value.slice(start + 5, last);
+    }
+    contents.push(content.replaceAll("\\(", "(").replaceAll("\\)", ")"));
+  }
+  return contents;
+}
+
+/**
  * The patterns of the `Bash(...)` deny rules in a claude_args string. It reads the
  * arguments the same way as the code that passes them to the CLI, including the
  * `--disallowedTools=...` form, so it sees every rule the CLI receives.
- *
- * Each value is split on `,` the same way the CLI's own spec list is (see
- * ACCUMULATING_FLAGS handling in base-action/src/parse-sdk-options.ts), then
- * for every `Bash(...)` token the pattern is taken between the first
- * unescaped `(` and the LAST unescaped `)` — not the first `)` — and `\(`/`\)`
- * are unescaped, so a pattern containing its own parentheses (a commit
- * message, a path) is extracted in full, matching the CLI's own semantics.
  */
 export function parseDeniedBashPatterns(claudeArgs: string): string[] {
   const values = Object.entries(parseClaudeArgsToExtraArgs(claudeArgs)).flatMap(
@@ -148,20 +185,7 @@ export function parseDeniedBashPatterns(claudeArgs: string): string[] {
         : [];
     },
   );
-  return values.flatMap((value) =>
-    value
-      .split(",")
-      .map((token) => token.trim())
-      .filter((token) => token.startsWith("Bash("))
-      .flatMap((token) => {
-        const open = firstUnescapedIndex(token, "(");
-        const close = lastUnescapedIndex(token, ")");
-        if (open === -1 || close === -1 || close <= open || close !== token.length - 1) {
-          return [];
-        }
-        return [unescapeParens(token.slice(open + 1, close))];
-      }),
-  );
+  return values.flatMap((value) => bashRuleContents(value));
 }
 
 /**
