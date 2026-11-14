@@ -57,7 +57,7 @@ This is general guidance for these event types — see [GitHub's documentation](
 
 ### Which files come from the base branch on pull requests
 
-When the action runs against a pull request, it restores a fixed list of Claude configuration paths from the PR base branch before starting Claude: `.claude/`, `.mcp.json`, `.claude.json`, `.gitmodules`, `.ripgreprc`, `CLAUDE.md`, `CLAUDE.local.md`, and `.husky/`. Paths in that list that do not exist on the base branch are removed, and the PR-authored versions are kept under `.claude-pr/` for reference only.
+When the action runs against a pull request, it restores a fixed list of Claude configuration paths from the PR base branch before starting Claude: `.claude/`, `.mcp.json`, `.claude.json`, `.gitmodules`, `.ripgreprc`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, and `.husky/`. Paths in that list that do not exist on the base branch are removed, and the PR-authored versions are kept under `.claude-pr/` for reference only.
 
 Everything else in the working tree — including `package.json`, lockfiles, `Makefile`, `node_modules/`, and formatter/linter config files — stays at the PR head, apart from the files described below. If a hook, `apiKeyHelper`, or `statusLine` command in your base-branch `.claude/settings.json` runs a package-manager script (`bun run …`, `npm run …`, `yarn …`, `pnpm run …`), a `make` target, a repo-relative script, or a tool that loads executable project config, that command resolves through files the pull request supplies. Keep such commands self-contained: invoke the tool directly with a pinned version and pass its configuration on the command line (for example `bunx prettier@3.5.3 --no-config --write .` rather than `bun run format`).
 
