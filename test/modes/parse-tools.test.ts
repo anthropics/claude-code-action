@@ -24,6 +24,20 @@ describe("parseDeniedBashPatterns", () => {
       expected as string[],
     );
   });
+
+  test.each([
+    [`'Bash(git add "app/(auth)/*")'`, `git add "app/(auth)/*"`],
+    [`'Bash(a:*) Bash(git add "(x)/*"),Bash(b:*)'`, `git add "(x)/*"`],
+    [`'Bash(git add {a,b}/*)'`, "git add {a,b}/*"],
+    [`"Read(x(" "Bash(a b:*)"`, "a b:*"],
+    [`"Bash(a:*)\nBash(b c:*)"`, "b c:*"],
+    [`"Bash(a:*);Read(x)"`, "a:*"],
+    [`"Bash(a:*))"`, "a:*"],
+  ])("finds the rule in %s", (rules, expected) => {
+    expect(parseDeniedBashPatterns(`--disallowedTools ${rules}`)).toContain(
+      expected,
+    );
+  });
 });
 
 describe("deniesCommand", () => {

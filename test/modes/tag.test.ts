@@ -191,7 +191,7 @@ describe("Tag Mode", () => {
         expect(args).toContain(
           `--disallowedTools 'Bash(/action/scripts/git-add.sh -A:*)'`,
         );
-        for (const rest of [`"a b"`, "it's", "$HOME/x"]) {
+        for (const rest of [`"a b"`, "it's", "$HOME/x", `"(a)/x"`]) {
           const denied = await prepare(
             `--disallowedTools 'Bash(git add ${rest.replace(/'/g, "'\\''")}:*)'`,
           );
