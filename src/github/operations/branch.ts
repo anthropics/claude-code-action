@@ -293,6 +293,11 @@ export async function setupBranch(
     });
 
     sourceSHA = sourceBranchRef.data.object.sha;
+    if (!/^[0-9a-f]{40}$/.test(sourceSHA)) {
+      throw new Error(
+        `Unexpected source SHA for branch '${sourceBranch}': ${sourceSHA}`,
+      );
+    }
     console.log(`Source branch SHA: ${sourceSHA}`);
 
     // Extract first label from GitHub data
@@ -344,11 +349,17 @@ export async function setupBranch(
         `Branch name generated: ${newBranch} (will be created by file ops server on first commit)`,
       );
 
-      // Ensure we're on the source branch
+      // Pin the local source branch to the commit resolved above. Fetching a
+      // branch does not advance an existing local branch with the same name.
       console.log(`Fetching and checking out source branch: ${sourceBranch}`);
       validateBranchName(sourceBranch);
-      execGit(["fetch", "origin", sourceBranch, ...fetchDepthArgs(1)]);
-      execGit(["checkout", sourceBranch, "--"]);
+      execGit([
+        "fetch",
+        "origin",
+        `+${sourceSHA}:refs/remotes/origin/${sourceBranch}`,
+        ...fetchDepthArgs(1),
+      ]);
+      execGit(["checkout", "-B", sourceBranch, sourceSHA, "--"]);
 
       return {
         baseBranch: sourceBranch,
@@ -362,11 +373,17 @@ export async function setupBranch(
       `Creating local branch ${newBranch} for ${entityType} #${entityNumber} from source branch: ${sourceBranch}...`,
     );
 
-    // Fetch and checkout the source branch first to ensure we branch from the correct base
+    // Use the resolved source commit even if the local branch is stale or the
+    // remote branch advances after its SHA was read.
     console.log(`Fetching and checking out source branch: ${sourceBranch}`);
     validateBranchName(sourceBranch);
-    execGit(["fetch", "origin", sourceBranch, ...fetchDepthArgs(1)]);
-    execGit(["checkout", sourceBranch, "--"]);
+    execGit([
+      "fetch",
+      "origin",
+      `+${sourceSHA}:refs/remotes/origin/${sourceBranch}`,
+      ...fetchDepthArgs(1),
+    ]);
+    execGit(["checkout", "-B", sourceBranch, sourceSHA, "--"]);
 
     // Create and checkout the new branch from the source branch
     execGit(["checkout", "-b", newBranch]);
