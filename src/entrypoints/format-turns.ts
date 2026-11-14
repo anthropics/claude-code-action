@@ -40,6 +40,7 @@ export type Message = {
 export type Turn = {
   type: string;
   subtype?: string;
+  is_error?: boolean;
   message?: Message;
   tools?: any[];
   cost_usd?: number;
@@ -414,7 +415,10 @@ export function formatGroupedContent(groupedContent: GroupedContent[]): string {
       const duration = (data as any).duration_ms || 0;
       const resultText = (data as any).result || "";
 
-      markdown += "## ✅ Final Result\n\n";
+      const failed =
+        item.data?.is_error === true ||
+        (item.data?.subtype !== undefined && item.data.subtype !== "success");
+      markdown += failed ? "## ❌ Session Failed\n\n" : "## ✅ Final Result\n\n";
       if (resultText) {
         markdown += `${resultText}\n\n`;
       }

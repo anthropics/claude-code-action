@@ -392,6 +392,20 @@ describe("formatGroupedContent", () => {
     expect(result).toContain("**Cost:** $0.1234");
     expect(result).toContain("**Duration:** 5.7s");
   });
+
+  test.each([
+    { subtype: "success", is_error: true },
+    { subtype: "error_max_turns", is_error: true },
+    { subtype: "error_during_execution" },
+  ])("marks an unsuccessful session as failed (%j)", (status) => {
+    const result = formatTurnsFromData([
+      { type: "result", result: "Partial response", ...status },
+    ]);
+
+    expect(result).toContain("## ❌ Session Failed");
+    expect(result).not.toContain("## ✅ Final Result");
+    expect(result).toContain("Partial response");
+  });
 });
 
 describe("formatTurnsFromData", () => {
