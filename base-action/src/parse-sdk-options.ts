@@ -9,6 +9,7 @@ export type ParsedSdkOptions = {
   sdkOptions: SdkOptions;
   showFullOutput: boolean;
   hasJsonSchema: boolean;
+  fallbackPermissionMode?: SdkOptions["permissionMode"];
 };
 
 // Flags that should accumulate multiple values instead of overwriting
@@ -46,11 +47,11 @@ const SHELL_META_UNESCAPE = new Map(SHELL_META_PAIRS.map(([k, v]) => [v, k]));
 const SHELL_META_ESCAPE_RE = /[()|&;<>]/g;
 const SHELL_META_UNESCAPE_RE = /[-]/g;
 
-function escapeShellMeta(s: string): string {
+export function escapeShellMeta(s: string): string {
   return s.replace(SHELL_META_ESCAPE_RE, (c) => SHELL_META_ESCAPE.get(c)!);
 }
 
-function unescapeShellMeta(s: string): string {
+export function unescapeShellMeta(s: string): string {
   return s.replace(SHELL_META_UNESCAPE_RE, (c) => SHELL_META_UNESCAPE.get(c)!);
 }
 
@@ -130,7 +131,7 @@ function stripShellComments(input: string): string {
  * Accumulating flags also consume all consecutive non-flag values
  * (e.g., --allowed-tools "Tool1" "Tool2" "Tool3" captures all three).
  */
-function parseClaudeArgsToExtraArgs(
+export function parseClaudeArgsToExtraArgs(
   claudeArgs?: string,
 ): Record<string, string | null> {
   if (!claudeArgs?.trim()) return {};
@@ -184,6 +185,21 @@ function parseClaudeArgsToExtraArgs(
   }
 
   return result;
+}
+
+/**
+ * The permission mode the CLI ends up with: the last one given. `--permission-mode=x`
+ * is kept under its own key, with the value in the key's name.
+ */
+function lastPermissionMode(
+  extraArgs: Record<string, string | null>,
+): string | null | undefined {
+  const modes = Object.entries(extraArgs).flatMap(([flag, value]) => {
+    if (flag === "permission-mode") return [value];
+    const [name, inlineValue] = flag.split(/=(.*)/s);
+    return name === "permission-mode" ? [inlineValue ?? null] : [];
+  });
+  return modes.at(-1);
 }
 
 /**
@@ -370,5 +386,10 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     sdkOptions,
     showFullOutput,
     hasJsonSchema,
+    // Only when auto mode is what the session ends up asking for: a mode someone
+    // chose in claude_args must stay as they set it.
+    ...(lastPermissionMode(extraArgs) === "auto" && {
+      fallbackPermissionMode: options.fallbackPermissionMode,
+    }),
   };
 }
