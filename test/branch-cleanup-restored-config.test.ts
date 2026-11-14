@@ -18,6 +18,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import * as core from "@actions/core";
 import { checkAndCommitOrDeleteBranch } from "../src/github/operations/branch-cleanup";
 import { SENSITIVE_PATHS } from "../src/github/operations/restore-config";
 import type { Octokits } from "../src/github/api/client";
@@ -217,6 +218,52 @@ describe("auto-commit with restored config paths", () => {
     expect(remoteHead).toBe(git("rev-parse", "HEAD"));
     expect(result.branchLink).toContain(BRANCH);
   });
+});
+
+describe("when an unsigned branch was not published", () => {
+  const missingRemoteBranch = {
+    rest: {
+      repos: {
+        getBranch: async () => {
+          throw Object.assign(new Error("Not Found"), { status: 404 });
+        },
+      },
+    },
+  } as unknown as Octokits;
+
+  test.each([false, true])(
+    "warns only when local commits exist (%s)",
+    async (hasCommits) => {
+      git("push", "-q", "origin", "--delete", BRANCH);
+      if (hasCommits) {
+        write("src/app.ts", "local work\n");
+        git("commit", "-qam", "Local work");
+      }
+      const warningSpy = spyOn(core, "warning").mockImplementation(() => {});
+      try {
+        const result = await checkAndCommitOrDeleteBranch(
+          missingRemoteBranch,
+          "owner",
+          "repo",
+          BRANCH,
+          "main",
+          false,
+        );
+
+        expect(result).toEqual({ shouldDeleteBranch: false, branchLink: "" });
+        expect(git("ls-remote", "origin", `refs/heads/${BRANCH}`)).toBe("");
+        if (hasCommits) {
+          expect(warningSpy).toHaveBeenCalledWith(
+            expect.stringContaining(`Branch ${BRANCH} has local commits`),
+          );
+        } else {
+          expect(warningSpy).not.toHaveBeenCalled();
+        }
+      } finally {
+        warningSpy.mockRestore();
+      }
+    },
+  );
 });
 
 describe("without restored config paths (the issue path)", () => {
