@@ -298,6 +298,7 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   }
   // Set the entrypoint for Claude Code to identify this as the GitHub Action
   env.CLAUDE_CODE_ENTRYPOINT = "claude-code-github-action";
+  env.CLAUDE_CODE_STARTUP_FAILURE_RESULTS ??= "1";
 
   // Remove OIDC token request variables so Claude cannot mint new tokens.
   // These are only needed by the action itself (via @actions/core.getIDToken()),

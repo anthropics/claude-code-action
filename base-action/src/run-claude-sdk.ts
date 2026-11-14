@@ -287,6 +287,13 @@ export async function runClaudeWithSdk(
     throw new Error("No result message received from Claude");
   }
 
+  if (resultMessage.subtype === "error_during_execution") {
+    const reason = resultMessage.startup_failure_reason;
+    if (reason && /^[a-z_]+$/.test(reason)) {
+      throw new Error(`Claude Code could not start (${reason})`);
+    }
+  }
+
   if (
     resultMessage.subtype === "success" &&
     !resultMessage.is_error &&
