@@ -86,9 +86,58 @@ export function parseAllowedTools(claudeArgs: string): string[] {
 }
 
 /**
+ * Index of the first/last occurrence of `ch` in `d` that is not escaped by a
+ * (even-length-prefix) run of backslashes. Mirrors the Claude Code CLI's own
+ * spec parser (z5/G5 in the shipped @anthropic-ai/claude-agent-sdk bundle),
+ * so a `Bash(...)` rule is split on the same boundary the CLI itself will use
+ * when it later parses this exact rule text.
+ */
+function firstUnescapedIndex(d: string, ch: string): number {
+  for (let i = 0; i < d.length; i++) {
+    if (d[i] === ch) {
+      let backslashes = 0;
+      let j = i - 1;
+      while (j >= 0 && d[j] === "\\") {
+        backslashes++;
+        j--;
+      }
+      if (backslashes % 2 === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function lastUnescapedIndex(d: string, ch: string): number {
+  for (let i = d.length - 1; i >= 0; i--) {
+    if (d[i] === ch) {
+      let backslashes = 0;
+      let j = i - 1;
+      while (j >= 0 && d[j] === "\\") {
+        backslashes++;
+        j--;
+      }
+      if (backslashes % 2 === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/** Mirrors B5 in the shipped CLI bundle. */
+function unescapeParens(d: string): string {
+  return d.replaceAll("\\(", "(").replaceAll("\\)", ")");
+}
+
+/**
  * The patterns of the `Bash(...)` deny rules in a claude_args string. It reads the
  * arguments the same way as the code that passes them to the CLI, including the
  * `--disallowedTools=...` form, so it sees every rule the CLI receives.
+ *
+ * Each value is split on `,` the same way the CLI's own spec list is (see
+ * ACCUMULATING_FLAGS handling in base-action/src/parse-sdk-options.ts), then
+ * for every `Bash(...)` token the pattern is taken between the first
+ * unescaped `(` and the LAST unescaped `)` — not the first `)` — and `\(`/`\)`
+ * are unescaped, so a pattern containing its own parentheses (a commit
+ * message, a path) is extracted in full, matching the CLI's own semantics.
  */
 export function parseDeniedBashPatterns(claudeArgs: string): string[] {
   const values = Object.entries(parseClaudeArgsToExtraArgs(claudeArgs)).flatMap(
@@ -100,7 +149,18 @@ export function parseDeniedBashPatterns(claudeArgs: string): string[] {
     },
   );
   return values.flatMap((value) =>
-    [...value.matchAll(/Bash\(([^)]*)\)/g)].map((match) => match[1]!),
+    value
+      .split(",")
+      .map((token) => token.trim())
+      .filter((token) => token.startsWith("Bash("))
+      .flatMap((token) => {
+        const open = firstUnescapedIndex(token, "(");
+        const close = lastUnescapedIndex(token, ")");
+        if (open === -1 || close === -1 || close <= open || close !== token.length - 1) {
+          return [];
+        }
+        return [unescapeParens(token.slice(open + 1, close))];
+      }),
   );
 }
 
