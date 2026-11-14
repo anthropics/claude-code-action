@@ -7,8 +7,32 @@ import {
   setupSshSigning,
 } from "../../github/operations/git-config";
 import { checkHumanActor } from "../../github/validation/actor";
-import type { GitHubContext } from "../../github/context";
+import { defaultsToAutoMode } from "../permission-mode";
+import { isEntityContext, type GitHubContext } from "../../github/context";
 import type { Octokits } from "../../github/api/client";
+
+/**
+ * Commits made through the API land on the branch of this name in this repository,
+ * so a run on a pull request or issue has to use its own branch. A fork's branch name
+ * means nothing here, and a comment event only knows the default branch. Tag mode uses
+ * pr-N too.
+ */
+function getEntityBranch(context: GitHubContext): string | undefined {
+  if (!isEntityContext(context)) {
+    return process.env.GITHUB_HEAD_REF;
+  }
+  if (!context.isPR) {
+    return `issue-${context.entityNumber}`;
+  }
+  const head =
+    "pull_request" in context.payload
+      ? context.payload.pull_request.head
+      : undefined;
+  const isSameRepository =
+    head?.repo?.full_name?.toLowerCase() ===
+    context.repository.full_name.toLowerCase();
+  return isSameRepository && head ? head.ref : `pr-${context.entityNumber}`;
+}
 
 /**
  * Prepares the agent mode execution context.
@@ -101,7 +125,7 @@ export async function prepareAgentMode({
   // Detect current branch from GitHub environment
   const currentBranch =
     claudeBranch ||
-    process.env.GITHUB_HEAD_REF ||
+    getEntityBranch(context) ||
     process.env.GITHUB_REF_NAME ||
     defaultBranch;
 
@@ -118,14 +142,15 @@ export async function prepareAgentMode({
     context,
   });
 
-  // Build final claude_args with multiple --mcp-config flags
-  let claudeArgs = "";
+  // Build final claude_args with multiple --mcp-config flags. The user's come last,
+  // so another --permission-mode there wins.
+  let claudeArgs = defaultsToAutoMode() ? "--permission-mode auto" : "";
 
   // Add our GitHub servers config if we have any
   const ourConfig = JSON.parse(ourMcpConfig);
   if (ourConfig.mcpServers && Object.keys(ourConfig.mcpServers).length > 0) {
     const escapedOurConfig = ourMcpConfig.replace(/'/g, "'\\''");
-    claudeArgs = `--mcp-config '${escapedOurConfig}'`;
+    claudeArgs = `${claudeArgs} --mcp-config '${escapedOurConfig}'`;
   }
 
   // Append user's claude_args (which may have more --mcp-config flags)
