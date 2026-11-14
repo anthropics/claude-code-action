@@ -9,20 +9,95 @@ export function stripInvisibleCharacters(content: string): string {
   return content;
 }
 
+function stripImageAltText(content: string, marker: "(" | "["): string {
+  const parts: string[] = [];
+  let scan = 0;
+  let copied = 0;
+
+  while ((scan = content.indexOf("![", scan)) !== -1) {
+    const altEnd = content.indexOf("]", scan + 2);
+    if (altEnd === -1) break;
+    if (content[altEnd + 1] !== marker) {
+      scan = altEnd + 1;
+      continue;
+    }
+
+    if (marker === "[") {
+      const labelEnd = content.indexOf("]", altEnd + 2);
+      if (labelEnd === -1) {
+        scan = altEnd + 1;
+        continue;
+      }
+      parts.push(
+        content.slice(copied, scan),
+        "![]",
+        content.slice(altEnd + 1, labelEnd + 1),
+      );
+      scan = labelEnd + 1;
+    } else {
+      parts.push(content.slice(copied, scan), "![](");
+      scan = altEnd + 2;
+    }
+    copied = scan;
+  }
+
+  if (parts.length === 0) return content;
+  parts.push(content.slice(copied));
+  return parts.join("");
+}
+
 export function stripMarkdownImageAltText(content: string): string {
-  // Inline images: ![alt](url) -> ![](url)
-  content = content.replace(/!\[[^\]]*\]\(/g, "![](");
-  // Reference-style images: ![alt][ref] -> ![][ref] (keep the label, drop the
-  // alt text, which is otherwise a hidden-instruction channel just like the
-  // inline form above).
-  content = content.replace(/!\[[^\]]*\](\[[^\]]*\])/g, "![]$1");
-  return content;
+  // Keep reference labels; only remove hidden image alt text.
+  return stripImageAltText(stripImageAltText(content, "("), "[");
+}
+
+function stripLinkTitle(content: string, quote: '"' | "'"): string {
+  const parts: string[] = [];
+  let copied = 0;
+  let scan = 0;
+
+  while (true) {
+    const start = content.indexOf("[", scan);
+    if (start === -1) break;
+    const labelEnd = content.indexOf("]", start + 1);
+    if (labelEnd === -1) break;
+    if (content[labelEnd + 1] !== "(") {
+      scan = labelEnd + 1;
+      continue;
+    }
+
+    const urlStart = labelEnd + 2;
+    const endParen = content.indexOf(")", urlStart);
+    const limit = endParen === -1 ? content.length : endParen;
+    let titleStart = -1;
+    let titleEnd = -1;
+
+    // The original greedy match strips the last quoted title before ')'.
+    for (let i = urlStart + 2; i < limit; i++) {
+      if (content[i] !== quote || !/\s/.test(content[i - 1]!)) continue;
+      const closingQuote = content.indexOf(quote, i + 1);
+      if (closingQuote === -1) break;
+      titleStart = i - 1;
+      titleEnd = closingQuote + 1;
+      i = closingQuote;
+    }
+
+    if (titleStart !== -1) {
+      parts.push(content.slice(copied, titleStart));
+      copied = titleEnd;
+      scan = titleEnd;
+    } else {
+      scan = endParen === -1 ? content.length : endParen + 1;
+    }
+  }
+
+  if (parts.length === 0) return content;
+  parts.push(content.slice(copied));
+  return parts.join("");
 }
 
 export function stripMarkdownLinkTitles(content: string): string {
-  content = content.replace(/(\[[^\]]*\]\([^)]+)\s+"[^"]*"/g, "$1");
-  content = content.replace(/(\[[^\]]*\]\([^)]+)\s+'[^']*'/g, "$1");
-  return content;
+  return stripLinkTitle(stripLinkTitle(content, '"'), "'");
 }
 
 export function stripHiddenAttributes(content: string): string {
@@ -158,5 +233,20 @@ export function redactGitHubTokens(content: string): string {
   return content;
 }
 
-export const stripHtmlComments = (content: string) =>
-  content.replace(/<!--[\s\S]*?-->/g, "");
+export function stripHtmlComments(content: string): string {
+  const parts: string[] = [];
+  let copied = 0;
+
+  while (true) {
+    const start = content.indexOf("<!--", copied);
+    if (start === -1) break;
+    const end = content.indexOf("-->", start + 4);
+    if (end === -1) break;
+    parts.push(content.slice(copied, start));
+    copied = end + 3;
+  }
+
+  if (parts.length === 0) return content;
+  parts.push(content.slice(copied));
+  return parts.join("");
+}
