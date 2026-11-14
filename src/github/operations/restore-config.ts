@@ -313,7 +313,7 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
     [
       "fetch",
       "origin",
-      baseBranch,
+      `+refs/heads/${baseBranch}:refs/remotes/origin/${baseBranch}`,
       ...fetchDepthArgs(1),
       "--no-recurse-submodules",
     ],

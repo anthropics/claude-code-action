@@ -39,6 +39,7 @@ import {
   snapshotSessionFiles,
 } from "../github/operations/session-guard";
 import { restoreConfigFromBase } from "../github/operations/restore-config";
+import { ensurePullRequestMergeBase } from "../github/operations/fetch-depth";
 import {
   restoreToolConfigFromBase,
   toolConfigDenyRules,
@@ -315,6 +316,11 @@ async function run() {
       }
       if (restoreBase) {
         restoredConfigPaths = restoreConfigFromBase(restoreBase);
+        await ensurePullRequestMergeBase(
+          octokit.rest,
+          context.repository,
+          restoreBase,
+        );
         // Before plugins are installed, which can already start package managers here.
         if (isUntrustedCheckout) {
           restoredToolConfig = restoreToolConfigFromBase(restoreBase);

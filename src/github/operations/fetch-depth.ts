@@ -1,4 +1,6 @@
-import { execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
+import * as core from "@actions/core";
+import type { Octokit } from "@octokit/rest";
 
 /**
  * Builds the `--depth` argument for a `git fetch`, unless the checkout still
@@ -22,19 +24,67 @@ export function fetchDepthArgs(depth: number): string[] {
 
 function isShallowRepository(): boolean {
   try {
-    const output = execFileSync(
-      "git",
-      ["rev-parse", "--is-shallow-repository"],
-      {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-    return output.trim() === "true";
+    return gitOutput("rev-parse", "--is-shallow-repository") === "true";
   } catch {
     // No repository yet, or a git old enough not to know the flag. Treat the
     // checkout as complete: fetching more than necessary is recoverable,
     // truncating history is not.
     return false;
+  }
+}
+
+function gitOutput(...args: string[]): string {
+  return execFileSync("git", args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
+/**
+ * Restore the common history needed for PR diffs after the base ref has been
+ * fetched. Keep both the checkout and the trusted base pinned to their SHAs.
+ */
+export async function ensurePullRequestMergeBase(
+  octokit: Octokit,
+  repository: { owner: string; repo: string },
+  baseBranch: string,
+): Promise<void> {
+  if (!isShallowRepository()) return;
+
+  try {
+    const base = gitOutput(
+      "rev-parse",
+      "--verify",
+      `refs/remotes/origin/${baseBranch}`,
+    );
+    const head = gitOutput("rev-parse", "--verify", "HEAD");
+    const mergeBase = spawnSync("git", ["merge-base", base, head], {
+      stdio: "ignore",
+    });
+    if (mergeBase.status === 0) return;
+
+    const { data } = await octokit.rest.repos.compareCommitsWithBasehead({
+      owner: repository.owner,
+      repo: repository.repo,
+      basehead: `${base}...${head}`,
+      per_page: 1,
+    });
+    // Depth counts the merge base as well as the commits ahead of or behind it.
+    const depth = Math.max(data.ahead_by, data.behind_by) + 1;
+    gitOutput(
+      "fetch",
+      "--no-tags",
+      "--no-recurse-submodules",
+      `--depth=${depth}`,
+      "origin",
+      base,
+      head,
+    );
+    gitOutput("merge-base", base, head);
+    core.info(`Fetched PR history through the merge base (depth ${depth}).`);
+  } catch {
+    core.warning(
+      "Could not fetch the pull request's merge base. Set fetch-depth: 0 in actions/checkout if the workflow needs the full history.",
+    );
   }
 }
