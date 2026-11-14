@@ -206,7 +206,7 @@ function snapshotSensitivePath(
   }
 }
 
-function ensureClaudePrExcludedFromGit(): void {
+export function ensureClaudePrExcludedFromGit(): void {
   const excludePath = execFileSync(
     "git",
     ["rev-parse", "--git-path", "info/exclude"],
@@ -258,7 +258,8 @@ function ensureClaudePrExcludedFromGit(): void {
  * extends to the runtime itself: `bunx <tool>` runs the tool under `node` when
  * `node` is on PATH, but on a Bun-only runner Bun executes the script and reads
  * `bunfig.toml` (e.g. `preload`) from the checkout, so `bunfig.toml` and
- * `.npmrc` there are PR-controlled runtime config too.
+ * `.npmrc` there are PR-controlled runtime config too. On PRs from authors without
+ * write access, restoreToolConfigFromBase replaces those.
  *
  * @param baseBranch - PR base branch name. Must be pre-validated (branch.ts
  *   calls validateBranchName on it before returning).

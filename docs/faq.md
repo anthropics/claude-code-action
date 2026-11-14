@@ -98,7 +98,7 @@ Yes! Claude can access GitHub Actions workflow runs, job logs, and test results 
          actions: read
    ```
 
-Claude will then be able to analyze CI failures and help debug workflow issues. For running tests locally before commits, you can still instruct Claude to do so in your request.
+Claude will then be able to analyze CI failures and help debug workflow issues. For running tests locally before commits, you can still instruct Claude to do so in your request, except on pull requests whose author does not have write access. For pull requests from forks, see [Security](./security.md#running-code-from-pull-requests) for another way to get test results.
 
 ### Why does Claude only update one comment instead of creating new ones?
 
@@ -171,11 +171,11 @@ claude_args: |
 
 ### Why doesn't Claude execute my bash commands?
 
-The Bash tool is **disabled by default** for security. To enable individual bash commands using `claude_args`:
+In [auto mode](./usage.md#permission-mode), the default, a safety review decides any Bash command that no allow rule covers, and it can block yours. With `--permission-mode acceptEdits` or `default`, most Bash commands are denied unless allowed. To allow individual bash commands using `claude_args`:
 
 ```yaml
 claude_args: |
-  --allowedTools "Bash(npm:*),Bash(git:*)"  # Allows only npm and git commands
+  --allowedTools "Bash(npm:*),Bash(git:*)"  # Allows npm and git commands without asking
 ```
 
 ### Can Claude work across multiple repositories?
