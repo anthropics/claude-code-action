@@ -86,6 +86,50 @@ export function parseAllowedTools(claudeArgs: string): string[] {
 }
 
 /**
+ * The content of every `Bash(...)` spec in one flag value. Specs are separated by
+ * commas or spaces. A spec's content is the text between `Bash(` and its closing
+ * `)`, tracking nested parens so a pattern like `git commit -m "fix(auth): x":*`
+ * keeps its parens, and unescaping `\(` and `\)`. A spec that is never closed
+ * falls back to the text up to the value's last `)`, like the CLI's parser.
+ */
+function bashRuleContents(value: string): string[] {
+  const contents: string[] = [];
+  for (
+    let start = value.indexOf("Bash(");
+    start !== -1;
+    start = value.indexOf("Bash(", start + 1)
+  ) {
+    let content = "";
+    let depth = 1;
+    let closed = false;
+    for (let i = start + 5; i < value.length; i++) {
+      const char = value[i]!;
+      if (char === "\\" && (value[i + 1] === "(" || value[i + 1] === ")")) {
+        content += char + value[i + 1]!; // keep the escape, unescaped below
+        i++;
+        continue;
+      }
+      if (char === "(") depth++;
+      if (char === ")") {
+        depth--;
+        if (depth === 0) {
+          closed = true;
+          break;
+        }
+      }
+      content += char;
+    }
+    if (!closed) {
+      const last = value.lastIndexOf(")");
+      if (last <= start + 5) continue; // no closing paren at all: not a spec
+      content = value.slice(start + 5, last);
+    }
+    contents.push(content.replaceAll("\\(", "(").replaceAll("\\)", ")"));
+  }
+  return contents;
+}
+
+/**
  * The patterns of the `Bash(...)` deny rules in a claude_args string. It reads the
  * arguments the same way as the code that passes them to the CLI, including the
  * `--disallowedTools=...` form, so it sees every rule the CLI receives.
@@ -99,9 +143,7 @@ export function parseDeniedBashPatterns(claudeArgs: string): string[] {
         : [];
     },
   );
-  return values.flatMap((value) =>
-    [...value.matchAll(/Bash\(([^)]*)\)/g)].map((match) => match[1]!),
-  );
+  return values.flatMap((value) => bashRuleContents(value));
 }
 
 /**
