@@ -31,6 +31,8 @@ describe("parseDeniedBashPatterns", () => {
     [`'Bash(git add {a,b}/*)'`, "git add {a,b}/*"],
     [`"Read(x(" "Bash(a b:*)"`, "a b:*"],
     [`"Bash(a:*)\nBash(b c:*)"`, "b c:*"],
+    [`"Bash(a:*),\nBash(git add \\"(x)/*\\")"`, `git add "(x)/*"`],
+    [`"Bash(git add {a" "b}/*)"`, "git add {a\0b}/*"],
     [`"Bash(a:*);Read(x)"`, "a:*"],
     [`"Bash(a:*))"`, "a:*"],
   ])("finds the rule in %s", (rules, expected) => {

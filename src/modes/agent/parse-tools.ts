@@ -100,16 +100,15 @@ export function parseDeniedBashPatterns(claudeArgs: string): string[] {
         : [];
     },
   );
-  const patterns = values
-    .flatMap((value) => value.split(ACCUMULATE_DELIMITER))
-    .flatMap((value) => [
-      // Whole rules, whose own text can hold parentheses: Bash(git add "app/(auth)/*").
-      ...(value.match(RULE) ?? []).flatMap(
-        (rule) => rule.match(/^Bash\((.*)\)$/)?.[1] ?? [],
-      ),
-      // Also whatever looks like a rule, so that one the CLI can't read still denies.
-      ...[...value.matchAll(/Bash\(([^)]*)\)/g)].map((match) => match[1]!),
-    ]);
+  const patterns = values.flatMap((value) => [
+    // Whole rules, whose own text can hold parentheses: Bash(git add "app/(auth)/*").
+    ...value
+      .split(ACCUMULATE_DELIMITER)
+      .flatMap((part) => part.match(RULE) ?? [])
+      .flatMap((rule) => rule.trim().match(/^Bash\((.*)\)$/)?.[1] ?? []),
+    // Also whatever looks like a rule, so that one the CLI can't read still denies.
+    ...[...value.matchAll(/Bash\(([^)]*)\)/g)].map((match) => match[1]!),
+  ]);
   return [...new Set(patterns)];
 }
 
