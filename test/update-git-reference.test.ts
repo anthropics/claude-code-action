@@ -87,4 +87,26 @@ describe("updateGitReference", () => {
 
     expect(attempts).toBe(2);
   });
+
+  it.each([
+    ["main#pwn", "main%23pwn"],
+    ["main?x=1", "main%3Fx%3D1"],
+    ["feature/fix-1", "feature/fix-1"],
+  ])("encodes %s in the request URL", async (branch, encoded) => {
+    let requested = "";
+    await updateGitReference({
+      owner: "o",
+      repo: "r",
+      branch,
+      sha: "abc",
+      githubToken: "t",
+      fetchFn: async (url) => {
+        requested = String(url);
+        return response(200);
+      },
+    });
+    expect(requested).toBe(
+      `${GITHUB_API_URL}/repos/o/r/git/refs/heads/${encoded}`,
+    );
+  });
 });

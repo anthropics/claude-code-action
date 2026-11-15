@@ -3,12 +3,22 @@ import { GITHUB_SERVER_URL } from "../api/config";
 import { encodeBranchNameForUrl } from "./comments/common";
 import { $ } from "bun";
 
-/** Critical failure: Claude's local commit was not published remotely. */
+/** Critical failure: a local Claude commit was not published remotely. */
 export class BranchPublicationError extends Error {
   constructor(public readonly branch: string) {
     super(`Failed to push Claude changes to remote branch ${branch}`);
     this.name = "BranchPublicationError";
   }
+}
+
+async function pushLfsObjects(branch: string): Promise<void> {
+  let tracked: string;
+  try {
+    tracked = await $`git lfs ls-files --name-only`.quiet().text();
+  } catch {
+    return; // Git LFS isn't installed here
+  }
+  if (tracked.trim()) await $`git lfs push origin ${branch}`;
 }
 
 export async function checkAndCommitOrDeleteBranch(
@@ -107,8 +117,10 @@ export async function checkAndCommitOrDeleteBranch(
               const commitMessage = `Auto-commit: Save uncommitted changes from Claude\n\nRun ID: ${runId}`;
               await $`git commit -m ${commitMessage}`;
 
-              // Push the changes. Unlike metadata errors, a failed push
-              // means Claude's code was not published: do not report success.
+              // Hooks are off by now, and Git LFS uploads from a hook.
+              await pushLfsObjects(claudeBranch);
+
+              // A failed push must not be reported as successful publication.
               try {
                 await $`git push origin ${claudeBranch}`;
               } catch (pushError) {

@@ -488,3 +488,140 @@ describe("escapeRegExp", () => {
     expect(escapeRegExp("test[123]")).toBe("test\\[123\\]");
   });
 });
+
+describe("checkContainsTrigger with a prompt on issue events", () => {
+  const issueEvent = (
+    payloadExtra: object,
+    eventAction: string,
+    inputs: object,
+  ): ParsedGitHubContext =>
+    createMockContext({
+      eventName: "issues",
+      eventAction,
+      inputs: {
+        prompt: "Triage this issue",
+        labelTrigger: "claude-task",
+        assigneeTrigger: "",
+        ...inputs,
+      } as any,
+      payload: { action: eventAction, issue: { number: 1 }, ...payloadExtra },
+    } as any);
+
+  it("does not start on a label other than the trigger label", () => {
+    expect(
+      checkContainsTrigger(
+        issueEvent({ label: { name: "bug" } }, "labeled", {}),
+      ),
+    ).toBe(false);
+  });
+
+  it("starts on the trigger label, ignoring case", () => {
+    expect(
+      checkContainsTrigger(
+        issueEvent({ label: { name: "Claude-Task" } }, "labeled", {}),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not start on an assignment to someone else", () => {
+    expect(
+      checkContainsTrigger(
+        issueEvent({ assignee: { login: "teammate" } }, "assigned", {
+          assigneeTrigger: "claude-bot",
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("starts on any assignment when no assignee trigger is set", () => {
+    expect(
+      checkContainsTrigger(
+        issueEvent({ assignee: { login: "teammate" } }, "assigned", {}),
+      ),
+    ).toBe(true);
+  });
+
+  it("still starts on other issue events", () => {
+    expect(checkContainsTrigger(issueEvent({}, "opened", {}))).toBe(true);
+  });
+});
+
+describe("checkContainsTrigger when the text is someone else's", () => {
+  const commentEvent = (eventAction: string, author: string, actor: string) =>
+    ({
+      ...mockIssueCommentContext,
+      eventAction,
+      actor,
+      payload: {
+        ...mockIssueCommentContext.payload,
+        action: eventAction,
+        comment: {
+          ...(mockIssueCommentContext.payload as any).comment,
+          body: "@claude do this",
+          user: { login: author },
+        },
+      },
+    }) as ParsedGitHubContext;
+
+  it("starts on a person's own new comment", () => {
+    const context = commentEvent("created", "maintainer", "maintainer");
+    expect(
+      checkContainsTrigger({
+        ...context,
+        inputs: { ...context.inputs, triggerPhrase: "@claude" },
+      }),
+    ).toBe(true);
+  });
+
+  it("does not start when a maintainer edits an outsider's comment", () => {
+    const context = commentEvent("edited", "outsider", "maintainer");
+    expect(
+      checkContainsTrigger({
+        ...context,
+        inputs: { ...context.inputs, triggerPhrase: "@claude" },
+      }),
+    ).toBe(false);
+  });
+
+  it("does not start on someone else's edited comment even with a prompt", () => {
+    const context = commentEvent("edited", "outsider", "maintainer");
+    expect(
+      checkContainsTrigger({
+        ...context,
+        inputs: { ...context.inputs, prompt: "Triage this" },
+      }),
+    ).toBe(false);
+  });
+
+  it("does not start on a deleted comment, even the actor's own", () => {
+    const context = commentEvent("deleted", "maintainer", "maintainer");
+    expect(
+      checkContainsTrigger({
+        ...context,
+        inputs: { ...context.inputs, triggerPhrase: "@claude" },
+      }),
+    ).toBe(false);
+  });
+
+  it("does not start when a review was written by someone else", () => {
+    const base = mockPullRequestReviewContext;
+    const payload = base.payload as any;
+    expect(
+      checkContainsTrigger({
+        ...base,
+        actor: "maintainer",
+        eventAction: "edited",
+        inputs: { ...base.inputs, triggerPhrase: "@claude" },
+        payload: {
+          ...payload,
+          action: "edited",
+          review: {
+            ...payload.review,
+            body: "@claude do this",
+            user: { login: "outsider" },
+          },
+        },
+      } as ParsedGitHubContext),
+    ).toBe(false);
+  });
+});

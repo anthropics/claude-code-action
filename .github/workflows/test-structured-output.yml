@@ -48,10 +48,9 @@ jobs:
             --json-schema '{"type":"object","properties":{"text_field":{"type":"string"},"number_field":{"type":"number"},"boolean_true":{"type":"boolean"},"boolean_false":{"type":"boolean"}},"required":["text_field","number_field","boolean_true","boolean_false"]}'
 
       - name: Verify outputs
+        env:
+          OUTPUT: ${{ steps.test.outputs.structured_output }}
         run: |
-          # Parse the structured_output JSON
-          OUTPUT='${{ steps.test.outputs.structured_output }}'
-
           # Test string pass-through
           TEXT_FIELD=$(echo "$OUTPUT" | jq -r '.text_field')
           if [ "$TEXT_FIELD" != "hello" ]; then
@@ -111,10 +110,9 @@ jobs:
             --json-schema '{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}},"config":{"type":"object"},"empty_array":{"type":"array"}},"required":["items","config","empty_array"]}'
 
       - name: Verify JSON stringification
+        env:
+          OUTPUT: ${{ steps.test.outputs.structured_output }}
         run: |
-          # Parse the structured_output JSON
-          OUTPUT='${{ steps.test.outputs.structured_output }}'
-
           # Arrays should be JSON stringified
           if ! echo "$OUTPUT" | jq -e '.items | length == 3' > /dev/null; then
             echo "❌ Array not properly formatted"
@@ -168,10 +166,9 @@ jobs:
             --json-schema '{"type":"object","properties":{"zero":{"type":"number"},"empty_string":{"type":"string"},"negative":{"type":"number"},"decimal":{"type":"number"}},"required":["zero","empty_string","negative","decimal"]}'
 
       - name: Verify edge cases
+        env:
+          OUTPUT: ${{ steps.test.outputs.structured_output }}
         run: |
-          # Parse the structured_output JSON
-          OUTPUT='${{ steps.test.outputs.structured_output }}'
-
           # Zero should be "0", not empty or falsy
           ZERO=$(echo "$OUTPUT" | jq -r '.zero')
           if [ "$ZERO" != "0" ]; then
@@ -227,10 +224,9 @@ jobs:
             --json-schema '{"type":"object","properties":{"test-result":{"type":"string"},"item_count":{"type":"number"}},"required":["test-result","item_count"]}'
 
       - name: Verify sanitized names work
+        env:
+          OUTPUT: ${{ steps.test.outputs.structured_output }}
         run: |
-          # Parse the structured_output JSON
-          OUTPUT='${{ steps.test.outputs.structured_output }}'
-
           # Hyphens should be preserved in the JSON
           TEST_RESULT=$(echo "$OUTPUT" | jq -r '.["test-result"]')
           if [ "$TEST_RESULT" != "passed" ]; then

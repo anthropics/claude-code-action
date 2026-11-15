@@ -639,3 +639,49 @@ describe("parseSdkOptions", () => {
     });
   });
 });
+
+describe("fallbackPermissionMode", () => {
+  const fallback = (claudeArgs: string) =>
+    parseSdkOptions({ claudeArgs, fallbackPermissionMode: "acceptEdits" })
+      .fallbackPermissionMode;
+
+  test("applies when auto mode is the mode asked for", () => {
+    expect(fallback("--permission-mode auto")).toBe("acceptEdits");
+  });
+
+  test("applies when a later flag asks for auto mode", () => {
+    expect(fallback("--permission-mode default --permission-mode auto")).toBe(
+      "acceptEdits",
+    );
+  });
+
+  test("does not override a mode set after auto", () => {
+    expect(
+      fallback("--permission-mode auto --permission-mode default"),
+    ).toBeUndefined();
+  });
+
+  test("does not override a mode set with an equals sign", () => {
+    expect(
+      fallback("--permission-mode auto --permission-mode=default"),
+    ).toBeUndefined();
+  });
+
+  test("applies when auto mode is set with an equals sign", () => {
+    expect(fallback("--permission-mode=auto")).toBe("acceptEdits");
+    expect(fallback("--permission-mode default --permission-mode=auto")).toBe(
+      "acceptEdits",
+    );
+  });
+
+  test("does not apply with no mode", () => {
+    expect(fallback("--model x")).toBeUndefined();
+  });
+
+  test("is unset unless the caller asks for it", () => {
+    expect(
+      parseSdkOptions({ claudeArgs: "--permission-mode auto" })
+        .fallbackPermissionMode,
+    ).toBeUndefined();
+  });
+});

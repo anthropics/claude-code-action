@@ -25,6 +25,7 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
+      actions: read # Lets Claude read CI results on pull requests
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -42,9 +43,14 @@ jobs:
           anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           # --permission-mode auto: a tool call that needs permission and that the allowed tools
-          # do not cover runs only if Claude Code's safety review passes it. The action sets
-          # --permission-mode acceptEdits for @claude mentions, and this one, which comes after it, wins.
+          # do not cover runs only if Claude Code's safety review passes it. This is also the
+          # action's default, and it is set here so that the workflow hardening check can see it.
+          # --disallowedTools: of the CI tools that actions: read enables, Claude needs only the run results. A pull
+          # request controls the text of logs and of job and step names.
+          # --append-system-prompt: how to use those results where the action denies commands.
           claude_args: |
             --allowedTools "Bash(bun install),Bash(bun test:*),Bash(bun run format),Bash(bun typecheck)"
+            --disallowedTools "mcp__github_ci__download_job_log,mcp__github_ci__get_workflow_run_details"
+            --append-system-prompt "The action denies commands such as bun on pull requests whose author is not confirmed to have write access. When that happens, do not ask for changes to allowedTools. Instead call mcp__github_ci__get_ci_status and report the newest run named CI, which is ci.yml. Only a success conclusion means it passed. action_required means a maintainer has not approved it yet, and a run without a conclusion has not finished. Say that the result is for the latest commit of the pull request and not for edits you made, and that the pull request can change its own workflows, so a maintainer should check the run."
             --model "claude-opus-4-7"
             --permission-mode auto
