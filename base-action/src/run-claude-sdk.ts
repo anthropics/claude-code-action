@@ -4,6 +4,7 @@ import { dirname, join } from "path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type {
   SDKMessage,
+  SDKAssistantMessageError,
   SDKResultMessage,
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -19,6 +20,23 @@ export type ClaudeRunResult = {
 
 /** Filename for the user request file, written by prompt generation */
 const USER_REQUEST_FILENAME = "claude-user-request.txt";
+
+// SDK messages are decoded from JSON. Only publish recognized error categories.
+const SDK_ERROR_CATEGORIES = new Set<SDKAssistantMessageError>([
+  "authentication_failed",
+  "oauth_org_not_allowed",
+  "account_on_hold",
+  "verification_required",
+  "billing_error",
+  "rate_limit",
+  "overloaded",
+  "invalid_request",
+  "model_not_found",
+  "server_error",
+  "unknown",
+  "max_output_tokens",
+  "cloud_credential_error",
+]);
 
 /**
  * Check if a file exists
@@ -136,6 +154,14 @@ function sanitizeSdkOutput(
 ): string | null {
   if (showFullOutput) {
     return JSON.stringify(message, null, 2);
+  }
+
+  if (
+    message.type === "assistant" &&
+    message.error &&
+    SDK_ERROR_CATEGORIES.has(message.error)
+  ) {
+    return JSON.stringify({ type: message.type, error: message.error });
   }
 
   // System initialization - safe to show
