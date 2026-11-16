@@ -183,8 +183,18 @@ runs:
           echo "Changing directory to CLAUDE_WORKING_DIR: $CLAUDE_WORKING_DIR"
           cd "$CLAUDE_WORKING_DIR"
         fi
-        bun run ${GITHUB_ACTION_PATH}/src/index.ts
+        # Bash reads this script as it runs. The braces and exit make it read the
+        # rest first and stop there. With exec instead, cancelling the run would
+        # interrupt Bun at once, before it can clean up.
+        {
+          bun run ${GITHUB_ACTION_PATH}/src/index.ts
+          exit
+        }
       env:
+        # Turns off Bun's cache of transpiled files, which is outside the action's
+        # directory
+        BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0"
+
         # Model configuration
         CLAUDE_CODE_ACTION: "1"
         INPUT_PROMPT: ${{ inputs.prompt }}

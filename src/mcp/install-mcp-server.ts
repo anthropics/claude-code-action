@@ -32,6 +32,9 @@ function bunServerArgs(scriptPath: string): string[] {
   ];
 }
 
+// As in action.yml, turns off Bun's transpiler cache for these servers
+const bunServerEnv = { BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0" };
+
 async function checkActionsReadPermission(
   token: string,
   owner: string,
@@ -119,6 +122,7 @@ export async function prepareMcpConfig(
         command: "bun",
         args: bunServerArgs("src/mcp/github-comment-server.ts"),
         env: {
+          ...bunServerEnv,
           GITHUB_TOKEN: githubToken,
           REPO_OWNER: owner,
           REPO_NAME: repo,
@@ -135,6 +139,7 @@ export async function prepareMcpConfig(
         command: "bun",
         args: bunServerArgs("src/mcp/github-file-ops-server.ts"),
         env: {
+          ...bunServerEnv,
           GITHUB_TOKEN: githubToken,
           REPO_OWNER: owner,
           REPO_NAME: repo,
@@ -158,6 +163,7 @@ export async function prepareMcpConfig(
         command: "bun",
         args: bunServerArgs("src/mcp/github-inline-comment-server.ts"),
         env: {
+          ...bunServerEnv,
           GITHUB_TOKEN: githubToken,
           REPO_OWNER: owner,
           REPO_NAME: repo,
@@ -200,6 +206,7 @@ export async function prepareMcpConfig(
           command: "bun",
           args: bunServerArgs("src/mcp/github-actions-server.ts"),
           env: {
+            ...bunServerEnv,
             // Use workflow github token, not app token
             GITHUB_TOKEN: process.env.DEFAULT_WORKFLOW_TOKEN,
             REPO_OWNER: owner,
