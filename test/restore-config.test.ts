@@ -148,6 +148,35 @@ describe("restoreConfigFromBase", () => {
     );
   });
 
+  test("removes an AGENTS.md that only the PR has", () => {
+    writeRepoFile("AGENTS.md", "pr agent instructions\n");
+    git(["add", "AGENTS.md"]);
+    git(["commit", "-m", "pr adds agents file"]);
+
+    const restored = restoreConfigFromBase("main");
+
+    expect(restored).toContain("AGENTS.md");
+    expect(existsRepoFile("AGENTS.md")).toBe(false);
+    expect(readRepoFile(".claude-pr/AGENTS.md")).toBe(
+      "pr agent instructions\n",
+    );
+  });
+
+  test("uses the base branch's AGENTS.md, also through a CLAUDE.md link", () => {
+    setupSymlinkedMainBranch();
+    writeRepoFile("AGENTS.md", "pr agent instructions\n");
+    git(["commit", "-am", "pr edits agents file"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("AGENTS.md")).toBe("shared agent instructions\n");
+    expect(readRepoFile("CLAUDE.md")).toBe("shared agent instructions\n");
+    expect(readRepoFile(".claude-pr/AGENTS.md")).toBe(
+      "pr agent instructions\n",
+    );
+    expect(git(["diff", "--cached", "--name-only"])).toBe("");
+  });
+
   test("records dangling links as placeholders, including top-level ones", () => {
     setupSymlinkedMainBranch();
 
