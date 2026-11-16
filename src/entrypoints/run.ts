@@ -162,6 +162,9 @@ async function writeStepSummary(executionFile: string): Promise<void> {
 }
 
 async function run() {
+  // Bun has read this by now, and it's only for the action's own scripts
+  delete process.env.BUN_RUNTIME_TRANSPILER_CACHE_PATH;
+
   let githubToken: string | undefined;
   let commentId: number | undefined;
   let claudeBranch: string | undefined;

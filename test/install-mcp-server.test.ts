@@ -250,6 +250,9 @@ describe("prepareMcpConfig", () => {
         "run",
         `/test/action/path/${script}`,
       ]);
+      expect(
+        parsed.mcpServers[name].env.BUN_RUNTIME_TRANSPILER_CACHE_PATH,
+      ).toBe("0");
     }
 
     delete process.env.DEFAULT_WORKFLOW_TOKEN;
