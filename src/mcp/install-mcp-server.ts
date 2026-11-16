@@ -4,6 +4,7 @@ import type { GitHubContext } from "../github/context";
 import { isEntityContext } from "../github/context";
 import { Octokit } from "@octokit/rest";
 import type { AutoDetectedMode } from "../modes/detector";
+import type { TrackingComment } from "../github/operations/comments/create-initial";
 
 type PrepareConfigParams = {
   githubToken: string;
@@ -11,7 +12,7 @@ type PrepareConfigParams = {
   repo: string;
   branch: string;
   baseBranch: string;
-  claudeCommentId?: string;
+  trackingComment?: TrackingComment;
   allowedTools: string[];
   mode: AutoDetectedMode;
   context: GitHubContext;
@@ -72,7 +73,7 @@ export async function prepareMcpConfig(
     repo,
     branch,
     baseBranch,
-    claudeCommentId,
+    trackingComment,
     allowedTools,
     context,
     mode,
@@ -121,7 +122,10 @@ export async function prepareMcpConfig(
           GITHUB_TOKEN: githubToken,
           REPO_OWNER: owner,
           REPO_NAME: repo,
-          ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
+          ...(trackingComment && {
+            CLAUDE_COMMENT_ID: String(trackingComment.id),
+            CLAUDE_COMMENT_IS_REVIEW: String(trackingComment.isReviewComment),
+          }),
           GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME || "",
           GITHUB_API_URL: GITHUB_API_URL,
         },

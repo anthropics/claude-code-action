@@ -54,8 +54,8 @@ export async function prepareTagMode({
   await checkHumanActor(octokit.rest, context);
 
   // Create initial tracking comment
-  const commentData = await createInitialComment(octokit.rest, context);
-  const commentId = commentData.id;
+  const trackingComment = await createInitialComment(octokit.rest, context);
+  const commentId = trackingComment.id;
 
   const triggerTime = await resolveTriggerTimestamp(context, octokit);
   const originalTitle = extractOriginalTitle(context);
@@ -95,7 +95,7 @@ export async function prepareTagMode({
       repo: context.repository.repo,
       commentId,
       body: message,
-      isPullRequestReviewComment: isPullRequestReviewCommentEvent(context),
+      isPullRequestReviewComment: trackingComment.isReviewComment,
     }).catch((e) => console.error(`Failed to update tracking comment: ${e}`));
     throw error;
   }
@@ -208,7 +208,7 @@ export async function prepareTagMode({
     repo: context.repository.repo,
     branch: sessionBranch,
     baseBranch: branchInfo.baseBranch,
-    claudeCommentId: commentId.toString(),
+    trackingComment,
     allowedTools: Array.from(new Set(tagModeTools)),
     mode: "tag",
     context,
@@ -254,7 +254,7 @@ export async function prepareTagMode({
   }
 
   return {
-    commentId,
+    trackingComment,
     branchInfo,
     mcpConfig: ourMcpConfig,
     claudeArgs: claudeArgs.trim(),
