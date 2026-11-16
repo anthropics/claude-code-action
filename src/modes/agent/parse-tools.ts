@@ -1,5 +1,6 @@
 import { parse as parseShellArgs } from "shell-quote";
 import {
+  ACCUMULATE_DELIMITER,
   escapeShellMeta,
   parseClaudeArgsToExtraArgs,
   unescapeShellMeta,
@@ -99,10 +100,23 @@ export function parseDeniedBashPatterns(claudeArgs: string): string[] {
         : [];
     },
   );
-  return values.flatMap((value) =>
-    [...value.matchAll(/Bash\(([^)]*)\)/g)].map((match) => match[1]!),
-  );
+  const patterns = values.flatMap((value) => [
+    // Whole rules, whose own text can hold parentheses: Bash(git add "app/(auth)/*").
+    ...value
+      .split(ACCUMULATE_DELIMITER)
+      .flatMap((part) => part.match(RULE) ?? [])
+      .flatMap((rule) => rule.trim().match(/^Bash\((.*)\)$/)?.[1] ?? []),
+    // Also whatever looks like a rule, so that one the CLI can't read still denies.
+    ...[...value.matchAll(/Bash\(([^)]*)\)/g)].map((match) => match[1]!),
+  ]);
+  return [...new Set(patterns)];
 }
+
+/**
+ * One rule in a list. Like the CLI, it ends at a comma or space outside parentheses,
+ * where any `)` ends the parentheses.
+ */
+const RULE = /(?:\([^)]*\)?|[^ ,(])+/g;
 
 /**
  * The deny rules a wrapper needs so a workflow's rules for the command it runs still
