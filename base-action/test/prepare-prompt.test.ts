@@ -2,45 +2,46 @@
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { preparePrompt, type PreparePromptInput } from "../src/prepare-prompt";
-import { unlink, writeFile, readFile, stat } from "fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import { dirname, join } from "path";
 
 describe("preparePrompt integration tests", () => {
+  let tempDir: string;
+  let originalRunnerTemp: string | undefined;
+
   beforeEach(async () => {
-    try {
-      await unlink("/tmp/claude-action/prompt.txt");
-    } catch {
-      // Ignore if file doesn't exist
-    }
+    originalRunnerTemp = process.env.RUNNER_TEMP;
+    tempDir = await mkdtemp(join(tmpdir(), "prepare-claude-prompt-"));
+    process.env.RUNNER_TEMP = tempDir;
   });
 
   afterEach(async () => {
-    try {
-      await unlink("/tmp/claude-action/prompt.txt");
-    } catch {
-      // Ignore if file doesn't exist
+    if (originalRunnerTemp === undefined) {
+      delete process.env.RUNNER_TEMP;
+    } else {
+      process.env.RUNNER_TEMP = originalRunnerTemp;
     }
+    await rm(tempDir, { recursive: true, force: true });
   });
 
-  test("should create temporary prompt file when only prompt is provided", async () => {
-    const input: PreparePromptInput = {
-      prompt: "This is a test prompt",
-      promptFile: "",
-    };
+  test("concurrent inline prompts use separate files in the runner temp directory", async () => {
+    const [first, second] = await Promise.all([
+      preparePrompt({ prompt: "First prompt", promptFile: "" }),
+      preparePrompt({ prompt: "Second prompt", promptFile: "" }),
+    ]);
 
-    const config = await preparePrompt(input);
-
-    expect(config.path).toBe("/tmp/claude-action/prompt.txt");
-    expect(config.type).toBe("inline");
-
-    const fileContent = await readFile(config.path, "utf-8");
-    expect(fileContent).toBe("This is a test prompt");
-
-    const fileStat = await stat(config.path);
-    expect(fileStat.size).toBeGreaterThan(0);
+    expect(first.type).toBe("inline");
+    expect(second.type).toBe("inline");
+    expect(first.path).not.toBe(second.path);
+    expect(dirname(dirname(first.path))).toBe(tempDir);
+    expect(dirname(dirname(second.path))).toBe(tempDir);
+    expect(await readFile(first.path, "utf-8")).toBe("First prompt");
+    expect(await readFile(second.path, "utf-8")).toBe("Second prompt");
   });
 
   test("should use existing file when promptFile is provided", async () => {
-    const testFilePath = "/tmp/test-prompt.txt";
+    const testFilePath = join(tempDir, "test-prompt.txt");
     await writeFile(testFilePath, "Prompt from file");
 
     const input: PreparePromptInput = {
@@ -52,8 +53,6 @@ describe("preparePrompt integration tests", () => {
 
     expect(config.path).toBe(testFilePath);
     expect(config.type).toBe("file");
-
-    await unlink(testFilePath);
   });
 
   test("should fail when neither prompt nor promptFile is provided", async () => {
@@ -68,18 +67,19 @@ describe("preparePrompt integration tests", () => {
   });
 
   test("should fail when promptFile points to non-existent file", async () => {
+    const promptFile = join(tempDir, "non-existent-file.txt");
     const input: PreparePromptInput = {
       prompt: "",
-      promptFile: "/tmp/non-existent-file.txt",
+      promptFile,
     };
 
     await expect(preparePrompt(input)).rejects.toThrow(
-      "Prompt file '/tmp/non-existent-file.txt' does not exist.",
+      `Prompt file '${promptFile}' does not exist.`,
     );
   });
 
   test("should fail when prompt is empty", async () => {
-    const emptyFilePath = "/tmp/empty-prompt.txt";
+    const emptyFilePath = join(tempDir, "empty-prompt.txt");
     await writeFile(emptyFilePath, "");
 
     const input: PreparePromptInput = {
@@ -88,16 +88,10 @@ describe("preparePrompt integration tests", () => {
     };
 
     await expect(preparePrompt(input)).rejects.toThrow("Prompt file is empty");
-
-    try {
-      await unlink(emptyFilePath);
-    } catch {
-      // Ignore cleanup errors
-    }
   });
 
   test("should fail when both prompt and promptFile are provided", async () => {
-    const testFilePath = "/tmp/test-prompt.txt";
+    const testFilePath = join(tempDir, "test-prompt.txt");
     await writeFile(testFilePath, "Prompt from file");
 
     const input: PreparePromptInput = {
@@ -108,7 +102,5 @@ describe("preparePrompt integration tests", () => {
     await expect(preparePrompt(input)).rejects.toThrow(
       "Both 'prompt' and 'prompt_file' were provided. Please specify only one.",
     );
-
-    await unlink(testFilePath);
   });
 });
