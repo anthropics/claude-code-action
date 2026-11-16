@@ -27,6 +27,25 @@ describe("action metadata", () => {
     );
   });
 
+  test("should start each of the action's scripts with the same Bun options", () => {
+    const commands = readFileSync(
+      new URL("../action.yml", import.meta.url),
+      "utf8",
+    )
+      .replace(/\\\n\s*/g, "")
+      .split("\n")
+      .filter((line) => line.includes("${GITHUB_ACTION_PATH}/src/"));
+
+    expect(commands).toHaveLength(3);
+    for (const command of commands) {
+      expect(command).toContain(
+        ' --no-env-file --config="${GITHUB_ACTION_PATH}/bunfig.toml"' +
+          ' --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json"' +
+          " run ${GITHUB_ACTION_PATH}/src/entrypoints/",
+      );
+    }
+  });
+
   test("should not put step outputs into shell scripts", () => {
     // A session can write step outputs, so an expression in a script could run
     // its commands. Scripts have to read these values from the environment.

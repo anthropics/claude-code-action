@@ -246,6 +246,7 @@ describe("prepareMcpConfig", () => {
       expect(parsed.mcpServers[name].args).toEqual([
         "--no-env-file",
         "--config=/test/action/path/bunfig.toml",
+        "--tsconfig-override=/test/action/path/tsconfig.json",
         "run",
         `/test/action/path/${script}`,
       ]);

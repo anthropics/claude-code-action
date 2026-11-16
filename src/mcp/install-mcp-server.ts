@@ -26,6 +26,7 @@ function bunServerArgs(scriptPath: string): string[] {
   return [
     "--no-env-file",
     `--config=${actionPath}/bunfig.toml`,
+    `--tsconfig-override=${actionPath}/tsconfig.json`,
     "run",
     `${actionPath}/${scriptPath}`,
   ];
