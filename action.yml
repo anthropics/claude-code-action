@@ -223,7 +223,7 @@ runs:
     - name: Install Dependencies
       shell: bash
       run: |
-        cd ${GITHUB_ACTION_PATH}
+        cd "${GITHUB_ACTION_PATH}"
         bun install --production
 
     - name: Install subprocess isolation dependencies
@@ -288,7 +288,7 @@ runs:
         # override is redundant. See oven-sh/bun#25730.
         bun --no-env-file \
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
+          run "${GITHUB_ACTION_PATH}/src/entrypoints/run.ts"
       env:
         # Prepare inputs
         MODE: ${{ inputs.mode }}
@@ -431,7 +431,7 @@ runs:
         # No --tsconfig-override: see the "Run Claude Code Action" step above.
         "$BUN_BIN" --no-env-file \
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
+          run "${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts"
 
     - name: Post buffered inline comments
       if: always() && inputs.classify_inline_comments != 'false'
@@ -448,7 +448,7 @@ runs:
         # No --tsconfig-override: see the "Run Claude Code Action" step above.
         "$BUN_BIN" --no-env-file \
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          run ${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts
+          run "${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts"
 
     - name: Revoke app token
       if: always() && inputs.github_token == '' && steps.run.outputs.github_token != '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
