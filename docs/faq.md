@@ -150,7 +150,7 @@ prompt: "Review this PR for security vulnerabilities"
 
 ### Can I pass the prompt in a file?
 
-Use `prompt` for the task text when calling `anthropics/claude-code-action@v1`. If that text lives in a trusted file, read it in an earlier workflow step and pass the step output to `prompt`.
+Use `prompt` for the task text when calling `anthropics/claude-code-action@v1`. For a short prompt stored in a trusted file, read it in an earlier workflow step and pass the step output to `prompt`.
 
 The [standalone base action](../base-action/README.md#usage) accepts either `prompt` or `prompt_file`. After checking out a trusted repository, use a path relative to the checkout:
 
@@ -160,6 +160,8 @@ The [standalone base action](../base-action/README.md#usage) accepts either `pro
     prompt_file: .github/prompts/review.txt
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
+
+For large prompts, passing the text through `prompt` can hit the runner's process environment limit and fail with `E2BIG` (`argument list too long`). When generating a trusted prompt in an earlier step, write it to `"$RUNNER_TEMP/claude-prompt.txt"` and give the standalone action `prompt_file: ${{ runner.temp }}/claude-prompt.txt`. This passes the path through the environment and leaves the prompt text on disk. Model context limits still apply.
 
 ### What happened to `direct_prompt` and `custom_instructions`?
 
