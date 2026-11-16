@@ -248,6 +248,25 @@ For specialized environments like Nix, NixOS, or custom container setups where y
 - The action will skip automatic installation when custom paths are provided
 - Ensure the custom executables are available in your GitHub Actions environment
 
+### How can I run skill trigger evaluations in CI?
+
+Run the skill-creator evaluation script as a workflow step. It starts its own `claude -p` process for each query. When an earlier Claude Code Action step installs the default executable, `claude` is available on `PATH` in the rest of that job.
+
+Check out a pinned revision of [the official plugin repository](https://github.com/anthropics/claude-plugins-official) into `_claude-plugins` in the workspace. Run the step from your project checkout, with the path to the skill directory and an evaluation set containing `query` and `should_trigger` entries.
+
+```yaml
+- name: Evaluate skill triggers
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    PYTHONPATH: ${{ github.workspace }}/_claude-plugins/plugins/skill-creator/skills/skill-creator
+  run: |
+    python3 -m scripts.run_eval --eval-set evals/trigger-evals.json \
+      --skill-path .claude/skills/my-skill --num-workers 1 --runs-per-query 1 \
+      > "$RUNNER_TEMP/skill-eval.json"
+```
+
+The script uses the credential from this step's environment. Run it with trusted skill definitions and evaluation inputs.
+
 ## Best Practices
 
 1. **Always specify permissions explicitly** in your workflow file
