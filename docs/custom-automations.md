@@ -15,14 +15,26 @@ The action automatically detects which mode to use based on your configuration:
 
 This action supports the following GitHub events ([learn more GitHub event triggers](https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows)):
 
-- `pull_request` or `pull_request_target` - When PRs are opened or synchronized
-- `issue_comment` - When comments are created on issues or PRs
-- `pull_request_comment` - When comments are made on PR diffs
-- `issues` - When issues are opened or assigned
-- `pull_request_review` - When PR reviews are submitted
-- `pull_request_review_comment` - When comments are made on PR reviews
-- `repository_dispatch` - Custom events triggered via API
-- `workflow_dispatch` - Manual workflow triggers (coming soon)
+- `pull_request` and `pull_request_target` for pull request activity
+- `issues` for issue activity
+- `issue_comment` for conversation comments on issues and pull requests
+- `pull_request_review` for review submissions
+- `pull_request_review_comment` for inline comments on pull request diffs
+- `workflow_dispatch` for manual runs
+- `repository_dispatch` for custom events sent through the GitHub API
+- `schedule` for cron schedules
+- `workflow_run` for activity in another workflow
+
+For `workflow_dispatch`, `repository_dispatch`, `schedule`, and `workflow_run`, set a nonempty `prompt` to run in agent mode. See the [manual analysis example](../examples/manual-code-analysis.yml) and [workflow run example](../examples/test-failure-analysis.yml).
+
+To run the manual analysis example weekly, add this under its `on` block:
+
+```yaml
+schedule:
+  - cron: "0 2 * * 1"
+```
+
+Keep a fixed instruction in the prompt so the scheduled run has a task when manual inputs are absent.
 
 ## Automated Documentation Updates
 
