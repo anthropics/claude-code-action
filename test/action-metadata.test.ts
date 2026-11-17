@@ -68,6 +68,17 @@ describe("action metadata", () => {
     );
   });
 
+  test("should allow fork pull requests by default and pass the input to the run step", () => {
+    const metadata = readMetadata("action.yml");
+
+    expect(metadata).toMatch(
+      /^  allow_fork_prs:\n    description: .+\n    required: false\n    default: "true"$/m,
+    );
+    expect(metadata).toMatch(
+      /^        ALLOW_FORK_PRS: \$\{\{ inputs\.allow_fork_prs \}\}$/m,
+    );
+  });
+
   test("should start each of the action's scripts with the same Bun options", () => {
     const commands = readMetadata("action.yml")
       .replace(/\\\n\s*/g, "")

@@ -69,6 +69,28 @@ This doesn't cover other package managers, the `.env` files and `tsconfig.json` 
 
 Note that the runtime executing the tool also reads project config. `bunx <tool>` runs the tool's script under `node` when `node` is on `PATH` (as it is on GitHub-hosted runners); when only Bun is available, Bun executes the script itself and reads `bunfig.toml` from the checkout — including `preload` entries — which comes from the PR head. On such runners, make sure `node` is on `PATH` for the hook, and treat `bunfig.toml` and `.npmrc` in the checkout as PR-controlled runtime config on pull requests from authors with write access.
 
+### Refusing pull requests from forks
+
+By default, someone with write access can have the action work on a pull request from a fork. If you don't need that, turn it off, so that the action itself never checks out a fork's code:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    allow_fork_prs: "false"
+```
+
+The action then skips a pull request whose branch is in another repository, or in a fork that was deleted. It does so for every event, including comments on the conversation, whoever opened the pull request and whether it is open or closed. It also skips `workflow_run` events for a fork's run. It logs a warning, checks nothing out and doesn't start Claude, and the step succeeds without Claude's outputs, so a required check that only runs the action passes. Any value other than `true` turns forks off, including an empty one.
+
+For a comment on the conversation, the action asks GitHub where the branch is, after it has checked the commenter's write access. The token needs `pull-requests: read` for that. If the answer can't be read, the run fails before anything is checked out.
+
+This covers what the action does with the event that started it. It doesn't cover:
+
+- **Other steps.** A step that checks out a fork's code, such as `actions/checkout` with the head of a `pull_request_target` event, does so before the action can refuse. A step after the action still runs.
+- **Events that don't name a pull request**, such as `issues`, `workflow_dispatch`, `repository_dispatch` and `schedule`. A `workflow_run` event is judged by the run right before it, so one that follows a comment's run, or another `workflow_run`, counts as yours.
+- **Commands in a session.** On an issue, for example, Claude could fetch a fork's commits with commands that you allow or that auto mode's review passes, such as `git` or `gh`.
+- **Commits already in your repository**, such as a `pr-N` branch from an earlier run, or a fork's commits that someone pushed to a branch of yours.
+- **Text.** Issues and comments from outside contributors still reach Claude.
+
 ### Running code from pull requests
 
 A command that runs repository code (`npm install`, `bun test`, `make`) runs whatever the checkout contains, in a job that holds your workflow's tokens. Tag mode checks out the pull request's head, so on a pull request from an outside contributor that code is theirs, even when a maintainer triggered the run.
@@ -119,7 +141,7 @@ This has limits:
 
 ### `claude-code-action` vs `claude-code-base-action`
 
-`claude-code-base-action` is a lower-level building block that installs and runs Claude Code with the inputs you provide. It does not perform actor permission checks, restrict commands on pull requests from outside contributors, or restore project configuration from the base ref. If you need those behaviors, use this action (`claude-code-action`). See the [base-action README](../base-action/README.md#trust-model) for details.
+`claude-code-base-action` is a lower-level building block that installs and runs Claude Code with the inputs you provide. It does not perform actor permission checks, refuse pull requests from forks, restrict commands on pull requests from outside contributors, or restore project configuration from the base ref. If you need those behaviors, use this action (`claude-code-action`). See the [base-action README](../base-action/README.md#trust-model) for details.
 
 ## Pull Request Creation
 

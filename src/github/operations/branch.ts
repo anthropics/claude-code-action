@@ -16,6 +16,7 @@ import type { Octokits } from "../api/client";
 import type { FetchDataResult } from "../data/fetcher";
 import { generateBranchName } from "../../utils/branch-template";
 import { fetchDepthArgs } from "./fetch-depth";
+import { forksAllowed } from "../validation/fork-pr";
 
 /**
  * Extracts the first label from GitHub data, or returns undefined if no labels exist
@@ -178,6 +179,11 @@ export async function setupBranch(
       );
       // Fall through to create a new branch like we do for issues
     } else {
+      // run.ts has skipped these already.
+      if (prData.isCrossRepository && !forksAllowed()) {
+        throw new Error(`PR #${entityNumber} is from a fork`);
+      }
+
       // Handle open PR: Checkout the PR branch
       console.log("This is an open PR, checking out PR branch...");
 
