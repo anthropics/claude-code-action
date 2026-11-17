@@ -230,7 +230,41 @@ export function ensureClaudePrExcludedFromGit(): void {
 }
 
 /**
- * Restores security-sensitive config paths from the PR base branch.
+ * How deep to fetch another branch so that it can't cut off HEAD's history, which may
+ * include that branch's tip. No path from HEAD is longer than its number of commits.
+ */
+export function checkoutDepth(): number {
+  return Number(
+    execFileSync("git", ["rev-list", "--count", "HEAD"], { encoding: "utf8" }),
+  );
+}
+
+export function fetchBranch(branch: string, depth = 1): void {
+  // --no-recurse-submodules: a .gitmodules file must not start a submodule fetch,
+  // whatever fetch.recurseSubmodules says.
+  execFileSync(
+    "git",
+    [
+      "fetch",
+      "origin",
+      // In full, so that a tag of the same name isn't fetched instead and the
+      // remote-tracking branch is updated whatever the checkout's refspec covers.
+      `+refs/heads/${branch}:refs/remotes/origin/${branch}`,
+      ...fetchDepthArgs(depth),
+      // Following tags would cut a shallow history at each tag it fetches.
+      "--no-tags",
+      "--no-recurse-submodules",
+    ],
+    {
+      stdio: "inherit",
+      env: process.env,
+    },
+  );
+}
+
+/**
+ * Restores security-sensitive config paths from the PR base branch, or from the
+ * branch that chooseConfigBranch picks in its place.
  *
  * The CLI's non-interactive mode trusts cwd: it reads `.mcp.json`,
  * `.claude/settings.json`, and `.claude/settings.local.json` from the working
@@ -262,13 +296,17 @@ export function ensureClaudePrExcludedFromGit(): void {
  * `.npmrc` there are PR-controlled runtime config too. On PRs from authors without
  * write access, restoreToolConfigFromBase replaces those.
  *
- * @param baseBranch - PR base branch name. Must be pre-validated (branch.ts
- *   calls validateBranchName on it before returning).
+ * @param baseBranch - The branch to restore from, see chooseConfigBranch. Must be
+ *   pre-validated with validateBranchName.
+ * @param fetchDepth - How deep to fetch the branch into a shallow checkout.
  * @returns The paths whose working-tree state now comes from the base branch
  *   rather than the PR. Callers that stage files must exclude these, or they
  *   will commit the revert back onto the PR author's branch.
  */
-export function restoreConfigFromBase(baseBranch: string): string[] {
+export function restoreConfigFromBase(
+  baseBranch: string,
+  fetchDepth = 1,
+): string[] {
   console.log(
     `Restoring ${SENSITIVE_PATHS.join(", ")} from origin/${baseBranch} (PR head is untrusted)`,
   );
@@ -307,28 +345,15 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
     rmSync(p, { recursive: true, force: true });
   }
 
-  // --no-recurse-submodules: explicitly suppress submodule fetching regardless of
-  // fetch.recurseSubmodules config. Defense-in-depth alongside the delete above.
-  execFileSync(
-    "git",
-    [
-      "fetch",
-      "origin",
-      baseBranch,
-      ...fetchDepthArgs(1),
-      "--no-recurse-submodules",
-    ],
-    {
-      stdio: "inherit",
-      env: process.env,
-    },
-  );
+  fetchBranch(baseBranch, fetchDepth);
 
   for (const p of SENSITIVE_PATHS) {
     try {
-      execFileSync("git", ["checkout", `origin/${baseBranch}`, "--", p], {
-        stdio: "pipe",
-      });
+      execFileSync(
+        "git",
+        ["checkout", `refs/remotes/origin/${baseBranch}`, "--", p],
+        { stdio: "pipe" },
+      );
     } catch {
       // Path doesn't exist on base — it stays deleted.
     }

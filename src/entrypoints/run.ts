@@ -38,12 +38,18 @@ import {
   prepareGitForSession,
   snapshotSessionFiles,
 } from "../github/operations/session-guard";
-import { restoreConfigFromBase } from "../github/operations/restore-config";
+import { chooseConfigBranch } from "../github/operations/config-branch";
+import {
+  checkoutDepth,
+  fetchBranch,
+  restoreConfigFromBase,
+} from "../github/operations/restore-config";
 import {
   restoreToolConfigFromBase,
   toolConfigDenyRules,
 } from "../github/operations/tool-config";
 import { validateBranchName } from "../github/operations/branch";
+import type { BranchInfo } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
 import { formatTurnsFromData } from "./format-turns";
@@ -298,7 +304,7 @@ async function run() {
     let restoredToolConfig: string[] = [];
 
     // On PRs, .claude/ and .mcp.json in the checkout are attacker-controlled.
-    // Restore them from the base branch before the CLI reads them.
+    // Restore them from a trusted branch before the CLI reads them.
     //
     // We read pull_request.base.ref from the payload directly because agent
     // mode's branchInfo.baseBranch defaults to the repo's default branch rather
@@ -317,11 +323,36 @@ async function run() {
         validateBranchName(restoreBase);
       }
       if (restoreBase) {
-        restoredConfigPaths = restoreConfigFromBase(restoreBase);
+        const { isFork }: BranchInfo = prepareResult.branchInfo;
+        const configBranch = chooseConfigBranch(
+          context,
+          restoreBase,
+          untrustedPrDisallowedTools.length > 0,
+          isFork,
+        );
+        if (configBranch !== restoreBase) {
+          core.warning(
+            `Claude's config comes from ${configBranch}, not from the base branch ${restoreBase}, because the pull request's author is not confirmed to have write access. See docs/security.md in anthropics/claude-code-action.`,
+          );
+        }
+        restoredConfigPaths = restoreConfigFromBase(
+          configBranch,
+          configBranch === restoreBase ? 1 : checkoutDepth(),
+        );
         // Before plugins are installed, which can already start package managers here.
         if (isUntrustedCheckout) {
-          restoredToolConfig = restoreToolConfigFromBase(restoreBase);
+          restoredToolConfig = restoreToolConfigFromBase(configBranch);
           restoredConfigPaths.push(...restoredToolConfig);
+        }
+        if (configBranch !== restoreBase) {
+          // Claude still compares the pull request with its base.
+          try {
+            fetchBranch(restoreBase);
+          } catch {
+            core.warning(
+              `Could not fetch the base branch ${restoreBase}, so comparing with it can fail.`,
+            );
+          }
         }
       }
     }

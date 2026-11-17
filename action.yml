@@ -17,7 +17,7 @@ inputs:
     required: false
     default: "claude"
   base_branch:
-    description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
+    description: "The branch to use as the base/source when creating new branches (defaults to repository default branch). On pull requests from authors without write access that don't target the default branch, Claude's config also comes from it, so don't set it to a value from the pull request"
     required: false
   branch_prefix:
     description: "The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)"
