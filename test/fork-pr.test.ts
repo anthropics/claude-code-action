@@ -177,7 +177,7 @@ test("setupBranch refuses a fork when allow_fork_prs is off", async () => {
   try {
     const data = { contextData: { state: "OPEN", isCrossRepository: true } };
     await expect(
-      setupBranch({} as any, data as any, mockPullRequestCommentContext),
+      (setupBranch as any)({}, data, mockPullRequestCommentContext),
     ).rejects.toThrow("is from a fork");
   } finally {
     if (saved === undefined) delete process.env.ALLOW_FORK_PRS;
