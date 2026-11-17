@@ -113,6 +113,20 @@ These inputs are deprecated and will be removed in a future version:
 
 > **Note**: This action is currently in beta. Features and APIs may change as we continue to improve the integration.
 
+## Checking how a run ended
+
+Set limits with flags such as `--max-turns 10` or `--max-budget-usd 2` in `claude_args`. When the SDK sends a result, the action exposes its subtype in `result_subtype`. It also exposes the model's `stop_reason` when the SDK supplies one.
+
+Give the action step the ID `claude`. This follow-up step runs when the turn limit was reached or the model stopped at its token limit, even if the action step failed.
+
+```yaml
+- name: Flag an incomplete run
+  if: ${{ !cancelled() && (steps.claude.outputs.result_subtype == 'error_max_turns' || steps.claude.outputs.stop_reason == 'max_tokens') }}
+  run: echo "::warning::Claude reached a limit. Check the result before using it."
+```
+
+Use the step's `outcome` for its GitHub Actions status. The subtype describes the SDK result. A startup failure can leave both outputs empty.
+
 ## Permission Mode
 
 The action runs Claude in [auto mode](https://code.claude.com/docs/en/permission-modes) by default. Reads and file edits in the workspace run without asking, and a safety review decides any other tool call that your allow rules don't cover. Narrow allow rules like `Bash(npm test)` skip the review, and broad ones like `Bash(*)` or package-manager run commands are ignored in this mode.
