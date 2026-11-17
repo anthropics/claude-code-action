@@ -12,6 +12,19 @@
 
 > Don't want to store a static API key at all? See [Workload Identity Federation](#workload-identity-federation) below.
 
+### Testing a new or edited workflow
+
+When you use the default Claude GitHub App authentication, the app validates the
+workflow against the copy on the repository's **default branch**. If a pull
+request adds the workflow or changes its contents, the action can skip the run
+before starting Claude. Look in the action step's log for
+`Skipping action due to workflow validation`. The step can finish successfully
+without producing a review or execution file.
+
+After the workflow changes land on the default branch, use a new event that
+matches the workflow's triggers to test it. Rerunning a job from the earlier
+commit still uses that commit's workflow.
+
 ## Workload Identity Federation
 
 Workload Identity Federation (WIF) lets the action authenticate to the Claude API by exchanging the workflow's GitHub Actions OIDC token for a short-lived Anthropic access token — no `ANTHROPIC_API_KEY` secret to create, store, or rotate.
