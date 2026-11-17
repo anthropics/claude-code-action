@@ -3,6 +3,7 @@ import { prepareMcpConfig } from "../src/mcp/install-mcp-server";
 import * as core from "@actions/core";
 import type { ParsedGitHubContext } from "../src/github/context";
 import { CLAUDE_APP_BOT_ID, CLAUDE_BOT_LOGIN } from "../src/github/constants";
+import { GITHUB_API_URL } from "../src/github/api/config";
 
 describe("prepareMcpConfig", () => {
   let consoleInfoSpy: any;
@@ -294,6 +295,7 @@ describe("prepareMcpConfig", () => {
     expect(parsed.mcpServers.github_ci).toBeDefined();
     expect(parsed.mcpServers.github_ci.env.GITHUB_TOKEN).toBe("workflow-token");
     expect(parsed.mcpServers.github_ci.env.PR_NUMBER).toBe("456");
+    expect(parsed.mcpServers.github_ci.env.GITHUB_API_URL).toBe(GITHUB_API_URL);
 
     delete process.env.DEFAULT_WORKFLOW_TOKEN;
   });
