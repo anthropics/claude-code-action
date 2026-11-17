@@ -16,7 +16,10 @@ import type { ParsedGitHubContext } from "../github/context";
 import { GITHUB_SERVER_URL } from "../github/api/config";
 import { checkAndCommitOrDeleteBranch } from "../github/operations/branch-cleanup";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
-import { encodeBranchNameForUrl } from "../github/operations/comments/common";
+import {
+  createJobRunUrl,
+  encodeBranchNameForUrl,
+} from "../github/operations/comments/common";
 
 export type UpdateCommentLinkParams = {
   commentId: number;
@@ -55,8 +58,8 @@ export async function updateCommentLink(
 
   const { owner, repo } = context.repository;
 
+  const jobUrl = createJobRunUrl(context.repository.full_name, context.runId);
   const serverUrl = GITHUB_SERVER_URL;
-  const jobUrl = `${serverUrl}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
 
   let comment;
   let isPRReviewComment = false;
