@@ -92,7 +92,7 @@ server.tool(
         pending: 0,
       };
 
-      const processedRuns = runs.map((run: any) => {
+      const processedRuns = runs.map((run) => {
         // Update summary counts
         if (run.status === "completed") {
           if (run.conclusion === "success") {
@@ -106,6 +106,7 @@ server.tool(
 
         return {
           id: run.id,
+          run_attempt: run.run_attempt,
           name: run.name,
           status: run.status,
           conclusion: run.conclusion,
@@ -146,11 +147,19 @@ server.tool(
 
 server.tool(
   "get_workflow_run_details",
-  "Get job and step details for a workflow run",
+  "Get job and step details for a workflow run or a specific attempt",
   {
     run_id: z.number().describe("The workflow run ID"),
+    attempt_number: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe(
+        "The workflow run attempt number. Defaults to the latest attempt.",
+      ),
   },
-  async ({ run_id }) => {
+  async ({ run_id, attempt_number }) => {
     try {
       const client = new Octokit({
         auth: GITHUB_TOKEN,
@@ -162,6 +171,7 @@ server.tool(
         owner: REPO_OWNER!,
         repo: REPO_NAME!,
         run_id,
+        attempt_number,
       });
 
       const processedJobs = jobs.map((job: any) => {

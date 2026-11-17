@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Octokit } from "@octokit/rest";
+import { Octokit } from "@octokit/rest";
 import {
   listWorkflowJobs,
   listWorkflowRuns,
@@ -45,5 +45,38 @@ describe("GitHub Actions pagination", () => {
     });
 
     expect(jobs.map((job) => job.id)).toEqual([1, 2, 3]);
+  });
+
+  test("follows every page of jobs for the requested attempt", async () => {
+    const path = "/repos/owner/repo/actions/runs/123/attempts/1/jobs";
+    const fixture = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch(request) {
+        const url = new URL(request.url);
+        if (url.pathname !== path) return new Response(null, { status: 404 });
+        if (url.searchParams.get("page") === "2") {
+          return Response.json({ total_count: 2, jobs: [{ id: 2 }] });
+        }
+        url.searchParams.set("page", "2");
+        return Response.json(
+          { total_count: 2, jobs: [{ id: 1 }] },
+          { headers: { link: `<${url.href}>; rel="next"` } },
+        );
+      },
+    });
+
+    try {
+      const client = new Octokit({ baseUrl: fixture.url.origin });
+      const jobs = await listWorkflowJobs(client, {
+        owner: "owner",
+        repo: "repo",
+        run_id: 123,
+        attempt_number: 1,
+      });
+      expect(jobs.map((job) => job.id)).toEqual([1, 2]);
+    } finally {
+      await fixture.stop(true);
+    }
   });
 });
