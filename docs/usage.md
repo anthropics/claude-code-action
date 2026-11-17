@@ -350,3 +350,5 @@ Upload a screenshot of a bug and ask Claude to fix it:
 ```
 
 Claude can see and analyze images, making it easy to fix visual bugs or UI issues.
+
+If a description is edited after the event that triggered the run, Claude gets the text from that event without its images. A comment or review edited after that event is left out, or loses its images. Ticking a checkbox counts as an edit, and re-running the job does not help. If the images are still in the description, mentioning Claude in a new comment includes them.
