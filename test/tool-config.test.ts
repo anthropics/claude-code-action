@@ -6,6 +6,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   readlinkSync,
   rmSync,
@@ -270,6 +271,40 @@ describe("restoreToolConfigFromBase", () => {
     expect(read(".npmrc")).toBe("ignore-scripts=true\n");
   });
 
+  test("sees re-encoding when .gitattributes is re-encoded too", () => {
+    write(".npmrc", "ignore-scripts=true\n");
+    startPr();
+    const encoding = "working-tree-encoding=UTF-16LE-BOM";
+    write(".gitattributes", `.npmrc ${encoding}\n.gitattributes ${encoding}\n`);
+    const oid = git("hash-object", "-w", "--no-filters", ".gitattributes");
+    git("update-index", "--add", "--cacheinfo", `100644,${oid},.gitattributes`);
+    git("commit", "-qm", "pr");
+    rmSync(".npmrc");
+    rmSync(".gitattributes");
+    git("checkout", "--", ".");
+    expect(read(".npmrc")).not.toBe("ignore-scripts=true\n");
+    expect(read(".gitattributes")).not.toContain(encoding);
+
+    expect(restoreToolConfigFromBase("main")).toEqual([".npmrc"]);
+
+    expect(read(".npmrc")).toBe("ignore-scripts=true\n");
+  });
+
+  test("sees re-encoding by a .gitattributes that is only on disk", () => {
+    write(".npmrc", "ignore-scripts=true\n");
+    startPr();
+    write("f.txt", "pr\n");
+    commit("pr");
+    write(".gitattributes", ".npmrc working-tree-encoding=UTF-16LE-BOM\n");
+    rmSync(".npmrc");
+    git("checkout", "--", ".npmrc");
+    expect(read(".npmrc")).not.toBe("ignore-scripts=true\n");
+
+    expect(restoreToolConfigFromBase("main")).toEqual([".npmrc"]);
+
+    expect(read(".npmrc")).toBe("ignore-scripts=true\n");
+  });
+
   test("matches names without regard to case", () => {
     write(".npmrc", "base\n");
     startPr();
@@ -436,6 +471,126 @@ describe("restoreToolConfigFromBase", () => {
       expect(JSON.parse(read(".claude-pr/package.json"))).toEqual(pr);
     });
 
+    describe("that .gitattributes converts", () => {
+      const commitRaw = (attributes: string, stored: string) => {
+        write(".gitattributes", `package.json ${attributes}\n`);
+        write("package.json", stored);
+        const oid = git("hash-object", "-w", "--no-filters", "package.json");
+        git("add", ".gitattributes");
+        git("update-index", "--cacheinfo", `100644,${oid},package.json`);
+        git("commit", "-qm", "pr");
+        rmSync("package.json");
+        git("checkout", "--", "package.json");
+      };
+      const startFromBase = () => {
+        write("package.json", JSON.stringify(baseJson));
+        startPr();
+      };
+
+      test("replaces commands that are only on disk", () => {
+        startFromBase();
+        commitRaw(
+          "ident",
+          '{"name":"x","a":"$Id:","b":{"c":"$","bin":{"x":"pr.js"},"d":"$Id:"},"e":"$"}',
+        );
+        expect(JSON.parse(read("package.json")).bin).toEqual({ x: "pr.js" });
+
+        expect(restoreToolConfigFromBase("main")).toEqual(["package.json"]);
+
+        expect(JSON.parse(read("package.json")).bin).toEqual(baseJson.bin);
+      });
+
+      test("replaces one that can't be understood", () => {
+        startFromBase();
+        commitRaw(
+          "working-tree-encoding=UTF-16LE-BOM",
+          JSON.stringify(baseJson),
+        );
+
+        expect(restoreToolConfigFromBase("main")).toEqual(["package.json"]);
+
+        expect(JSON.parse(read("package.json"))).toEqual(baseJson);
+      });
+
+      test("replaces commands that aren't on disk", () => {
+        startFromBase();
+        commitRaw(
+          "ident",
+          '{"name":"x","a":"$Id: ","bin":{"x":"pr.js"},"b":" $"}',
+        );
+        expect(JSON.parse(read("package.json")).bin).toBeUndefined();
+
+        expect(restoreToolConfigFromBase("main")).toEqual(["package.json"]);
+      });
+
+      test("keeps a step's change to one that the pull request leaves alone", () => {
+        write(".gitattributes", "* ident\n");
+        startFromBase();
+        write("f.txt", "pr\n");
+        commit("pr");
+        const changed = JSON.stringify({ ...baseJson, name: "@scope/x" });
+        write("package.json", changed);
+
+        expect(restoreToolConfigFromBase("main")).toEqual([]);
+
+        expect(read("package.json")).toBe(changed);
+      });
+
+      test("keeps one whose encoding is no conversion", () => {
+        startFromBase();
+        const pr = JSON.stringify({ ...baseJson, version: "2.0.0" });
+        commitRaw("working-tree-encoding=UTF-8", pr);
+
+        expect(restoreToolConfigFromBase("main")).toEqual([]);
+      });
+
+      test("keeps what a step changed in one that is not converted", () => {
+        startFromBase();
+        write(
+          "package.json",
+          JSON.stringify({ ...baseJson, version: "2.0.0" }),
+        );
+        commit("pr");
+        const changed = JSON.stringify({ ...baseJson, name: "@scope/x" });
+        write("package.json", changed);
+
+        expect(restoreToolConfigFromBase("main")).toEqual([]);
+
+        expect(read("package.json")).toBe(changed);
+      });
+
+      test("keeps one with the same commands", () => {
+        startFromBase();
+        const pr = JSON.stringify({ ...baseJson, version: "2.0.0" });
+        commitRaw("ident", pr);
+
+        expect(restoreToolConfigFromBase("main")).toEqual([]);
+
+        expect(read("package.json")).toBe(pr);
+      });
+    });
+
+    test("keeps a new name if directories holds no commands", () => {
+      const directories = { test: "test" };
+      write("package.json", JSON.stringify({ name: "x", directories }));
+      startPr();
+      const pr = JSON.stringify({ name: "y", directories: { test: "t" } });
+      write("package.json", pr);
+      commit("pr");
+
+      expect(restoreToolConfigFromBase("main")).toEqual([]);
+
+      expect(read("package.json")).toBe(pr);
+    });
+
+    test.each([[null], ["bin"], [["bin"]], [1]])(
+      "copes with directories being %p",
+      (directories) => {
+        start({ name: "y", directories });
+        expect(restoreToolConfigFromBase("main")).toEqual([]);
+      },
+    );
+
     test("uses the base version when it can't be understood", () => {
       start("{");
       restoreToolConfigFromBase("main");
@@ -487,6 +642,42 @@ describe("restoreToolConfigFromBase", () => {
 
       expect(read(".claude/hooks/package.json")).toBe(base);
       expect(read(".husky/package.json")).toBe(base);
+    });
+
+    test("counts another spelling of a restored directory only if it is that one", () => {
+      const tool = '{"name":"tool","bin":"x.js"}';
+      write("package.json", '{"name":"x","workspaces":["*"]}');
+      write(".husky/package.json", tool);
+      startPr();
+      write(".Husky/package.json", tool);
+      write("claude.md/package.json", tool);
+      commit("pr");
+      restoreConfigFromBase("main");
+      const ownDirectories = readdirSync(".").filter((name) =>
+        [".Husky", "claude.md"].includes(name),
+      );
+
+      expect(restoreToolConfigFromBase("main")).toEqual(
+        ownDirectories.length > 0 ? ["package.json"] : [],
+      );
+
+      expect(read(".husky/package.json")).toBe(tool);
+      for (const dir of ownDirectories) {
+        expect(JSON.parse(read(`${dir}/package.json`))).toEqual({
+          name: "tool",
+        });
+      }
+    });
+
+    test("reports a restored directory's other spelling that it removes", () => {
+      write("package.json", '{"name":"x","workspaces":["*"]}');
+      startPr();
+      write("claude.md/package.json", "{");
+      commit("pr");
+
+      expect(restoreToolConfigFromBase("main")).toEqual(["package.json"]);
+
+      expect(existsSync("claude.md")).toBe(false);
     });
 
     test("takes the commands out of a new package.json", () => {

@@ -11,6 +11,9 @@ import { setupWorkloadIdentity } from "./workload-identity";
 import type { WorkloadIdentityHandle } from "./workload-identity";
 
 async function run() {
+  // Bun has read this by now, and it's only for the action's own script
+  delete process.env.BUN_RUNTIME_TRANSPILER_CACHE_PATH;
+
   let workloadIdentity: WorkloadIdentityHandle | undefined;
   try {
     // When workload identity federation is configured, fetch the GitHub OIDC
