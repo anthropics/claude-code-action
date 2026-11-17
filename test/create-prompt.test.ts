@@ -182,6 +182,45 @@ describe("generatePrompt", () => {
     ); // from review comments
   });
 
+  test("shows when the changed-file list covers only part of a PR", () => {
+    const context: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "pull_request_review",
+        isPR: true,
+        prNumber: "456",
+        commentBody: "@claude review the changes",
+      },
+    };
+    const files = Array.from({ length: 100 }, (_, index) => ({
+      path: `src/file-${index + 1}.ts`,
+      additions: 1,
+      deletions: 0,
+      changeType: "MODIFIED",
+      sha: "abc123",
+    }));
+
+    const prompt = generatePrompt(
+      context,
+      {
+        ...mockGitHubData,
+        contextData: {
+          ...mockGitHubData.contextData,
+          files: { totalCount: 116, nodes: files },
+        },
+        changedFiles: files,
+        changedFilesWithSHA: files,
+      },
+      false,
+      "tag",
+    );
+
+    expect(prompt).toContain("Changed Files: 116 files (100 listed)");
+    expect(prompt).toContain("- src/file-100.ts (MODIFIED)");
+  });
+
   test("should generate prompt for issue opened event", async () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",

@@ -45,6 +45,7 @@ export const PR_QUERY = `
           }
         }
         files(first: 100) {
+          totalCount
           nodes {
             path
             additions
