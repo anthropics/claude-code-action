@@ -19,6 +19,7 @@ import {
   clearSessionState,
   disableGitPrograms,
   pinPushBranch,
+  pinRestoredPaths,
   prepareGitForSession,
   snapshotSessionFiles,
 } from "../src/github/operations/session-guard";
@@ -333,9 +334,15 @@ describe("session guard", () => {
       expect(readFileSync(repoFile, "utf8")).toBe(
         `${repoRoot}/.git\n${repoRoot}\n${process.env.HOME}\n`,
       );
+      pinRestoredPaths([".claude", "package.json"]);
+      const restoredFile = join(dir, "scripts/.restored-paths");
+      expect(readFileSync(restoredFile, "utf8")).toBe(
+        ":(top).claude\n:(top,glob)**/package.json\n",
+      );
       clearSessionState();
       expect(existsSync(join(dir, "scripts/.push-branch"))).toBe(false);
       expect(existsSync(join(dir, "scripts/.no-hooks"))).toBe(false);
+      expect(existsSync(restoredFile)).toBe(false);
       expect(existsSync(repoFile)).toBe(false);
     });
 

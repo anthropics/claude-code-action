@@ -31,7 +31,12 @@ type FileSnapshot = TrackedFile & {
 
 const MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024;
 
-const SESSION_STATE_FILES = [".push-branch", ".no-hooks", ".git-repo"];
+const SESSION_STATE_FILES = [
+  ".push-branch",
+  ".no-hooks",
+  ".git-repo",
+  ".restored-paths",
+];
 
 // How many GIT_CONFIG_* entries were there before disableGitPrograms added any.
 let entriesBeforeAction: number | undefined;
@@ -275,6 +280,24 @@ export function pinPushBranch(branch: string): void {
   } catch (error) {
     // With no file and no variable, the wrapper refuses to push.
     core.warning(`Could not record the session's branch (${codeOf(error)})`);
+  }
+}
+
+/**
+ * Records the paths that the commit wrapper leaves out, because the action took them
+ * from a branch other than the pull request's base.
+ */
+export function pinRestoredPaths(paths: string[]): void {
+  const pathspecs = paths.map((path) =>
+    // Its commands are replaced in subdirectories too.
+    path === "package.json" ? ":(top,glob)**/package.json" : `:(top)${path}`,
+  );
+  try {
+    writeSessionFile(".restored-paths", `${pathspecs.join("\n")}\n`);
+  } catch (error) {
+    core.warning(
+      `Could not record the restored files, so a commit can include them (${codeOf(error)})`,
+    );
   }
 }
 

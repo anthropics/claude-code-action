@@ -152,6 +152,8 @@ export type BranchInfo = {
   baseBranch: string;
   claudeBranch?: string;
   currentBranch: string;
+  /** Set when the head of an open pull request was checked out. */
+  isFork?: boolean;
 };
 
 export async function setupBranch(
@@ -259,6 +261,7 @@ export async function setupBranch(
       return {
         baseBranch,
         currentBranch: localBranch,
+        isFork: prData.isCrossRepository,
       };
     }
   }

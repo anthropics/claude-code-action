@@ -410,6 +410,39 @@ describe("restoreConfigFromBase", () => {
     expectNoLinksInSnapshot();
   });
 
+  test.each(["heads", "tags"])(
+    "uses the remote-tracking branch when refs/%s has the same short name",
+    (kind) => {
+      git(["update-ref", `refs/${kind}/origin/main`, "HEAD"]);
+
+      restoreConfigFromBase("main");
+
+      expect(readRepoFile("CLAUDE.md")).toBe("base claude instructions\n");
+    },
+  );
+
+  test("uses the branch when the remote has a tag of the same name", () => {
+    git(["push", "origin", "HEAD:refs/tags/main"]);
+    git(["update-ref", "-d", "refs/remotes/origin/main"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("CLAUDE.md")).toBe("base claude instructions\n");
+  });
+
+  test("restores from a branch that the checkout's refspec doesn't cover", () => {
+    git([
+      "config",
+      "remote.origin.fetch",
+      "+refs/heads/pr:refs/remotes/origin/pr",
+    ]);
+    git(["update-ref", "-d", "refs/remotes/origin/main"]);
+
+    restoreConfigFromBase("main");
+
+    expect(readRepoFile("CLAUDE.md")).toBe("base claude instructions\n");
+  });
+
   test("does not modify an existing .gitignore", () => {
     writeRepoFile(".gitignore", "node_modules\n");
     git(["add", ".gitignore"]);
