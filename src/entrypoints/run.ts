@@ -96,7 +96,7 @@ async function installClaudeCode(): Promise<string> {
     return customExecutable;
   }
 
-  const claudeCodeVersion = "2.1.325";
+  const claudeCodeVersion = "2.1.326";
   const version = process.env.INPUT_CLAUDE_CODE_VERSION || claudeCodeVersion;
   const installCommand = buildInstallCommand(version);
   console.log(`Installing Claude Code v${version}...`);
@@ -167,6 +167,9 @@ async function writeStepSummary(executionFile: string): Promise<void> {
 }
 
 async function run() {
+  // Bun has read this by now, and it's only for the action's own scripts
+  delete process.env.BUN_RUNTIME_TRANSPILER_CACHE_PATH;
+
   let githubToken: string | undefined;
   let commentId: number | undefined;
   let claudeBranch: string | undefined;
@@ -352,6 +355,12 @@ async function run() {
           ...toolConfigDenyRules(restoredToolConfig),
         ]
       : [];
+
+    // A hook runs in the session's current directory, and only the repository root's tool
+    // config comes from the base branch. This keeps Bash from moving the session.
+    if (isUntrustedCheckout) {
+      process.env.CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR = "1";
+    }
 
     const restoreSessionFiles = snapshotSessionFiles(() =>
       prepareGitForSession({ hooks: hooksOff }),
