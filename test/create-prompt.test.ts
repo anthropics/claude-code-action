@@ -221,6 +221,56 @@ describe("generatePrompt", () => {
     expect(prompt).toContain("- src/file-100.ts (MODIFIED)");
   });
 
+  test.each(["false", "true"])(
+    "distinguishes an unavailable file list from an empty diff (simple=%s)",
+    (simplePrompt) => {
+      const context: PreparedContext = {
+        repository: "owner/repo",
+        claudeCommentId: "12345",
+        triggerPhrase: "@claude",
+        eventData: {
+          eventName: "pull_request_review",
+          isPR: true,
+          prNumber: "456",
+          commentBody: "@claude review the changes",
+        },
+      };
+      const previous = process.env.USE_SIMPLE_PROMPT;
+      process.env.USE_SIMPLE_PROMPT = simplePrompt;
+      try {
+        for (const files of [null, { nodes: [] }]) {
+          const prompt = generatePrompt(
+            context,
+            {
+              ...mockGitHubData,
+              contextData: { ...mockGitHubData.contextData, files },
+              changedFiles: [],
+              changedFilesWithSHA: [],
+            },
+            false,
+            "tag",
+          );
+
+          if (files === null) {
+            expect(prompt).toContain(
+              "Changed Files: unknown (file list unavailable)",
+            );
+            expect(prompt).toContain(
+              "Changed-file list unavailable from GitHub.",
+            );
+            expect(prompt).not.toContain("No files changed");
+          } else {
+            expect(prompt).toContain("Changed Files: 0 files");
+            expect(prompt).toContain("No files changed");
+          }
+        }
+      } finally {
+        if (previous === undefined) delete process.env.USE_SIMPLE_PROMPT;
+        else process.env.USE_SIMPLE_PROMPT = previous;
+      }
+    },
+  );
+
   test("should generate prompt for issue opened event", async () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
