@@ -6,8 +6,8 @@ import type { ParsedGitHubContext } from "../src/github/context";
 import { setupBranch } from "../src/github/operations/branch";
 import { chooseConfigBranch } from "../src/github/operations/config-branch";
 import {
-  checkoutDepth,
   fetchBranch,
+  keepHeadHistory,
   restoreConfigFromBase,
 } from "../src/github/operations/restore-config";
 import {
@@ -104,6 +104,15 @@ describe("chooseConfigBranch", () => {
       });
       expect(chooseConfigBranch(pr, "trunk", true, true)).toBe("trunk");
     }
+  });
+
+  test("a bot's pull request into a branch with a fork's commits uses the default", () => {
+    const pr = withPullRequest(mockPullRequestOpenedContext, {
+      headRepo: here,
+      authorType: "Bot",
+    });
+    expect(chooseConfigBranch(pr, "pr-12", true)).toBe("trunk");
+    expect(chooseConfigBranch(pr, "pr-12-notes", true)).toBe("pr-12-notes");
   });
 
   test("the pull request's head branch name is not used as the input", () => {
@@ -205,9 +214,13 @@ describe("in a shallow checkout of the default branch", () => {
 });
 
 describe("in a shallow checkout whose history contains the config branch", () => {
-  test.each([false, true])(
-    "the base can still be compared (with a tag in the history: %p)",
-    (withTag) => {
+  test.each([
+    [false, 0],
+    [true, 0],
+    [false, 6],
+  ])(
+    "the base can still be compared (tag in the history: %p, commits since: %p)",
+    (withTag, commitsSince) => {
       const originalCwd = process.cwd();
       const dir = mkdtempSync(join("/tmp", "config-branch-"));
       const git = (cwd: string, ...args: string[]) =>
@@ -234,12 +247,14 @@ describe("in a shallow checkout whose history contains the config branch", () =>
         commit("CLAUDE.md");
         commit("trunk-1");
         git(source, "checkout", "--detach", "trunk");
+        commit("HEAD");
         commit("change-1");
         if (withTag) git(source, "update-ref", "refs/tags/v1", "HEAD");
         commit("change-2");
         const head = git(source, "rev-parse", "HEAD");
         git(source, "update-ref", "refs/pull/1/head", head);
         git(source, "checkout", "trunk");
+        for (let i = 0; i < commitsSince; i++) commit(`later-${i}`);
 
         git(dir, "init", checkout);
         git(checkout, "remote", "add", "origin", `file://${source}`);
@@ -248,23 +263,26 @@ describe("in a shallow checkout whose history contains the config branch", () =>
         git(checkout, "checkout", "--detach", head);
         process.chdir(checkout);
 
-        restoreConfigFromBase("trunk", checkoutDepth());
+        const restoreHeadHistory = keepHeadHistory();
+        restoreConfigFromBase("trunk");
+        restoreHeadHistory();
         fetchBranch("release");
 
         expect(readFileSync("CLAUDE.md", "utf8")).toBe("CLAUDE.md");
         expect(
           git(".", "diff", "--name-only", "origin/release...HEAD").split("\n"),
-        ).toEqual(["CLAUDE.md", "change-1", "change-2", "trunk-1"]);
+        ).toEqual(["CLAUDE.md", "HEAD", "change-1", "change-2", "trunk-1"]);
         expect(git(".", "rev-list", "--count", "origin/release..HEAD")).toBe(
-          "4",
+          "5",
         );
         expect(git(".", "tag")).toBe("");
 
         // A pull request that targets the config branch itself.
+        if (commitsSince > 0) return;
         restoreConfigFromBase("trunk");
         expect(
           git(".", "diff", "--name-only", "origin/trunk...HEAD").split("\n"),
-        ).toEqual(["change-1", "change-2"]);
+        ).toEqual(["HEAD", "change-1", "change-2"]);
       } finally {
         process.chdir(originalCwd);
         rmSync(dir, { recursive: true, force: true });
@@ -282,8 +300,10 @@ test("run.ts restores both kinds of config from the chosen branch", () => {
     "chooseConfigBranch( context, restoreBase, untrustedPrDisallowedTools.length > 0, isFork, )",
   );
   expect(source.replace(/\s+/g, " ")).toContain(
-    "restoreConfigFromBase( configBranch, configBranch === restoreBase ? 1 : checkoutDepth(), )",
+    "isOtherBranch ? keepHeadHistory() : undefined; restoredConfigPaths = restoreConfigFromBase(configBranch);",
   );
+  expect(source).toContain("restoreHeadHistory?.();");
+  expect(source).toContain("pinRestoredPaths(restoredConfigPaths)");
   expect(source).toContain("restoreToolConfigFromBase(configBranch)");
   expect(source).toContain("fetchBranch(restoreBase)");
 });

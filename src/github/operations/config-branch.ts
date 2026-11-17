@@ -1,10 +1,14 @@
 import type { ParsedGitHubContext } from "../context";
 import { validateBranchName } from "./branch";
 
+// Tag mode pushes a fork's commits to these.
+const FORK_BRANCH = /^pr-\d+$/;
+
 /**
  * Returns the branch to restore Claude's config from on a pull request: the base, or
  * for an untrusted author the base_branch input or the default branch. A pull request
- * that targets the default branch keeps its base, as does a bot's in this repository.
+ * that targets the default branch keeps its base, as does a bot's in this repository,
+ * unless the base holds a fork's commits.
  *
  * @param isFork - Whether the checked-out head is in a fork. Read only for
  *   issue_comment events. Undefined counts as a fork.
@@ -33,7 +37,9 @@ export function chooseConfigBranch(
       : inputs.baseBranch;
   if (
     !isAuthorUntrusted ||
-    (isSameRepository && user?.type === "Bot") ||
+    (isSameRepository &&
+      user?.type === "Bot" &&
+      !FORK_BRANCH.test(baseBranch)) ||
     (defaultBranch && baseBranch === defaultBranch)
   ) {
     return baseBranch;

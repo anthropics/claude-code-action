@@ -1,3 +1,4 @@
+import * as core from "@actions/core";
 import { execFileSync } from "child_process";
 import {
   appendFileSync,
@@ -229,17 +230,41 @@ export function ensureClaudePrExcludedFromGit(): void {
   appendFileSync(excludePath, `${prefix}${CLAUDE_PR_EXCLUDE_PATTERN}\n`);
 }
 
-/**
- * How deep to fetch another branch so that it can't cut off HEAD's history, which may
- * include that branch's tip. No path from HEAD is longer than its number of commits.
- */
-export function checkoutDepth(): number {
+function headHistoryLength(): number {
+  const head = execFileSync("git", ["rev-parse", "--verify", "HEAD^{commit}"], {
+    encoding: "utf8",
+  }).trim();
   return Number(
-    execFileSync("git", ["rev-list", "--count", "HEAD"], { encoding: "utf8" }),
+    execFileSync("git", ["rev-list", "--count", head, "--"], {
+      encoding: "utf8",
+    }),
   );
 }
 
-export function fetchBranch(branch: string, depth = 1): void {
+/**
+ * Fetching a branch into a shallow checkout cuts HEAD's history at that branch's tip if
+ * it is in there. Returns a function that fetches HEAD's history again if it was cut
+ * since. No path from HEAD is longer than its number of commits.
+ */
+export function keepHeadHistory(): () => void {
+  const before = headHistoryLength();
+  return () => {
+    if (headHistoryLength() >= before) return;
+    try {
+      const head = execFileSync("git", ["rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).trim();
+      fetchRef(head, before);
+    } catch {
+      // For example, a commit that an earlier step made isn't on the remote.
+      core.warning(
+        "Could not fetch the checked-out history again, so comparing with the base branch can fail.",
+      );
+    }
+  };
+}
+
+function fetchRef(ref: string, depth: number): void {
   // --no-recurse-submodules: a .gitmodules file must not start a submodule fetch,
   // whatever fetch.recurseSubmodules says.
   execFileSync(
@@ -247,9 +272,7 @@ export function fetchBranch(branch: string, depth = 1): void {
     [
       "fetch",
       "origin",
-      // In full, so that a tag of the same name isn't fetched instead and the
-      // remote-tracking branch is updated whatever the checkout's refspec covers.
-      `+refs/heads/${branch}:refs/remotes/origin/${branch}`,
+      ref,
       ...fetchDepthArgs(depth),
       // Following tags would cut a shallow history at each tag it fetches.
       "--no-tags",
@@ -260,6 +283,12 @@ export function fetchBranch(branch: string, depth = 1): void {
       env: process.env,
     },
   );
+}
+
+export function fetchBranch(branch: string): void {
+  // In full, so that a tag of the same name isn't fetched instead and the
+  // remote-tracking branch is updated whatever the checkout's refspec covers.
+  fetchRef(`+refs/heads/${branch}:refs/remotes/origin/${branch}`, 1);
 }
 
 /**
@@ -298,15 +327,11 @@ export function fetchBranch(branch: string, depth = 1): void {
  *
  * @param baseBranch - The branch to restore from, see chooseConfigBranch. Must be
  *   pre-validated with validateBranchName.
- * @param fetchDepth - How deep to fetch the branch into a shallow checkout.
  * @returns The paths whose working-tree state now comes from the base branch
  *   rather than the PR. Callers that stage files must exclude these, or they
  *   will commit the revert back onto the PR author's branch.
  */
-export function restoreConfigFromBase(
-  baseBranch: string,
-  fetchDepth = 1,
-): string[] {
+export function restoreConfigFromBase(baseBranch: string): string[] {
   console.log(
     `Restoring ${SENSITIVE_PATHS.join(", ")} from origin/${baseBranch} (PR head is untrusted)`,
   );
@@ -345,7 +370,7 @@ export function restoreConfigFromBase(
     rmSync(p, { recursive: true, force: true });
   }
 
-  fetchBranch(baseBranch, fetchDepth);
+  fetchBranch(baseBranch);
 
   for (const p of SENSITIVE_PATHS) {
     try {

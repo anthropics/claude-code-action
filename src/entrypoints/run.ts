@@ -35,13 +35,14 @@ import { checkContainsTrigger } from "../github/validation/trigger";
 import {
   clearSessionState,
   disableGitPrograms,
+  pinRestoredPaths,
   prepareGitForSession,
   snapshotSessionFiles,
 } from "../github/operations/session-guard";
 import { chooseConfigBranch } from "../github/operations/config-branch";
 import {
-  checkoutDepth,
   fetchBranch,
+  keepHeadHistory,
   restoreConfigFromBase,
 } from "../github/operations/restore-config";
 import {
@@ -330,29 +331,27 @@ async function run() {
           untrustedPrDisallowedTools.length > 0,
           isFork,
         );
-        if (configBranch !== restoreBase) {
+        const isOtherBranch = configBranch !== restoreBase;
+        if (isOtherBranch) {
           core.warning(
             `Claude's config comes from ${configBranch}, not from the base branch ${restoreBase}, because the pull request's author is not confirmed to have write access. See docs/security.md in anthropics/claude-code-action.`,
           );
         }
-        restoredConfigPaths = restoreConfigFromBase(
-          configBranch,
-          configBranch === restoreBase ? 1 : checkoutDepth(),
-        );
+        const restoreHeadHistory = isOtherBranch
+          ? keepHeadHistory()
+          : undefined;
+        restoredConfigPaths = restoreConfigFromBase(configBranch);
         // Before plugins are installed, which can already start package managers here.
         if (isUntrustedCheckout) {
           restoredToolConfig = restoreToolConfigFromBase(configBranch);
           restoredConfigPaths.push(...restoredToolConfig);
         }
-        if (configBranch !== restoreBase) {
+        if (isOtherBranch) {
+          // A branch from the base has none of the pull request's version of them.
+          if (checkedOutPrHead) pinRestoredPaths(restoredConfigPaths);
           // Claude still compares the pull request with its base.
-          try {
-            fetchBranch(restoreBase);
-          } catch {
-            core.warning(
-              `Could not fetch the base branch ${restoreBase}, so comparing with it can fail.`,
-            );
-          }
+          restoreHeadHistory?.();
+          fetchBranch(restoreBase);
         }
       }
     }
