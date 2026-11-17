@@ -144,8 +144,8 @@ export function validateBranchName(branchName: string): void {
  *
  * @param args - Git command arguments (e.g., ["checkout", "branch-name"])
  */
-function execGit(args: string[]): void {
-  execFileSync("git", args, { stdio: "inherit", env: process.env });
+function execGit(args: string[], env: NodeJS.ProcessEnv = process.env): void {
+  execFileSync("git", args, { stdio: "inherit", env });
 }
 
 export type BranchInfo = {
@@ -160,7 +160,8 @@ export async function setupBranch(
   octokits: Octokits,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
-  triggerTime?: string,
+  triggerTime: string | undefined,
+  skipLfsDownloads: boolean,
 ): Promise<BranchInfo> {
   const { owner, repo } = context.repository;
   const entityNumber = context.entityNumber;
@@ -241,7 +242,13 @@ export async function setupBranch(
         : branchName;
       console.log(`PR #${entityNumber}: pinning ${localBranch} to ${headSha}`);
       execGit(["fetch", "origin", ...depthArgs, headSha]);
-      execGit(["checkout", "-B", localBranch, headSha, "--"]);
+      execGit(
+        ["checkout", "-B", localBranch, headSha, "--"],
+        // Files that Git LFS would download stay as pointer files.
+        skipLfsDownloads
+          ? { ...process.env, GIT_LFS_SKIP_SMUDGE: "1" }
+          : process.env,
+      );
 
       const checkedOut = execFileSync("git", ["rev-parse", "HEAD"], {
         encoding: "utf8",

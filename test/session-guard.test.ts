@@ -38,6 +38,8 @@ const KEYS = [
   "GIT_CONFIG_VALUE_1",
   "GIT_CONFIG_KEY_2",
   "GIT_CONFIG_VALUE_2",
+  "GIT_CONFIG_KEY_3",
+  "GIT_CONFIG_VALUE_3",
   // git exports these into hooks, such as a pre-commit hook running this suite.
   // If inherited, git would act on the enclosing repository, not the temp one.
   "GIT_DIR",
@@ -221,7 +223,7 @@ describe("session guard", () => {
 
     test("moves the action's settings from the environment to the repository", () => {
       disableGitPrograms({ hooks: true });
-      expect(process.env.GIT_CONFIG_COUNT).toBe("2");
+      expect(process.env.GIT_CONFIG_COUNT).toBe("3");
       const restore = snapshotSessionFiles(() =>
         prepareGitForSession({ hooks: true }),
       );
@@ -444,14 +446,46 @@ describe("session guard", () => {
 
   test("leaves hooks alone when not asked", () => {
     disableGitPrograms({ hooks: false });
-    expect(process.env.GIT_CONFIG_COUNT).toBe("1");
+    expect(process.env.GIT_CONFIG_COUNT).toBe("2");
     expect(process.env.GIT_CONFIG_KEY_0).toBe("core.fsmonitor");
+  });
+
+  test.each([true, false])(
+    "sets safe.bareRepository for the action's git commands (disable hooks: %p)",
+    (hooks) => {
+      disableGitPrograms({ hooks });
+      expect(git("config", "safe.bareRepository").trim()).toBe("explicit");
+      git("init", "-q", "--bare", join(dir, "repo", "folder"));
+      expect(() => git("-C", "folder", "rev-parse", "--git-dir")).toThrow();
+    },
+  );
+
+  test("finds a bare repository in the current directory when hooks stay on", () => {
+    git("init", "-q", "--bare", join(dir, "bare.git"));
+    process.chdir(join(dir, "bare.git"));
+    disableGitPrograms({ hooks: false });
+    expect(git("rev-parse", "--is-bare-repository").trim()).toBe("true");
+  });
+
+  test("sets safe.bareRepository in a repository whose .git file names a bare one", () => {
+    git("init", "-q", "--bare", join(dir, "tree", ".bare"));
+    writeFileSync(join(dir, "tree", ".git"), "gitdir: ./.bare\n");
+    process.chdir(join(dir, "tree"));
+    disableGitPrograms({ hooks: false });
+    expect(git("config", "safe.bareRepository").trim()).toBe("explicit");
+  });
+
+  test("refuses a bare repository in the current directory when hooks are off", () => {
+    git("init", "-q", "--bare", join(dir, "bare.git"));
+    process.chdir(join(dir, "bare.git"));
+    disableGitPrograms({ hooks: true });
+    expect(() => git("rev-parse", "--is-bare-repository")).toThrow();
   });
 
   test("does not add a setting twice", () => {
     disableGitPrograms({ hooks: true });
     disableGitPrograms({ hooks: true });
-    expect(process.env.GIT_CONFIG_COUNT).toBe("2");
+    expect(process.env.GIT_CONFIG_COUNT).toBe("3");
   });
 
   test("keeps existing GIT_CONFIG entries", () => {
@@ -459,7 +493,7 @@ describe("session guard", () => {
     process.env.GIT_CONFIG_KEY_0 = "user.name";
     process.env.GIT_CONFIG_VALUE_0 = "someone";
     disableGitPrograms({ hooks: true });
-    expect(process.env.GIT_CONFIG_COUNT).toBe("3");
+    expect(process.env.GIT_CONFIG_COUNT).toBe("4");
     expect(process.env.GIT_CONFIG_KEY_0).toBe("user.name");
     expect(process.env.GIT_CONFIG_KEY_1).toBe("core.fsmonitor");
     expect(process.env.GIT_CONFIG_KEY_2).toBe("core.hooksPath");
