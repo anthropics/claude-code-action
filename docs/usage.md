@@ -293,6 +293,32 @@ Always pass these values to a script through `env:`, as above. GitHub puts a `${
 
 **Note**: Due to GitHub Actions limitations, composite actions cannot expose dynamic outputs. All fields are bundled in the single `structured_output` JSON string.
 
+### Post a multiline review summary
+
+In a `pull_request` job with `pull-requests: write`, ask Claude for a Markdown summary and let a workflow step post it. Passing the text through standard input preserves Markdown and quotes without putting the summary in a shell command.
+
+```yaml
+- name: Generate review summary
+  id: review
+  uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    prompt: Review the checked-out pull request and return a Markdown summary.
+    claude_args: |
+      --json-schema '{"type":"object","properties":{"summary":{"type":"string"}},"required":["summary"]}'
+
+- name: Post review summary
+  if: ${{ steps.review.outputs.structured_output != '' && fromJSON(steps.review.outputs.structured_output).summary != '' }}
+  env:
+    GH_TOKEN: ${{ github.token }}
+    GH_REPO: ${{ github.repository }}
+    PR_NUMBER: ${{ github.event.pull_request.number }}
+    REVIEW_JSON: ${{ steps.review.outputs.structured_output }}
+  run: |
+    printf '%s' "$REVIEW_JSON" | jq -ej '.summary' |
+      gh pr comment "$PR_NUMBER" --body-file -
+```
+
 ### Complete Example
 
 See `examples/test-failure-analysis.yml` for a working example that:
