@@ -2,7 +2,7 @@
 
 ## Using Custom MCP Configuration
 
-You can add custom MCP (Model Context Protocol) servers to extend Claude's capabilities using the `--mcp-config` flag in `claude_args`. These servers merge with the built-in GitHub MCP servers.
+Add custom MCP (Model Context Protocol) servers with `--mcp-config` in `claude_args`. Use inline JSON when the action also configures built-in GitHub MCP servers. Tag mode always supplies a built-in server, and agent mode can add built-in servers based on the tools you allow. A file path works as the sole MCP configuration. When the action merges configs that contain inline servers, it drops file paths.
 
 ### Basic Example: Adding a Sequential Thinking Server
 
@@ -18,7 +18,7 @@ You can add custom MCP (Model Context Protocol) servers to extend Claude's capab
 
 ### Passing Secrets to MCP Servers
 
-For MCP servers that require sensitive information like API keys or tokens, you can create a configuration file with GitHub Secrets:
+If a file is your only MCP configuration, you can populate it with GitHub Secrets for servers that require an API key or token.
 
 ```yaml
 - name: Create MCP Config
@@ -48,7 +48,7 @@ For MCP servers that require sensitive information like API keys or tokens, you 
 
 ### Using Python MCP Servers with uv
 
-For Python-based MCP servers managed with `uv`, you need to specify the directory containing your server:
+For Python-based MCP servers managed with `uv`, set the directory containing your server. This example uses a file as the only MCP configuration.
 
 ```yaml
 - name: Create MCP Config for Python Server
@@ -88,16 +88,15 @@ For example, if your Python MCP server is at `mcp_servers/weather.py`, you would
 
 ### Multiple MCP Servers
 
-You can add multiple MCP servers by using multiple `--mcp-config` flags:
+To combine configurations, pass an inline JSON object with each `--mcp-config` flag. This also works when the action adds its own servers.
 
 ```yaml
 - uses: anthropics/claude-code-action@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     claude_args: |
-      --mcp-config /tmp/config1.json
-      --mcp-config /tmp/config2.json
-      --mcp-config '{"mcpServers": {"inline-server": {"command": "npx", "args": ["@example/server"]}}}'
+      --mcp-config '{"mcpServers": {"first-server": {"command": "node", "args": ["./mcp/first.js"]}}}'
+      --mcp-config '{"mcpServers": {"second-server": {"command": "node", "args": ["./mcp/second.js"]}}}'
     # ... other inputs
 ```
 
@@ -105,7 +104,6 @@ You can add multiple MCP servers by using multiple `--mcp-config` flags:
 
 - Always use GitHub Secrets (`${{ secrets.SECRET_NAME }}`) for sensitive values like API keys, tokens, or passwords. Never hardcode secrets directly in the workflow file.
 - Your custom servers will override any built-in servers with the same name.
-- The `claude_args` supports multiple `--mcp-config` flags that will be merged together.
 
 ## Additional Permissions for CI/CD Integration
 
