@@ -395,6 +395,45 @@ describe("formatGroupedContent", () => {
 });
 
 describe("formatTurnsFromData", () => {
+  test.each(["array", "JSON string"])(
+    "shows text after an image in a tool result (%s)",
+    (encoding) => {
+      const blocks = [
+        { type: "image", source: { data: "fixture-image-data" } },
+        { type: "text", text: "Preview generated." },
+        { type: "text", text: "Saved to preview.png." },
+      ];
+      const data: Turn[] = [
+        {
+          type: "assistant",
+          message: {
+            content: [
+              { type: "tool_use", id: "preview", name: "make_preview" },
+            ],
+          },
+        },
+        {
+          type: "user",
+          message: {
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "preview",
+                content: encoding === "array" ? blocks : JSON.stringify(blocks),
+              },
+            ],
+          },
+        },
+      ];
+
+      const summary = formatTurnsFromData(data);
+
+      expect(summary).toContain("Preview generated.\nSaved to preview.png.");
+      expect(summary).not.toContain("fixture-image-data");
+      expect(summary).not.toContain("[object Object]");
+    },
+  );
+
   test("handles empty data", () => {
     const result = formatTurnsFromData([]);
     expect(result).toBe("## Claude Code Report\n\n");
