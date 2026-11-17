@@ -67,6 +67,15 @@ describe("preparePrompt integration tests", () => {
     );
   });
 
+  test("rejects a directory passed as prompt_file", async () => {
+    const directory = process.cwd();
+    await expect(
+      preparePrompt({ prompt: "", promptFile: directory }),
+    ).rejects.toThrow(
+      `Prompt path '${directory}' must point to a regular file.`,
+    );
+  });
+
   test("should fail when promptFile points to non-existent file", async () => {
     const input: PreparePromptInput = {
       prompt: "",
