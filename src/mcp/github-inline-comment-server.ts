@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createOctokit } from "../github/api/client";
 import { redactSecrets, sanitizeContent } from "../github/utils/sanitizer";
 import { removeBufferedComment } from "./inline-comment-buffer";
+import { registerReviewThreadTools } from "./github-review-threads";
 
 // Get repository and PR information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -26,13 +27,17 @@ if (!REPO_OWNER || !REPO_NAME || !PR_NUMBER) {
   process.exit(1);
 }
 
-// GitHub Inline Comment MCP Server - Provides inline PR comment functionality
-// Provides an inline comment tool without exposing full PR review capabilities, so that
-// Claude can't accidentally approve a PR
+// Provides inline comments and review-thread tools for the current PR.
 const server = new McpServer({
   name: "GitHub Inline Comment Server",
   version: "0.0.1",
 });
+
+registerReviewThreadTools(
+  server,
+  { owner: REPO_OWNER, repo: REPO_NAME, number: Number(PR_NUMBER) },
+  process.env.ENABLE_RESOLVE_REVIEW_THREAD === "true",
+);
 
 server.tool(
   "create_inline_comment",
