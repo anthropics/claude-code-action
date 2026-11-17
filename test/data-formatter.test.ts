@@ -486,6 +486,8 @@ describe("formatReviewComments", () => {
                 createdAt: "2023-01-01T00:00:00Z",
                 path: "src/index.ts",
                 line: 42,
+                originalLine: 30,
+                outdated: false,
               },
               {
                 id: "comment2",
@@ -599,6 +601,8 @@ describe("formatReviewComments", () => {
                 createdAt: "2023-01-01T00:00:00Z",
                 path: "src/index.ts",
                 line: null,
+                originalLine: 42,
+                outdated: true,
                 diffHunk: "",
               },
             ],
@@ -609,7 +613,9 @@ describe("formatReviewComments", () => {
 
     const result = formatReviewComments(reviewData);
 
-    expect(result).toContain("[Comment on src/index.ts:?]: Outdated comment");
+    expect(result).toContain(
+      "[Outdated comment on src/index.ts:42 (original line)]: Outdated comment",
+    );
     expect(result).not.toContain("Diff context:");
     expect(result).not.toContain("```diff");
   });
