@@ -75,6 +75,7 @@ jobs:
 | `label_trigger`                  | The label name that triggers the action when applied to an issue (e.g. "claude"). With `prompt` and `track_progress`, an empty value accepts any label                                                                                 | No       | -                           |
 | `trigger_phrase`                 | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                                                                                                                                          | No       | `@claude`                   |
 | `branch_prefix`                  | The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)                                                                                                                                           | No       | `claude/`                   |
+| `branch_name_template`           | Format for new branches created in tag mode. See [New branch names](#new-branch-names).                                                                                                                                                | No       | -                           |
 | `settings`                       | Claude Code settings as JSON string or path to settings JSON file                                                                                                                                                                      | No       | ""                          |
 | `additional_permissions`         | Additional permissions to enable. Currently supports 'actions: read' for viewing workflow results                                                                                                                                      | No       | ""                          |
 | `use_commit_signing`             | Enable commit signing using GitHub's API. Simple but cannot perform complex git operations like rebasing. See [Security](./security.md#commit-signing)                                                                                 | No       | `false`                     |
@@ -112,6 +113,26 @@ These inputs are deprecated and will be removed in a future version:
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 
 > **Note**: This action is currently in beta. Features and APIs may change as we continue to improve the integration.
+
+## New branch names
+
+Set `branch_name_template` in the action's `with` block to name branches it creates in tag mode. For example, issue #123 titled “Fix password reset” with the first label `bugfix` produces `bugfix/issue-123-fix-password-reset`.
+
+```yaml
+branch_name_template: "{{label}}/{{entityType}}-{{entityNumber}}-{{description}}"
+```
+
+| Variable           | Value                                                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------- |
+| `{{prefix}}`       | The `branch_prefix` input. Include this variable where you want the prefix to appear.                   |
+| `{{entityType}}`   | `issue` or `pr`.                                                                                        |
+| `{{entityNumber}}` | The issue or pull request number.                                                                       |
+| `{{timestamp}}`    | The runner's date and time in `YYYYMMDD-HHmm` format.                                                   |
+| `{{sha}}`          | The first eight characters of the source branch commit SHA.                                             |
+| `{{label}}`        | The first label returned by GitHub, converted to a branch name segment. Falls back to `{{entityType}}`. |
+| `{{description}}`  | Up to the first five words of the issue or pull request title, converted to kebab case.                 |
+
+The action resolves the template before starting Claude's session. On an open pull request it checks out the existing PR branch. If the generated name already exists on the remote, the action uses the default format `{{prefix}}{{entityType}}-{{entityNumber}}-{{timestamp}}`.
 
 ## Permission Mode
 
