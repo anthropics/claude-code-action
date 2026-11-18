@@ -171,7 +171,7 @@ describe("detectMode with enhanced routing", () => {
         eventName: "issue_comment",
         payload: {
           issue: { number: 1, body: "Test" },
-          comment: { body: "@claude help" },
+          comment: { body: "@claude help", user: { login: "test-user" } },
         } as any,
         entityNumber: 1,
         isPR: false,
@@ -186,7 +186,7 @@ describe("detectMode with enhanced routing", () => {
         eventName: "issue_comment",
         payload: {
           issue: { number: 1, body: "Test" },
-          comment: { body: "@claude help" },
+          comment: { body: "@claude help", user: { login: "test-user" } },
         } as any,
         entityNumber: 1,
         isPR: false,
@@ -202,7 +202,7 @@ describe("detectMode with enhanced routing", () => {
         eventName: "pull_request_review_comment",
         payload: {
           pull_request: { number: 1, body: "Test" },
-          comment: { body: "@claude check this" },
+          comment: { body: "@claude check this", user: { login: "test-user" } },
         } as any,
         entityNumber: 1,
         isPR: true,

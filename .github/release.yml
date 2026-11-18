@@ -1,0 +1,11 @@
+# Groups the notes of each release. Merged pull requests with no label go under
+# "Other changes". .github/workflows/release.yml reads the first heading to flag
+# the release's title, so keep the two in step.
+changelog:
+  categories:
+    - title: "⚠️ Breaking changes"
+      labels:
+        - breaking-change
+    - title: Other changes
+      labels:
+        - "*"
