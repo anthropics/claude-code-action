@@ -40,10 +40,12 @@ export async function prepareTagMode({
   context,
   octokit,
   githubToken,
+  skipLfsDownloads,
 }: {
   context: GitHubContext;
   octokit: Octokits;
   githubToken: string;
+  skipLfsDownloads: boolean;
 }) {
   // Tag mode only handles entity-based events
   if (!isEntityContext(context)) {
@@ -87,6 +89,7 @@ export async function prepareTagMode({
       githubData,
       context,
       editedAt || triggerTime,
+      skipLfsDownloads,
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

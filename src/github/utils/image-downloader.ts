@@ -26,6 +26,10 @@ function extractAssetGuid(url: string): string | undefined {
   return url.match(ASSET_GUID_REGEX)?.[0]?.toLowerCase();
 }
 
+function isSameText(a: string | null | undefined, b: string): boolean {
+  return a?.replaceAll("\r\n", "\n") === b.replaceAll("\r\n", "\n");
+}
+
 const SIGNED_URL_HOST = "private-user-images.githubusercontent.com";
 
 // Signed download URLs have the shape /<owner-id>/<asset-id>-<guid>.<ext>.
@@ -107,6 +111,7 @@ export async function downloadCommentImages(
   const commentsWithImages: Array<{
     comment: CommentWithImages;
     urls: string[];
+    id: string;
   }> = [];
 
   for (const comment of comments) {
@@ -122,21 +127,22 @@ export async function downloadCommentImages(
     const urls = [...new Set([...markdownUrls, ...htmlUrls])];
 
     if (urls.length > 0) {
-      commentsWithImages.push({ comment, urls });
       const id =
         comment.type === "issue_body"
           ? comment.issueNumber
           : comment.type === "pr_body"
             ? comment.pullNumber
             : comment.id;
+      commentsWithImages.push({ comment, urls, id });
       console.log(`Found ${urls.length} image(s) in ${comment.type} ${id}`);
     }
   }
 
   // Process each comment with images
-  for (const { comment, urls } of commentsWithImages) {
+  for (const { comment, urls, id } of commentsWithImages) {
     try {
       let bodyHtml: string | undefined;
+      let currentBody: string | null | undefined;
 
       // Get the HTML version based on comment type
       switch (comment.type) {
@@ -150,6 +156,7 @@ export async function downloadCommentImages(
             },
           });
           bodyHtml = response.data.body_html;
+          currentBody = response.data.body;
           break;
         }
         case "review_comment": {
@@ -162,6 +169,7 @@ export async function downloadCommentImages(
             },
           });
           bodyHtml = response.data.body_html;
+          currentBody = response.data.body;
           break;
         }
         case "review_body": {
@@ -175,6 +183,7 @@ export async function downloadCommentImages(
             },
           });
           bodyHtml = response.data.body_html;
+          currentBody = response.data.body;
           break;
         }
         case "issue_body": {
@@ -187,6 +196,7 @@ export async function downloadCommentImages(
             },
           });
           bodyHtml = response.data.body_html;
+          currentBody = response.data.body;
           break;
         }
         case "pr_body": {
@@ -200,16 +210,20 @@ export async function downloadCommentImages(
           });
           // Type here seems to be wrong
           bodyHtml = (response.data as any).body_html;
+          currentBody = response.data.body;
           break;
         }
       }
+      // body_html is rendered from GitHub's current text, which may have been
+      // edited since this run's copy was taken.
+      if (!isSameText(currentBody, comment.body)) {
+        console.warn(
+          `Skipping images in ${comment.type} ${id}: its text on GitHub differs from the text this run uses.`,
+        );
+        continue;
+      }
+
       if (!bodyHtml) {
-        const id =
-          comment.type === "issue_body"
-            ? comment.issueNumber
-            : comment.type === "pr_body"
-              ? comment.pullNumber
-              : comment.id;
         console.warn(`No HTML body found for ${comment.type} ${id}`);
         continue;
       }
@@ -273,12 +287,6 @@ export async function downloadCommentImages(
         }
       }
     } catch (error) {
-      const id =
-        comment.type === "issue_body"
-          ? comment.issueNumber
-          : comment.type === "pr_body"
-            ? comment.pullNumber
-            : comment.id;
       console.error(
         `Failed to process images for ${comment.type} ${id}:`,
         error,
