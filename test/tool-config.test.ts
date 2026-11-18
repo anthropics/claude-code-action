@@ -429,7 +429,7 @@ describe("restoreToolConfigFromBase", () => {
     rmSync(join(".git/objects", oid.slice(0, 2), oid.slice(2)));
 
     expect(() => restoreToolConfigFromBase("main")).toThrow(
-      /^Could not use the base branch's version/,
+      /^Could not use the trusted branch's version/,
     );
     expect(existsSync(".npmrc")).toBe(false);
   });

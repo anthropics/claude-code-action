@@ -312,7 +312,7 @@ export function restoreToolConfigFromBase(baseBranch: string): string[] {
   } catch (error) {
     warn("Could not replace tool config", error);
     throw new Error(
-      "Could not use the base branch's version of the files that npm and Bun read",
+      "Could not use the trusted branch's version of the files that npm and Bun read",
     );
   }
 }
@@ -403,7 +403,7 @@ function restoreToolConfig(baseBranch: string): string[] {
   ];
   if (names.length > 0) {
     core.warning(
-      `The pull request and its base branch differ in what npm and Bun read (${names.join(", ")}), so the base branch's version is used and Claude can't edit it. See docs/security.md.`,
+      `The pull request and ${baseBranch} differ in what npm and Bun read (${names.join(", ")}), so that branch's version is used and Claude can't edit it. See docs/security.md.`,
     );
   }
   return names;

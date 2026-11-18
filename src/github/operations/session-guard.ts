@@ -31,7 +31,17 @@ type FileSnapshot = TrackedFile & {
 
 const MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024;
 
-const SESSION_STATE_FILES = [".push-branch", ".no-hooks", ".git-repo"];
+const SESSION_STATE_FILES = [
+  ".push-branch",
+  ".no-hooks",
+  ".git-repo",
+  ".restored-paths",
+];
+
+const NO_IMPLICIT_BARE_REPOSITORY: [string, string] = [
+  "safe.bareRepository",
+  "explicit",
+];
 
 // How many GIT_CONFIG_* entries were there before disableGitPrograms added any.
 let entriesBeforeAction: number | undefined;
@@ -246,7 +256,14 @@ export function disableGitPrograms({ hooks }: { hooks: boolean }): void {
       process.env[`GIT_CONFIG_VALUE_${i}`],
     );
   }
-  for (const [key, value] of gitProgramSettings({ hooks })) {
+  const settings = gitProgramSettings({ hooks });
+  // A workflow may run the action in a bare repository, where this setting would stop git.
+  const setting = NO_IMPLICIT_BARE_REPOSITORY.join("=");
+  const stopsGit =
+    gitOutput("rev-parse", "--git-dir") !== null &&
+    gitOutput("-c", setting, "rev-parse", "--git-dir") === null;
+  if (hooks || !stopsGit) settings.push(NO_IMPLICIT_BARE_REPOSITORY);
+  for (const [key, value] of settings) {
     if (current.get(key) === value) continue;
     process.env[`GIT_CONFIG_KEY_${count}`] = key;
     process.env[`GIT_CONFIG_VALUE_${count}`] = value;
@@ -275,6 +292,24 @@ export function pinPushBranch(branch: string): void {
   } catch (error) {
     // With no file and no variable, the wrapper refuses to push.
     core.warning(`Could not record the session's branch (${codeOf(error)})`);
+  }
+}
+
+/**
+ * Records the paths that the commit wrapper leaves out, because the action took them
+ * from a branch other than the pull request's base.
+ */
+export function pinRestoredPaths(paths: string[]): void {
+  const pathspecs = paths.map((path) =>
+    // Its commands are replaced in subdirectories too.
+    path === "package.json" ? ":(top,glob)**/package.json" : `:(top)${path}`,
+  );
+  try {
+    writeSessionFile(".restored-paths", `${pathspecs.join("\n")}\n`);
+  } catch (error) {
+    core.warning(
+      `Could not record the restored files, so a commit can include them (${codeOf(error)})`,
+    );
   }
 }
 
@@ -307,8 +342,8 @@ const gitOutput = (...args: string[]): string | null => {
  * Moves the settings from disableGitPrograms out of the environment for the session.
  * Repository config and the wrappers keep them in force instead, and
  * snapshotSessionFiles puts the config back afterwards. Elsewhere the concern is a
- * repository git finds in a plain folder, with its own config. Git only reads
- * safe.bareRepository from global config or the command line.
+ * repository git finds in a plain folder, with its own config. Git ignores
+ * safe.bareRepository in repository config, so the session gets it from global config.
  */
 export function prepareGitForSession({ hooks }: { hooks: boolean }): void {
   const count = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? "", 10) || 0;
@@ -333,7 +368,7 @@ export function prepareGitForSession({ hooks }: { hooks: boolean }): void {
   const gitDir = gitOutput("rev-parse", "--absolute-git-dir");
   const workTree = gitDir && gitOutput("rev-parse", "--show-toplevel");
   if (gitDir) setConfig("--local", gitProgramSettings({ hooks }));
-  setConfig("--global", [["safe.bareRepository", "explicit"]]);
+  setConfig("--global", [NO_IMPLICIT_BARE_REPOSITORY]);
 
   try {
     if (hooks) writeSessionFile(".no-hooks", "");
