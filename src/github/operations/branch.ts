@@ -16,6 +16,7 @@ import type { Octokits } from "../api/client";
 import type { FetchDataResult } from "../data/fetcher";
 import { generateBranchName } from "../../utils/branch-template";
 import { fetchDepthArgs } from "./fetch-depth";
+import { forksAllowed } from "../validation/fork-pr";
 
 /**
  * Extracts the first label from GitHub data, or returns undefined if no labels exist
@@ -144,21 +145,24 @@ export function validateBranchName(branchName: string): void {
  *
  * @param args - Git command arguments (e.g., ["checkout", "branch-name"])
  */
-function execGit(args: string[]): void {
-  execFileSync("git", args, { stdio: "inherit", env: process.env });
+function execGit(args: string[], env: NodeJS.ProcessEnv = process.env): void {
+  execFileSync("git", args, { stdio: "inherit", env });
 }
 
 export type BranchInfo = {
   baseBranch: string;
   claudeBranch?: string;
   currentBranch: string;
+  /** Set when the head of an open pull request was checked out. */
+  isFork?: boolean;
 };
 
 export async function setupBranch(
   octokits: Octokits,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
-  triggerTime?: string,
+  triggerTime: string | undefined,
+  skipLfsDownloads: boolean,
 ): Promise<BranchInfo> {
   const { owner, repo } = context.repository;
   const entityNumber = context.entityNumber;
@@ -176,6 +180,11 @@ export async function setupBranch(
       );
       // Fall through to create a new branch like we do for issues
     } else {
+      // run.ts has skipped these already.
+      if (prData.isCrossRepository && !forksAllowed()) {
+        throw new Error(`PR #${entityNumber} is from a fork`);
+      }
+
       // Handle open PR: Checkout the PR branch
       console.log("This is an open PR, checking out PR branch...");
 
@@ -239,7 +248,13 @@ export async function setupBranch(
         : branchName;
       console.log(`PR #${entityNumber}: pinning ${localBranch} to ${headSha}`);
       execGit(["fetch", "origin", ...depthArgs, headSha]);
-      execGit(["checkout", "-B", localBranch, headSha, "--"]);
+      execGit(
+        ["checkout", "-B", localBranch, headSha, "--"],
+        // Files that Git LFS would download stay as pointer files.
+        skipLfsDownloads
+          ? { ...process.env, GIT_LFS_SKIP_SMUDGE: "1" }
+          : process.env,
+      );
 
       const checkedOut = execFileSync("git", ["rev-parse", "HEAD"], {
         encoding: "utf8",
@@ -259,6 +274,7 @@ export async function setupBranch(
       return {
         baseBranch,
         currentBranch: localBranch,
+        isFork: prData.isCrossRepository,
       };
     }
   }

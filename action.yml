@@ -17,7 +17,7 @@ inputs:
     required: false
     default: "claude"
   base_branch:
-    description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
+    description: "The branch to use as the base/source when creating new branches (defaults to repository default branch). On pull requests from authors without write access that don't target the default branch, Claude's config also comes from it, so don't set it to a value from the pull request"
     required: false
   branch_prefix:
     description: "The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)"
@@ -44,6 +44,10 @@ inputs:
       only use for workflows with very limited permissions and validate all outputs.
     required: false
     default: ""
+  allow_fork_prs:
+    description: "Whether to run on pull requests from forks, and on workflow_run events for a fork's run. With any value other than 'true', the action skips them, whoever opened them, before it checks anything out. See docs/security.md."
+    required: false
+    default: "true"
   restrict_untrusted_prs:
     description: "On pull requests whose author does not have write access, deny commands that commonly run code from the checkout (package managers, test runners, interpreters, shells), even if claude_args allows them. Set to 'false' to turn this off. See docs/security.md."
     required: false
@@ -316,6 +320,7 @@ runs:
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
+        ALLOW_FORK_PRS: ${{ inputs.allow_fork_prs }}
         RESTRICT_UNTRUSTED_PRS: ${{ inputs.restrict_untrusted_prs }}
         CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB || (inputs.allowed_non_write_users != '' && '1') || '' }}
         CLAUDE_CODE_SCRIPT_CAPS: ${{ env.CLAUDE_CODE_SCRIPT_CAPS || '' }}
