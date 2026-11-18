@@ -32,14 +32,14 @@ const ENCODING = "working-tree-encoding";
 const MAX_OUTPUT_BYTES = 1024 ** 3;
 const MAX_PACKAGE_JSON_BYTES = 4 * 1024 * 1024;
 
-type Entry = { mode: string; oid: string };
+export type Entry = { mode: string; oid: string };
 type Replacement = { path: string; entry: Entry; content?: Buffer };
 
 // File names can be any bytes. Latin-1 keeps each one intact.
-const fsPath = (path: string): Buffer => Buffer.from(path, "latin1");
-const isFile = (entry: Entry): boolean => entry.mode.startsWith("100");
-const isLink = (entry: Entry): boolean => entry.mode === "120000";
-const isSubmodule = (entry: Entry): boolean => entry.mode === "160000";
+export const fsPath = (path: string): Buffer => Buffer.from(path, "latin1");
+export const isFile = (entry: Entry): boolean => entry.mode.startsWith("100");
+export const isLink = (entry: Entry): boolean => entry.mode === "120000";
+export const isSubmodule = (entry: Entry): boolean => entry.mode === "160000";
 
 // No file name or content, which the pull request controls, reaches the log.
 function warn(what: string, error: unknown): void {
@@ -47,7 +47,7 @@ function warn(what: string, error: unknown): void {
   core.warning(`${what} (${code ?? `exit code ${status ?? "unknown"}`})`);
 }
 
-function git(args: string[], input: string | Buffer = ""): Buffer {
+export function git(args: string[], input: string | Buffer = ""): Buffer {
   return execFileSync("git", args, {
     stdio: ["pipe", "pipe", "ignore"],
     input,
@@ -57,7 +57,7 @@ function git(args: string[], input: string | Buffer = ""): Buffer {
 }
 
 // A parent that is a file or a looping link means there is nothing there.
-function onDisk(path: string) {
+export function onDisk(path: string) {
   try {
     return lstatSync(fsPath(path));
   } catch {
@@ -66,7 +66,7 @@ function onDisk(path: string) {
 }
 
 // File systems can ignore case, and some the way a character is encoded.
-const fold = (path: string): string =>
+export const fold = (path: string): string =>
   fsPath(path).toString().normalize("NFKC").toLowerCase();
 
 /**
@@ -97,14 +97,14 @@ function rootName(path: string): string | undefined {
 }
 
 /** Whether no parent of a path is a link, which could lead out of the checkout. */
-function hasRealParents(path: string): boolean {
+export function hasRealParents(path: string): boolean {
   for (let dir = dirname(path); dir !== "."; dir = dirname(dir)) {
     if (onDisk(dir)?.isSymbolicLink()) return false;
   }
   return true;
 }
 
-function remove(path: string): void {
+export function remove(path: string): void {
   rmSync(fsPath(path), { recursive: true, force: true });
   // An empty directory would stand in the way of a file of that name.
   try {
@@ -150,7 +150,7 @@ function baseEntries(baseBranch: string): Map<string, Entry> {
 }
 
 /** The stored content of each entry, which no .gitattributes has been applied to. */
-function readBlobs(entries: Entry[]): Map<string, Buffer> {
+export function readBlobs(entries: Entry[]): Map<string, Buffer> {
   const blobs = new Map<string, Buffer>();
   const oids = [...new Set(entries.map(({ oid }) => oid))];
   if (oids.length === 0) return blobs;
@@ -282,7 +282,7 @@ function withBaseCommands(
 }
 
 /** Keeps the pull request's version readable, as for the other restored config. */
-function snapshotForReview(path: string, entry: Entry): void {
+export function snapshotForReview(path: string, entry: Entry): void {
   if (!isFile(entry) || rootName(path) === "node_modules") return;
   try {
     const content = git(["cat-file", "blob", entry.oid]);

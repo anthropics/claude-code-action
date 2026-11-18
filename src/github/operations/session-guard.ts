@@ -302,7 +302,9 @@ export function pinPushBranch(branch: string): void {
 export function pinRestoredPaths(paths: string[]): void {
   const pathspecs = paths.map((path) =>
     // Its commands are replaced in subdirectories too.
-    path === "package.json" ? ":(top,glob)**/package.json" : `:(top)${path}`,
+    path === "package.json"
+      ? ":(top,glob)**/package.json"
+      : `:(top,literal)${path}`,
   );
   try {
     writeSessionFile(".restored-paths", `${pathspecs.join("\n")}\n`);

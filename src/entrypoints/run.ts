@@ -53,6 +53,10 @@ import {
   restoreToolConfigFromBase,
   toolConfigDenyRules,
 } from "../github/operations/tool-config";
+import {
+  namedConfigPaths,
+  restoreConfigPathsFromBase,
+} from "../github/operations/config-paths";
 import { validateBranchName } from "../github/operations/branch";
 import type { BranchInfo } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
@@ -328,6 +332,7 @@ async function run() {
     const isUntrustedCheckout =
       checkedOutPrHead && untrustedPrDisallowedTools.length > 0;
     let restoredToolConfig: string[] = [];
+    let configPathDenyRules: string[] = [];
 
     // On PRs, .claude/ and .mcp.json in the checkout are attacker-controlled.
     // Restore them from a trusted branch before the CLI reads them.
@@ -369,7 +374,15 @@ async function run() {
         // Before plugins are installed, which can already start package managers here.
         if (isUntrustedCheckout) {
           restoredToolConfig = restoreToolConfigFromBase(configBranch);
-          restoredConfigPaths.push(...restoredToolConfig);
+          const configPaths = restoreConfigPathsFromBase(
+            configBranch,
+            namedConfigPaths(prepareResult.claudeArgs),
+          );
+          configPathDenyRules = configPaths.denyRules;
+          restoredConfigPaths.push(
+            ...restoredToolConfig,
+            ...configPaths.replaced,
+          );
         }
         if (isOtherBranch) {
           // A branch from the base has none of the pull request's version of them.
@@ -403,6 +416,7 @@ async function run() {
       ? [
           ...untrustedPrDisallowedTools,
           ...toolConfigDenyRules(restoredToolConfig),
+          ...configPathDenyRules,
         ]
       : [];
 

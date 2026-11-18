@@ -339,7 +339,7 @@ describe("session guard", () => {
       pinRestoredPaths([".claude", "package.json"]);
       const restoredFile = join(dir, "scripts/.restored-paths");
       expect(readFileSync(restoredFile, "utf8")).toBe(
-        ":(top).claude\n:(top,glob)**/package.json\n",
+        ":(top,literal).claude\n:(top,glob)**/package.json\n",
       );
       clearSessionState();
       expect(existsSync(join(dir, "scripts/.push-branch"))).toBe(false);
