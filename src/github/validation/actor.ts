@@ -8,6 +8,14 @@
 import type { Octokit } from "@octokit/rest";
 import type { GitHubContext } from "../context";
 
+/** Whether two GitHub logins name the same account. Logins are case-insensitive. */
+export function isSameLogin(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  return !!a && !!b && a.toLowerCase() === b.toLowerCase();
+}
+
 function isAllowedBot(actor: string, allowedBots: string): boolean {
   const trimmed = allowedBots.trim();
   if (trimmed === "*") return true;

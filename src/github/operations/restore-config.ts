@@ -1,3 +1,4 @@
+import * as core from "@actions/core";
 import { execFileSync } from "child_process";
 import {
   appendFileSync,
@@ -31,6 +32,7 @@ export const SENSITIVE_PATHS = [
   ".ripgreprc",
   "CLAUDE.md",
   "CLAUDE.local.md",
+  "AGENTS.md",
   ".husky",
 ];
 
@@ -206,7 +208,7 @@ function snapshotSensitivePath(
   }
 }
 
-function ensureClaudePrExcludedFromGit(): void {
+export function ensureClaudePrExcludedFromGit(): void {
   const excludePath = execFileSync(
     "git",
     ["rev-parse", "--git-path", "info/exclude"],
@@ -228,8 +230,70 @@ function ensureClaudePrExcludedFromGit(): void {
   appendFileSync(excludePath, `${prefix}${CLAUDE_PR_EXCLUDE_PATTERN}\n`);
 }
 
+function headHistoryLength(): number {
+  const head = execFileSync("git", ["rev-parse", "--verify", "HEAD^{commit}"], {
+    encoding: "utf8",
+  }).trim();
+  return Number(
+    execFileSync("git", ["rev-list", "--count", head, "--"], {
+      encoding: "utf8",
+    }),
+  );
+}
+
 /**
- * Restores security-sensitive config paths from the PR base branch.
+ * Fetching a branch into a shallow checkout cuts HEAD's history at that branch's tip if
+ * it is in there. Returns a function that fetches HEAD's history again if it was cut
+ * since. No path from HEAD is longer than its number of commits.
+ */
+export function keepHeadHistory(): () => void {
+  const before = headHistoryLength();
+  return () => {
+    if (headHistoryLength() >= before) return;
+    try {
+      const head = execFileSync("git", ["rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).trim();
+      fetchRef(head, before);
+    } catch {
+      // For example, a commit that an earlier step made isn't on the remote.
+      core.warning(
+        "Could not fetch the checked-out history again, so comparing with the base branch can fail.",
+      );
+    }
+  };
+}
+
+function fetchRef(ref: string, depth: number): void {
+  // --no-recurse-submodules: a .gitmodules file must not start a submodule fetch,
+  // whatever fetch.recurseSubmodules says.
+  execFileSync(
+    "git",
+    [
+      "fetch",
+      "origin",
+      ref,
+      ...fetchDepthArgs(depth),
+      // Following tags would cut a shallow history at each tag it fetches.
+      "--no-tags",
+      "--no-recurse-submodules",
+    ],
+    {
+      stdio: "inherit",
+      env: process.env,
+    },
+  );
+}
+
+export function fetchBranch(branch: string): void {
+  // In full, so that a tag of the same name isn't fetched instead and the
+  // remote-tracking branch is updated whatever the checkout's refspec covers.
+  fetchRef(`+refs/heads/${branch}:refs/remotes/origin/${branch}`, 1);
+}
+
+/**
+ * Restores security-sensitive config paths from the PR base branch, or from the
+ * branch that chooseConfigBranch picks in its place.
  *
  * The CLI's non-interactive mode trusts cwd: it reads `.mcp.json`,
  * `.claude/settings.json`, and `.claude/settings.local.json` from the working
@@ -258,10 +322,11 @@ function ensureClaudePrExcludedFromGit(): void {
  * extends to the runtime itself: `bunx <tool>` runs the tool under `node` when
  * `node` is on PATH, but on a Bun-only runner Bun executes the script and reads
  * `bunfig.toml` (e.g. `preload`) from the checkout, so `bunfig.toml` and
- * `.npmrc` there are PR-controlled runtime config too.
+ * `.npmrc` there are PR-controlled runtime config too. On PRs from authors without
+ * write access, restoreToolConfigFromBase replaces those.
  *
- * @param baseBranch - PR base branch name. Must be pre-validated (branch.ts
- *   calls validateBranchName on it before returning).
+ * @param baseBranch - The branch to restore from, see chooseConfigBranch. Must be
+ *   pre-validated with validateBranchName.
  * @returns The paths whose working-tree state now comes from the base branch
  *   rather than the PR. Callers that stage files must exclude these, or they
  *   will commit the revert back onto the PR author's branch.
@@ -305,28 +370,15 @@ export function restoreConfigFromBase(baseBranch: string): string[] {
     rmSync(p, { recursive: true, force: true });
   }
 
-  // --no-recurse-submodules: explicitly suppress submodule fetching regardless of
-  // fetch.recurseSubmodules config. Defense-in-depth alongside the delete above.
-  execFileSync(
-    "git",
-    [
-      "fetch",
-      "origin",
-      baseBranch,
-      ...fetchDepthArgs(1),
-      "--no-recurse-submodules",
-    ],
-    {
-      stdio: "inherit",
-      env: process.env,
-    },
-  );
+  fetchBranch(baseBranch);
 
   for (const p of SENSITIVE_PATHS) {
     try {
-      execFileSync("git", ["checkout", `origin/${baseBranch}`, "--", p], {
-        stdio: "pipe",
-      });
+      execFileSync(
+        "git",
+        ["checkout", `refs/remotes/origin/${baseBranch}`, "--", p],
+        { stdio: "pipe" },
+      );
     } catch {
       // Path doesn't exist on base — it stays deleted.
     }

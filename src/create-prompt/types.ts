@@ -76,7 +76,7 @@ type IssueLabeledEvent = {
   issueNumber: string;
   baseBranch: string;
   claudeBranch: string;
-  labelTrigger: string;
+  labelTrigger?: string;
 };
 
 type PullRequestBaseEvent = {

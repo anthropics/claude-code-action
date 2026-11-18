@@ -86,7 +86,13 @@ describe("reuse_issue_branch", () => {
         },
       });
 
-      const first = await setupBranch(octokit, githubData, context);
+      const first = await setupBranch(
+        octokit,
+        githubData,
+        context,
+        undefined,
+        false,
+      );
       expect(first.claudeBranch).toBe(branch);
       expect(first.currentBranch).toBe(useCommitSigning ? "main" : branch);
       expect(first.reusedIssueBranch).toBeUndefined();
@@ -109,7 +115,13 @@ describe("reuse_issue_branch", () => {
       );
       process.chdir(nextCheckout);
 
-      const second = await setupBranch(octokit, githubData, context);
+      const second = await setupBranch(
+        octokit,
+        githubData,
+        context,
+        undefined,
+        false,
+      );
       expect(second).toEqual({
         baseBranch: "main",
         claudeBranch: branch,

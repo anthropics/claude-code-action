@@ -70,7 +70,7 @@ describe("setupBranch fetch depth", () => {
         inputs: { useCommitSigning, branchPrefix: "claude/" },
       });
 
-      await setupBranch(octokits, githubData, context);
+      await setupBranch(octokits, githubData, context, undefined, false);
 
       expect(git(["rev-parse", "--is-shallow-repository"]).trim()).toBe(
         "false",
