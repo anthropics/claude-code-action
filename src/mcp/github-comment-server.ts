@@ -34,7 +34,7 @@ server.tool(
     try {
       const githubToken = process.env.GITHUB_TOKEN;
       const claudeCommentId = process.env.CLAUDE_COMMENT_ID;
-      const eventName = process.env.GITHUB_EVENT_NAME;
+      const commentIsReview = process.env.CLAUDE_COMMENT_IS_REVIEW;
 
       if (!githubToken) {
         throw new Error("GITHUB_TOKEN environment variable is required");
@@ -53,7 +53,9 @@ server.tool(
       });
 
       const isPullRequestReviewComment =
-        eventName === "pull_request_review_comment";
+        commentIsReview === undefined
+          ? process.env.GITHUB_EVENT_NAME === "pull_request_review_comment"
+          : commentIsReview === "true";
 
       const sanitizedBody = redactSecrets(sanitizeContent(body));
 

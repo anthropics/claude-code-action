@@ -136,7 +136,6 @@ export async function prepareAgentMode({
     repo: context.repository.repo,
     branch: currentBranch,
     baseBranch: baseBranch,
-    claudeCommentId: undefined, // No tracking comment in agent mode
     allowedTools,
     mode: "agent",
     context,
@@ -157,7 +156,7 @@ export async function prepareAgentMode({
   claudeArgs = `${claudeArgs} ${userClaudeArgs}`.trim();
 
   return {
-    commentId: undefined,
+    trackingComment: undefined,
     branchInfo: {
       baseBranch: baseBranch,
       currentBranch: baseBranch, // Use base branch as current when creating new branch

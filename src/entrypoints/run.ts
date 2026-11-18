@@ -60,6 +60,7 @@ import { validateBranchName } from "../github/operations/branch";
 import type { BranchInfo } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
+import type { TrackingComment } from "../github/operations/comments/create-initial";
 import { formatTurnsFromData } from "./format-turns";
 import type { Turn } from "./format-turns";
 import { redactSecrets } from "../github/utils/sanitizer";
@@ -183,7 +184,7 @@ async function run() {
   delete process.env.BUN_RUNTIME_TRANSPILER_CACHE_PATH;
 
   let githubToken: string | undefined;
-  let commentId: number | undefined;
+  let trackingComment: TrackingComment | undefined;
   let claudeBranch: string | undefined;
   let baseBranch: string | undefined;
   let executionFile: string | undefined;
@@ -306,7 +307,7 @@ async function run() {
           })
         : await prepareAgentMode({ context, octokit, githubToken });
 
-    commentId = prepareResult.commentId;
+    trackingComment = prepareResult.trackingComment;
     claudeBranch = prepareResult.branchInfo.claudeBranch;
     baseBranch = prepareResult.branchInfo.baseBranch;
     prepareCompleted = true;
@@ -474,7 +475,7 @@ async function run() {
 
     // Update tracking comment
     if (
-      commentId &&
+      trackingComment &&
       context &&
       isEntityContext(context) &&
       githubToken &&
@@ -482,7 +483,7 @@ async function run() {
     ) {
       try {
         await updateCommentLink({
-          commentId,
+          trackingComment,
           githubToken,
           claudeBranch,
           baseBranch: baseBranch || context.repository.default_branch || "main",

@@ -122,7 +122,7 @@ describe("Agent Mode", () => {
 
     // Verify return structure - should fall back to repository.default_branch when no env vars set
     expect(result).toEqual({
-      commentId: undefined,
+      trackingComment: undefined,
       branchInfo: {
         baseBranch: "main",
         currentBranch: "main",

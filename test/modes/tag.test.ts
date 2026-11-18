@@ -38,7 +38,7 @@ describe("Tag Mode", () => {
         replaceCheckoutCredentialsSpy,
         spyOn(actor, "checkHumanActor").mockImplementation(async () => {}),
         spyOn(createInitial, "createInitialComment").mockImplementation(
-          async () => ({ id: 42 }) as any,
+          async () => ({ id: 42, isReviewComment: false }),
         ),
         spyOn(fetcher, "fetchGitHubData").mockImplementation(
           async () => ({}) as any,
