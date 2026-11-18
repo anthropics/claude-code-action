@@ -4,6 +4,7 @@ import {
   resolveTriggerTimestamp,
   extractOriginalTitle,
   extractOriginalBody,
+  extractTriggerComment,
   fetchGitHubData,
   filterCommentsToTriggerTime,
   filterReviewsToTriggerTime,
@@ -494,6 +495,58 @@ describe("extractOriginalBody", () => {
     });
     const body = extractOriginalBody(context);
     expect(body).toBeUndefined();
+  });
+});
+
+describe("extractTriggerComment", () => {
+  it("should extract trigger comment from IssueCommentEvent", () => {
+    const triggerComment = extractTriggerComment(mockIssueCommentContext);
+    expect(triggerComment).toEqual({
+      type: "issue_comment",
+      id: "12345678",
+      body: "@claude can you help explain how to configure the logging system?",
+    });
+  });
+
+  it("should extract trigger comment from PullRequestReviewEvent", () => {
+    const triggerComment = extractTriggerComment(mockPullRequestReviewContext);
+    expect(triggerComment).toEqual({
+      type: "review_body",
+      id: "11122233",
+      pullNumber: "321",
+      body: "@claude can you check if the error handling is comprehensive enough in this PR?",
+    });
+  });
+
+  it("should extract trigger comment from PullRequestReviewCommentEvent", () => {
+    const triggerComment = extractTriggerComment(
+      mockPullRequestReviewCommentContext,
+    );
+    expect(triggerComment).toEqual({
+      type: "review_comment",
+      id: "99988877",
+      body: "/claude is this the most efficient way to implement this algorithm?",
+    });
+  });
+
+  it("should return undefined for non-comment events", () => {
+    expect(extractTriggerComment(mockIssueOpenedContext)).toBeUndefined();
+    expect(extractTriggerComment(mockIssueAssignedContext)).toBeUndefined();
+    expect(extractTriggerComment(mockIssueLabeledContext)).toBeUndefined();
+    expect(extractTriggerComment(mockPullRequestOpenedContext)).toBeUndefined();
+  });
+
+  it("should return undefined for reviews without a body", () => {
+    const context = createMockContext({
+      eventName: "pull_request_review",
+      payload: {
+        review: {
+          id: 999,
+          body: "",
+        },
+      } as any,
+    });
+    expect(extractTriggerComment(context)).toBeUndefined();
   });
 });
 
