@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import fs from "fs/promises";
-import { fetchGitHubData } from "../src/github/data/fetcher";
+import {
+  extractTriggerComment,
+  fetchGitHubData,
+} from "../src/github/data/fetcher";
+import {
+  mockIssueCommentContext,
+  mockIssueOpenedContext,
+  mockPullRequestReviewCommentContext,
+  mockPullRequestReviewContext,
+  mockPullRequestReviewWithoutCommentContext,
+} from "./mockContext";
 import { downloadCommentImages } from "../src/github/utils/image-downloader";
 import type { CommentWithImages } from "../src/github/utils/image-downloader";
 import type { Octokits } from "../src/github/api/client";
@@ -130,4 +140,222 @@ describe("images in text fetched again from GitHub", () => {
       expect(result.imageUrlMap.size).toBe(images);
     },
   );
+
+  test.each([
+    {
+      name: "issue_comment",
+      isPR: false,
+      context: {
+        ...mockIssueCommentContext,
+        payload: {
+          ...mockIssueCommentContext.payload,
+          comment: {
+            ...(mockIssueCommentContext.payload as any).comment,
+            id: 501,
+            body: `@claude ${BODY}`,
+            created_at: "2024-01-15T12:00:00Z",
+          },
+        },
+      },
+    },
+    {
+      name: "pull_request_review_comment",
+      isPR: true,
+      context: {
+        ...mockPullRequestReviewCommentContext,
+        payload: {
+          ...mockPullRequestReviewCommentContext.payload,
+          comment: {
+            ...(mockPullRequestReviewCommentContext.payload as any).comment,
+            id: 502,
+            body: `@claude ${BODY}`,
+            created_at: "2024-01-15T12:00:00Z",
+          },
+        },
+      },
+    },
+    {
+      name: "pull_request_review",
+      isPR: true,
+      context: {
+        ...mockPullRequestReviewContext,
+        payload: {
+          ...mockPullRequestReviewContext.payload,
+          review: {
+            ...(mockPullRequestReviewContext.payload as any).review,
+            id: 503,
+            body: `@claude ${BODY}`,
+            submitted_at: "2024-01-15T12:00:00Z",
+          },
+        },
+      },
+    },
+  ])(
+    "downloads images from the triggering $name unless edited afterward",
+    async ({ isPR, context }) => {
+      const snapshotBody = `@claude ${BODY}`;
+      const makeOctokits = (currentBody: string) => {
+        const get = async () => ({
+          data: { body: currentBody, body_html: HTML },
+        });
+        return {
+          graphql: async () => ({
+            repository: isPR
+              ? {
+                  pullRequest: {
+                    title: "PR",
+                    body: "PR body",
+                    author: { login: "author" },
+                    createdAt: "2024-01-15T10:00:00Z",
+                    state: "OPEN",
+                    labels: { nodes: [] },
+                    commits: { totalCount: 1, nodes: [] },
+                    files: { nodes: [] },
+                    comments: {
+                      nodes: [
+                        {
+                          id: "c1",
+                          databaseId: "501",
+                          body: currentBody,
+                          author: { login: "contributor-user" },
+                          createdAt: "2024-01-15T12:00:00Z",
+                        },
+                      ],
+                    },
+                    reviews: {
+                      nodes: [
+                        {
+                          id: "r1",
+                          databaseId: "503",
+                          body: currentBody,
+                          state: "COMMENTED",
+                          author: { login: "senior-developer" },
+                          submittedAt: "2024-01-15T12:00:00Z",
+                          comments: {
+                            nodes: [
+                              {
+                                id: "rc1",
+                                databaseId: "502",
+                                body: currentBody,
+                                path: "a.ts",
+                                line: 1,
+                                author: { login: "code-reviewer" },
+                                createdAt: "2024-01-15T12:00:00Z",
+                              },
+                            ],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                }
+              : {
+                  issue: {
+                    title: "Issue",
+                    body: "Issue body",
+                    author: { login: "author" },
+                    createdAt: "2024-01-15T10:00:00Z",
+                    state: "OPEN",
+                    labels: { nodes: [] },
+                    comments: {
+                      nodes: [
+                        {
+                          id: "c1",
+                          databaseId: "501",
+                          body: currentBody,
+                          author: { login: "contributor-user" },
+                          createdAt: "2024-01-15T12:00:00Z",
+                        },
+                      ],
+                    },
+                  },
+                },
+            user: { name: "Trigger User" },
+          }),
+          rest: {
+            issues: { get, getComment: get },
+            pulls: { get, getReview: get, getReviewComment: get },
+          },
+        } as any;
+      };
+
+      const triggerComment = extractTriggerComment(context as any);
+      expect(triggerComment).toBeDefined();
+
+      const unedited = await fetchGitHubData({
+        octokits: makeOctokits(snapshotBody),
+        repository: "owner/repo",
+        prNumber: String(context.entityNumber),
+        isPR,
+        triggerUsername: context.actor,
+        triggerTime: "2024-01-15T12:00:00Z",
+        triggerComment,
+      });
+      expect(unedited.imageUrlMap.size).toBe(1);
+
+      const edited = await fetchGitHubData({
+        octokits: makeOctokits(`${snapshotBody}\nInjected`),
+        repository: "owner/repo",
+        prNumber: String(context.entityNumber),
+        isPR,
+        triggerUsername: context.actor,
+        triggerTime: "2024-01-15T12:00:00Z",
+        triggerComment,
+      });
+      expect(edited.imageUrlMap.size).toBe(0);
+    },
+  );
+
+  test("extractTriggerComment skips non-comment events and bodyless reviews", () => {
+    expect(extractTriggerComment(mockIssueOpenedContext)).toBeUndefined();
+    expect(
+      extractTriggerComment(mockPullRequestReviewWithoutCommentContext),
+    ).toBeUndefined();
+  });
+
+  test("does not fetch the trigger comment twice when triggerTime is omitted", async () => {
+    const snapshotBody = `@claude ${BODY}`;
+    let getCommentCalls = 0;
+    const getComment = async () => {
+      getCommentCalls++;
+      return { data: { body: snapshotBody, body_html: HTML } };
+    };
+    const result = await fetchGitHubData({
+      octokits: {
+        graphql: async () => ({
+          repository: {
+            issue: {
+              title: "Issue",
+              body: "Issue body",
+              author: { login: "author" },
+              createdAt: "2024-01-15T10:00:00Z",
+              state: "OPEN",
+              labels: { nodes: [] },
+              comments: {
+                nodes: [
+                  {
+                    id: "c1",
+                    databaseId: "501",
+                    body: snapshotBody,
+                    author: { login: "contributor-user" },
+                    createdAt: "2024-01-15T12:00:00Z",
+                  },
+                ],
+              },
+            },
+          },
+          user: { name: "Trigger User" },
+        }),
+        rest: { issues: { getComment } },
+      } as any,
+      repository: "owner/repo",
+      prNumber: "55",
+      isPR: false,
+      triggerUsername: "contributor-user",
+      triggerComment: { type: "issue_comment", id: "501", body: snapshotBody },
+    });
+
+    expect(result.imageUrlMap.size).toBe(1);
+    expect(getCommentCalls).toBe(1);
+  });
 });

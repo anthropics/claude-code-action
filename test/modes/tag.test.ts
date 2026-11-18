@@ -73,6 +73,15 @@ describe("Tag Mode", () => {
       });
 
       expect(configureGitAuthSpy).toHaveBeenCalledTimes(1);
+      expect(fetcher.fetchGitHubData).toHaveBeenCalledWith(
+        expect.objectContaining({
+          triggerComment: {
+            type: "issue_comment",
+            id: "12345678",
+            body: "@claude can you help explain how to configure the logging system?",
+          },
+        }),
+      );
       expect(configureGitAuthSpy).toHaveBeenCalledWith("test-token", context, {
         login: context.inputs.botName,
         id: parseInt(context.inputs.botId),

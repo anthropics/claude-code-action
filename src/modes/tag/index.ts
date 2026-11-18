@@ -14,6 +14,7 @@ import {
   resolveTriggerTimestamp,
   extractOriginalTitle,
   extractOriginalBody,
+  extractTriggerComment,
 } from "../../github/data/fetcher";
 import { createPrompt } from "../../create-prompt";
 import {
@@ -62,6 +63,7 @@ export async function prepareTagMode({
   const triggerTime = await resolveTriggerTimestamp(context, octokit);
   const originalTitle = extractOriginalTitle(context);
   const originalBody = extractOriginalBody(context);
+  const triggerComment = extractTriggerComment(context);
 
   const githubData = await fetchGitHubData({
     octokits: octokit,
@@ -72,6 +74,7 @@ export async function prepareTagMode({
     triggerTime,
     originalTitle,
     originalBody,
+    triggerComment,
     includeCommentsByActor: context.inputs.includeCommentsByActor,
     excludeCommentsByActor: context.inputs.excludeCommentsByActor,
   });
