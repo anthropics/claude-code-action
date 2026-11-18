@@ -210,6 +210,27 @@ Check the GitHub Action log for Claude's run for the full execution trace.
 
 The trigger uses word boundaries, so `@claude` must be a complete word. Variations like `@claude-bot`, `@claude!`, or `claude@mention` won't work unless you customize the `trigger_phrase`.
 
+### How do I install private npm packages from GitHub Packages?
+
+Install the project dependencies in a trusted workflow step before running Claude. Add `packages: read` to the job's permissions alongside the permissions it already uses. If another repository owns the package, grant the workflow repository read access under the package's [Manage Actions access settings](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#ensuring-workflow-access-to-your-package).
+
+After checking out your repository, add these steps before the Claude step. Replace `@your-org` with the scope of your private packages.
+
+```yaml
+- uses: actions/setup-node@v6
+  with:
+    node-version: "22"
+    registry-url: https://npm.pkg.github.com
+    scope: "@your-org"
+    package-manager-cache: false
+- name: Install project dependencies
+  run: npm ci
+  env:
+    NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+`setup-node` configures npm for the scoped registry. Keep `NODE_AUTH_TOKEN` on the install step so the Claude step can use the installed dependencies without receiving the package credential.
+
 ### How can I use custom executables in specialized environments?
 
 For specialized environments like Nix, NixOS, or custom container setups where you need to provide your own executables:
