@@ -280,6 +280,20 @@ For provider-specific models:
     # ... other inputs
 ```
 
+### Selecting a 1M context window
+
+Context limits depend on the model and provider. To select the 1M variant of a supported model such as Claude Sonnet 4.6, append `[1m]` to the model name in `claude_args`:
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    claude_args: |
+      --model "claude-sonnet-4-6[1m]"
+    # ... other inputs
+```
+
+Claude Sonnet 4.5 has a [200K context window on the Anthropic API](https://platform.claude.com/docs/en/build-with-claude/context-windows). Use a model with 1M support if your workflow needs the larger window. See the [Claude Code model configuration guide](https://code.claude.com/docs/en/model-config#extended-context) for model and plan availability.
+
 ### 1M context models through an API gateway
 
 When `ANTHROPIC_BASE_URL` points to an Anthropic-compatible API gateway,
