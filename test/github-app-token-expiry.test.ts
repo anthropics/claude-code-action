@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -8,11 +8,17 @@ async function runWithInstallationToken({
   override,
   renewalResponse = "issue",
   branch,
+  rotateInSession = false,
+  scrub = false,
+  recordFailedPush = false,
 }: {
   minutes: number;
   override?: string;
   renewalResponse?: "issue" | "deny" | "reuse";
   branch?: string;
+  rotateInSession?: boolean;
+  scrub?: boolean;
+  recordFailedPush?: boolean;
 }) {
   const dir = await mkdtemp(join(tmpdir(), "claude-app-token-expiry-"));
   try {
@@ -20,6 +26,34 @@ async function runWithInstallationToken({
     const outputPath = join(dir, "output");
     const promptPath = join(dir, "prompt.txt");
     const summaryPath = join(dir, "summary");
+    const workspace = join(dir, "workspace");
+    const actionPath = join(dir, "action");
+    await mkdir(workspace);
+    await mkdir(join(actionPath, "scripts"), { recursive: true });
+    if (recordFailedPush) {
+      for (const args of [
+        ["init", "-b", "claude-issue-7"],
+        [
+          "-c",
+          "user.name=Fixture",
+          "-c",
+          "user.email=fixture@example.test",
+          "commit",
+          "--allow-empty",
+          "-m",
+          "Base",
+        ],
+        [
+          "remote",
+          "add",
+          "origin",
+          "https://x-access-token@github.com/test-owner/test-repo.git",
+        ],
+      ]) {
+        const result = Bun.spawnSync(["git", ...args], { cwd: workspace });
+        if (!result.success) throw new Error(result.stderr.toString());
+      }
+    }
     await writeFile(
       eventPath,
       JSON.stringify({
@@ -51,7 +85,7 @@ async function runWithInstallationToken({
         join(import.meta.dir, "../src/entrypoints/run.ts"),
       ],
       {
-        cwd: dir,
+        cwd: workspace,
         env: {
           PATH: process.env.PATH,
           GIT_CONFIG_GLOBAL: join(dir, "gitconfig"),
@@ -62,6 +96,9 @@ async function runWithInstallationToken({
           GITHUB_API_URL: "https://github-api.example.test",
           GITHUB_RUN_ID: "1",
           GITHUB_OUTPUT: outputPath,
+          GITHUB_ACTION_PATH: actionPath,
+          GITHUB_WORKSPACE: workspace,
+          GITHUB_SERVER_URL: "https://github.com",
           GITHUB_STEP_SUMMARY: summaryPath,
           RUNNER_TEMP: dir,
           INPUT_PROMPT_FILE: promptPath,
@@ -70,6 +107,9 @@ async function runWithInstallationToken({
           TEST_SESSION_MINUTES: String(minutes),
           TEST_RENEWAL_RESPONSE: renewalResponse,
           TEST_FINALIZATION_BRANCH: branch,
+          TEST_ROTATE_IN_SESSION: String(rotateInSession),
+          TEST_RECORD_FAILED_PUSH: String(recordFailedPush),
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: scrub ? "1" : undefined,
           OVERRIDE_GITHUB_TOKEN: override,
         },
         stdout: "pipe",
@@ -96,6 +136,7 @@ describe("GitHub App token during tag-mode finalization", () => {
       const result = await runWithInstallationToken({
         minutes,
         branch: "claude-issue-7",
+        scrub: true,
       });
 
       expect(result.log).toContain("Fixture received a second token exchange");
@@ -111,6 +152,42 @@ describe("GitHub App token during tag-mode finalization", () => {
       expect(result.exitCode).toBe(0);
     },
   );
+
+  test("rotates the token while Claude is still running and reuses it for finalization", async () => {
+    const result = await runWithInstallationToken({
+      minutes: 61,
+      branch: "claude-issue-7",
+      rotateInSession: true,
+    });
+
+    expect(result.log).toContain(
+      "Fixture used the renewed token before Claude exited",
+    );
+    expect(
+      result.log.match(/Fixture received a second token exchange/g),
+    ).toHaveLength(1);
+    expect(result.log).toContain("Updated issue comment 42");
+    expect(result.log).toContain(
+      "Fixture received revocation of the previous token",
+    );
+    expect(result.output).toMatch(/^conclusion<<.+\r?\nsuccess\r?\n/m);
+    expect(result.exitCode).toBe(0);
+  });
+
+  test("passes an authenticated push attempt to branch recovery after renewal", async () => {
+    const result = await runWithInstallationToken({
+      minutes: 61,
+      branch: "claude-issue-7",
+      rotateInSession: true,
+      recordFailedPush: true,
+    });
+
+    expect(result.log).toContain(
+      "Fixture passed the recorded push to recovery with renewed Git auth",
+    );
+    expect(result.log).toContain("Updated issue comment 42");
+    expect(result.exitCode).toBe(0);
+  });
 
   test("reports failure if the exchange rejects renewal and the old token is expired", async () => {
     const result = await runWithInstallationToken({

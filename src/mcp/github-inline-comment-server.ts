@@ -5,6 +5,7 @@ import { appendFileSync } from "fs";
 import { z } from "zod";
 import { createOctokit } from "../github/api/client";
 import { redactSecrets, sanitizeContent } from "../github/utils/sanitizer";
+import { readGitHubToken } from "./github-token";
 import { removeBufferedComment } from "./inline-comment-buffer";
 
 // Get repository and PR information from environment variables
@@ -88,11 +89,7 @@ server.tool(
   },
   async ({ path, body, line, startLine, side, commit_id, confirmed }) => {
     try {
-      const githubToken = process.env.GITHUB_TOKEN;
-
-      if (!githubToken) {
-        throw new Error("GITHUB_TOKEN environment variable is required");
-      }
+      const githubToken = await readGitHubToken();
 
       const owner = REPO_OWNER;
       const repo = REPO_NAME;

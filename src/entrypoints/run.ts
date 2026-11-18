@@ -12,11 +12,15 @@ import { spawn } from "child_process";
 import { appendFile } from "fs/promises";
 import { existsSync, readFileSync } from "fs";
 import {
-  renewGitHubAppToken,
   revokeGitHubAppToken,
   setupGitHubToken,
   WorkflowValidationSkipError,
 } from "../github/token";
+import {
+  getReplacementGitHubToken,
+  GitHubTokenSession,
+  TOKEN_RENEWAL_AGE_MS,
+} from "../github/token-session";
 import {
   checkBotActorPullRequestAuthor,
   checkWritePermissions,
@@ -28,6 +32,7 @@ import {
 import { getUntrustedPrDisallowedTools } from "../github/validation/untrusted-pr";
 import { createOctokit } from "../github/api/client";
 import type { Octokits } from "../github/api/client";
+import { GITHUB_SERVER_URL } from "../github/api/config";
 import {
   parseGitHubContext,
   isEntityContext,
@@ -44,8 +49,10 @@ import { checkContainsTrigger } from "../github/validation/trigger";
 import {
   clearSessionState,
   disableGitPrograms,
+  failedPushCommit,
   pinRestoredPaths,
   prepareGitForSession,
+  preparePushRecovery,
   snapshotSessionFiles,
 } from "../github/operations/session-guard";
 import { chooseConfigBranch } from "../github/operations/config-branch";
@@ -61,6 +68,10 @@ import {
 } from "../github/operations/tool-config";
 import { validateBranchName } from "../github/operations/branch";
 import type { BranchInfo } from "../github/operations/branch";
+import {
+  UnpublishedBranchRecoveryError,
+  type BranchPushRecovery,
+} from "../github/operations/branch-cleanup";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
 import { formatTurnsFromData } from "./format-turns";
@@ -76,6 +87,7 @@ import { preparePrompt } from "../../base-action/src/prepare-prompt";
 import { runClaude } from "../../base-action/src/run-claude";
 import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
 import { setExecutionFileOutputIfPresent } from "../../base-action/src/execution-file";
+import { parseClaudeArgsToExtraArgs } from "../../base-action/src/parse-sdk-options";
 
 // Exported for unit testing. `set -o pipefail` makes curl's non-zero exit
 // propagate through the pipe so the install retry logic actually triggers
@@ -181,25 +193,29 @@ async function writeStepSummary(executionFile: string): Promise<void> {
 const FORK_REFUSED =
   "Skipped, because allow_fork_prs is not true and this pull request or workflow run is from a fork.";
 
-// Installation tokens last an hour. Leave a margin for the final GitHub writes.
-const GITHUB_APP_TOKEN_RENEWAL_AGE_MS = 55 * 60 * 1000;
-
 function useGitHubToken(token: string): Octokits {
   process.env.GITHUB_TOKEN = token;
   process.env.GH_TOKEN = token;
   return createOctokit(token);
 }
 
-async function getReplacementGitHubToken(currentToken: string) {
-  try {
-    const replacement = await renewGitHubAppToken();
-    if (replacement !== currentToken) return replacement;
-    core.warning("GitHub App exchange returned the current installation token");
-  } catch {
-    core.warning(
-      "GitHub App token renewal failed. Finalization will use the current token.",
-    );
-  }
+function publishGitHubToken(current: string, previous?: string) {
+  core.setOutput("github_app_previous_token", previous ?? "");
+  core.setOutput("github_token", current);
+}
+
+function hasCustomPushPolicy(): boolean {
+  if (process.env.INPUT_SETTINGS) return true;
+  return Object.keys(parseClaudeArgsToExtraArgs(process.env.CLAUDE_ARGS)).some(
+    (key) =>
+      [
+        "disallowedTools",
+        "disallowed-tools",
+        "permission-mode",
+        "tools",
+        "settings",
+      ].includes(key.split("=", 1)[0]!),
+  );
 }
 
 async function run() {
@@ -208,6 +224,9 @@ async function run() {
 
   let githubToken: string | undefined;
   let appTokenObtainedAt: number | undefined;
+  let tokenSession: GitHubTokenSession | undefined;
+  let pushRecovery: BranchPushRecovery | undefined;
+  let skipBranchCleanup = false;
   let commentId: number | undefined;
   let claudeBranch: string | undefined;
   let baseBranch: string | undefined;
@@ -314,6 +333,29 @@ async function run() {
     disableGitPrograms({ hooks: hooksOff });
     clearSessionState();
 
+    // The credential file is for sessions that already receive the raw App token.
+    // Restricted sessions retain their existing credential distribution.
+    if (
+      appTokenObtainedAt !== undefined &&
+      !hooksOff &&
+      !context.inputs.allowedBots &&
+      !context.inputs.allowedNonWriteUsers &&
+      (!process.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB ||
+        process.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB === "0")
+    ) {
+      try {
+        tokenSession = await GitHubTokenSession.create(
+          githubToken,
+          appTokenObtainedAt,
+          publishGitHubToken,
+        );
+      } catch {
+        core.warning(
+          "Could not set up GitHub App token renewal during the session",
+        );
+      }
+    }
+
     console.log(
       `Preparing with mode: ${modeName} for event: ${context.eventName}`,
     );
@@ -323,9 +365,15 @@ async function run() {
             context,
             octokit,
             githubToken,
+            githubTokenPath: tokenSession?.tokenPath,
             skipLfsDownloads: hooksOff,
           })
-        : await prepareAgentMode({ context, octokit, githubToken });
+        : await prepareAgentMode({
+            context,
+            octokit,
+            githubToken,
+            githubTokenPath: tokenSession?.tokenPath,
+          });
 
     commentId = prepareResult.commentId;
     claudeBranch = prepareResult.branchInfo.claudeBranch;
@@ -437,12 +485,27 @@ async function run() {
       process.env.CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR = "1";
     }
 
+    const { host: gitHost } = new URL(GITHUB_SERVER_URL);
+    const { owner, repo } = context.repository;
+    const expectedPushUrl = `https://x-access-token@${gitHost}/${owner}/${repo}.git`;
+    const recoveryBase =
+      modeName === "tag" &&
+      tokenSession &&
+      claudeBranch &&
+      !context.inputs.useCommitSigning &&
+      !hasCustomPushPolicy()
+        ? preparePushRecovery(claudeBranch, expectedPushUrl)
+        : undefined;
     const restoreSessionFiles = snapshotSessionFiles(() =>
       prepareGitForSession({ hooks: hooksOff }),
     );
 
     let claudeResult: ClaudeRunResult;
     try {
+      if (tokenSession) {
+        publishGitHubToken(githubToken);
+        tokenSession.start();
+      }
       claudeResult = await runClaude(promptConfig.path, {
         claudeArgs: prepareResult.claudeArgs,
         disallowedTools: disallowedTools.join(","),
@@ -455,6 +518,11 @@ async function run() {
       });
     } finally {
       restoreSessionFiles();
+      if (recoveryBase) {
+        const commitSha = failedPushCommit();
+        if (commitSha)
+          pushRecovery = { baseSha: recoveryBase, commitSha, expectedPushUrl };
+      }
       // The action's own git commands from here on hold the job's credentials,
       // and the session could have edited a tracked hook.
       disableGitPrograms({ hooks: true });
@@ -493,6 +561,15 @@ async function run() {
     workloadIdentity?.stop();
 
     let supersededToken: string | undefined;
+    if (tokenSession) {
+      const current = await tokenSession.stop();
+      appTokenObtainedAt = current.obtainedAt;
+      if (current.previous) {
+        githubToken = current.token;
+        octokit = useGitHubToken(current.token);
+        supersededToken = current.previous;
+      }
+    }
     const hasPostSessionDelivery =
       context &&
       isEntityContext(context) &&
@@ -502,7 +579,7 @@ async function run() {
       hasPostSessionDelivery &&
       githubToken &&
       appTokenObtainedAt !== undefined &&
-      Date.now() - appTokenObtainedAt >= GITHUB_APP_TOKEN_RENEWAL_AGE_MS
+      Date.now() - appTokenObtainedAt >= TOKEN_RENEWAL_AGE_MS
     ) {
       const renewal = await getReplacementGitHubToken(githubToken);
       if (renewal) {
@@ -510,19 +587,44 @@ async function run() {
         githubToken = renewal;
         octokit = useGitHubToken(renewal);
         // The always() revocation step needs the replacement even if cleanup fails.
-        core.setOutput("github_token", renewal);
-
-        if (context && claudeBranch && !context.inputs.useCommitSigning) {
-          try {
-            await replaceCheckoutCredentials(renewal, context);
-          } catch {
-            conclusion = "failure";
-            core.setFailed(
-              "Could not apply the renewed GitHub App token to Git for finalization.",
-            );
-          }
-        }
+        publishGitHubToken(renewal, supersededToken);
       }
+    }
+
+    let gitAuthReady = true;
+    if (
+      context &&
+      commentId &&
+      claudeBranch &&
+      !context.inputs.useCommitSigning &&
+      githubToken
+    ) {
+      try {
+        if (tokenSession) {
+          await tokenSession.restoreCurrentToken(githubToken);
+        } else if (
+          supersededToken &&
+          !context.inputs.allowedBots &&
+          !context.inputs.allowedNonWriteUsers
+        ) {
+          await replaceCheckoutCredentials(githubToken, context);
+        }
+      } catch {
+        gitAuthReady = false;
+        conclusion = "failure";
+        core.setFailed(
+          "Could not apply the GitHub App token to Git for finalization.",
+        );
+      }
+    }
+
+    if (pushRecovery && (!supersededToken || !gitAuthReady)) {
+      pushRecovery = undefined;
+      skipBranchCleanup = true;
+      conclusion = "failure";
+      core.setFailed(
+        "GitHub rejected the branch push and the action could not recover it with a renewed token.",
+      );
     }
 
     // Update tracking comment
@@ -537,7 +639,8 @@ async function run() {
         await updateCommentLink({
           commentId,
           githubToken,
-          claudeBranch,
+          claudeBranch:
+            gitAuthReady && !skipBranchCleanup ? claudeBranch : undefined,
           baseBranch: baseBranch || context.repository.default_branch || "main",
           triggerUsername: context.actor,
           context,
@@ -548,9 +651,13 @@ async function run() {
           prepareError,
           useCommitSigning: context.inputs.useCommitSigning,
           restoredConfigPaths,
+          pushRecovery,
         });
       } catch (error) {
-        if (
+        if (error instanceof UnpublishedBranchRecoveryError) {
+          conclusion = "failure";
+          core.setFailed(error.message);
+        } else if (
           appTokenObtainedAt !== undefined &&
           error instanceof Error &&
           "status" in error &&
@@ -566,10 +673,17 @@ async function run() {
       }
     }
 
-    if (supersededToken && !(await revokeGitHubAppToken(supersededToken))) {
-      core.warning(
-        "Could not revoke the previous GitHub App installation token",
-      );
+    if (supersededToken && (await revokeGitHubAppToken(supersededToken))) {
+      supersededToken = undefined;
+    }
+    if (tokenSession) {
+      try {
+        await tokenSession.remove();
+      } catch {
+        core.warning(
+          "Could not remove the temporary GitHub App credential file",
+        );
+      }
     }
 
     // Write step summary (unless display_report is set to false)
@@ -583,7 +697,11 @@ async function run() {
 
     // Set remaining action-level outputs
     core.setOutput("branch_name", claudeBranch);
-    if (!supersededToken) core.setOutput("github_token", githubToken);
+    if (githubToken && appTokenObtainedAt !== undefined) {
+      publishGitHubToken(githubToken, supersededToken);
+    } else {
+      core.setOutput("github_token", githubToken);
+    }
     if (conclusion) core.setOutput("conclusion", conclusion);
   }
 }

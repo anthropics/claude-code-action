@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "fs";
 import { tmpdir } from "os";
-import { join, resolve } from "path";
+import { delimiter, join, resolve } from "path";
 
 const SCRIPTS = resolve(import.meta.dir, "../scripts");
 
@@ -449,6 +449,68 @@ describe("git wrappers", () => {
 
   describe("git-push.sh", () => {
     const SESSION_BRANCH = "claude/issue-1";
+
+    test("records the exact failed authentication push and clears it after success", () => {
+      const scripts = join(dir, "recoverable-push");
+      const fakeBin = join(dir, "fake-bin");
+      mkdirSync(scripts);
+      mkdirSync(fakeBin);
+      for (const name of ["git-push.sh", "git-env.sh"]) {
+        copyFileSync(join(SCRIPTS, name), join(scripts, name));
+      }
+      writeFileSync(join(scripts, ".push-branch"), SESSION_BRANCH);
+      const pushUrl = "https://x-access-token@github.com/test/repository.git";
+      const hook = join(dir, "pre-push");
+      writeFileSync(join(scripts, ".record-failed-push"), pushUrl);
+      const receipt = join(scripts, ".failed-push");
+      const sha = git("rev-parse", "HEAD");
+      writeFileSync(
+        join(fakeBin, "git"),
+        `#!/bin/sh
+for arg in "$@"; do
+  if [ "$arg" = get-url ]; then printf '%s\\n' "\${PUSH_URL}"; exit 0; fi
+  if [ "$arg" = --git-path ]; then printf '%s\\n' "\${PUSH_HOOK}"; exit 0; fi
+  if [ "$arg" = --verify ]; then printf '%s\\n' '${sha}'; exit 0; fi
+  if [ "$arg" = '${sha}:refs/heads/${SESSION_BRANCH}' ] || [ "$arg" = 'HEAD:refs/heads/${SESSION_BRANCH}' ]; then
+    if [ -n "\${PUSH_FAILURE:-}" ]; then printf '%s\\n' "$PUSH_FAILURE" >&2; exit 128; fi
+    exit 0
+  fi
+done
+exit 99
+`,
+      );
+      chmodSync(join(fakeBin, "git"), 0o755);
+      const tryPush = (failure: string, url = pushUrl) =>
+        spawnSync(join(scripts, "git-push.sh"), ["origin", "HEAD"], {
+          cwd: repo,
+          env: {
+            ...env(),
+            PATH: `${fakeBin}${delimiter}${process.env.PATH}`,
+            PUSH_FAILURE: failure,
+            PUSH_URL: url,
+            PUSH_HOOK: hook,
+          },
+          encoding: "utf8",
+        });
+
+      expect(tryPush("Connection timed out").status).toBe(128);
+      expect(existsSync(receipt)).toBe(false);
+      const authFailure = `fatal: Authentication failed for '${pushUrl}'`;
+      expect(tryPush(authFailure, "https://github.com/other/repo").status).toBe(
+        128,
+      );
+      expect(existsSync(receipt)).toBe(false);
+      expect(tryPush(authFailure).status).toBe(128);
+      expect(readFileSync(receipt, "utf8")).toBe(`${sha}\n`);
+      writeFileSync(hook, "#!/bin/sh\nexit 1\n");
+      expect(tryPush(authFailure).status).toBe(128);
+      expect(existsSync(receipt)).toBe(false);
+      rmSync(hook);
+      expect(tryPush(authFailure).status).toBe(128);
+      expect(readFileSync(receipt, "utf8")).toBe(`${sha}\n`);
+      expect(tryPush("").status).toBe(0);
+      expect(existsSync(receipt)).toBe(false);
+    });
 
     const push = (
       ref: string,

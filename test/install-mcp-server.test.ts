@@ -133,6 +133,55 @@ describe("prepareMcpConfig", () => {
     );
   });
 
+  test("only built-in app-token servers receive the rotating token path", async () => {
+    const oldWorkflowToken = process.env.DEFAULT_WORKFLOW_TOKEN;
+    process.env.DEFAULT_WORKFLOW_TOKEN = "workflow-token";
+    const githubTokenPath = "/test/action/temp/github-token";
+
+    try {
+      const result = await prepareMcpConfig({
+        githubToken: "initial-token",
+        githubTokenPath,
+        owner: "test-owner",
+        repo: "test-repo",
+        branch: "test-branch",
+        baseBranch: "main",
+        allowedTools: ["mcp__github"],
+        mode: "tag",
+        context: {
+          ...mockPRContext,
+          inputs: { ...mockPRContext.inputs, useCommitSigning: true },
+        },
+      });
+
+      const { mcpServers } = JSON.parse(result);
+      for (const server of [
+        mcpServers.github_comment,
+        mcpServers.github_file_ops,
+        mcpServers.github_inline_comment,
+      ]) {
+        expect(server.env.CLAUDE_CODE_GITHUB_TOKEN_FILE).toBe(githubTokenPath);
+        expect(server.env.GITHUB_TOKEN).toBeUndefined();
+      }
+      expect(mcpServers.github_ci.env.GITHUB_TOKEN).toBe("workflow-token");
+      expect(
+        mcpServers.github_ci.env.CLAUDE_CODE_GITHUB_TOKEN_FILE,
+      ).toBeUndefined();
+      expect(mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN).toBe(
+        "initial-token",
+      );
+      expect(
+        mcpServers.github.env.CLAUDE_CODE_GITHUB_TOKEN_FILE,
+      ).toBeUndefined();
+    } finally {
+      if (oldWorkflowToken === undefined) {
+        delete process.env.DEFAULT_WORKFLOW_TOKEN;
+      } else {
+        process.env.DEFAULT_WORKFLOW_TOKEN = oldWorkflowToken;
+      }
+    }
+  });
+
   test("should include github MCP server when mcp__github__ tools are allowed", async () => {
     const result = await prepareMcpConfig({
       githubToken: "test-token",

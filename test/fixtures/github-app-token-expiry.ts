@@ -4,6 +4,9 @@ import type { Octokits } from "../../src/github/api/client";
 import type { ParsedGitHubContext } from "../../src/github/context";
 import { createInitialComment } from "../../src/github/operations/comments/create-initial";
 import * as gitConfig from "../../src/github/operations/git-config";
+import * as branchCleanup from "../../src/github/operations/branch-cleanup";
+import { readFile, writeFile } from "fs/promises";
+import { join } from "path";
 
 const appToken = process.env.OVERRIDE_GITHUB_TOKEN || "test-installation-token";
 const renewedToken = "test-renewed-installation-token";
@@ -11,6 +14,48 @@ let oidcRequests = 0;
 const expiresAt = Date.now() + 60 * 60 * 1000;
 const exchangeUrl =
   "https://api.anthropic.com/api/github/github-app-token-exchange";
+let fixtureTokenPath: string | undefined;
+let fireRenewalTimer: (() => void) | undefined;
+let attemptedCommit: string | undefined;
+
+if (process.env.TEST_RECORD_FAILED_PUSH === "true") {
+  mock.module("../../src/github/operations/branch-cleanup", () => ({
+    ...branchCleanup,
+    checkAndCommitOrDeleteBranch: async (
+      ...args: Parameters<typeof branchCleanup.checkAndCommitOrDeleteBranch>
+    ) => {
+      const recovery = args[7]?.recovery;
+      if (
+        recovery?.commitSha !== attemptedCommit ||
+        !recovery?.baseSha ||
+        recovery.baseSha === attemptedCommit ||
+        process.env.GH_TOKEN !== renewedToken
+      ) {
+        throw new Error(
+          "The action did not supply the recorded commit and the renewed token",
+        );
+      }
+      console.log(
+        "Fixture passed the recorded push to recovery with renewed Git auth",
+      );
+      return { shouldDeleteBranch: false, branchLink: "" };
+    },
+  }));
+}
+
+if (process.env.TEST_ROTATE_IN_SESSION === "true") {
+  const schedule = globalThis.setTimeout;
+  globalThis.setTimeout = ((callback: () => void, delay: number) => {
+    const timer = schedule(callback, delay);
+    if (!fireRenewalTimer && delay > 50 * 60 * 1000) {
+      fireRenewalTimer = () => {
+        clearTimeout(timer);
+        callback();
+      };
+    }
+    return timer;
+  }) as typeof globalThis.setTimeout;
+}
 
 mock.module("@actions/core", () => ({
   ...core,
@@ -26,10 +71,13 @@ mock.module("../../src/modes/tag/index", () => ({
   prepareTagMode: async ({
     octokit,
     context,
+    githubTokenPath,
   }: {
     octokit: Octokits;
     context: ParsedGitHubContext;
+    githubTokenPath?: string;
   }) => {
+    fixtureTokenPath = githubTokenPath;
     const comment = await createInitialComment(octokit.rest, context);
     return {
       commentId: comment.id,
@@ -62,6 +110,41 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     const elapsedMinutes = Number(process.env.TEST_SESSION_MINUTES);
     const startedAt = expiresAt - 60 * 60 * 1000;
     setSystemTime(new Date(startedAt + elapsedMinutes * 60 * 1000));
+    if (process.env.TEST_RECORD_FAILED_PUSH === "true") {
+      const scripts = join(process.env.GITHUB_ACTION_PATH!, "scripts");
+      await readFile(join(scripts, ".record-failed-push"));
+      const commit = Bun.spawnSync([
+        "git",
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@example.test",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "Work",
+      ]);
+      if (!commit.success) throw new Error(commit.stderr.toString());
+      attemptedCommit = Bun.spawnSync(["git", "rev-parse", "HEAD"])
+        .stdout.toString()
+        .trim();
+      await writeFile(join(scripts, ".failed-push"), `${attemptedCommit}\n`);
+    }
+    if (process.env.TEST_ROTATE_IN_SESSION === "true") {
+      if (!fixtureTokenPath || !fireRenewalTimer)
+        throw new Error("Session renewal was not configured");
+      if ((await readFile(fixtureTokenPath, "utf8")).trim() !== appToken)
+        throw new Error("Wrong initial session token");
+      fireRenewalTimer();
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if ((await readFile(fixtureTokenPath, "utf8")).trim() === renewedToken)
+          break;
+        await Bun.sleep(10);
+      }
+      if ((await readFile(fixtureTokenPath, "utf8")).trim() !== renewedToken)
+        throw new Error("Session token did not rotate");
+      console.log("Fixture used the renewed token before Claude exited");
+    }
     yield { type: "result", subtype: "success", is_error: false };
   },
 }));
