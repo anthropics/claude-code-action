@@ -16,7 +16,7 @@ export function isSameLogin(
   return !!a && !!b && a.toLowerCase() === b.toLowerCase();
 }
 
-function isAllowedBot(actor: string, allowedBots: string): boolean {
+export function isAllowedBot(actor: string, allowedBots: string): boolean {
   const trimmed = allowedBots.trim();
   if (trimmed === "*") return true;
   if (!trimmed) return false;
