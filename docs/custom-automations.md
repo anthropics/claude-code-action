@@ -120,3 +120,22 @@ For more control over Claude's behavior, use the `claude_args` input to pass CLI
 ```
 
 This provides full access to Claude Code CLI capabilities while maintaining the simplified action interface.
+
+## Collecting run metrics
+
+The action's `execution_file` output points to a JSON log on the runner. Use a later step in the same job to extract the final result's duration, turn count, estimated cost, and model identifiers. The example assumes the Claude step has `id: claude`.
+
+```yaml
+- name: Record Claude run metrics
+  if: ${{ !cancelled() && steps.claude.outputs.execution_file != '' }}
+  env:
+    EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+  run: |
+    jq -c '
+      [.[] | select(.type == "result")] | last // empty
+      | {duration_ms, num_turns, total_cost_usd, is_error,
+         models: ((.modelUsage // {}) | keys)}
+    ' "$EXECUTION_FILE" > "$RUNNER_TEMP/claude-run-metrics.jsonl"
+```
+
+If the session ends before it returns a result, the metrics file is empty. The raw log can contain prompts and tool results. Share only the fields your monitoring needs.
