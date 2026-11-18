@@ -11,12 +11,46 @@ on:
     types: [submitted]
 
 jobs:
-  claude:
+  # In this repository Claude doesn't run on fork PRs, whatever triggers it. The event for a comment
+  # on a PR's conversation doesn't say where the PR's branch is, so this job asks GitHub. If it can't
+  # tell, Claude doesn't run.
+  fork-check:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      run-claude: ${{ steps.check.outputs.run-claude }}
+    steps:
+      - name: Check that a pull request is not from a fork
+        id: check
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Empty on an issue
+          PR_NUMBER: ${{ github.event.pull_request.number || (github.event.issue.pull_request && github.event.issue.number) }}
+        run: |
+          same_repo=true
+          if [ -n "$PR_NUMBER" ]; then
+            for attempt in 1 2 3; do
+              same_repo=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.repo.id == .base.repo.id') && break
+              [ "$attempt" -lt 3 ] || exit 1
+              sleep 5
+            done
+          fi
+          if [ "$same_repo" = true ]; then
+            echo "run-claude=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Claude does not run on pull requests from forks in this repository."
+          fi
+
+  claude:
+    needs: fork-check
+    if: needs.fork-check.outputs.run-claude == 'true'
     # This job calls Claude, so it runs on GitHub's egress-firewall runner, which
     # filters the job's outbound network traffic (allow list: .github/egress-firewall.yaml).
     runs-on: ubuntu-24.04-firewall
