@@ -16,6 +16,10 @@ import {
   checkBotActorPullRequestAuthor,
   checkWritePermissions,
 } from "../github/validation/permissions";
+import {
+  isCommentOnRefusedForkPr,
+  isRefusedForkEvent,
+} from "../github/validation/fork-pr";
 import { getUntrustedPrDisallowedTools } from "../github/validation/untrusted-pr";
 import { createOctokit } from "../github/api/client";
 import type { Octokits } from "../github/api/client";
@@ -35,16 +39,23 @@ import { checkContainsTrigger } from "../github/validation/trigger";
 import {
   clearSessionState,
   disableGitPrograms,
+  pinRestoredPaths,
   prepareGitForSession,
   snapshotSessionFiles,
 } from "../github/operations/session-guard";
-import { restoreConfigFromBase } from "../github/operations/restore-config";
+import { chooseConfigBranch } from "../github/operations/config-branch";
+import {
+  fetchBranch,
+  keepHeadHistory,
+  restoreConfigFromBase,
+} from "../github/operations/restore-config";
 import { saveCheckoutGitAuth } from "../github/operations/git-config";
 import {
   restoreToolConfigFromBase,
   toolConfigDenyRules,
 } from "../github/operations/tool-config";
 import { validateBranchName } from "../github/operations/branch";
+import type { BranchInfo } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
 import { updateCommentLink } from "./update-comment-link";
 import { formatTurnsFromData } from "./format-turns";
@@ -92,7 +103,7 @@ async function installClaudeCode(): Promise<string> {
     return customExecutable;
   }
 
-  const claudeCodeVersion = "2.1.325";
+  const claudeCodeVersion = "2.1.327";
   console.log(`Installing Claude Code v${claudeCodeVersion}...`);
 
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -162,7 +173,13 @@ async function writeStepSummary(executionFile: string): Promise<void> {
   }
 }
 
+const FORK_REFUSED =
+  "Skipped, because allow_fork_prs is not true and this pull request or workflow run is from a fork.";
+
 async function run() {
+  // Bun has read this by now, and it's only for the action's own scripts
+  delete process.env.BUN_RUNTIME_TRANSPILER_CACHE_PATH;
+
   let githubToken: string | undefined;
   let commentId: number | undefined;
   let claudeBranch: string | undefined;
@@ -184,6 +201,13 @@ async function run() {
     // Phase 1: Prepare
     const actionInputsPresent = collectActionInputsPresence();
     context = parseGitHubContext();
+
+    // Before a token, which GitHub doesn't give to some of these events
+    if (isRefusedForkEvent(context)) {
+      core.warning(FORK_REFUSED);
+      return;
+    }
+
     const modeName = detectMode(context);
     console.log(
       `Auto-detected mode: ${modeName} for event: ${context.eventName}`,
@@ -238,6 +262,12 @@ async function run() {
       return;
     }
 
+    // Before the action checks anything out
+    if (await isCommentOnRefusedForkPr(octokit.rest, context)) {
+      core.warning(FORK_REFUSED);
+      return;
+    }
+
     const botActorAllowed = await checkBotActorPullRequestAuthor(
       octokit.rest,
       context,
@@ -267,7 +297,12 @@ async function run() {
     restoreCheckoutGitAuth = await saveCheckoutGitAuth();
     const prepareResult =
       modeName === "tag"
-        ? await prepareTagMode({ context, octokit, githubToken })
+        ? await prepareTagMode({
+            context,
+            octokit,
+            githubToken,
+            skipLfsDownloads: hooksOff,
+          })
         : await prepareAgentMode({ context, octokit, githubToken });
 
     commentId = prepareResult.commentId;
@@ -298,7 +333,7 @@ async function run() {
     let restoredToolConfig: string[] = [];
 
     // On PRs, .claude/ and .mcp.json in the checkout are attacker-controlled.
-    // Restore them from the base branch before the CLI reads them.
+    // Restore them from a trusted branch before the CLI reads them.
     //
     // We read pull_request.base.ref from the payload directly because agent
     // mode's branchInfo.baseBranch defaults to the repo's default branch rather
@@ -317,11 +352,34 @@ async function run() {
         validateBranchName(restoreBase);
       }
       if (restoreBase) {
-        restoredConfigPaths = restoreConfigFromBase(restoreBase);
+        const { isFork }: BranchInfo = prepareResult.branchInfo;
+        const configBranch = chooseConfigBranch(
+          context,
+          restoreBase,
+          untrustedPrDisallowedTools.length > 0,
+          isFork,
+        );
+        const isOtherBranch = configBranch !== restoreBase;
+        if (isOtherBranch) {
+          core.warning(
+            `Claude's config comes from ${configBranch}, not from the base branch ${restoreBase}, because the pull request's author is not confirmed to have write access. See docs/security.md in anthropics/claude-code-action.`,
+          );
+        }
+        const restoreHeadHistory = isOtherBranch
+          ? keepHeadHistory()
+          : undefined;
+        restoredConfigPaths = restoreConfigFromBase(configBranch);
         // Before plugins are installed, which can already start package managers here.
         if (isUntrustedCheckout) {
-          restoredToolConfig = restoreToolConfigFromBase(restoreBase);
+          restoredToolConfig = restoreToolConfigFromBase(configBranch);
           restoredConfigPaths.push(...restoredToolConfig);
+        }
+        if (isOtherBranch) {
+          // A branch from the base has none of the pull request's version of them.
+          if (checkedOutPrHead) pinRestoredPaths(restoredConfigPaths);
+          // Claude still compares the pull request with its base.
+          restoreHeadHistory?.();
+          fetchBranch(restoreBase);
         }
       }
     }
@@ -350,6 +408,12 @@ async function run() {
           ...toolConfigDenyRules(restoredToolConfig),
         ]
       : [];
+
+    // A hook runs in the session's current directory, and only the repository root's tool
+    // config comes from the base branch. This keeps Bash from moving the session.
+    if (isUntrustedCheckout) {
+      process.env.CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR = "1";
+    }
 
     const restoreSessionFiles = snapshotSessionFiles(() =>
       prepareGitForSession({ hooks: hooksOff }),
