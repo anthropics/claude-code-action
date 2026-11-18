@@ -16,6 +16,10 @@ import {
   checkBotActorPullRequestAuthor,
   checkWritePermissions,
 } from "../github/validation/permissions";
+import {
+  isCommentOnRefusedForkPr,
+  isRefusedForkEvent,
+} from "../github/validation/fork-pr";
 import { getUntrustedPrDisallowedTools } from "../github/validation/untrusted-pr";
 import { createOctokit } from "../github/api/client";
 import type { Octokits } from "../github/api/client";
@@ -168,6 +172,9 @@ async function writeStepSummary(executionFile: string): Promise<void> {
   }
 }
 
+const FORK_REFUSED =
+  "Skipped, because allow_fork_prs is not true and this pull request or workflow run is from a fork.";
+
 async function run() {
   // Bun has read this by now, and it's only for the action's own scripts
   delete process.env.BUN_RUNTIME_TRANSPILER_CACHE_PATH;
@@ -192,6 +199,13 @@ async function run() {
     // Phase 1: Prepare
     const actionInputsPresent = collectActionInputsPresence();
     context = parseGitHubContext();
+
+    // Before a token, which GitHub doesn't give to some of these events
+    if (isRefusedForkEvent(context)) {
+      core.warning(FORK_REFUSED);
+      return;
+    }
+
     const modeName = detectMode(context);
     console.log(
       `Auto-detected mode: ${modeName} for event: ${context.eventName}`,
@@ -243,6 +257,12 @@ async function run() {
     if (!containsTrigger) {
       console.log("No trigger found, skipping remaining steps");
       core.setOutput("github_token", githubToken);
+      return;
+    }
+
+    // Before the action checks anything out
+    if (await isCommentOnRefusedForkPr(octokit.rest, context)) {
+      core.warning(FORK_REFUSED);
       return;
     }
 
