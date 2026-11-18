@@ -80,7 +80,12 @@ async function run() {
       `Preparing with mode: ${modeName} for event: ${context.eventName}`,
     );
     if (modeName === "tag") {
-      await prepareTagMode({ context, octokit, githubToken });
+      await prepareTagMode({
+        context,
+        octokit,
+        githubToken,
+        skipLfsDownloads: true,
+      });
     } else {
       await prepareAgentMode({ context, octokit, githubToken });
     }

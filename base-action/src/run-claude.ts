@@ -2,6 +2,8 @@ import { runClaudeWithSdk } from "./run-claude-sdk";
 import type { ClaudeRunResult } from "./run-claude-sdk";
 import { parseSdkOptions } from "./parse-sdk-options";
 
+import type { PermissionMode } from "@anthropic-ai/claude-agent-sdk";
+
 export type ClaudeOptions = {
   claudeArgs?: string;
   model?: string;
@@ -14,6 +16,8 @@ export type ClaudeOptions = {
   appendSystemPrompt?: string;
   fallbackModel?: string;
   showFullOutput?: string;
+  /** Mode to switch to when auto mode was asked for but isn't available. */
+  fallbackPermissionMode?: PermissionMode;
 };
 
 export async function runClaude(
