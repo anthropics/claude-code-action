@@ -274,7 +274,12 @@ async function run() {
     );
     const prepareResult =
       modeName === "tag"
-        ? await prepareTagMode({ context, octokit, githubToken })
+        ? await prepareTagMode({
+            context,
+            octokit,
+            githubToken,
+            skipLfsDownloads: hooksOff,
+          })
         : await prepareAgentMode({ context, octokit, githubToken });
 
     commentId = prepareResult.commentId;

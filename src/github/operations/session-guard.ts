@@ -38,6 +38,11 @@ const SESSION_STATE_FILES = [
   ".restored-paths",
 ];
 
+const NO_IMPLICIT_BARE_REPOSITORY: [string, string] = [
+  "safe.bareRepository",
+  "explicit",
+];
+
 // How many GIT_CONFIG_* entries were there before disableGitPrograms added any.
 let entriesBeforeAction: number | undefined;
 
@@ -251,7 +256,14 @@ export function disableGitPrograms({ hooks }: { hooks: boolean }): void {
       process.env[`GIT_CONFIG_VALUE_${i}`],
     );
   }
-  for (const [key, value] of gitProgramSettings({ hooks })) {
+  const settings = gitProgramSettings({ hooks });
+  // A workflow may run the action in a bare repository, where this setting would stop git.
+  const setting = NO_IMPLICIT_BARE_REPOSITORY.join("=");
+  const stopsGit =
+    gitOutput("rev-parse", "--git-dir") !== null &&
+    gitOutput("-c", setting, "rev-parse", "--git-dir") === null;
+  if (hooks || !stopsGit) settings.push(NO_IMPLICIT_BARE_REPOSITORY);
+  for (const [key, value] of settings) {
     if (current.get(key) === value) continue;
     process.env[`GIT_CONFIG_KEY_${count}`] = key;
     process.env[`GIT_CONFIG_VALUE_${count}`] = value;
@@ -330,8 +342,8 @@ const gitOutput = (...args: string[]): string | null => {
  * Moves the settings from disableGitPrograms out of the environment for the session.
  * Repository config and the wrappers keep them in force instead, and
  * snapshotSessionFiles puts the config back afterwards. Elsewhere the concern is a
- * repository git finds in a plain folder, with its own config. Git only reads
- * safe.bareRepository from global config or the command line.
+ * repository git finds in a plain folder, with its own config. Git ignores
+ * safe.bareRepository in repository config, so the session gets it from global config.
  */
 export function prepareGitForSession({ hooks }: { hooks: boolean }): void {
   const count = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? "", 10) || 0;
@@ -356,7 +368,7 @@ export function prepareGitForSession({ hooks }: { hooks: boolean }): void {
   const gitDir = gitOutput("rev-parse", "--absolute-git-dir");
   const workTree = gitDir && gitOutput("rev-parse", "--show-toplevel");
   if (gitDir) setConfig("--local", gitProgramSettings({ hooks }));
-  setConfig("--global", [["safe.bareRepository", "explicit"]]);
+  setConfig("--global", [NO_IMPLICIT_BARE_REPOSITORY]);
 
   try {
     if (hooks) writeSessionFile(".no-hooks", "");

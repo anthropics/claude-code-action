@@ -180,7 +180,10 @@ describe("in a shallow checkout of the default branch", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  const checkOutPullRequest = (isCrossRepository: boolean) =>
+  const checkOutPullRequest = (
+    isCrossRepository: boolean,
+    skipLfsDownloads = false,
+  ) =>
     setupBranch(
       {} as any,
       {
@@ -194,12 +197,31 @@ describe("in a shallow checkout of the default branch", () => {
         },
       } as any,
       mockPullRequestCommentContext,
+      undefined,
+      skipLfsDownloads,
     );
 
   test("setupBranch says whether it checked out a fork", async () => {
     expect((await checkOutPullRequest(true)).isFork).toBe(true);
     expect((await checkOutPullRequest(false)).isFork).toBe(false);
   });
+
+  test.each([true, false])(
+    "setupBranch skips Git LFS downloads for its checkout only: %p",
+    async (skip) => {
+      const before = process.env.GIT_LFS_SKIP_SMUDGE;
+      delete process.env.GIT_LFS_SKIP_SMUDGE;
+      try {
+        git(".", "config", "filter.show.smudge", 'echo "$GIT_LFS_SKIP_SMUDGE"');
+        writeFileSync(".git/info/attributes", "change.txt filter=show\n");
+        await checkOutPullRequest(true, skip);
+        expect(readFileSync("change.txt", "utf8").trim()).toBe(skip ? "1" : "");
+        expect(process.env.GIT_LFS_SKIP_SMUDGE).toBeUndefined();
+      } finally {
+        if (before !== undefined) process.env.GIT_LFS_SKIP_SMUDGE = before;
+      }
+    },
+  );
 
   test("the base can still be compared after restoring from another branch", async () => {
     await checkOutPullRequest(true);
