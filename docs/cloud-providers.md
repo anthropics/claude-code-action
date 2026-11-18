@@ -11,7 +11,7 @@ For detailed setup instructions for AWS Bedrock and Google Vertex AI, see the [o
 
 **Note**:
 
-- Bedrock, Vertex, and Microsoft Foundry use OIDC authentication exclusively
+- Bedrock, Vertex, and Microsoft Foundry support OIDC authentication
 - AWS Bedrock automatically uses cross-region inference profiles for certain models
 - For cross-region inference profile models, you need to request and be granted access to the Claude models in all regions that the inference profile uses
 
@@ -135,6 +135,12 @@ AWS Bedrock, GCP Vertex AI, and Microsoft Foundry all support OIDC authenticatio
 permissions:
   id-token: write # Required for OIDC
 ```
+
+## Amazon Bedrock on EKS with IRSA
+
+On a self-hosted runner in Amazon EKS, use [IAM roles for service accounts (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) to give the runner pod access to Bedrock. Set `use_bedrock: "true"` and provide `AWS_REGION` in the workflow environment. The pod's `AWS_ROLE_ARN` and `AWS_WEB_IDENTITY_TOKEN_FILE` are passed to Claude Code so the AWS SDK can exchange the service account token for temporary credentials.
+
+This configures AWS authentication. Keep the workflow's GitHub authentication configured as usual.
 
 ## Microsoft Foundry Setup
 
