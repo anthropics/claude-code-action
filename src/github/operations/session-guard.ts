@@ -16,7 +16,8 @@ import {
 import { homedir } from "os";
 import { dirname, isAbsolute, join, resolve } from "path";
 
-type TrackedFile = { label: string; path: string };
+// A session may write to one that keeps its writes, but not put a link in its place.
+type TrackedFile = { label: string; path: string; keepsWrites?: boolean };
 
 // "opaque" is anything that can't be saved and compared: a directory, a FIFO, a
 // device, a file too large to hold, or one that can't be read.
@@ -25,6 +26,7 @@ type FileSnapshot = TrackedFile & {
   wasSymlink: boolean;
   content?: Buffer;
   mode?: number;
+  names?: number;
   // For a symlink: what it points to, and the regular file that ends up at.
   link?: { target: string; resolved: string };
 };
@@ -121,8 +123,15 @@ function filesLaterStepsTrust(): TrackedFile[] {
     path ? [{ label, path }] : [],
   );
 
+  // The action adds to these after the session, so a link there would redirect that to
+  // a file later steps trust.
+  const written = ["GITHUB_OUTPUT", "GITHUB_STEP_SUMMARY"].flatMap((label) => {
+    const path = process.env[label];
+    return path ? [{ label, path, keepsWrites: true }] : [];
+  });
+
   const seen = new Set<string>();
-  return [...named, ...gitConfigFilesInUse()].filter(({ path }) => {
+  return [...named, ...gitConfigFilesInUse(), ...written].filter(({ path }) => {
     const absolute = resolve(path);
     if (seen.has(absolute)) return false;
     seen.add(absolute);
@@ -152,6 +161,7 @@ function readSnapshot(file: TrackedFile): FileSnapshot {
       wasSymlink,
       content: readFileSync(fd),
       mode: stats.mode & 0o777,
+      names: stats.nlink,
       ...(wasSymlink && {
         link: {
           target: readlinkSync(file.path),
@@ -191,6 +201,19 @@ function restorePath(before: FileSnapshot): string {
 }
 
 /**
+ * Whether what is written to a file now ends up in that file and no other. A new name
+ * for a file that later steps trust is as good as a symlink to it.
+ */
+function isItsOwnFile(before: FileSnapshot): boolean {
+  try {
+    const stats = lstatSync(restorePath(before));
+    return stats.isFile() && stats.nlink <= (before.names ?? 1);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Records the files later steps trust, and returns a function that puts them
  * back. Call the returned function as soon as the session ends and before the
  * action runs git again. Replacing a file rather than writing to it means a
@@ -212,8 +235,12 @@ export function snapshotSessionFiles(beforeSession?: () => void): () => void {
     for (const [index, before] of snapshots.entries()) {
       try {
         const now = readSnapshot(before);
-        if (isUnchanged(before, now)) continue;
-        const changedBySession = !isUnchanged(atStart[index]!, now);
+        if (before.keepsWrites && isItsOwnFile(before)) continue;
+        // The file it leads to can have the same content so far.
+        const leadsElsewhere = before.keepsWrites && now.state === "file";
+        if (!leadsElsewhere && isUnchanged(before, now)) continue;
+        const changedBySession =
+          leadsElsewhere || !isUnchanged(atStart[index]!, now);
         if (before.state === "opaque") {
           core.warning(
             `Could not restore ${before.label} after the session: it was not a regular file before`,
