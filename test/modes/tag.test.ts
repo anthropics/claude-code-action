@@ -69,6 +69,7 @@ describe("Tag Mode", () => {
         context,
         octokit: {} as any,
         githubToken: "test-token",
+        skipLfsDownloads: false,
       });
 
       expect(configureGitAuthSpy).toHaveBeenCalledTimes(1);
@@ -80,6 +81,21 @@ describe("Tag Mode", () => {
       // stands in for it here, so the standalone helper is not invoked.
       expect(replaceCheckoutCredentialsSpy).not.toHaveBeenCalled();
     });
+
+    test.each([true, false])(
+      "tells setupBranch whether to skip Git LFS downloads: %p",
+      async (skipLfsDownloads) => {
+        await prepareTagMode({
+          context: { ...mockIssueCommentContext },
+          octokit: {} as any,
+          githubToken: "test-token",
+          skipLfsDownloads,
+        });
+        expect(branch.setupBranch).toHaveBeenCalledTimes(1);
+        const call = (branch.setupBranch as any).mock.calls[0];
+        expect(call[4]).toBe(skipLfsDownloads);
+      },
+    );
 
     describe("push branch", () => {
       const savedPath = process.env.GITHUB_ACTION_PATH;
@@ -104,6 +120,7 @@ describe("Tag Mode", () => {
           context: { ...mockIssueCommentContext },
           octokit: {} as any,
           githubToken: "test-token",
+          skipLfsDownloads: false,
         });
         expect(pinned()).toBe("claude/test");
         expect(process.env.CLAUDE_PUSH_BRANCH).toBeUndefined();
@@ -120,6 +137,7 @@ describe("Tag Mode", () => {
           context: { ...mockIssueCommentContext },
           octokit: {} as any,
           githubToken: "test-token",
+          skipLfsDownloads: false,
         });
         expect(pinned()).toBe("feature");
       });
@@ -149,6 +167,7 @@ describe("Tag Mode", () => {
           context: { ...mockIssueCommentContext },
           octokit: {} as any,
           githubToken: "test-token",
+          skipLfsDownloads: false,
         });
         return claudeArgs;
       };
@@ -191,7 +210,7 @@ describe("Tag Mode", () => {
         expect(args).toContain(
           `--disallowedTools 'Bash(/action/scripts/git-add.sh -A:*)'`,
         );
-        for (const rest of [`"a b"`, "it's", "$HOME/x"]) {
+        for (const rest of [`"a b"`, "it's", "$HOME/x", `"(a)/x"`]) {
           const denied = await prepare(
             `--disallowedTools 'Bash(git add ${rest.replace(/'/g, "'\\''")}:*)'`,
           );
@@ -216,6 +235,7 @@ describe("Tag Mode", () => {
         context,
         octokit: {} as any,
         githubToken: "test-token",
+        skipLfsDownloads: false,
       });
 
       expect(configureGitAuthSpy).not.toHaveBeenCalled();
