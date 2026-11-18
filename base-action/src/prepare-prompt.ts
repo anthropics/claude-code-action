@@ -1,5 +1,7 @@
 import { existsSync, statSync } from "fs";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdtemp, rm, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
 
 export type PreparePromptInput = {
   prompt: string;
@@ -11,7 +13,7 @@ export type PreparePromptConfig = {
   path: string;
 };
 
-async function validateAndPreparePrompt(
+export async function preparePrompt(
   input: PreparePromptInput,
 ): Promise<PreparePromptConfig> {
   // Validate inputs
@@ -52,31 +54,15 @@ async function validateAndPreparePrompt(
     throw new Error("Prompt is empty. Please provide a non-empty prompt.");
   }
 
-  const inlinePath = "/tmp/claude-action/prompt.txt";
-  return {
-    type: "inline",
-    path: inlinePath,
-  };
-}
-
-async function createTemporaryPromptFile(
-  prompt: string,
-  promptPath: string,
-): Promise<void> {
-  // Create the directory path
-  const dirPath = promptPath.substring(0, promptPath.lastIndexOf("/"));
-  await mkdir(dirPath, { recursive: true });
-  await writeFile(promptPath, prompt);
-}
-
-export async function preparePrompt(
-  input: PreparePromptInput,
-): Promise<PreparePromptConfig> {
-  const config = await validateAndPreparePrompt(input);
-
-  if (config.type === "inline") {
-    await createTemporaryPromptFile(input.prompt, config.path);
+  const directory = await mkdtemp(
+    join(process.env.RUNNER_TEMP || tmpdir(), "claude-prompt-"),
+  );
+  const path = join(directory, "prompt.txt");
+  try {
+    await writeFile(path, input.prompt);
+  } catch (error) {
+    await rm(directory, { recursive: true, force: true }).catch(() => {});
+    throw error;
   }
-
-  return config;
+  return { type: "inline", path };
 }
