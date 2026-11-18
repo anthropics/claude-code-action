@@ -19,6 +19,19 @@ This guide provides complete, ready-to-use solutions for common automation scena
 
 **When to use:** Automatically review every PR opened or updated in your repository.
 
+### Limit checkout history in large repositories
+
+Keep `fetch-depth: 1` on `actions/checkout` when a review only needs the checked-out snapshot. GitHub supplies the PR merge commit for the `pull_request` event in the example below. To review the exact head commit, set `ref` to the event's head SHA in the checkout step:
+
+```yaml
+- uses: actions/checkout@v6
+  with:
+    ref: ${{ github.event.pull_request.head.sha }}
+    fetch-depth: 1
+```
+
+A shallow checkout can lack the common ancestor needed for `git diff BASE...HEAD`. Use `gh pr diff` for the PR patch, as the example's tool rules allow. Use `fetch-depth: 0` if the review needs the repository's full history. Tag mode may fetch additional commits for its own branch setup. See [actions/checkout](https://github.com/actions/checkout#checkout-pull-request-head-commit-instead-of-merge-commit).
+
 ### Basic Example (No Tracking)
 
 ```yaml
