@@ -24,7 +24,7 @@ const ACCUMULATING_FLAGS = new Set([
 ]);
 
 // Delimiter used to join accumulated flag values
-const ACCUMULATE_DELIMITER = "\x00";
+export const ACCUMULATE_DELIMITER = "\x00";
 
 // shell-quote treats ()|&;<> as control operators and splits adjacent text
 // around them into separate tokens (returned as `{op}` objects, which we then
@@ -275,8 +275,11 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
   const directDisallowedTools = options.disallowedTools
     ? options.disallowedTools.split(",").map((t) => t.trim())
     : [];
+  // Not deduplicated: a rule can hold a comma, so these can be pieces of rules, and the
+  // SDK joins them again. Dropping a repeated piece would break a rule and the ones after it.
   const mergedDisallowedTools = [
-    ...new Set([...extraArgsDisallowedTools, ...directDisallowedTools]),
+    ...extraArgsDisallowedTools,
+    ...directDisallowedTools,
   ];
   delete extraArgs["disallowedTools"];
   delete extraArgs["disallowed-tools"];
