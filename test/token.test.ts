@@ -1,11 +1,14 @@
 import { describe, expect, test, beforeEach, afterEach, spyOn } from "bun:test";
 import * as core from "@actions/core";
+import { GITHUB_API_URL } from "../src/github/api/config";
 import {
+  renewGitHubAppToken,
+  revokeGitHubAppToken,
   setupGitHubToken,
   WorkflowValidationSkipError,
 } from "../src/github/token";
 
-describe("setupGitHubToken", () => {
+describe("GitHub App authentication", () => {
   let originalOverrideToken: string | undefined;
   let originalAdditionalPermissions: string | undefined;
   let getIDTokenSpy: any;
@@ -159,6 +162,90 @@ describe("setupGitHubToken", () => {
     await expect(setupGitHubToken()).rejects.toThrow(message);
 
     expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(warningSpy).not.toHaveBeenCalled();
+  });
+
+  test("renews with a fresh OIDC assertion and the original permission request", async () => {
+    process.env.ADDITIONAL_PERMISSIONS = "actions: read\ncontents: read";
+    getIDTokenSpy
+      .mockResolvedValueOnce("oidc-token")
+      .mockResolvedValueOnce("fresh-oidc-token");
+    fetchSpy
+      .mockResolvedValueOnce(Response.json({ token: "app-token" }))
+      .mockResolvedValueOnce(Response.json({ app_token: "renewed-app-token" }));
+
+    await expect(setupGitHubToken()).resolves.toBe("app-token");
+    await expect(renewGitHubAppToken()).resolves.toBe("renewed-app-token");
+
+    expect(getIDTokenSpy.mock.calls).toEqual([
+      ["claude-code-github-action"],
+      ["claude-code-github-action"],
+    ]);
+    const [[setupUrl, setupRequest], [renewalUrl, renewalRequest]] =
+      fetchSpy.mock.calls;
+    expect(renewalUrl).toBe(setupUrl);
+    expect(renewalRequest).toMatchObject({
+      method: "POST",
+      headers: {
+        Authorization: "Bearer fresh-oidc-token",
+        "Content-Type": "application/json",
+      },
+      body: setupRequest.body,
+      redirect: "error",
+      signal: expect.any(AbortSignal),
+    });
+    expect(setSecretSpy).toHaveBeenLastCalledWith("renewed-app-token");
+  });
+
+  test("leaves the workflow validation veto in place without logging a startup skip during renewal", async () => {
+    const message = "Workflow validation failed";
+    fetchSpy.mockResolvedValue(
+      Response.json({ error: { message } }, { status: 401 }),
+    );
+
+    await expect(renewGitHubAppToken()).rejects.toBeInstanceOf(
+      WorkflowValidationSkipError,
+    );
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(warningSpy).not.toHaveBeenCalled();
+    expect(consoleLogSpy).not.toHaveBeenCalled();
+    expect(setSecretSpy).not.toHaveBeenCalled();
+  });
+
+  test("makes one bounded request to revoke the superseded credential", async () => {
+    fetchSpy.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(revokeGitHubAppToken("superseded-token")).resolves.toBe(true);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${GITHUB_API_URL.replace(/\/+$/, "")}/installation/token`,
+      {
+        method: "DELETE",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: "Bearer superseded-token",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        redirect: "error",
+        signal: expect.any(AbortSignal),
+      },
+    );
+  });
+
+  test("treats HTTP 401 as already revoked and leaves other revocation failures to the caller", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 403 }))
+      .mockRejectedValueOnce(new Error("request with superseded-token failed"));
+
+    await expect(revokeGitHubAppToken("superseded-token")).resolves.toBe(true);
+    await expect(revokeGitHubAppToken("superseded-token")).resolves.toBe(false);
+    await expect(revokeGitHubAppToken("superseded-token")).resolves.toBe(false);
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+    expect(consoleLogSpy).not.toHaveBeenCalled();
     expect(warningSpy).not.toHaveBeenCalled();
   });
 });

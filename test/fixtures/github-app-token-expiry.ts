@@ -3,9 +3,11 @@ import * as core from "@actions/core";
 import type { Octokits } from "../../src/github/api/client";
 import type { ParsedGitHubContext } from "../../src/github/context";
 import { createInitialComment } from "../../src/github/operations/comments/create-initial";
+import * as gitConfig from "../../src/github/operations/git-config";
 
-const oidcToken = "test-oidc-token";
 const appToken = process.env.OVERRIDE_GITHUB_TOKEN || "test-installation-token";
+const renewedToken = "test-renewed-installation-token";
+let oidcRequests = 0;
 const expiresAt = Date.now() + 60 * 60 * 1000;
 const exchangeUrl =
   "https://api.anthropic.com/api/github/github-app-token-exchange";
@@ -16,7 +18,7 @@ mock.module("@actions/core", () => ({
     if (audience !== "claude-code-github-action") {
       throw new Error("Unexpected OIDC audience");
     }
-    return oidcToken;
+    return `test-oidc-token-${++oidcRequests}`;
   },
 }));
 
@@ -31,9 +33,22 @@ mock.module("../../src/modes/tag/index", () => ({
     const comment = await createInitialComment(octokit.rest, context);
     return {
       commentId: comment.id,
-      branchInfo: { baseBranch: "main" },
+      branchInfo: {
+        baseBranch: "main",
+        claudeBranch: process.env.TEST_FINALIZATION_BRANCH,
+      },
       claudeArgs: "",
     };
+  },
+}));
+
+mock.module("../../src/github/operations/git-config", () => ({
+  ...gitConfig,
+  replaceCheckoutCredentials: async (token: string) => {
+    if (token !== renewedToken || process.env.GH_TOKEN !== renewedToken) {
+      throw new Error("Git was configured with the wrong token");
+    }
+    console.log("Fixture applied the renewed token to Git");
   },
 }));
 
@@ -44,9 +59,9 @@ mock.module("../../base-action/src/setup-claude-code-settings", () => ({
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: async function* () {
     yield { type: "system", subtype: "init", session_id: "test-session" };
-    if (process.env.TEST_INSTALLATION_TOKEN_EXPIRES === "true") {
-      setSystemTime(new Date(expiresAt + 1));
-    }
+    const elapsedMinutes = Number(process.env.TEST_SESSION_MINUTES);
+    const startedAt = expiresAt - 60 * 60 * 1000;
+    setSystemTime(new Date(startedAt + elapsedMinutes * 60 * 1000));
     yield { type: "result", subtype: "success", is_error: false };
   },
 }));
@@ -58,11 +73,25 @@ globalThis.fetch = Object.assign(
   ) => {
     const request = new Request(input, init);
     const authorization = request.headers.get("authorization");
-    if (
-      request.url === exchangeUrl &&
-      authorization === `Bearer ${oidcToken}`
-    ) {
-      return Response.json({ token: appToken });
+    if (request.url === exchangeUrl) {
+      if (authorization === "Bearer test-oidc-token-1") {
+        return Response.json({ token: appToken });
+      }
+      if (authorization === "Bearer test-oidc-token-2") {
+        console.log("Fixture received a second token exchange");
+        switch (process.env.TEST_RENEWAL_RESPONSE) {
+          case "deny":
+            return Response.json(
+              { message: "Service unavailable" },
+              { status: 503 },
+            );
+          case "reuse":
+            return Response.json({ token: appToken });
+          default:
+            return Response.json({ token: renewedToken });
+        }
+      }
+      throw new Error("Unexpected exchange assertion");
     }
 
     const url = new URL(request.url);
@@ -70,7 +99,20 @@ globalThis.fetch = Object.assign(
       throw new Error(`Unexpected fetch to ${url.origin}`);
     }
 
-    if (authorization !== `token ${appToken}` || Date.now() >= expiresAt) {
+    if (request.method === "DELETE" && url.pathname === "/installation/token") {
+      if (authorization !== `Bearer ${appToken}`) {
+        throw new Error("Attempted to revoke the wrong token");
+      }
+      console.log("Fixture received revocation of the previous token");
+      return new Response(null, {
+        status: Date.now() >= expiresAt ? 401 : 204,
+      });
+    }
+
+    const accepted =
+      authorization === `token ${renewedToken}` ||
+      (authorization === `token ${appToken}` && Date.now() < expiresAt);
+    if (!accepted) {
       return Response.json({ message: "Bad credentials" }, { status: 401 });
     }
 
@@ -81,6 +123,10 @@ globalThis.fetch = Object.assign(
       case "GET /repos/test-owner/test-repo/issues/comments/42":
       case "PATCH /repos/test-owner/test-repo/issues/comments/42":
         return Response.json({ id: 42, body: "Claude Code is working…" });
+      case "GET /repos/test-owner/test-repo/branches/claude-issue-7":
+        return Response.json({ name: "claude-issue-7" });
+      case "GET /repos/test-owner/test-repo/compare/main...claude-issue-7":
+        return Response.json({ total_commits: 1 });
       default:
         return Response.json({ message: "Not Found" }, { status: 404 });
     }

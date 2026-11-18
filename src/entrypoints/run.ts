@@ -11,7 +11,12 @@ import { dirname } from "path";
 import { spawn } from "child_process";
 import { appendFile } from "fs/promises";
 import { existsSync, readFileSync } from "fs";
-import { setupGitHubToken, WorkflowValidationSkipError } from "../github/token";
+import {
+  renewGitHubAppToken,
+  revokeGitHubAppToken,
+  setupGitHubToken,
+  WorkflowValidationSkipError,
+} from "../github/token";
 import {
   checkBotActorPullRequestAuthor,
   checkWritePermissions,
@@ -44,6 +49,7 @@ import {
   snapshotSessionFiles,
 } from "../github/operations/session-guard";
 import { chooseConfigBranch } from "../github/operations/config-branch";
+import { replaceCheckoutCredentials } from "../github/operations/git-config";
 import {
   fetchBranch,
   keepHeadHistory,
@@ -175,11 +181,33 @@ async function writeStepSummary(executionFile: string): Promise<void> {
 const FORK_REFUSED =
   "Skipped, because allow_fork_prs is not true and this pull request or workflow run is from a fork.";
 
+// Installation tokens last an hour. Leave a margin for the final GitHub writes.
+const GITHUB_APP_TOKEN_RENEWAL_AGE_MS = 55 * 60 * 1000;
+
+function useGitHubToken(token: string): Octokits {
+  process.env.GITHUB_TOKEN = token;
+  process.env.GH_TOKEN = token;
+  return createOctokit(token);
+}
+
+async function getReplacementGitHubToken(currentToken: string) {
+  try {
+    const replacement = await renewGitHubAppToken();
+    if (replacement !== currentToken) return replacement;
+    core.warning("GitHub App exchange returned the current installation token");
+  } catch {
+    core.warning(
+      "GitHub App token renewal failed. Finalization will use the current token.",
+    );
+  }
+}
+
 async function run() {
   // Bun has read this by now, and it's only for the action's own scripts
   delete process.env.BUN_RUNTIME_TRANSPILER_CACHE_PATH;
 
   let githubToken: string | undefined;
+  let appTokenObtainedAt: number | undefined;
   let commentId: number | undefined;
   let claudeBranch: string | undefined;
   let baseBranch: string | undefined;
@@ -213,6 +241,7 @@ async function run() {
 
     try {
       githubToken = await setupGitHubToken();
+      if (!process.env.OVERRIDE_GITHUB_TOKEN) appTokenObtainedAt = Date.now();
     } catch (error) {
       if (error instanceof WorkflowValidationSkipError) {
         core.setOutput("skipped_due_to_workflow_validation_mismatch", "true");
@@ -222,11 +251,7 @@ async function run() {
       throw error;
     }
 
-    octokit = createOctokit(githubToken);
-
-    // Set GITHUB_TOKEN and GH_TOKEN in process env for downstream usage
-    process.env.GITHUB_TOKEN = githubToken;
-    process.env.GH_TOKEN = githubToken;
+    octokit = useGitHubToken(githubToken);
 
     // Check write permissions for entity contexts, and for workflow_run
     // events, whose upstream run may have been started by an actor without
@@ -467,6 +492,39 @@ async function run() {
     // material so it doesn't outlive this step
     workloadIdentity?.stop();
 
+    let supersededToken: string | undefined;
+    const hasPostSessionDelivery =
+      context &&
+      isEntityContext(context) &&
+      (commentId || (context.isPR && context.inputs.classifyInlineComments));
+    if (
+      prepareCompleted &&
+      hasPostSessionDelivery &&
+      githubToken &&
+      appTokenObtainedAt !== undefined &&
+      Date.now() - appTokenObtainedAt >= GITHUB_APP_TOKEN_RENEWAL_AGE_MS
+    ) {
+      const renewal = await getReplacementGitHubToken(githubToken);
+      if (renewal) {
+        supersededToken = githubToken;
+        githubToken = renewal;
+        octokit = useGitHubToken(renewal);
+        // The always() revocation step needs the replacement even if cleanup fails.
+        core.setOutput("github_token", renewal);
+
+        if (context && claudeBranch && !context.inputs.useCommitSigning) {
+          try {
+            await replaceCheckoutCredentials(renewal, context);
+          } catch {
+            conclusion = "failure";
+            core.setFailed(
+              "Could not apply the renewed GitHub App token to Git for finalization.",
+            );
+          }
+        }
+      }
+    }
+
     // Update tracking comment
     if (
       commentId &&
@@ -493,7 +551,7 @@ async function run() {
         });
       } catch (error) {
         if (
-          !process.env.OVERRIDE_GITHUB_TOKEN &&
+          appTokenObtainedAt !== undefined &&
           error instanceof Error &&
           "status" in error &&
           error.status === 401
@@ -508,6 +566,12 @@ async function run() {
       }
     }
 
+    if (supersededToken && !(await revokeGitHubAppToken(supersededToken))) {
+      core.warning(
+        "Could not revoke the previous GitHub App installation token",
+      );
+    }
+
     // Write step summary (unless display_report is set to false)
     if (
       executionFile &&
@@ -519,7 +583,7 @@ async function run() {
 
     // Set remaining action-level outputs
     core.setOutput("branch_name", claudeBranch);
-    core.setOutput("github_token", githubToken);
+    if (!supersededToken) core.setOutput("github_token", githubToken);
     if (conclusion) core.setOutput("conclusion", conclusion);
   }
 }
