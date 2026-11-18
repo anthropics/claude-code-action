@@ -184,7 +184,7 @@ async function run() {
   let claudeBranch: string | undefined;
   let baseBranch: string | undefined;
   let executionFile: string | undefined;
-  let claudeSuccess = false;
+  let conclusion: ClaudeRunResult["conclusion"] | undefined;
   let prepareSuccess = true;
   let prepareError: string | undefined;
   let context: GitHubContext | undefined;
@@ -437,7 +437,7 @@ async function run() {
       core.setOutput("skipped_due_to_workflow_validation_mismatch", "false");
     }
 
-    claudeSuccess = claudeResult.conclusion === "success";
+    conclusion = claudeResult.conclusion;
     executionFile = claudeResult.executionFile;
 
     // Set action-level outputs
@@ -450,7 +450,6 @@ async function run() {
     if (claudeResult.structuredOutput) {
       core.setOutput("structured_output", claudeResult.structuredOutput);
     }
-    core.setOutput("conclusion", claudeResult.conclusion);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     executionFile ??= setExecutionFileOutputIfPresent();
@@ -485,7 +484,7 @@ async function run() {
           triggerUsername: context.actor,
           context,
           octokit,
-          claudeSuccess,
+          claudeSuccess: conclusion === "success",
           outputFile: executionFile,
           prepareSuccess,
           prepareError,
@@ -493,7 +492,19 @@ async function run() {
           restoredConfigPaths,
         });
       } catch (error) {
-        console.error("Error updating comment with job link:", error);
+        if (
+          !process.env.OVERRIDE_GITHUB_TOKEN &&
+          error instanceof Error &&
+          "status" in error &&
+          error.status === 401
+        ) {
+          conclusion = "failure";
+          core.setFailed(
+            "GitHub rejected the action's installation token during finalization (HTTP 401). Installation tokens expire after one hour. Check the execution log for GitHub updates that may not have completed.",
+          );
+        } else {
+          console.error("Error updating comment with job link:", error);
+        }
       }
     }
 
@@ -509,6 +520,7 @@ async function run() {
     // Set remaining action-level outputs
     core.setOutput("branch_name", claudeBranch);
     core.setOutput("github_token", githubToken);
+    if (conclusion) core.setOutput("conclusion", conclusion);
   }
 }
 
