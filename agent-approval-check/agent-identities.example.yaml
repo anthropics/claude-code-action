@@ -7,8 +7,9 @@
 agent_emails:
   - noreply@anthropic.com
 
-# GitHub logins treated as agents — a PR opened by, or an APPROVED review
-# from, one of these triggers the check.
+# GitHub logins treated as agents: a PR opened by one of these, an APPROVED
+# review from one, or a commit whose committer address is
+# <id>+<login>@users.noreply.github.com, triggers the check.
 agent_app_logins:
   - claude[bot]
   - claude-code[bot]
