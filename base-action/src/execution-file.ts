@@ -22,7 +22,13 @@ export async function writeExecutionFile(
   }
 
   try {
-    await writeFile(executionFile, JSON.stringify(messages, null, 2));
+    // JSON.stringify escapes lone UTF-16 surrogates, which jq rejects.
+    // Consume escaped backslashes first so literal text like "\ud800" survives.
+    const json = JSON.stringify(messages, null, 2).replace(
+      /\\\\|\\ud[89a-f][0-9a-f]{2}/g,
+      (escape) => (escape === "\\\\" ? escape : "\uFFFD"),
+    );
+    await writeFile(executionFile, json);
     console.log(`Log saved to ${executionFile}`);
     return executionFile;
   } catch (error) {
