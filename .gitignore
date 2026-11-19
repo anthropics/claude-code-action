@@ -6,3 +6,7 @@ scripts/.restored-paths
 scripts/.git-repo
 
 **/.claude/settings.local.json
+
+# Python bytecode and pytest caches (agent-approval-check)
+__pycache__/
+.pytest_cache/
