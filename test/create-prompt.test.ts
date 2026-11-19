@@ -309,6 +309,44 @@ describe("generatePrompt", () => {
     expect(prompt).not.toContain("CUSTOM INSTRUCTIONS");
   });
 
+  test("should rewrite image URLs in trigger comment using imageUrlMap", async () => {
+    const rawUrl =
+      "https://github.com/user-attachments/assets/12345678-1234-1234-1234-123456789abc";
+    const localPath =
+      "/tmp/github-images/12345678-1234-1234-1234-123456789abc.png";
+    const githubDataWithImages = {
+      ...mockGitHubData,
+      imageUrlMap: new Map([[rawUrl, localPath]]),
+    };
+
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issue_comment",
+        commentId: "123",
+        isPR: false,
+        issueNumber: "456",
+        baseBranch: "main",
+        claudeBranch: "claude/issue-456",
+        commentBody: `@claude see this error screenshot: ![error](${rawUrl})`,
+      },
+    };
+
+    const prompt = await generatePrompt(
+      envVars,
+      githubDataWithImages,
+      false,
+      "tag",
+    );
+
+    expect(prompt).toContain(
+      `<trigger_comment>\n@claude see this error screenshot: ![](${localPath})\n</trigger_comment>`,
+    );
+    expect(prompt).not.toContain(rawUrl);
+  });
+
   test("should use override_prompt when provided", async () => {
     const envVars: PreparedContext = {
       repository: "owner/repo",
@@ -1457,6 +1495,39 @@ describe("extractUserRequestFromContext", () => {
       );
     expect(fromComment("maintainer", "maintainer")).toBe("/deploy now");
     expect(fromComment("outsider", "maintainer")).toBeNull();
+  });
+
+  test("rewrites image URLs in user request using imageUrlMap", () => {
+    const rawUrl =
+      "https://github.com/user-attachments/assets/12345678-1234-1234-1234-123456789abc";
+    const localPath =
+      "/tmp/github-images/12345678-1234-1234-1234-123456789abc.png";
+    const imageUrlMap = new Map([[rawUrl, localPath]]);
+
+    const result = extractUserRequestFromContext(
+      {
+        repository: "o/r",
+        triggerPhrase: "@claude",
+        claudeCommentId: "1",
+        eventData: {
+          eventName: "issue_comment",
+          commentBody: `@claude please check this screenshot ![screenshot](${rawUrl})`,
+        },
+        githubContext: {
+          eventName: "issue_comment",
+          actor: "maintainer",
+          payload: { comment: { user: { login: "maintainer" } } },
+        },
+      } as any,
+      {
+        contextData: {},
+        imageUrlMap,
+      } as any,
+    );
+
+    expect(result).toBe(
+      `please check this screenshot ![screenshot](${localPath})`,
+    );
   });
 
   test("ignores the body when its author is unknown", () => {
