@@ -8,6 +8,28 @@ import type {
 import type { GitHubFileWithSHA } from "./fetcher";
 import { sanitizeContent } from "../utils/sanitizer";
 
+// A diffHunk runs from the hunk start to the commented line, so a comment far
+// down a new file carries the whole file above it (#1819). Keep the tail.
+export const MAX_DIFF_HUNK_LINES = 20;
+
+export function truncateDiffHunk(
+  diffHunk: string,
+  maxLines: number = MAX_DIFF_HUNK_LINES,
+): string {
+  const lines = diffHunk.split("\n");
+  const headerCount = lines[0]?.startsWith("@@") ? 1 : 0;
+  const body = lines.slice(headerCount);
+  if (body.length <= maxLines) {
+    return diffHunk;
+  }
+  const omitted = body.length - maxLines;
+  return [
+    ...lines.slice(0, headerCount),
+    `... ${omitted} line${omitted === 1 ? "" : "s"} omitted ...`,
+    ...body.slice(-maxLines),
+  ].join("\n");
+}
+
 function formatLabels(labelNodes: Array<{ name: string }>): string {
   if (labelNodes.length === 0) return "none";
   return labelNodes.map((l) => l.name).join(", ");
@@ -123,7 +145,10 @@ export function formatReviewComments(
           // The diff hunk is the code the comment was left on. Without it the
           // comment arrives without the context it was written against.
           if (comment.diffHunk) {
-            const diffHunk = sanitizeContent(comment.diffHunk);
+            // Sanitize first so an HTML comment spanning the cut goes whole.
+            const diffHunk = truncateDiffHunk(
+              sanitizeContent(comment.diffHunk),
+            );
             formatted += `\n  Diff context:\n\`\`\`diff\n${diffHunk}\n\`\`\``;
           }
 
