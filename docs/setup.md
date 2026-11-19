@@ -113,7 +113,7 @@ If you prefer to configure the app manually or need custom permissions:
 
    - Go to https://github.com/settings/apps (for personal apps) or your organization's settings
    - Click "New GitHub App"
-   - Configure the app with these minimum permissions:
+   - Configure these permissions for a workflow that responds to issues and pull requests and can push changes:
      - **Repository permissions:**
        - Contents: Read & Write
        - Issues: Read & Write
@@ -170,12 +170,22 @@ If you prefer to configure the app manually or need custom permissions:
              # ... other configuration
    ```
 
-**Important notes:**
+### Review-only custom App
 
-- The custom app must have read/write permissions for Issues, Pull Requests, and Contents
-- Your app's token will have the exact permissions you configured, nothing more
+A pull request review that reads the checkout can use **Contents: Read-only**
+on the custom App. Use an explicit `prompt` to run in agent mode and pass the
+custom App's installation token as `github_token`.
 
-For more information on creating GitHub Apps, see the [GitHub documentation](https://docs.github.com/en/apps/creating-github-apps).
+- Grant **Pull requests: Read-only** to inspect pull request data, or **Read and
+  write** to post review comments.
+- Grant **Issues: Read and write** if the workflow also posts comments on
+  standalone issues.
+- Grant **Contents: Read and write** for workflows that push commits or create
+  remote branches.
+
+The App's token controls repository operations. The Action checks the
+triggering user's access separately. See the [access control guidance](./security.md#access-control)
+and the [GitHub App documentation](https://docs.github.com/en/apps/creating-github-apps).
 
 ## Security Best Practices
 
