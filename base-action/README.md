@@ -128,6 +128,7 @@ Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federa
 | `prompt_file`                    | Path to a file containing the prompt to send to Claude Code                                                             | No\*     | `''`          |
 | `settings`                       | Claude Code settings as a JSON string or path to a settings JSON file                                                   | No       | `''`          |
 | `claude_args`                    | Additional arguments to pass directly to the Claude CLI                                                                 | No       | `''`          |
+| `on_schema_violation`            | Local structured output validation policy: `fail`, `warn`, or `ignore`                                                  | No       | `fail`        |
 | `anthropic_api_key`              | Anthropic API key for direct Anthropic API authentication                                                               | No       | `''`          |
 | `claude_code_oauth_token`        | Claude Code OAuth token as an alternative to an Anthropic API key                                                       | No       | `''`          |
 | `anthropic_federation_rule_id`   | Workload identity federation rule ID (fdrl\_...). Requires `id-token: write` permission                                 | No       | `''`          |
@@ -151,12 +152,14 @@ Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federa
 
 ## Outputs
 
-| Output              | Description                                                                                       |
-| ------------------- | ------------------------------------------------------------------------------------------------- |
-| `conclusion`        | Execution status of Claude Code ('success' or 'failure')                                          |
-| `execution_file`    | Path to the JSON file containing Claude Code execution log                                        |
-| `structured_output` | JSON string containing structured output fields when `--json-schema` is provided in `claude_args` |
-| `session_id`        | The Claude Code session ID that can be used with `--resume` to continue this conversation         |
+| Output                         | Description                                                                                       |
+| ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `conclusion`                   | Execution status of Claude Code ('success' or 'failure')                                          |
+| `execution_file`               | Path to the JSON file containing Claude Code execution log                                        |
+| `structured_output`            | JSON string containing structured output fields when `--json-schema` is provided in `claude_args` |
+| `structured_output_valid`      | `'true'` or `'false'` when the result is checked against `--json-schema`                          |
+| `structured_output_violations` | JSON array of schema violation locations and keywords, or `[]` when valid                         |
+| `session_id`                   | The Claude Code session ID that can be used with `--resume` to continue this conversation         |
 
 ## Environment Variables
 

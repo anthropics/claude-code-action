@@ -9,6 +9,7 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import type { ParsedSdkOptions } from "./parse-sdk-options";
 import { writeExecutionFile } from "./execution-file";
+import { compileOutputSchema } from "./structured-output-validation";
 
 export type ClaudeRunResult = {
   executionFile?: string;
@@ -184,9 +185,15 @@ export async function runClaudeWithSdk(
     sdkOptions,
     showFullOutput,
     hasJsonSchema,
+    schemaViolationPolicy = "fail",
     fallbackPermissionMode,
   }: ParsedSdkOptions,
 ): Promise<ClaudeRunResult> {
+  const validateOutput =
+    hasJsonSchema && schemaViolationPolicy !== "ignore"
+      ? compileOutputSchema(sdkOptions.extraArgs?.["json-schema"])
+      : undefined;
+
   // Create prompt configuration - may be a string or multi-block message
   let releasePrompt = () => {};
   const promptHeldOpen = new Promise<void>((resolve) => {
@@ -309,12 +316,37 @@ export async function runClaudeWithSdk(
     if (
       isSuccess &&
       "structured_output" in resultMessage &&
-      resultMessage.structured_output
+      resultMessage.structured_output !== undefined
     ) {
-      result.structuredOutput = JSON.stringify(resultMessage.structured_output);
-      core.info(
-        `Set structured_output with ${Object.keys(resultMessage.structured_output as object).length} field(s)`,
-      );
+      const output = resultMessage.structured_output;
+      if (validateOutput) {
+        const valid = validateOutput(output);
+        // Publish locations and keywords only. Ajv error parameters may contain
+        // values from the model result or schema.
+        const violations = (validateOutput.errors ?? []).map(
+          ({ instancePath, schemaPath, keyword }) => ({
+            instancePath,
+            schemaPath,
+            keyword,
+          }),
+        );
+        core.setOutput("structured_output_valid", valid);
+        core.setOutput(
+          "structured_output_violations",
+          JSON.stringify(violations),
+        );
+        if (!valid) {
+          const message = `Claude structured output did not match --json-schema. See structured_output_violations for ${violations.length} schema validation error(s).`;
+          if (schemaViolationPolicy === "fail") {
+            core.setFailed(message);
+            result.conclusion = "failure";
+            return result;
+          }
+          core.warning(message);
+        }
+      }
+      result.structuredOutput = JSON.stringify(output);
+      core.info("Set structured_output from the Claude result");
     } else {
       core.setFailed(
         `--json-schema was provided but Claude did not return structured_output. Result subtype: ${resultMessage.subtype}`,

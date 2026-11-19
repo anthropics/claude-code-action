@@ -6,7 +6,9 @@ import { tmpdir } from "os";
 import { join } from "path";
 
 describe("runClaudeWithSdk", () => {
+  const originalExitCode = process.exitCode;
   const originalRunnerTemp = process.env.RUNNER_TEMP;
+  const originalGitHubOutput = process.env.GITHUB_OUTPUT;
   let tempDir: string | undefined;
 
   afterEach(async () => {
@@ -14,8 +16,85 @@ describe("runClaudeWithSdk", () => {
       await rm(tempDir, { recursive: true, force: true });
       tempDir = undefined;
     }
-    process.env.RUNNER_TEMP = originalRunnerTemp;
+    process.exitCode = originalExitCode ?? 0;
+    if (originalRunnerTemp === undefined) delete process.env.RUNNER_TEMP;
+    else process.env.RUNNER_TEMP = originalRunnerTemp;
+    if (originalGitHubOutput === undefined) delete process.env.GITHUB_OUTPUT;
+    else process.env.GITHUB_OUTPUT = originalGitHubOutput;
   });
+
+  test.each(["fail", "warn", "ignore", "valid"] as const)(
+    "handles structured output with %s validation",
+    async (scenario) => {
+      tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-schema-"));
+      process.env.RUNNER_TEMP = tempDir;
+      const outputsFile = join(tempDir, "outputs");
+      process.env.GITHUB_OUTPUT = outputsFile;
+      await writeFile(outputsFile, "");
+      const promptPath = join(tempDir, "prompt.txt");
+      await writeFile(promptPath, "test prompt");
+
+      const output =
+        scenario === "valid"
+          ? { ready: true, confidence: 1, reason: "approved" }
+          : { confidence: 2, reason: false };
+      const schema = {
+        type: "object",
+        properties: {
+          ready: { type: "boolean" },
+          confidence: { type: "number", maximum: 1 },
+          reason: { type: "string" },
+        },
+        required: ["ready", "confidence"],
+      };
+      mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+        query: async function* () {
+          yield {
+            type: "result",
+            subtype: "success",
+            is_error: false,
+            structured_output: output,
+          };
+        },
+      }));
+
+      const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+      const result = await runClaudeWithSdk(promptPath, {
+        sdkOptions: { extraArgs: { "json-schema": JSON.stringify(schema) } },
+        showFullOutput: false,
+        hasJsonSchema: true,
+        schemaViolationPolicy:
+          scenario === "warn" || scenario === "ignore" ? scenario : undefined,
+      });
+
+      if (scenario === "fail") {
+        expect(result.conclusion).toBe("failure");
+        expect(result.structuredOutput).toBeUndefined();
+        expect(process.exitCode).toBe(1);
+      } else {
+        expect(result).toMatchObject({
+          conclusion: "success",
+          structuredOutput: JSON.stringify(output),
+        });
+      }
+
+      const outputs = await readFile(outputsFile, "utf-8");
+      if (scenario === "ignore") {
+        expect(outputs).toBe("");
+      } else {
+        expect(outputs).toContain("structured_output_valid<<");
+        expect(outputs).toContain(`\n${scenario === "valid"}\n`);
+        expect(outputs).toContain("structured_output_violations<<");
+        if (scenario === "valid") {
+          expect(outputs).toContain("\n[]\n");
+        } else {
+          expect(outputs).toContain('"keyword":"required"');
+          expect(outputs).toContain('"keyword":"maximum"');
+          expect(outputs).toContain('"keyword":"type"');
+        }
+      }
+    },
+  );
 
   test("writes the execution file when the SDK throws after yielding messages", async () => {
     const consoleErrorSpy = spyOn(console, "error").mockImplementation(

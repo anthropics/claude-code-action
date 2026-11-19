@@ -17,6 +17,8 @@
     "@octokit/graphql": "^8.2.2",
     "@octokit/rest": "^21.1.1",
     "@octokit/webhooks-types": "^7.6.1",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "node-fetch": "^3.3.2",
     "shell-quote": "^1.8.4",
     "zod": "^3.24.4"
