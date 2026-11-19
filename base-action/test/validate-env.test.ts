@@ -236,7 +236,7 @@ describe("validateEnvironmentVariables", () => {
     test("should pass when ANTHROPIC_FOUNDRY_BASE_URL is provided", () => {
       process.env.CLAUDE_CODE_USE_FOUNDRY = "1";
       process.env.ANTHROPIC_FOUNDRY_BASE_URL =
-        "https://test-resource.services.ai.azure.com";
+        "https://test-resource.services.ai.azure.com/anthropic";
 
       expect(() => validateEnvironmentVariables()).not.toThrow();
     });
@@ -245,7 +245,7 @@ describe("validateEnvironmentVariables", () => {
       process.env.CLAUDE_CODE_USE_FOUNDRY = "1";
       process.env.ANTHROPIC_FOUNDRY_RESOURCE = "test-resource";
       process.env.ANTHROPIC_FOUNDRY_BASE_URL =
-        "https://custom.services.ai.azure.com";
+        "https://custom.services.ai.azure.com/anthropic";
 
       expect(() => validateEnvironmentVariables()).not.toThrow();
     });
