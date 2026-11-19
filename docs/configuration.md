@@ -204,6 +204,24 @@ You can pass custom environment variables to Claude Code execution using the `se
 
 These environment variables will be available to Claude Code during execution, allowing it to run tests, build processes, or other commands that depend on specific environment configurations.
 
+### Bash command timeouts
+
+Use `settings.env` to configure how long Claude Code waits for Bash commands. `BASH_DEFAULT_TIMEOUT_MS` sets the default for a foreground command. `BASH_MAX_TIMEOUT_MS` sets the ceiling for a longer timeout requested by Claude, with the default as a minimum ceiling. Both values are in milliseconds.
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    settings: |
+      {
+        "env": {
+          "BASH_DEFAULT_TIMEOUT_MS": "300000",
+          "BASH_MAX_TIMEOUT_MS": "900000"
+        }
+      }
+```
+
+This example sets a five-minute default and allows requests of up to fifteen minutes. The GitHub Actions job's `timeout-minutes` still bounds the whole job. See the [Claude Code environment variables reference](https://code.claude.com/docs/en/env-vars).
+
 ## Limiting Conversation Turns
 
 You can limit the number of back-and-forth exchanges Claude can have during task execution using the `claude_args` input. This is useful for:
