@@ -24,6 +24,29 @@ This action supports the following GitHub events ([learn more GitHub event trigg
 - `repository_dispatch` - Custom events triggered via API
 - `workflow_dispatch` - Manual workflow triggers (coming soon)
 
+## Use a Project Skill
+
+Check out a repository that contains the skill at
+`.claude/skills/<skill-name>/SKILL.md` before running the action. Ask Claude
+to use the skill in your prompt and allow that specific invocation with
+`Skill(<skill-name>)` in `claude_args`.
+
+```yaml
+- uses: actions/checkout@v6
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    prompt: "Use the /summarize-changes skill to summarize recent changes."
+    claude_args: |
+      --allowedTools "Skill(summarize-changes)"
+```
+
+For PR runs, put the skill on the trusted base branch. The action restores
+`.claude/` from that branch before starting Claude. If you override
+`--setting-sources`, include `project` to load repository settings. See the
+[Claude Code skills guide](https://code.claude.com/docs/en/skills) for skill
+locations, names, and permission rules.
+
 ## Automated Documentation Updates
 
 Automatically update documentation when specific files change (see [`examples/pr-review-filtered-paths.yml`](../examples/pr-review-filtered-paths.yml)):
