@@ -1,6 +1,7 @@
 import {
   checkContainsTrigger,
   escapeRegExp,
+  isModeration,
 } from "../src/github/validation/trigger";
 import { describe, it, expect } from "bun:test";
 import {
@@ -623,5 +624,100 @@ describe("checkContainsTrigger when the text is someone else's", () => {
         },
       } as ParsedGitHubContext),
     ).toBe(false);
+  });
+});
+
+describe("isModeration", () => {
+  const event = (
+    base: ParsedGitHubContext,
+    kind: "comment" | "review",
+    eventAction: string,
+    author: string | null,
+    actor: string,
+  ) =>
+    ({
+      ...base,
+      eventAction,
+      actor,
+      payload: {
+        ...base.payload,
+        action: eventAction,
+        [kind]: {
+          ...(base.payload as any)[kind],
+          user: author && { login: author },
+        },
+      },
+    }) as ParsedGitHubContext;
+  const comments = [
+    mockIssueCommentContext,
+    mockPullRequestReviewCommentContext,
+  ];
+
+  it("is true when someone else edits or deletes a comment", () => {
+    for (const base of comments) {
+      for (const action of ["edited", "deleted"]) {
+        for (const author of ["outsider", null]) {
+          expect(
+            isModeration(event(base, "comment", action, author, "maintainer")),
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("is true when someone else edits or dismisses a review", () => {
+    for (const action of ["edited", "dismissed"]) {
+      expect(
+        isModeration(
+          event(
+            mockPullRequestReviewContext,
+            "review",
+            action,
+            "outsider",
+            "maintainer",
+          ),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("is true for any deleted comment", () => {
+    for (const base of comments) {
+      expect(
+        isModeration(event(base, "comment", "deleted", "writer", "writer")),
+      ).toBe(true);
+    }
+  });
+
+  it("is false for a person's own edit", () => {
+    for (const base of comments) {
+      expect(
+        isModeration(event(base, "comment", "edited", "Writer", "writer")),
+      ).toBe(false);
+    }
+  });
+
+  it("is false for a new comment or review, whatever login its app has", () => {
+    for (const base of comments) {
+      expect(
+        isModeration(event(base, "comment", "created", "app[bot]", "App")),
+      ).toBe(false);
+    }
+    expect(
+      isModeration(
+        event(
+          mockPullRequestReviewContext,
+          "review",
+          "submitted",
+          "app[bot]",
+          "App",
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  it("is false for events with no comment or review", () => {
+    expect(isModeration(mockIssueLabeledContext)).toBe(false);
+    expect(isModeration(mockIssueOpenedContext)).toBe(false);
   });
 });
