@@ -63,6 +63,7 @@ jobs:
 | `anthropic_oidc_audience`        | Audience requested on the GitHub OIDC token used for workload identity federation                                                                                                                                                      | No       | `https://api.anthropic.com` |
 | `prompt`                         | Instructions for Claude. Can be a direct prompt or custom template for automation workflows                                                                                                                                            | No       | -                           |
 | `track_progress`                 | Force tag mode with tracking comments. Only works with specific PR/issue events. Preserves GitHub context                                                                                                                              | No       | `false`                     |
+| `post_summary`                   | Publish Claude's final response as a PR comment after a successful agent-mode run. See [Agent-mode summary comments](#agent-mode-summary-comments).                                                                                    | No       | `false`                     |
 | `include_fix_links`              | Include 'Fix this' links in PR code review feedback that open Claude Code with context to fix the identified issue                                                                                                                     | No       | `true`                      |
 | `claude_args`                    | Additional [arguments to pass directly to Claude CLI](https://docs.claude.com/en/docs/claude-code/cli-reference#cli-flags) (e.g., `--max-turns 10 --model claude-4-0-sonnet-20250805`)                                                 | No       | ""                          |
 | `base_branch`                    | The base branch to use for creating new branches (e.g., 'main', 'develop'). See also [Security](./security.md#which-files-come-from-the-base-branch-on-pull-requests)                                                                  | No       | -                           |
@@ -113,6 +114,12 @@ These inputs are deprecated and will be removed in a future version:
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 
 > **Note**: This action is currently in beta. Features and APIs may change as we continue to improve the integration.
+
+## Agent-mode summary comments
+
+Set `post_summary: true` to publish Claude's final response after a successful agent-mode run on a pull request. Enable this only for trusted workflow prompts and inputs.
+
+The action reuses an existing summary when it can verify that the active credential owns the comment. If you pass a custom GitHub App installation token through `github_token`, each successful run with a final response posts a new comment. GitHub's [authenticated user endpoint](https://docs.github.com/en/rest/users/users#get-the-authenticated-user) does not support installation tokens, so the action cannot verify the custom bot's identity through that endpoint.
 
 ## Permission Mode
 
