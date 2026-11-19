@@ -14,6 +14,40 @@ describe("updateCommentBody", () => {
     triggerUsername: undefined,
   };
 
+  describe("compact tracking comment", () => {
+    it("keeps the completion status and links while omitting the progress body", () => {
+      const result = updateCommentBody({
+        ...baseInput,
+        currentBody: "Claude Code is working…\n\n- [x] Reviewed changes",
+        includeSummary: false,
+        triggerUsername: "reviewer",
+        branchName: "claude/review",
+        prLink:
+          "[Create a PR](https://github.com/owner/repo/compare/main...claude/review)",
+      });
+
+      expect(result).toContain("**Claude finished @reviewer's task**");
+      expect(result).toContain(`[View job](${baseInput.jobUrl})`);
+      expect(result).toContain("[\`claude/review\`]");
+      expect(result).toContain("[Create PR ➔]");
+      expect(result).not.toContain("Reviewed changes");
+    });
+
+    it("preserves failure diagnostics in a compact comment", () => {
+      const result = updateCommentBody({
+        ...baseInput,
+        currentBody: "Claude Code is working…\n\n- [ ] Review changes",
+        includeSummary: false,
+        actionFailed: true,
+        errorDetails: "Could not fetch the pull request",
+      });
+
+      expect(result).toContain("**Claude encountered an error**");
+      expect(result).toContain("Could not fetch the pull request");
+      expect(result).not.toContain("Review changes");
+    });
+  });
+
   describe("working message replacement", () => {
     it("includes success message header with duration", () => {
       const input = {
