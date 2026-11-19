@@ -1,7 +1,13 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect, beforeAll } from "bun:test";
+import { describe, test, expect, beforeAll, spyOn } from "bun:test";
+import * as core from "@actions/core";
+import { mkdtemp, readFile, rm } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+import type { IssueCommentEvent } from "@octokit/webhooks-types";
 import {
+  createPrompt,
   extractUserRequestFromContext,
   generatePrompt,
   getEventTypeAndContext,
@@ -10,7 +16,9 @@ import {
   prepareContext,
 } from "../src/create-prompt";
 import type { PreparedContext } from "../src/create-prompt";
-import { createMockContext } from "./mockContext";
+import { checkContainsTrigger } from "../src/github/validation/trigger";
+import { detectMode } from "../src/modes/detector";
+import { createMockContext, mockIssueCommentContext } from "./mockContext";
 
 beforeAll(() => {
   process.env.GITHUB_ACTION_PATH = "/test/action/path";
@@ -126,6 +134,67 @@ describe("generatePrompt", () => {
     },
     imageUrlMap: new Map<string, string>(),
   };
+
+  describe("trigger fallback task", () => {
+    const fallback = "Review for regressions.";
+
+    function mentionContext(body: string, triggerPrompt = fallback) {
+      const payload = mockIssueCommentContext.payload as IssueCommentEvent;
+      return createMockContext({
+        ...mockIssueCommentContext,
+        payload: { ...payload, comment: { ...payload.comment, body } },
+        inputs: { ...mockIssueCommentContext.inputs, triggerPrompt },
+      });
+    }
+
+    test.each([
+      ["@claude", fallback, fallback],
+      ["@claude /review-pr", fallback, "/review-pr"],
+      ["@claude", "", null],
+    ])(
+      "selects a task for %j with fallback %j",
+      async (body, defaultTask, task) => {
+        const context = mentionContext(body, defaultTask);
+        expect(detectMode(context)).toBe("tag");
+        expect(checkContainsTrigger(context)).toBe(true);
+
+        const originalRunnerTemp = process.env.RUNNER_TEMP;
+        const runnerTemp = await mkdtemp(join(tmpdir(), "trigger-prompt-"));
+        const exportVariable = spyOn(core, "exportVariable").mockImplementation(
+          () => {},
+        );
+        process.env.RUNNER_TEMP = runnerTemp;
+        try {
+          await createPrompt(1, "main", "claude/task", mockGitHubData, context);
+          const requestPath = join(
+            runnerTemp,
+            "claude-prompts",
+            "claude-user-request.txt",
+          );
+          if (task === null) {
+            await expect(readFile(requestPath, "utf8")).rejects.toHaveProperty(
+              "code",
+              "ENOENT",
+            );
+          } else {
+            await expect(readFile(requestPath, "utf8")).resolves.toBe(task);
+          }
+        } finally {
+          exportVariable.mockRestore();
+          if (originalRunnerTemp === undefined) delete process.env.RUNNER_TEMP;
+          else process.env.RUNNER_TEMP = originalRunnerTemp;
+          await rm(runnerTemp, { recursive: true, force: true });
+        }
+      },
+    );
+
+    test("a configured fallback is not a trigger on its own", () => {
+      const context = mentionContext("Thanks for the update.");
+      expect(checkContainsTrigger(context)).toBe(false);
+      expect(detectMode(context)).toBe("agent");
+      expect(context.inputs.prompt).toBe("");
+    });
+  });
 
   test("should generate prompt for issue_comment event", async () => {
     const envVars: PreparedContext = {
