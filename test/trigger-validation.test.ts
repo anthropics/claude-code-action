@@ -1,6 +1,7 @@
 import {
   checkContainsTrigger,
   escapeRegExp,
+  isModeration,
 } from "../src/github/validation/trigger";
 import { describe, it, expect } from "bun:test";
 import {
@@ -486,5 +487,237 @@ describe("escapeRegExp", () => {
   it("should handle mixed characters", () => {
     expect(escapeRegExp("hello.world")).toBe("hello\\.world");
     expect(escapeRegExp("test[123]")).toBe("test\\[123\\]");
+  });
+});
+
+describe("checkContainsTrigger with a prompt on issue events", () => {
+  const issueEvent = (
+    payloadExtra: object,
+    eventAction: string,
+    inputs: object,
+  ): ParsedGitHubContext =>
+    createMockContext({
+      eventName: "issues",
+      eventAction,
+      inputs: {
+        prompt: "Triage this issue",
+        labelTrigger: "claude-task",
+        assigneeTrigger: "",
+        ...inputs,
+      } as any,
+      payload: { action: eventAction, issue: { number: 1 }, ...payloadExtra },
+    } as any);
+
+  it("does not start on a label other than the trigger label", () => {
+    expect(
+      checkContainsTrigger(
+        issueEvent({ label: { name: "bug" } }, "labeled", {}),
+      ),
+    ).toBe(false);
+  });
+
+  it("starts on the trigger label, ignoring case", () => {
+    expect(
+      checkContainsTrigger(
+        issueEvent({ label: { name: "Claude-Task" } }, "labeled", {}),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not start on an assignment to someone else", () => {
+    expect(
+      checkContainsTrigger(
+        issueEvent({ assignee: { login: "teammate" } }, "assigned", {
+          assigneeTrigger: "claude-bot",
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("starts on any assignment when no assignee trigger is set", () => {
+    expect(
+      checkContainsTrigger(
+        issueEvent({ assignee: { login: "teammate" } }, "assigned", {}),
+      ),
+    ).toBe(true);
+  });
+
+  it("still starts on other issue events", () => {
+    expect(checkContainsTrigger(issueEvent({}, "opened", {}))).toBe(true);
+  });
+});
+
+describe("checkContainsTrigger when the text is someone else's", () => {
+  const commentEvent = (eventAction: string, author: string, actor: string) =>
+    ({
+      ...mockIssueCommentContext,
+      eventAction,
+      actor,
+      payload: {
+        ...mockIssueCommentContext.payload,
+        action: eventAction,
+        comment: {
+          ...(mockIssueCommentContext.payload as any).comment,
+          body: "@claude do this",
+          user: { login: author },
+        },
+      },
+    }) as ParsedGitHubContext;
+
+  it("starts on a person's own new comment", () => {
+    const context = commentEvent("created", "maintainer", "maintainer");
+    expect(
+      checkContainsTrigger({
+        ...context,
+        inputs: { ...context.inputs, triggerPhrase: "@claude" },
+      }),
+    ).toBe(true);
+  });
+
+  it("does not start when a maintainer edits an outsider's comment", () => {
+    const context = commentEvent("edited", "outsider", "maintainer");
+    expect(
+      checkContainsTrigger({
+        ...context,
+        inputs: { ...context.inputs, triggerPhrase: "@claude" },
+      }),
+    ).toBe(false);
+  });
+
+  it("does not start on someone else's edited comment even with a prompt", () => {
+    const context = commentEvent("edited", "outsider", "maintainer");
+    expect(
+      checkContainsTrigger({
+        ...context,
+        inputs: { ...context.inputs, prompt: "Triage this" },
+      }),
+    ).toBe(false);
+  });
+
+  it("does not start on a deleted comment, even the actor's own", () => {
+    const context = commentEvent("deleted", "maintainer", "maintainer");
+    expect(
+      checkContainsTrigger({
+        ...context,
+        inputs: { ...context.inputs, triggerPhrase: "@claude" },
+      }),
+    ).toBe(false);
+  });
+
+  it("does not start when a review was written by someone else", () => {
+    const base = mockPullRequestReviewContext;
+    const payload = base.payload as any;
+    expect(
+      checkContainsTrigger({
+        ...base,
+        actor: "maintainer",
+        eventAction: "edited",
+        inputs: { ...base.inputs, triggerPhrase: "@claude" },
+        payload: {
+          ...payload,
+          action: "edited",
+          review: {
+            ...payload.review,
+            body: "@claude do this",
+            user: { login: "outsider" },
+          },
+        },
+      } as ParsedGitHubContext),
+    ).toBe(false);
+  });
+});
+
+describe("isModeration", () => {
+  const event = (
+    base: ParsedGitHubContext,
+    kind: "comment" | "review",
+    eventAction: string,
+    author: string | null,
+    actor: string,
+  ) =>
+    ({
+      ...base,
+      eventAction,
+      actor,
+      payload: {
+        ...base.payload,
+        action: eventAction,
+        [kind]: {
+          ...(base.payload as any)[kind],
+          user: author && { login: author },
+        },
+      },
+    }) as ParsedGitHubContext;
+  const comments = [
+    mockIssueCommentContext,
+    mockPullRequestReviewCommentContext,
+  ];
+
+  it("is true when someone else edits or deletes a comment", () => {
+    for (const base of comments) {
+      for (const action of ["edited", "deleted"]) {
+        for (const author of ["outsider", null]) {
+          expect(
+            isModeration(event(base, "comment", action, author, "maintainer")),
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("is true when someone else edits or dismisses a review", () => {
+    for (const action of ["edited", "dismissed"]) {
+      expect(
+        isModeration(
+          event(
+            mockPullRequestReviewContext,
+            "review",
+            action,
+            "outsider",
+            "maintainer",
+          ),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("is true for any deleted comment", () => {
+    for (const base of comments) {
+      expect(
+        isModeration(event(base, "comment", "deleted", "writer", "writer")),
+      ).toBe(true);
+    }
+  });
+
+  it("is false for a person's own edit", () => {
+    for (const base of comments) {
+      expect(
+        isModeration(event(base, "comment", "edited", "Writer", "writer")),
+      ).toBe(false);
+    }
+  });
+
+  it("is false for a new comment or review, whatever login its app has", () => {
+    for (const base of comments) {
+      expect(
+        isModeration(event(base, "comment", "created", "app[bot]", "App")),
+      ).toBe(false);
+    }
+    expect(
+      isModeration(
+        event(
+          mockPullRequestReviewContext,
+          "review",
+          "submitted",
+          "app[bot]",
+          "App",
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  it("is false for events with no comment or review", () => {
+    expect(isModeration(mockIssueLabeledContext)).toBe(false);
+    expect(isModeration(mockIssueOpenedContext)).toBe(false);
   });
 });

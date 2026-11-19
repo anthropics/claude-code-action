@@ -17,7 +17,7 @@ inputs:
     required: false
     default: "claude"
   base_branch:
-    description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
+    description: "The branch to use as the base/source when creating new branches (defaults to repository default branch). On pull requests from authors without write access that don't target the default branch, Claude's config also comes from it, so don't set it to a value from the pull request"
     required: false
   branch_prefix:
     description: "The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)"
@@ -44,6 +44,14 @@ inputs:
       only use for workflows with very limited permissions and validate all outputs.
     required: false
     default: ""
+  allow_fork_prs:
+    description: "Whether to run on pull requests from forks, and on workflow_run events for a fork's run. With any value other than 'true', the action skips them, whoever opened them, before it checks anything out. See docs/security.md."
+    required: false
+    default: "true"
+  restrict_untrusted_prs:
+    description: "On pull requests whose author does not have write access, deny commands that commonly run code from the checkout (package managers, test runners, interpreters, shells), even if claude_args allows them. Set to 'false' to turn this off. See docs/security.md."
+    required: false
+    default: "true"
   include_comments_by_actor:
     description: "Comma-separated list of actor usernames to INCLUDE in comments. Supports wildcards: '*[bot]' matches all bots, 'dependabot[bot]' matches specific bot. Empty (default) includes all actors."
     required: false
@@ -158,7 +166,7 @@ inputs:
     required: false
     default: "false"
   plugins:
-    description: "Newline-separated list of Claude Code plugin names to install (e.g., 'code-review@claude-code-plugins\nfeature-dev@claude-code-plugins')"
+    description: "Newline-separated list of Claude Code plugin names to install (e.g., 'code-review@claude-plugins-official\nfeature-dev@claude-plugins-official')"
     required: false
     default: ""
   plugin_marketplaces:
@@ -194,7 +202,7 @@ runs:
       if: inputs.path_to_bun_executable == ''
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # https://github.com/oven-sh/setup-bun/releases/tag/v2.2.0
       with:
-        bun-version: 1.3.14
+        bun-version: 1.4.4
         token: ${{ inputs.github_token || github.token }}
         # Disable setup-bun's cache. The upstream save step uses a deterministic
         # key (Bun version) and isn't ref-aware: on every second-and-subsequent
@@ -277,15 +285,25 @@ runs:
       id: run
       shell: bash
       run: |
-        # Do NOT pass --tsconfig-override here. It triggers a Bun runtime bug
-        # ("Internal error: directory mismatch for directory .../tsconfig.json")
-        # that aborts the run with exit code 1. Bun already auto-discovers the
-        # action's own tsconfig.json by walking up from the entry file, so the
-        # override is redundant. See oven-sh/bun#25730.
-        bun --no-env-file \
-          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
+        # Keep these options wherever the action runs its own scripts, so that Bun
+        # takes its settings from the action's directory. Bun before 1.4.3 logs
+        # "directory mismatch" for --tsconfig-override (oven-sh/bun#25730).
+        #
+        # Bash reads this script as it runs. The braces and exit make it read the
+        # rest first and stop there. With exec instead, cancelling the run would
+        # interrupt Bun at once, before it can clean up.
+        {
+          bun --no-env-file \
+            --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
+            --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
+            run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
+          exit
+        }
       env:
+        # Turns off Bun's cache of transpiled files, which is outside the action's
+        # directory. Set it wherever the action runs its own scripts.
+        BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0"
+
         # Prepare inputs
         MODE: ${{ inputs.mode }}
         PROMPT: ${{ inputs.prompt }}
@@ -298,6 +316,8 @@ runs:
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
         ALLOWED_BOTS: ${{ inputs.allowed_bots }}
         ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
+        ALLOW_FORK_PRS: ${{ inputs.allow_fork_prs }}
+        RESTRICT_UNTRUSTED_PRS: ${{ inputs.restrict_untrusted_prs }}
         CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB || (inputs.allowed_non_write_users != '' && '1') || '' }}
         CLAUDE_CODE_SCRIPT_CAPS: ${{ env.CLAUDE_CODE_SCRIPT_CAPS || '' }}
         INCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.include_comments_by_actor }}
@@ -420,18 +440,21 @@ runs:
     - name: Cleanup SSH signing key
       if: always() && inputs.ssh_signing_key != ''
       shell: bash
+      env:
+        BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0"
       run: |
         BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
         [ -x "$BUN_BIN" ] || BUN_BIN="bun"
-        # No --tsconfig-override: see the "Run Claude Code Action" step above.
         "$BUN_BIN" --no-env-file \
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
+          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
           run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
 
     - name: Post buffered inline comments
       if: always() && inputs.classify_inline_comments != 'false'
       shell: bash
       env:
+        BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0"
         GITHUB_TOKEN: ${{ steps.run.outputs.github_token || inputs.github_token || github.token }}
         REPO_OWNER: ${{ github.event.repository.owner.login }}
         REPO_NAME: ${{ github.event.repository.name }}
@@ -440,20 +463,23 @@ runs:
       run: |
         BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
         [ -x "$BUN_BIN" ] || BUN_BIN="bun"
-        # No --tsconfig-override: see the "Run Claude Code Action" step above.
         "$BUN_BIN" --no-env-file \
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
+          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
           run ${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts
 
     - name: Revoke app token
       if: always() && inputs.github_token == '' && steps.run.outputs.github_token != '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
       shell: bash
+      env:
+        APP_TOKEN: ${{ steps.run.outputs.github_token }}
       run: |
-        curl -L \
+        # -q comes first and skips ~/.curlrc, which a session can write.
+        curl -q -L \
           --connect-timeout 5 \
           --max-time 10 \
           -X DELETE \
           -H "Accept: application/vnd.github+json" \
-          -H "Authorization: Bearer ${{ steps.run.outputs.github_token }}" \
+          -H "Authorization: Bearer $APP_TOKEN" \
           -H "X-GitHub-Api-Version: 2022-11-28" \
           ${GITHUB_API_URL:-https://api.github.com}/installation/token || true

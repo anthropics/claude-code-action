@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 
-import * as core from "@actions/core";
 import {
   isIssuesEvent,
   isIssuesAssignedEvent,
@@ -10,38 +9,86 @@ import {
   isPullRequestReviewCommentEvent,
 } from "../context";
 import type { ParsedGitHubContext } from "../context";
+import { isSameLogin } from "./actor";
+
+/**
+ * Whether the text of a comment or review event comes from the person who was checked.
+ * Deleting or editing someone else's fires these events with the moderator as the actor.
+ */
+function isTextFromActor(context: ParsedGitHubContext): boolean {
+  if (
+    (isIssueCommentEvent(context) ||
+      isPullRequestReviewCommentEvent(context)) &&
+    (context.eventAction === "deleted" ||
+      !isSameLogin(context.payload.comment.user?.login, context.actor))
+  ) {
+    console.log("Comment was not written by the actor, or was deleted");
+    return false;
+  }
+  if (
+    isPullRequestReviewEvent(context) &&
+    !isSameLogin(context.payload.review.user?.login, context.actor)
+  ) {
+    console.log("Review was written by someone other than the actor");
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Whether a comment or review event comes from moderation, so that its text must not
+ * start a run. A new comment or review is always its author's own, and some apps have
+ * one login as its author and another as the actor.
+ */
+export function isModeration(context: ParsedGitHubContext): boolean {
+  const isNew =
+    context.eventAction === "created" || context.eventAction === "submitted";
+  return !isNew && !isTextFromActor(context);
+}
 
 export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   const {
     inputs: { assigneeTrigger, labelTrigger, triggerPhrase, prompt },
   } = context;
 
-  // If prompt is provided, always trigger
+  if (!isTextFromActor(context)) return false;
+
+  // A prompt replaces the trigger phrase, but a configured label or assignee
+  // still decides which label or assignment event starts a run. Otherwise any
+  // triage action on an issue would start one.
   if (prompt) {
+    if (
+      isIssuesEvent(context) &&
+      context.eventAction === "labeled" &&
+      labelTrigger &&
+      !matchesLabelTrigger(context, labelTrigger)
+    ) {
+      console.log(`Issue label is not the trigger label '${labelTrigger}'`);
+      return false;
+    }
+    if (
+      isIssuesAssignedEvent(context) &&
+      assigneeTrigger &&
+      !matchesAssigneeTrigger(context, assigneeTrigger)
+    ) {
+      console.log(`Issue was not assigned to '${assigneeTrigger}'`);
+      return false;
+    }
     console.log(`Prompt provided, triggering action`);
     return true;
   }
 
   // Check for assignee trigger
   if (isIssuesAssignedEvent(context)) {
-    // Remove @ symbol from assignee_trigger if present
-    let triggerUser = assigneeTrigger.replace(/^@/, "");
-    const assigneeUsername = context.payload.assignee?.login || "";
-
-    if (triggerUser && assigneeUsername === triggerUser) {
-      console.log(`Issue assigned to trigger user '${triggerUser}'`);
+    if (matchesAssigneeTrigger(context, assigneeTrigger)) {
+      console.log(`Issue assigned to trigger user '${assigneeTrigger}'`);
       return true;
     }
   }
 
   // Check for label trigger
   if (isIssuesEvent(context) && context.eventAction === "labeled") {
-    const labelName = (context.payload as any).label?.name || "";
-
-    if (
-      labelTrigger &&
-      labelName.toLowerCase() === labelTrigger.toLowerCase()
-    ) {
+    if (matchesLabelTrigger(context, labelTrigger)) {
       console.log(`Issue labeled with trigger label '${labelTrigger}'`);
       return true;
     }
@@ -125,9 +172,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     isIssueCommentEvent(context) ||
     isPullRequestReviewCommentEvent(context)
   ) {
-    const commentBody = isIssueCommentEvent(context)
-      ? context.payload.comment.body
-      : context.payload.comment.body;
+    const commentBody = context.payload.comment.body;
     // Check for exact match with word boundaries or punctuation
     const regex = new RegExp(
       `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
@@ -144,12 +189,26 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   return false;
 }
 
-export function escapeRegExp(string: string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function matchesLabelTrigger(
+  context: ParsedGitHubContext,
+  labelTrigger: string,
+): boolean {
+  const labelName = (context.payload as any).label?.name || "";
+  return (
+    !!labelTrigger && labelName.toLowerCase() === labelTrigger.toLowerCase()
+  );
 }
 
-export async function checkTriggerAction(context: ParsedGitHubContext) {
-  const containsTrigger = checkContainsTrigger(context);
-  core.setOutput("contains_trigger", containsTrigger.toString());
-  return containsTrigger;
+function matchesAssigneeTrigger(
+  context: ParsedGitHubContext,
+  assigneeTrigger: string,
+): boolean {
+  // Remove @ symbol from assignee_trigger if present
+  const triggerUser = assigneeTrigger.replace(/^@/, "");
+  const assigneeUsername = (context.payload as any).assignee?.login || "";
+  return !!triggerUser && assigneeUsername === triggerUser;
+}
+
+export function escapeRegExp(string: string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

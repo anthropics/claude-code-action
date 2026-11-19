@@ -115,6 +115,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Here's an image: ![test](${imageUrl})`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -181,6 +182,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.get = jest.fn().mockResolvedValue({
       data: {
+        body: `![Screenshot_20260607_204205_Chrome.jpg](${imageUrl})`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -224,6 +226,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.pulls.getReviewComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Review comment with image: ![review](${imageUrl})`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -268,6 +271,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.pulls.getReview = jest.fn().mockResolvedValue({
       data: {
+        body: `Review body: ![body](${imageUrl})`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -314,6 +318,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.get = jest.fn().mockResolvedValue({
       data: {
+        body: `Issue description: ![issue](${imageUrl})`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -361,6 +366,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.pulls.get = jest.fn().mockResolvedValue({
       data: {
+        body: `PR description: ![pr](${imageUrl})`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -410,6 +416,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Two images: ![img1](${imageUrl1}) and ![img2](${imageUrl2})`,
         body_html: `<img src="${signedUrl1}"><img src="${signedUrl2}">`,
       },
     });
@@ -458,6 +465,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Two images: ![img1](${imageUrl1}) and ![img2](${imageUrl2})`,
         body_html: `<img src="${signedUrl2}"><img src="${signedUrl1}">`,
       },
     });
@@ -505,6 +513,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Uppercase: ![test](${imageUrl})`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -546,6 +555,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Original image: ![test](${imageUrl})`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -587,6 +597,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Original image: ![test](${imageUrl})`,
         body_html: `<a href="${signedUrl}">${signedUrl}</a>`,
       },
     });
@@ -627,6 +638,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `No identifier: ![test](${imageUrl})`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -664,11 +676,14 @@ describe("downloadCommentImages", () => {
     const signedUrl = signedUrlFor(GUID_1, ".png");
 
     // @ts-expect-error Mock implementation doesn't match full type signature
-    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
-      data: {
-        body_html: `<img src="${signedUrl}">`,
-      },
-    });
+    mockOctokit.rest.issues.getComment = jest
+      .fn()
+      .mockImplementation(async ({ comment_id }: { comment_id: number }) => ({
+        data: {
+          body: `${comment_id === 111 ? "First" : "Second"}: ![dup](${imageUrl})`,
+          body_html: `<img src="${signedUrl}">`,
+        },
+      }));
 
     fetchSpy = spyOn(global, "fetch").mockResolvedValue({
       ok: true,
@@ -709,6 +724,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Missing HTML: ![missing](${imageUrl})`,
         body_html: null,
       },
     });
@@ -742,6 +758,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Error image: ![error](${imageUrl})`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -783,6 +800,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Stalled image: ![stalled](${imageUrl})`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -826,6 +844,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Stalled body: ![stalled](${imageUrl})`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -908,12 +927,6 @@ describe("downloadCommentImages", () => {
     ];
 
     let callIndex = 0;
-    // @ts-expect-error Mock implementation doesn't match full type signature
-    mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
-      data: {
-        body_html: `<img src="${signedUrlFor(GUID_1, "")}">`,
-      },
-    });
 
     fetchSpy = spyOn(global, "fetch").mockResolvedValue({
       ok: true,
@@ -921,6 +934,14 @@ describe("downloadCommentImages", () => {
     } as Response);
 
     for (const { url, ext } of extensions) {
+      // @ts-expect-error Mock implementation doesn't match full type signature
+      mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
+        data: {
+          body: `Test: ![test](${url})`,
+          body_html: `<img src="${signedUrlFor(GUID_1, "")}">`,
+        },
+      });
+
       const comments: CommentWithImages[] = [
         {
           type: "issue_comment",
@@ -956,6 +977,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Two images: ![img1](${imageUrl1}) ![img2](${imageUrl2})`,
         body_html: `<img src="${signedUrl1}">`,
       },
     });
@@ -1000,6 +1022,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Here's an HTML image: <img src="${imageUrl}" alt="test">`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -1064,6 +1087,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Single quote: <img src='${imageUrl1}' alt="test"> and double quote: <img src="${imageUrl2}" alt="test">`,
         body_html: `<img src="${signedUrl1}"><img src="${signedUrl2}">`,
       },
     });
@@ -1113,6 +1137,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `HTML: <img src="${htmlUrl}" alt="test"> and Markdown: ![test](${markdownUrl})`,
         body_html: `<img src="${signedUrl2}"><img src="${signedUrl1}">`,
       },
     });
@@ -1158,6 +1183,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Same image twice: ![test](${imageUrl}) and <img src="${imageUrl}" alt="test">`,
         body_html: `<img src="${signedUrl}">`,
       },
     });
@@ -1200,6 +1226,7 @@ describe("downloadCommentImages", () => {
     // @ts-expect-error Mock implementation doesn't match full type signature
     mockOctokit.rest.issues.getComment = jest.fn().mockResolvedValue({
       data: {
+        body: `Complex tag: <img class="image" src="${imageUrl}" alt="test image" width="100" height="200">`,
         body_html: `<img src="${signedUrl}">`,
       },
     });

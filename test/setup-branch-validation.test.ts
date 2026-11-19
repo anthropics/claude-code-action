@@ -59,9 +59,10 @@ describe("setupBranch generated branch name validation", () => {
         },
       });
 
-      await expect(setupBranch(octokits, githubData, context)).rejects.toThrow(
-        'Invalid branch name: "claude/release:42"',
-      );
+      await expect(
+        setupBranch(octokits, githubData, context, undefined, false),
+      ).rejects.toThrow("process.exit called");
+      expect(exitCode).toBe(1);
       // Must fail on the name itself, not on a later git or API call.
       expect(loggedErrors.join("\n")).toContain(
         'Invalid branch name: "claude/release:42"',
