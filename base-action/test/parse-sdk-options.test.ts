@@ -5,6 +5,40 @@ import { parseSdkOptions } from "../src/parse-sdk-options";
 import type { ClaudeOptions } from "../src/run-claude";
 
 describe("parseSdkOptions", () => {
+  describe("output verbosity", () => {
+    test("should show full output when ACTIONS_STEP_DEBUG is enabled", () => {
+      const originalActionsStepDebug = process.env.ACTIONS_STEP_DEBUG;
+
+      try {
+        process.env.ACTIONS_STEP_DEBUG = "true";
+
+        expect(parseSdkOptions({}).showFullOutput).toBe(true);
+      } finally {
+        if (originalActionsStepDebug === undefined) {
+          delete process.env.ACTIONS_STEP_DEBUG;
+        } else {
+          process.env.ACTIONS_STEP_DEBUG = originalActionsStepDebug;
+        }
+      }
+    });
+
+    test("should show full output when GitHub enables runner debug logging", () => {
+      const originalRunnerDebug = process.env.RUNNER_DEBUG;
+
+      try {
+        process.env.RUNNER_DEBUG = "1";
+
+        expect(parseSdkOptions({}).showFullOutput).toBe(true);
+      } finally {
+        if (originalRunnerDebug === undefined) {
+          delete process.env.RUNNER_DEBUG;
+        } else {
+          process.env.RUNNER_DEBUG = originalRunnerDebug;
+        }
+      }
+    });
+  });
+
   describe("allowedTools merging", () => {
     test("should extract allowedTools from claudeArgs", () => {
       const options: ClaudeOptions = {
