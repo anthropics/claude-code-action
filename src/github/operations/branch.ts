@@ -398,7 +398,7 @@ export async function setupBranch(
     };
   } catch (error) {
     console.error("Error in branch setup:", error);
-    process.exit(1);
+    throw error;
   }
 }
 
