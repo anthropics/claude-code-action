@@ -93,6 +93,33 @@ describe("validateBranchName", () => {
       expect(() => validateBranchName("_internal")).not.toThrow();
       expect(() => validateBranchName("_wip/feature-x")).not.toThrow();
     });
+
+    it.each([
+      "feature/346-sensor_settings-isp_settings-への設定変更が値検証を通らず設定ファイルを壊せる",
+      "feat/add-機能追加",
+      "修复/bug-123",
+      "фича/новая",
+      "１２３/修正",
+      "feature/cafe\u0301",
+      "feature/か\u3099",
+      "@修正/issue-#42+追加,(確認)",
+      "_release/修正",
+    ])("should accept Unicode branch name %s", (branchName) => {
+      expect(() => validateBranchName(branchName)).not.toThrow();
+    });
+  });
+
+  it.each([
+    "-修正",
+    "修正/../main",
+    "修正.lock",
+    "修正@{1}",
+    "修正//追加",
+    "修正;whoami",
+    "修正\n追加",
+    "修正\u202e追加",
+  ])("should reject invalid Unicode branch name %s", (branchName) => {
+    expect(() => validateBranchName(branchName)).toThrow();
   });
 
   describe("command injection attempts", () => {
