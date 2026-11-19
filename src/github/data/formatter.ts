@@ -152,11 +152,16 @@ export function formatChangedFiles(changedFiles: GitHubFile[]): string {
 
 export function formatChangedFilesWithSHA(
   changedFiles: GitHubFileWithSHA[],
+  excludedFileCount = 0,
 ): string {
-  return changedFiles
-    .map(
-      (file) =>
-        `- ${file.path} (${file.changeType}) +${file.additions}/-${file.deletions} SHA: ${file.sha}`,
-    )
-    .join("\n");
+  const lines = changedFiles.map(
+    (file) =>
+      `- ${file.path} (${file.changeType}) +${file.additions}/-${file.deletions} SHA: ${file.sha}`,
+  );
+  if (excludedFileCount > 0) {
+    lines.push(
+      `Workflow filters omitted ${excludedFileCount} of the changed files.`,
+    );
+  }
+  return lines.join("\n");
 }

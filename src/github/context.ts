@@ -102,6 +102,7 @@ type BaseContext = {
     includeFixLinks: boolean;
     includeCommentsByActor: string;
     excludeCommentsByActor: string;
+    excludeChangedFiles?: string;
   };
 };
 
@@ -164,6 +165,7 @@ export function parseGitHubContext(): GitHubContext {
       includeFixLinks: process.env.INCLUDE_FIX_LINKS === "true",
       includeCommentsByActor: process.env.INCLUDE_COMMENTS_BY_ACTOR ?? "",
       excludeCommentsByActor: process.env.EXCLUDE_COMMENTS_BY_ACTOR ?? "",
+      excludeChangedFiles: process.env.EXCLUDE_CHANGED_FILES,
     },
   };
 
