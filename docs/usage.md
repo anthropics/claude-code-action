@@ -87,6 +87,7 @@ jobs:
 | `allow_fork_prs`                 | Whether to run on pull requests from forks, and on `workflow_run` events for a fork's run. With any value other than `true`, the action skips them. See [Security](./security.md#refusing-pull-requests-from-forks).                   | No       | `true`                      |
 | `restrict_untrusted_prs`         | On pull requests whose author does not have write access, deny commands that commonly run code from the checkout, even if `claude_args` allows them. See [Security](./security.md#running-code-from-pull-requests).                    | No       | `true`                      |
 | `allowed_non_write_users`        | **⚠️ RISKY**: Comma-separated list of usernames to allow without write permissions, or '\*' for all users. Only works with `github_token` input. See [Security](./security.md)                                                         | No       | ""                          |
+| `claude_code_version`            | Exact Claude Code CLI version to install, in `X.Y.Z` format. See [Pinning versions](#pinning-versions).                                                                                                                                | No       | Action release default      |
 | `path_to_claude_code_executable` | Optional path to a custom Claude Code executable. Skips automatic installation. Useful for Nix, custom containers, or specialized environments                                                                                         | No       | ""                          |
 | `path_to_bun_executable`         | Optional path to a custom Bun executable. Skips automatic Bun installation. Useful for Nix, custom containers, or specialized environments                                                                                             | No       | ""                          |
 | `plugin_marketplaces`            | Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., see example in workflow above). Marketplaces are added before plugin installation                                                             | No       | ""                          |
@@ -113,6 +114,26 @@ These inputs are deprecated and will be removed in a future version:
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 
 > **Note**: This action is currently in beta. Features and APIs may change as we continue to improve the integration.
+
+## Pinning versions
+
+Set `claude_code_version` to install a specific Claude Code CLI release.
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    prompt: "Summarize the changes in this pull request."
+    claude_code_version: "2.1.322"
+```
+
+The action uses its release's default CLI version when this input is empty.
+A supplied `path_to_claude_code_executable` takes precedence over installation.
+
+Pin the action to a full commit SHA to keep its Agent SDK version and other
+locked dependencies fixed. Choose a revision whose lockfile contains the SDK
+version you want to run, and test that SDK with your chosen CLI version before
+rolling out the pin.
 
 ## Permission Mode
 

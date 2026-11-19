@@ -8,6 +8,13 @@ describe("buildInstallCommand (regression for #1136)", () => {
     expect(cmd).toContain("bash -s -- 2.1.114");
   });
 
+  it.each(["stable", "2.1", "2.1.114 extra", "2.1.114\n"])(
+    "rejects a value that is not an exact version: %j",
+    (version) => {
+      expect(() => buildInstallCommand(version)).toThrow("X.Y.Z");
+    },
+  );
+
   it("prefixes the pipeline with `set -o pipefail`", () => {
     const cmd = buildInstallCommand("2.1.114");
     expect(cmd.startsWith("set -o pipefail;")).toBe(true);

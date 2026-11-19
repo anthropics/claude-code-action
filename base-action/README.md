@@ -139,6 +139,7 @@ Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federa
 | `use_vertex`                     | Use Google Vertex AI with OIDC authentication                                                                           | No       | `'false'`     |
 | `use_foundry`                    | Use Microsoft Foundry with OIDC authentication                                                                          | No       | `'false'`     |
 | `use_node_cache`                 | Enable Node.js dependency caching for projects with lock files                                                          | No       | `'false'`     |
+| `claude_code_version`            | Exact Claude Code CLI version in `X.Y.Z` format. Uses the action release default when empty.                            | No       | `''`          |
 | `path_to_claude_code_executable` | Path to a custom Claude Code executable                                                                                 | No       | `''`          |
 | `path_to_bun_executable`         | Path to a custom Bun executable                                                                                         | No       | `''`          |
 | `show_full_output`               | Show full JSON output (⚠️ May expose secrets - see [security docs](../docs/security.md#️-full-output-security-warning)) | No       | `'false'`\*\* |
