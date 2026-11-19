@@ -74,4 +74,31 @@ Focus on security issues.`,
       "/review-pr",
     );
   });
+
+  test("skips mid-token occurrences before the real trigger", () => {
+    expect(
+      extractUserRequest(
+        "Email support@claude.dev and @claude fix the auth module",
+        "@claude",
+      ),
+    ).toBe("fix the auth module");
+  });
+
+  test("skips occurrences followed by a word character", () => {
+    expect(
+      extractUserRequest("cc @claude-bob, @claude fix this", "@claude"),
+    ).toBe("fix this");
+  });
+
+  test("returns null when the phrase only appears mid-token", () => {
+    expect(
+      extractUserRequest("Contact support@claude.dev for help", "@claude"),
+    ).toBeNull();
+  });
+
+  test("accepts a trigger phrase at the start of a later line", () => {
+    expect(
+      extractUserRequest("Some context.\n@claude fix this", "@claude"),
+    ).toBe("fix this");
+  });
 });
