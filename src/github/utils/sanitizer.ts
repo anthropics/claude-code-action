@@ -94,6 +94,13 @@ export function redactSecrets(content: string): string {
     "[REDACTED_ANTHROPIC_KEY]",
   );
 
+  // OrcaRouter API keys: sk-orca-... These are the user's own credentials and
+  // are issued by the OrcaRouter – API and OrcaRouter – Auth entry points.
+  content = content.replace(
+    /sk-orca-[A-Za-z0-9_-]{8,}/g,
+    "[REDACTED_ORCAROUTER_KEY]",
+  );
+
   // AWS access key ids: AKIA/ASIA followed by 16 uppercase alphanumerics. All
   // uppercase alphanumeric, so keep a leading boundary to avoid matching inside
   // larger blobs; also treat a JSON escape or ANSI color code as a boundary.
