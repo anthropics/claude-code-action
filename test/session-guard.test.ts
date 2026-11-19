@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import * as core from "@actions/core";
 import { execFileSync } from "child_process";
 import {
+  appendFileSync,
   existsSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -27,7 +29,9 @@ import {
 const KEYS = [
   "GITHUB_ACTION_PATH",
   "GITHUB_ENV",
+  "GITHUB_OUTPUT",
   "GITHUB_PATH",
+  "GITHUB_STEP_SUMMARY",
   "HOME",
   "XDG_CONFIG_HOME",
   "GIT_CONFIG_GLOBAL",
@@ -153,6 +157,104 @@ describe("session guard", () => {
     expect(readFileSync(path, "utf8")).toBe("/opt/tool\n");
     expect(statSync(path).mode & 0o777).toBe(0o640);
   });
+
+  describe.each(["GITHUB_OUTPUT", "GITHUB_STEP_SUMMARY"])(
+    "%s, which the action adds to after the session",
+    (name) => {
+      let path: string;
+
+      beforeEach(() => {
+        path = join(dir, name);
+        process.env[name] = path;
+        writeFileSync(path, "by an earlier part\n");
+      });
+
+      test("keeps what a session wrote", () => {
+        const restore = snapshotSessionFiles();
+        appendFileSync(path, "by the session\n");
+        restore();
+        expect(readFileSync(path, "utf8")).toBe(
+          "by an earlier part\nby the session\n",
+        );
+        expect(warnings()).toEqual([]);
+      });
+
+      test("keeps it if the session replaced the file", () => {
+        const restore = snapshotSessionFiles();
+        rmSync(path);
+        writeFileSync(path, "by the session\n");
+        restore();
+        expect(readFileSync(path, "utf8")).toBe("by the session\n");
+        expect(warnings()).toEqual([]);
+      });
+
+      test.each([
+        ["a symlink", symlinkSync],
+        ["a hard link", linkSync],
+      ])("doesn't follow %s to a file later steps trust", (_, link) => {
+        const restore = snapshotSessionFiles();
+        rmSync(path);
+        link(process.env.GITHUB_PATH!, path);
+        restore();
+        appendFileSync(path, "/tmp/shims\n");
+        expect(readFileSync(process.env.GITHUB_PATH!, "utf8")).toBe(
+          "/opt/tool\n",
+        );
+        expect(readFileSync(path, "utf8")).toBe(
+          "by an earlier part\n/tmp/shims\n",
+        );
+        expect(warnings()[0]).toContain(name);
+      });
+
+      test("doesn't follow a hard link to a file with the same content", () => {
+        writeFileSync(path, "");
+        writeFileSync(process.env.GITHUB_ENV!, "");
+        const restore = snapshotSessionFiles();
+        rmSync(path);
+        linkSync(process.env.GITHUB_ENV!, path);
+        restore();
+        appendFileSync(path, "X=1\n");
+        expect(readFileSync(process.env.GITHUB_ENV!, "utf8")).toBe("");
+        expect(warnings()[0]).toContain(name);
+      });
+
+      test("puts back a file the session deleted", () => {
+        const restore = snapshotSessionFiles();
+        rmSync(path);
+        restore();
+        expect(readFileSync(path, "utf8")).toBe("by an earlier part\n");
+      });
+
+      test("says nothing if there was no file before and after", () => {
+        rmSync(path);
+        snapshotSessionFiles()();
+        expect(existsSync(path)).toBe(false);
+        expect(warnings()).toEqual([]);
+      });
+
+      test("keeps what a session wrote to a file that had a second name before", () => {
+        linkSync(path, join(dir, "second-name"));
+        const restore = snapshotSessionFiles();
+        appendFileSync(path, "by the session\n");
+        restore();
+        expect(readFileSync(path, "utf8")).toContain("by the session\n");
+        expect(warnings()).toEqual([]);
+      });
+
+      test("keeps a link that was there before, and what a session wrote to it", () => {
+        const target = join(dir, "target");
+        rmSync(path);
+        writeFileSync(target, "");
+        symlinkSync(target, path);
+        const restore = snapshotSessionFiles();
+        appendFileSync(path, "by the session\n");
+        restore();
+        expect(lstatSync(path).isSymbolicLink()).toBe(true);
+        expect(readFileSync(target, "utf8")).toBe("by the session\n");
+        expect(warnings()).toEqual([]);
+      });
+    },
+  );
 
   describe("a config that was already a symlink", () => {
     let target: string;
