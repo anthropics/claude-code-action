@@ -1,0 +1,206 @@
+name: Test Setup Action
+
+on:
+  pull_request:
+    paths:
+      - "setup/**"
+      - ".github/workflows/test-setup-action.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "setup/**"
+      - ".github/workflows/test-setup-action.yml"
+  workflow_dispatch:
+
+jobs:
+  test-basic-install:
+    name: Test Basic Installation
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        version: [stable, latest, "2.0.1"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Claude Code
+        id: setup
+        uses: ./setup
+        with:
+          version: ${{ matrix.version }}
+
+      - name: Verify Installation
+        run: |
+          echo "Cache hit: ${{ steps.setup.outputs.cache-hit }}"
+          echo "Version: ${{ steps.setup.outputs.version }}"
+          echo "Path: ${{ steps.setup.outputs.claude-path }}"
+
+          # Verify claude is in PATH
+          which claude
+
+          # Verify version command works
+          claude --version
+
+          # Verify the output path exists
+          if [ ! -f "${{ steps.setup.outputs.claude-path }}" ]; then
+            echo "Error: Claude executable not found at output path"
+            exit 1
+          fi
+
+      - name: Test Claude Code
+        run: |
+          # Test that Claude Code actually works
+          claude --help
+
+  test-with-plugins:
+    name: Test Plugin Installation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Claude Code with Plugins
+        id: setup
+        uses: ./setup
+        with:
+          version: stable
+          marketplaces: pleaseai/claude-code-plugins
+          plugins: nanobanana@pleaseai
+
+      - name: Verify Outputs
+        run: |
+          echo "Cache hit: ${{ steps.setup.outputs.cache-hit }}"
+          echo "Version: ${{ steps.setup.outputs.version }}"
+          echo "Marketplaces added: ${{ steps.setup.outputs.marketplaces_added }}"
+          echo "Plugins installed: ${{ steps.setup.outputs.plugins_installed }}"
+
+          # Verify at least one marketplace was added
+          if [ "${{ steps.setup.outputs.marketplaces_added }}" -lt 1 ]; then
+            echo "Error: No marketplaces were added"
+            exit 1
+          fi
+
+          # Verify plugin was installed
+          if [ -z "${{ steps.setup.outputs.plugins_installed }}" ]; then
+            echo "Error: No plugins were installed"
+            exit 1
+          fi
+
+      - name: List Installed Plugins
+        run: |
+          claude plugin list || true
+
+  test-cache:
+    name: Test Cache Functionality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: First Installation (should miss cache)
+        id: first-install
+        uses: ./setup
+        with:
+          version: "2.0.1"
+
+      - name: Verify First Install
+        run: |
+          echo "First install cache hit: ${{ steps.first-install.outputs.cache-hit }}"
+          if [ "${{ steps.first-install.outputs.cache-hit }}" == "true" ]; then
+            echo "Warning: Expected cache miss on first install, but got cache hit"
+          fi
+
+      - name: Remove Claude from PATH
+        run: |
+          # Clear the installation to simulate fresh run
+          rm -rf ~/.local/bin/claude ~/.claude
+
+      - name: Second Installation (should hit cache)
+        id: second-install
+        uses: ./setup
+        with:
+          version: "2.0.1"
+
+      - name: Verify Second Install
+        run: |
+          echo "Second install cache hit: ${{ steps.second-install.outputs.cache-hit }}"
+
+          # Verify Claude still works after cache restore
+          claude --version
+
+          echo "Cache test completed successfully"
+
+  test-multiple-plugins:
+    name: Test Multiple Plugins
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup with Multiple Plugins
+        id: setup
+        uses: ./setup
+        with:
+          version: stable
+          marketplaces: |
+            pleaseai/claude-code-plugins
+            passionfactory
+          plugins: |
+            nanobanana@pleaseai
+            dev-tools@passionfactory
+
+      - name: Verify Multiple Plugins
+        run: |
+          echo "Marketplaces added: ${{ steps.setup.outputs.marketplaces_added }}"
+          echo "Plugins installed: ${{ steps.setup.outputs.plugins_installed }}"
+
+          # Should have added 2 marketplaces
+          if [ "${{ steps.setup.outputs.marketplaces_added }}" -lt 2 ]; then
+            echo "Error: Expected at least 2 marketplaces"
+            exit 1
+          fi
+
+          # Should have installed 2 plugins
+          plugin_count=$(echo "${{ steps.setup.outputs.plugins_installed }}" | tr ',' '\n' | wc -l)
+          if [ "$plugin_count" -lt 2 ]; then
+            echo "Error: Expected at least 2 plugins, got $plugin_count"
+            exit 1
+          fi
+
+  test-error-handling:
+    name: Test Error Handling
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Test Invalid Version (should fail gracefully)
+        id: invalid-version
+        uses: ./setup
+        continue-on-error: true
+        with:
+          version: "999.999.999"
+
+      - name: Verify Error Handling
+        run: |
+          if [ "${{ steps.invalid-version.outcome }}" == "success" ]; then
+            echo "Error: Invalid version should have failed"
+            exit 1
+          fi
+          echo "Error handling test passed"
+
+      - name: Test Invalid Plugin (should continue)
+        id: invalid-plugin
+        uses: ./setup
+        with:
+          version: stable
+          marketplaces: pleaseai/claude-code-plugins
+          plugins: nonexistent-plugin-that-does-not-exist@pleaseai
+
+      - name: Verify Installation Still Works
+        run: |
+          # Even if plugin install fails, Claude Code should be installed
+          claude --version
+          echo "Partial failure handling test passed"
