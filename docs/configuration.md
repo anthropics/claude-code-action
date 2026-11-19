@@ -248,6 +248,8 @@ In [auto mode](./usage.md#permission-mode), the default, a safety review decides
 
 **Note**: The base GitHub tools are always included. Use `--allowedTools` to add additional tools (including specific Bash commands), and `--disallowedTools` to prevent specific tools from being used.
 
+**Note**: In a Bash rule, the `:*` suffix is equivalent to a trailing space followed by `*`, so `Bash(gh pr comment:*)` matches `gh pr comment 12 --body ...` but only when a space follows the prefix. A rule like `Bash(gh api repos/owner/repo/issues/comments/:*)` never matches `gh api repos/owner/repo/issues/comments/12345`, because the ID follows the `/` directly. Put the wildcard right after the prefix instead: `Bash(gh api repos/owner/repo/issues/comments/*)`. The action logs a warning when a rule ends in `/:*` or `=:*`.
+
 ## Custom Model
 
 Specify a Claude model using `claude_args`:
