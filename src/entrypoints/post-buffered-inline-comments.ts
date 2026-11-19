@@ -156,7 +156,17 @@ async function main() {
   const comments: BufferedComment[] = raw
     .split("\n")
     .filter(Boolean)
-    .map((line) => JSON.parse(line));
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch (e) {
+        console.log(
+          `::warning::Skipping malformed buffered comment line: ${line}`,
+        );
+        return null;
+      }
+    })
+    .filter(Boolean) as BufferedComment[];
 
   if (comments.length === 0) {
     console.log("No buffered inline comments");
