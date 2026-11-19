@@ -57,6 +57,7 @@ Each solution includes complete working examples, configuration details, and exp
 - [Custom Automations](./docs/custom-automations.md) - Examples of automated workflows and custom prompts
 - [Configuration](./docs/configuration.md) - MCP servers, permissions, environment variables, and advanced settings
 - [Experimental Features](./docs/experimental.md) - Execution modes and network restrictions
+- [Claude Code Plugin](./docs/claude-code-plugin.md) - Installing this repo as a plugin to use its MCP servers locally
 - [Cloud Providers](./docs/cloud-providers.md) - AWS Bedrock, Google Vertex AI, and Microsoft Foundry setup
 - [Capabilities & Limitations](./docs/capabilities-and-limitations.md) - What Claude can and cannot do
 - [Security](./docs/security.md) - Access control, permissions, and commit signing

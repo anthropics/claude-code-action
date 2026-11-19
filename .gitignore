@@ -6,3 +6,5 @@ scripts/.restored-paths
 scripts/.git-repo
 
 **/.claude/settings.local.json
+
+.claude/worktrees/
