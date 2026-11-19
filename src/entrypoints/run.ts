@@ -35,7 +35,10 @@ import type { GitHubContext } from "../github/context";
 import { detectMode } from "../modes/detector";
 import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
-import { checkContainsTrigger } from "../github/validation/trigger";
+import {
+  checkContainsTrigger,
+  isModeration,
+} from "../github/validation/trigger";
 import {
   clearSessionState,
   disableGitPrograms,
@@ -107,7 +110,7 @@ async function installClaudeCode(): Promise<string> {
     return customExecutable;
   }
 
-  const claudeCodeVersion = "2.1.327";
+  const claudeCodeVersion = "2.1.328";
   const version = process.env.INPUT_CLAUDE_CODE_VERSION || claudeCodeVersion;
   const installCommand = buildInstallCommand(version);
   console.log(`Installing Claude Code v${version}...`);
@@ -254,7 +257,8 @@ async function run() {
     const containsTrigger =
       modeName === "tag"
         ? isEntityContext(context) && checkContainsTrigger(context)
-        : !!context.inputs?.prompt;
+        : !!context.inputs?.prompt &&
+          !(isEntityContext(context) && isModeration(context));
     console.log(`Mode: ${modeName}`);
     console.log(`Context prompt: ${context.inputs?.prompt || "NO PROMPT"}`);
     console.log(`Trigger result: ${containsTrigger}`);
