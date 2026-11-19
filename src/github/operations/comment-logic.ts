@@ -17,6 +17,7 @@ export type CommentUpdateInput = {
   prLink?: string;
   branchName?: string;
   triggerUsername?: string;
+  suppressCompletionMention?: boolean;
   errorDetails?: string;
 };
 
@@ -78,6 +79,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     actionFailed,
     branchName,
     triggerUsername,
+    suppressCompletionMention,
     errorDetails,
   } = input;
 
@@ -126,7 +128,7 @@ export function updateCommentBody(input: CommentUpdateInput): string {
     const username =
       triggerUsername || (usernameMatch ? usernameMatch[1] : "user");
 
-    header = `**Claude finished @${username}'s task`;
+    header = `**Claude finished ${suppressCompletionMention ? "" : "@"}${username}'s task`;
     if (durationStr) {
       header += ` in ${durationStr}`;
     }

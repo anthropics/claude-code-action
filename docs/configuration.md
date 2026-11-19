@@ -1,5 +1,16 @@
 # Advanced Configuration
 
+## Completion Header Mentions
+
+Set `suppress_completion_mention: "true"` to show `Claude finished username's task` instead of `Claude finished @username's task` in the action-generated successful completion header. The default is `false`, which keeps the mention. This option only removes the header's `@` prefix; it does not change mentions in the comment body, initial comments, error headers, or other notifications.
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    suppress_completion_mention: "true"
+```
+
 ## Using Custom MCP Configuration
 
 You can add custom MCP (Model Context Protocol) servers to extend Claude's capabilities using the `--mcp-config` flag in `claude_args`. These servers merge with the built-in GitHub MCP servers.
