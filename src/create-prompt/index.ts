@@ -21,6 +21,7 @@ import {
 import type { GitHubContext, ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
 import { GITHUB_SERVER_URL } from "../github/api/config";
+import { encodeBranchNameForUrl } from "../github/operations/comments/common";
 import { extractUserRequest } from "../utils/extract-user-request";
 export type { CommonFields, PreparedContext } from "./types";
 
@@ -608,7 +609,7 @@ ${
   eventData.claudeBranch
     ? `
 When done with changes, provide a PR link:
-[Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${eventData.baseBranch}...${eventData.claudeBranch}?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
+[Create a PR](${GITHUB_SERVER_URL}/${context.repository}/compare/${encodeBranchNameForUrl(eventData.baseBranch ?? "")}...${encodeBranchNameForUrl(eventData.claudeBranch ?? "")}?quick_pull=1&title=<url-encoded-title>&body=<url-encoded-body>)
 Use THREE dots (...) between branches. URL-encode all parameters.`
     : ""
 }
