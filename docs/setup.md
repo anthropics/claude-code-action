@@ -8,7 +8,7 @@
 2. Add authentication to your repository secrets ([Learn how to use secrets in GitHub Actions](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions)):
    - Either `ANTHROPIC_API_KEY` for API key authentication
    - Or `CLAUDE_CODE_OAUTH_TOKEN` for OAuth token authentication (Pro and Max users can generate this by running `claude setup-token` locally)
-3. Copy the workflow file from [`examples/claude.yml`](../examples/claude.yml) into your repository's `.github/workflows/`
+3. Copy [`examples/claude.yml`](../examples/claude.yml) into your repository's `.github/workflows/`. If you chose OAuth, replace the example's `anthropic_api_key` input with `claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}`.
 
 > Don't want to store a static API key at all? See [Workload Identity Federation](#workload-identity-federation) below.
 
