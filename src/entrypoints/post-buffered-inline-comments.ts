@@ -13,6 +13,13 @@ import { readFileSync } from "fs";
 import { createOctokit } from "../github/api/client";
 import { redactSecrets } from "../github/utils/sanitizer";
 
+class PermissionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PermissionError";
+  }
+}
+
 const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
 
 type BufferedComment = {
@@ -136,10 +143,19 @@ async function postComment(
   try {
     await octokit.rest.pulls.createReviewComment(params);
     return true;
-  } catch (e) {
-    console.log(
-      `  failed ${c.path}:${c.line}: ${e instanceof Error ? e.message : String(e)}`,
-    );
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    const status =
+      e && typeof e === "object" && "status" in e
+        ? (e as { status: number }).status
+        : undefined;
+    console.log(`  failed ${c.path}:${c.line}: ${message}`);
+    if (status === 403) {
+      throw new PermissionError(
+        `Permission denied posting inline comment on ${c.path}:${c.line}. ` +
+          "Ensure your workflow has 'pull-requests: write' permission.",
+      );
+    }
     return false;
   }
 }
