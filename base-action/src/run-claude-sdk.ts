@@ -287,6 +287,17 @@ export async function runClaudeWithSdk(
     throw new Error("No result message received from Claude");
   }
 
+  if (Array.isArray(resultMessage.permission_denials)) {
+    const counts = new Map<string, number>();
+    for (const { tool_name } of resultMessage.permission_denials) {
+      counts.set(tool_name, (counts.get(tool_name) ?? 0) + 1);
+    }
+    core.setOutput(
+      "permission_denials",
+      JSON.stringify(Object.fromEntries(counts)),
+    );
+  }
+
   if (
     resultMessage.subtype === "success" &&
     !resultMessage.is_error &&
