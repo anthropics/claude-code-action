@@ -120,6 +120,11 @@ jobs:
 - **Migration-Friendly**: Perfect for teams moving from v0.x who miss tracking comments
 - **Works with Custom Prompts**: Your prompt becomes custom instructions while maintaining GitHub context
 
+For a post-merge review, set `pull_request.types` to `[closed]` and add
+`if: github.event.pull_request.merged == true` to the review job. Keep
+`track_progress: true` and the review prompt so Claude updates a tracking
+comment on the merged pull request.
+
 **Expected Output:**
 
 1. Claude creates a tracking comment: "Claude Code is reviewing this pull request..."
