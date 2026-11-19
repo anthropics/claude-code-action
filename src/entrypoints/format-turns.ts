@@ -46,6 +46,7 @@ export type Turn = {
   cost_usd?: number;
   duration_ms?: number;
   result?: string;
+  errors?: string[];
 };
 
 export type GroupedContent = {
@@ -423,6 +424,10 @@ export function formatGroupedContent(groupedContent: GroupedContent[]): string {
         : "## ✅ Final Result\n\n";
       if (resultText) {
         markdown += `${resultText}\n\n`;
+      }
+      const errors = item.data?.errors;
+      if (errors?.length) {
+        markdown += `### Errors\n\n${errors.map((error) => `- ${error}`).join("\n")}\n\n`;
       }
       markdown += `**Cost:** $${cost.toFixed(4)} | **Duration:** ${(duration / 1000).toFixed(1)}s\n\n`;
     }
