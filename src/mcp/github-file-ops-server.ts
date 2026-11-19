@@ -2,12 +2,12 @@
 // GitHub File Operations MCP Server
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { readFile, stat } from "fs/promises";
+import { readFile } from "fs/promises";
 import { resolve } from "path";
-import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
 import { isBinaryContent } from "./binary-detection";
+import { getFileMode } from "./file-mode";
 import { validatePathWithinRepo } from "./path-validation";
 import { updateGitReference } from "./update-git-reference";
 import { encodeBranchNameForUrl } from "../github/operations/comments/common";
@@ -171,34 +171,6 @@ async function getOrCreateBranchRef(
   return baseSha;
 }
 
-// Get the appropriate Git file mode for a file
-async function getFileMode(filePath: string): Promise<string> {
-  try {
-    const fileStat = await stat(filePath);
-    if (fileStat.isFile()) {
-      // Check if execute bit is set for user
-      if (fileStat.mode & constants.S_IXUSR) {
-        return "100755"; // Executable file
-      } else {
-        return "100644"; // Regular file
-      }
-    } else if (fileStat.isDirectory()) {
-      return "040000"; // Directory (tree)
-    } else if (fileStat.isSymbolicLink()) {
-      return "120000"; // Symbolic link
-    } else {
-      // Fallback for unknown file types
-      return "100644";
-    }
-  } catch (error) {
-    // If we can't stat the file, default to regular file
-    console.warn(
-      `Could not determine file mode for ${filePath}, using default: ${error}`,
-    );
-    return "100644";
-  }
-}
-
 // Commit files tool
 server.tool(
   "commit_files",
@@ -256,7 +228,7 @@ server.tool(
       const treeEntries = await Promise.all(
         validatedFiles.map(async ({ fullPath, relativePath }) => {
           // Get the proper file mode based on file permissions
-          const fileMode = await getFileMode(fullPath);
+          const fileMode = await getFileMode(fullPath, REPO_DIR);
 
           // Check if the file is binary by inspecting its contents. An
           // extension allowlist used to decide this, which corrupted every
