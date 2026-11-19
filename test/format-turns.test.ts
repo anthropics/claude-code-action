@@ -98,6 +98,12 @@ describe("formatResultContent", () => {
     expect(result).toContain('"number": 42');
   });
 
+  test("uses a longer fence when content contains a code fence", () => {
+    const content = "# Usage\n\n```bash\nnpm install\n```\n\nDone.";
+    const result = formatResultContent(content);
+    expect(result).toBe(`**Result:**\n\`\`\`\`bash\n${content}\n\`\`\`\`\n\n`);
+  });
+
   test("truncates very long content", () => {
     const veryLongContent = "A".repeat(4000);
     const result = formatResultContent(veryLongContent);
