@@ -22,7 +22,43 @@ This action supports the following GitHub events ([learn more GitHub event trigg
 - `pull_request_review` - When PR reviews are submitted
 - `pull_request_review_comment` - When comments are made on PR reviews
 - `repository_dispatch` - Custom events triggered via API
-- `workflow_dispatch` - Manual workflow triggers (coming soon)
+- `workflow_dispatch` - Manual workflow triggers
+
+## Manually Trigger a PR Review
+
+Use `pull_request_number` with a `workflow_dispatch` input to let Claude post
+inline comments on a specific PR in the workflow's repository. The example
+checks out the workflow ref and reads the PR diff through GitHub CLI.
+
+```yaml
+name: Review a pull request
+on:
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Pull request number
+        type: number
+        required: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          pull_request_number: ${{ inputs.pull_request_number }}
+          prompt: |
+            Review PR #${{ inputs.pull_request_number }} using gh pr diff.
+            Use the inline comment tool to post findings on changed lines.
+          claude_args: |
+            --allowedTools "Bash(gh pr diff:*),mcp__github_inline_comment__create_inline_comment"
+```
 
 ## Automated Documentation Updates
 

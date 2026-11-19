@@ -16,7 +16,7 @@ const PR_NUMBER = process.env.PR_NUMBER;
 // prevents subagents from posting test/probe comments when they inherit this
 // tool and probe it after hitting unrelated errors. The action's post-step
 // reports the buffer count for diagnostics.
-const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
+const BUFFER_PATH = process.env.INLINE_COMMENTS_BUFFER_PATH;
 const CLASSIFY_ENABLED = process.env.CLASSIFY_INLINE_COMMENTS !== "false";
 
 if (!REPO_OWNER || !REPO_NAME || !PR_NUMBER) {
@@ -109,6 +109,9 @@ server.tool(
       }
 
       if (CLASSIFY_ENABLED && confirmed !== true) {
+        if (!BUFFER_PATH) {
+          throw new Error("Inline comment buffer path is missing");
+        }
         appendFileSync(
           BUFFER_PATH,
           JSON.stringify({
@@ -121,6 +124,7 @@ server.tool(
             body: sanitizedBody,
             confirmed,
           }) + "\n",
+          { mode: 0o600 },
         );
         return {
           content: [
@@ -184,7 +188,7 @@ server.tool(
       // The comment is now live. Drop any buffered copy of it so the
       // post-session replay step cannot post it a second time (the model often
       // re-issues a buffered call with confirmed=true after the buffer reply).
-      if (CLASSIFY_ENABLED) {
+      if (CLASSIFY_ENABLED && BUFFER_PATH) {
         removeBufferedComment(
           { path, line, startLine, body: sanitizedBody },
           BUFFER_PATH,
