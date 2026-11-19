@@ -246,9 +246,13 @@ describe("prepareMcpConfig", () => {
       expect(parsed.mcpServers[name].args).toEqual([
         "--no-env-file",
         "--config=/test/action/path/bunfig.toml",
+        "--tsconfig-override=/test/action/path/tsconfig.json",
         "run",
         `/test/action/path/${script}`,
       ]);
+      expect(
+        parsed.mcpServers[name].env.BUN_RUNTIME_TRANSPILER_CACHE_PATH,
+      ).toBe("0");
     }
 
     delete process.env.DEFAULT_WORKFLOW_TOKEN;

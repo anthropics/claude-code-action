@@ -8,7 +8,9 @@ jobs:
   review:
     # Skip on fork PRs since they can't mint the OIDC token used for Claude API auth
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    # This job calls Claude, so it runs on GitHub's egress-firewall runner, which
+    # filters the job's outbound network traffic (allow list: .github/egress-firewall.yaml).
+    runs-on: ubuntu-24.04-firewall
     permissions:
       contents: read
       pull-requests: write
@@ -30,6 +32,10 @@ jobs:
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
 
           prompt: "/review-pr REPO: ${{ github.repository }} PR_NUMBER: ${{ github.event.pull_request.number }}"
+          # --permission-mode auto: a tool call that needs permission and is outside --allowedTools
+          # below and the allowed-tools list in .claude/commands/review-pr.md runs only if Claude
+          # Code's safety review passes it.
           claude_args: |
+            --permission-mode auto
             --allowedTools "mcp__github_inline_comment__create_inline_comment"
             --model "claude-opus-4-7"

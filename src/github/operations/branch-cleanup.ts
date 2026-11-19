@@ -3,6 +3,16 @@ import { GITHUB_SERVER_URL } from "../api/config";
 import { encodeBranchNameForUrl } from "./comments/common";
 import { $ } from "bun";
 
+async function pushLfsObjects(branch: string): Promise<void> {
+  let tracked: string;
+  try {
+    tracked = await $`git lfs ls-files --name-only`.quiet().text();
+  } catch {
+    return; // Git LFS isn't installed here
+  }
+  if (tracked.trim()) await $`git lfs push origin ${branch}`;
+}
+
 export async function checkAndCommitOrDeleteBranch(
   octokit: Octokits,
   owner: string,
@@ -98,6 +108,9 @@ export async function checkAndCommitOrDeleteBranch(
               const runId = process.env.GITHUB_RUN_ID || "unknown";
               const commitMessage = `Auto-commit: Save uncommitted changes from Claude\n\nRun ID: ${runId}`;
               await $`git commit -m ${commitMessage}`;
+
+              // Hooks are off by now, and Git LFS uploads from a hook.
+              await pushLfsObjects(claudeBranch);
 
               // Push the changes
               await $`git push origin ${claudeBranch}`;
