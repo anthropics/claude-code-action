@@ -1,0 +1,57 @@
+# Run Claude on-demand via GitHub UI or API
+#
+# This workflow lets you trigger Claude manually with any task.
+# Useful for:
+#   - Running Claude without creating an issue
+#   - Triggering via API from external systems
+#   - Testing prompts before automating them
+#
+# Trigger via UI: Actions tab → "Run Claude Task" → "Run workflow"
+# Trigger via API (requires a Personal Access Token, not GITHUB_TOKEN):
+#   curl -X POST \
+#     -H "Authorization: Bearer $PAT" \
+#     -H "Accept: application/vnd.github.v3+json" \
+#     https://api.github.com/repos/OWNER/REPO/actions/workflows/workflow-dispatch.yml/dispatches \
+#     -d '{"ref":"main","inputs":{"task":"Add tests for utils.ts"}}'
+
+name: Run Claude Task
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "What should Claude do?"
+        required: true
+        type: string
+      issue_number:
+        description: "Optional: Reference an issue number for context"
+        required: false
+        type: string
+
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Run Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            ${{ github.event.inputs.issue_number && format('Related Issue: #{0}', github.event.inputs.issue_number) || '' }}
+
+            Task: ${{ github.event.inputs.task }}
+          # Basic file operations - add more tools as needed (e.g., Bash commands)
+          claude_args: |
+            --allowedTools "Read,Write,Edit,MultiEdit,LS"
