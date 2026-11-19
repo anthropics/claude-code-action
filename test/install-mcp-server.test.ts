@@ -154,6 +154,39 @@ describe("prepareMcpConfig", () => {
     );
   });
 
+  test("should include github MCP server when mcp__github is allowed", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: ["mcp__github"],
+      mode: "agent",
+      context: mockContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github).toBeDefined();
+    expect(parsed.mcpServers.github.command).toBe("docker");
+  });
+
+  test("should not treat look-alike tool names as github MCP tools", async () => {
+    const result = await prepareMcpConfig({
+      githubToken: "test-token",
+      owner: "test-owner",
+      repo: "test-repo",
+      branch: "test-branch",
+      baseBranch: "main",
+      allowedTools: ["mcp__githubish", "mcp__github-actions__get_status"],
+      mode: "agent",
+      context: mockContext,
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.mcpServers.github).not.toBeDefined();
+  });
+
   test("should include inline comment server for PRs when tools are allowed", async () => {
     const result = await prepareMcpConfig({
       githubToken: "test-token",
