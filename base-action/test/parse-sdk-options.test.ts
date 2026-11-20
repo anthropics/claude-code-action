@@ -6,6 +6,18 @@ import type { ClaudeOptions } from "../src/run-claude";
 
 describe("parseSdkOptions", () => {
   describe("allowedTools merging", () => {
+    test("keeps the space after a comma inside a rule", () => {
+      const result = parseSdkOptions({
+        claudeArgs: `--allowedTools "Bash(echo a, b), Read"`,
+        allowedTools: "Bash(echo a, b)",
+      });
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(echo a, b)",
+        "Read",
+      ]);
+    });
+
     test("should extract allowedTools from claudeArgs", () => {
       const options: ClaudeOptions = {
         claudeArgs: '--allowedTools "Edit,Read,Write"',
@@ -277,6 +289,40 @@ describe("parseSdkOptions", () => {
 
       expect(result.sdkOptions.disallowedTools?.join(",")).toBe(
         "Bash(/x.sh {a,b}/*),Bash(git add {a,b}/*),Bash(bun:*)",
+      );
+    });
+
+    test("keeps the space after a comma inside a rule", () => {
+      const result = parseSdkOptions({
+        claudeArgs: `--disallowedTools "Bash(echo a, b)"`,
+        disallowedTools: "Bash(rm -rf, x),Bash(bun:*)",
+      });
+
+      expect(result.sdkOptions.disallowedTools).toEqual([
+        "Bash(echo a, b)",
+        "Bash(rm -rf, x)",
+        "Bash(bun:*)",
+      ]);
+    });
+
+    test("trims the space between rules but not inside them", () => {
+      const result = parseSdkOptions({
+        claudeArgs: `--disallowedTools "Bash(f(a, b)) , Read ,Write( x, y )"`,
+      });
+
+      expect(result.sdkOptions.disallowedTools?.join(",")).toBe(
+        "Bash(f(a, b)),Read,Write( x, y )",
+      );
+    });
+
+    test("passes rules with unbalanced parentheses through unchanged", () => {
+      const result = parseSdkOptions({
+        claudeArgs: `--disallowedTools "Bash(a, b"`,
+        disallowedTools: "Read",
+      });
+
+      expect(result.sdkOptions.disallowedTools?.join(",")).toBe(
+        "Bash(a, b,Read",
       );
     });
 
