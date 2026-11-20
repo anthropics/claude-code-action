@@ -93,15 +93,15 @@ function getPrAuthor(context: ParsedGitHubContext): string | undefined {
   return undefined;
 }
 
-type LookupError = Error & { retryable: boolean };
+export type LookupError = Error & { retryable: boolean };
 
 /**
  * Reduces a failed API call to its HTTP status, so that nothing else from the
- * error can reach the workflow log, and decides whether to try again. A 404 (not
- * a user account) or a plain 403 won't change, but GitHub also uses 403 for rate
- * limits. Whatever the outcome, a failed lookup counts as untrusted.
+ * error can reach the workflow log, and decides whether to try again. A 404 or a
+ * plain 403 won't change, but GitHub also uses 403 for rate
+ * limits.
  */
-function toLookupError(error: unknown): LookupError {
+export function toLookupError(error: unknown): LookupError {
   const { status, response } = error as {
     status?: number;
     response?: { headers?: Record<string, string | number | undefined> };
