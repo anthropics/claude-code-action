@@ -52,6 +52,7 @@ import {
   keepHeadHistory,
   restoreConfigFromBase,
 } from "../github/operations/restore-config";
+import { ensurePullRequestMergeBase } from "../github/operations/fetch-depth";
 import {
   restoreToolConfigFromBase,
   toolConfigDenyRules,
@@ -382,6 +383,11 @@ async function run() {
           restoreHeadHistory?.();
           fetchBranch(restoreBase);
         }
+        await ensurePullRequestMergeBase(
+          octokit.rest,
+          context.repository,
+          restoreBase,
+        );
       }
     }
 
