@@ -125,21 +125,33 @@ runs:
         no-cache: true
 
     - name: Setup Custom Bun Path
+      id: custom-bun
       if: inputs.path_to_bun_executable != ''
       shell: bash
       env:
         PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
       run: |
-        echo "Using custom Bun executable: $PATH_TO_BUN_EXECUTABLE"
-        # Add the directory containing the custom executable to PATH
-        BUN_DIR=$(dirname "$PATH_TO_BUN_EXECUTABLE")
-        echo "$BUN_DIR" >> "$GITHUB_PATH"
+        BUN_BIN="$PATH_TO_BUN_EXECUTABLE"
+        if [ "$RUNNER_OS" = Windows ]; then
+          BUN_BIN=$(cygpath -am "$BUN_BIN")
+        elif [[ "$BUN_BIN" != /* ]]; then
+          BUN_BIN="$PWD/$BUN_BIN"
+        fi
+        if [[ "$BUN_BIN" == *[[:cntrl:]]* ]] || [ ! -f "$BUN_BIN" ] || [ ! -x "$BUN_BIN" ]; then
+          echo "::error::path_to_bun_executable must point to an executable file."
+          exit 1
+        fi
+        echo "Using custom Bun executable: $BUN_BIN"
+        echo "path=$BUN_BIN" >> "$GITHUB_OUTPUT"
+        dirname -- "$BUN_BIN" >> "$GITHUB_PATH"
 
     - name: Install Dependencies
       shell: bash
+      env:
+        CUSTOM_BUN_PATH: ${{ steps.custom-bun.outputs.path }}
       run: |
         cd ${GITHUB_ACTION_PATH}
-        bun install --production
+        "${CUSTOM_BUN_PATH:-bun}" install --production
 
     - name: Install Claude Code
       shell: bash
@@ -187,10 +199,11 @@ runs:
         # rest first and stop there. With exec instead, cancelling the run would
         # interrupt Bun at once, before it can clean up.
         {
-          bun run ${GITHUB_ACTION_PATH}/src/index.ts
+          "${CUSTOM_BUN_PATH:-bun}" run ${GITHUB_ACTION_PATH}/src/index.ts
           exit
         }
       env:
+        CUSTOM_BUN_PATH: ${{ steps.custom-bun.outputs.path }}
         # Turns off Bun's cache of transpiled files, which is outside the action's
         # directory
         BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0"
