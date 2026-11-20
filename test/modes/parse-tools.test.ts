@@ -249,4 +249,17 @@ describe("parseAllowedTools", () => {
       "mcp__github_comment__*",
     ]);
   });
+
+  test.each([
+    [
+      "--allowedTools=mcp__github_inline_comment__create_inline_comment,Read",
+      ["mcp__github_inline_comment__create_inline_comment", "Read"],
+    ],
+    [`--allowed-tools="Bash(gh pr view:*)"`, ["Bash(gh pr view:*)"]],
+    [`--allowedTools=Read --model opus`, ["Read"]],
+  ])("parses the --flag=value form in %s", (args, expected) => {
+    // The CLI receives `--allowedTools=...` as is and grants these tools, so
+    // the servers for them must be installed too.
+    expect(parseAllowedTools(args as string)).toEqual(expected as string[]);
+  });
 });

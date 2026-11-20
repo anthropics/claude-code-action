@@ -66,19 +66,27 @@ export function parseAllowedTools(claudeArgs: string): string[] {
     const arg = args[i];
     if (!arg?.startsWith("--")) continue;
 
-    const flag = arg.slice(2);
-    if (!ALLOWED_TOOLS_FLAGS.has(flag)) continue;
+    const [flag, inlineValue] = arg.slice(2).split(/=(.*)/s);
+    if (!flag || !ALLOWED_TOOLS_FLAGS.has(flag)) continue;
 
-    // Consume all consecutive non-flag values, e.g.
+    // `--allowedTools=Read,Grep` reaches the CLI as is, with its value after the "=".
+    // Otherwise consume all consecutive non-flag values, e.g.
     //   --allowedTools "Read" "Grep" "mcp__github__get_commit"
-    while (i + 1 < args.length && !args[i + 1]!.startsWith("--")) {
-      i++;
-      for (const tool of args[i]!.split(",")) {
-        const trimmed = tool.trim();
-        if (trimmed && !seen.has(trimmed)) {
-          seen.add(trimmed);
-          tools.push(trimmed);
-        }
+    const values: string[] = [];
+    if (inlineValue !== undefined) {
+      values.push(inlineValue);
+    } else {
+      while (i + 1 < args.length && !args[i + 1]!.startsWith("--")) {
+        i++;
+        values.push(args[i]!);
+      }
+    }
+
+    for (const tool of values.flatMap((value) => value.split(","))) {
+      const trimmed = tool.trim();
+      if (trimmed && !seen.has(trimmed)) {
+        seen.add(trimmed);
+        tools.push(trimmed);
       }
     }
   }
