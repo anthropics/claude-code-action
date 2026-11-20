@@ -256,7 +256,7 @@ Specify a Claude model using `claude_args`:
 - uses: anthropics/claude-code-action@v1
   with:
     claude_args: |
-      --model claude-4-0-sonnet-20250805
+      --model sonnet
     # ... other inputs
 ```
 
@@ -370,7 +370,7 @@ Many individual input parameters have been consolidated into `claude_args` or `s
 | `allowed_tools`       | Use `claude_args: "--allowedTools Tool1,Tool2"`                 |
 | `disallowed_tools`    | Use `claude_args: "--disallowedTools Tool1,Tool2"`              |
 | `max_turns`           | Use `claude_args: "--max-turns 10"`                             |
-| `model`               | Use `claude_args: "--model claude-4-0-sonnet-20250805"`         |
+| `model`               | Use `claude_args: "--model sonnet"`                             |
 | `claude_env`          | Use `settings` with `"env"` object                              |
 | `custom_instructions` | Use `claude_args: "--append-system-prompt 'Your instructions'"` |
 | `mcp_config`          | Use `claude_args: "--mcp-config '{...}'"`                       |

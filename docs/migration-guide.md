@@ -82,7 +82,7 @@ The following inputs have been deprecated and replaced:
       Review this PR for security issues
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     claude_args: |
-      --model claude-4-0-sonnet-20250805
+      --model sonnet
       --allowedTools Edit,Read,Write
 ```
 
@@ -248,7 +248,7 @@ The `claude_args` input provides direct access to Claude Code CLI arguments:
 ```yaml
 claude_args: |
   --max-turns 15
-  --model claude-4-0-sonnet-20250805
+  --model sonnet
   --allowedTools Edit,Read,Write,Bash
   --disallowedTools WebSearch
   --system-prompt "You are a senior engineer focused on code quality"
@@ -260,7 +260,7 @@ claude_args: |
 | Option                   | Description                                                               | Example                                                |
 | ------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `--max-turns`            | Limit conversation turns                                                  | `--max-turns 10`                                       |
-| `--model`                | Specify Claude model                                                      | `--model claude-4-0-sonnet-20250805`                   |
+| `--model`                | Specify Claude model                                                      | `--model sonnet`                                       |
 | `--allowedTools`         | Enable specific tools                                                     | `--allowedTools Edit,Read,Write`                       |
 | `--disallowedTools`      | Disable specific tools                                                    | `--disallowedTools WebSearch`                          |
 | `--system-prompt`        | Replace the entire default system prompt                                  | `--system-prompt "Focus on security"`                  |
