@@ -361,6 +361,32 @@ For a complete list of available settings and their descriptions, see the [Claud
 - The `claude_args` input provides direct access to Claude Code CLI arguments and takes precedence over settings.
 - We recommend using `claude_args` for simple configurations and `settings` for complex configurations with hooks and environment variables.
 
+## Sharing CLAUDE.md Across Repositories
+
+Keep common instructions in a repository your organization maintains. In a workflow that runs from a trusted branch, such as a manual workflow, check out that repository before calling the action. Replace the example SHA with the commit you want to use.
+
+```yaml
+- uses: actions/checkout@v6
+- uses: actions/checkout@v6
+  with:
+    repository: your-org/claude-instructions
+    ref: "0123456789abcdef0123456789abcdef01234567"
+    path: .github/shared-claude
+    sparse-checkout: CLAUDE.md
+    sparse-checkout-cone-mode: false
+    persist-credentials: false
+```
+
+For a private instructions repository, add `token: ${{ secrets.SHARED_INSTRUCTIONS_TOKEN }}` to the second checkout with a token that can read that repository. [Checkout multiple repositories](https://github.com/actions/checkout#checkout-multiple-repos-nested)
+
+Add this line to the root `CLAUDE.md` in each application repository:
+
+```markdown
+@.github/shared-claude/CLAUDE.md
+```
+
+Claude loads the shared file when it reads the application's `CLAUDE.md`. Add `.github/shared-claude/` to the application's `.gitignore` to keep the second checkout out of commits. If the shared file imports other files, include those paths in the second checkout. [Claude Code imports](https://code.claude.com/docs/en/memory#import-additional-files)
+
 ## Migration from Deprecated Inputs
 
 Many individual input parameters have been consolidated into `claude_args` or `settings`. Here's how to migrate:
