@@ -51,14 +51,16 @@ server.tool(
       ),
     line: z
       .number()
-      .nonnegative()
+      .int()
+      .positive()
       .optional()
       .describe(
         "Line number for single-line comments (required if startLine is not provided)",
       ),
     startLine: z
       .number()
-      .nonnegative()
+      .int()
+      .positive()
       .optional()
       .describe(
         "Start line for multi-line comments (use with line parameter for the end line)",
