@@ -12,6 +12,17 @@ import type { ParsedGitHubContext } from "../context";
 import { isSameLogin } from "./actor";
 
 /**
+ * Matches the trigger phrase as a whole token: preceded by start-of-string or
+ * whitespace, followed by whitespace, sentence punctuation, or end-of-string.
+ */
+function buildTriggerRegex(triggerPhrase: string): RegExp {
+  return new RegExp(
+    `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
+    "i",
+  );
+}
+
+/**
  * Whether the text of a comment or review event comes from the person who was checked.
  * Deleting or editing someone else's fires these events with the moderator as the actor.
  */
@@ -78,6 +89,8 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     return true;
   }
 
+  const triggerRegex = buildTriggerRegex(triggerPhrase);
+
   // Check for assignee trigger
   if (isIssuesAssignedEvent(context)) {
     if (matchesAssigneeTrigger(context, assigneeTrigger)) {
@@ -98,14 +111,9 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   if (isIssuesEvent(context) && context.eventAction === "opened") {
     const issueBody = context.payload.issue.body || "";
     const issueTitle = context.payload.issue.title || "";
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
-      "i",
-    );
 
     // Check in body
-    if (regex.test(issueBody)) {
+    if (triggerRegex.test(issueBody)) {
       console.log(
         `Issue body contains exact trigger phrase '${triggerPhrase}'`,
       );
@@ -113,7 +121,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     }
 
     // Check in title
-    if (regex.test(issueTitle)) {
+    if (triggerRegex.test(issueTitle)) {
       console.log(
         `Issue title contains exact trigger phrase '${triggerPhrase}'`,
       );
@@ -125,14 +133,9 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   if (isPullRequestEvent(context)) {
     const prBody = context.payload.pull_request.body || "";
     const prTitle = context.payload.pull_request.title || "";
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
-      "i",
-    );
 
     // Check in body
-    if (regex.test(prBody)) {
+    if (triggerRegex.test(prBody)) {
       console.log(
         `Pull request body contains exact trigger phrase '${triggerPhrase}'`,
       );
@@ -140,7 +143,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     }
 
     // Check in title
-    if (regex.test(prTitle)) {
+    if (triggerRegex.test(prTitle)) {
       console.log(
         `Pull request title contains exact trigger phrase '${triggerPhrase}'`,
       );
@@ -154,12 +157,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     (context.eventAction === "submitted" || context.eventAction === "edited")
   ) {
     const reviewBody = context.payload.review.body || "";
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
-      "i",
-    );
-    if (regex.test(reviewBody)) {
+    if (triggerRegex.test(reviewBody)) {
       console.log(
         `Pull request review contains exact trigger phrase '${triggerPhrase}'`,
       );
@@ -173,12 +171,7 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     isPullRequestReviewCommentEvent(context)
   ) {
     const commentBody = context.payload.comment.body;
-    // Check for exact match with word boundaries or punctuation
-    const regex = new RegExp(
-      `(^|\\s)${escapeRegExp(triggerPhrase)}([\\s.,!?;:]|$)`,
-      "i",
-    );
-    if (regex.test(commentBody)) {
+    if (triggerRegex.test(commentBody)) {
       console.log(`Comment contains exact trigger phrase '${triggerPhrase}'`);
       return true;
     }
