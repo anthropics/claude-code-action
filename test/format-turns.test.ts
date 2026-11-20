@@ -392,6 +392,20 @@ describe("formatGroupedContent", () => {
     expect(result).toContain("**Cost:** $0.1234");
     expect(result).toContain("**Duration:** 5.7s");
   });
+
+  test.each([
+    { subtype: "success", is_error: true },
+    { subtype: "error_max_turns", is_error: true },
+    { subtype: "error_during_execution" },
+  ])("marks an unsuccessful session as failed (%j)", (status) => {
+    const result = formatTurnsFromData([
+      { type: "result", result: "Partial response", ...status },
+    ]);
+
+    expect(result).toContain("## ❌ Session Failed");
+    expect(result).not.toContain("## ✅ Final Result");
+    expect(result).toContain("Partial response");
+  });
 });
 
 describe("formatTurnsFromData", () => {
@@ -450,6 +464,24 @@ describe("formatTurnsFromData", () => {
     expect(result).toContain("### 🔧 `read_file`");
     expect(result).toContain("## ✅ Final Result");
     expect(result).toContain("Done");
+  });
+
+  test("includes SDK errors when a failed session has no result text", () => {
+    const report = formatTurnsFromData([
+      {
+        type: "result",
+        subtype: "error_during_execution",
+        is_error: true,
+        errors: ["The model is unavailable.", "The session could not finish."],
+        duration_ms: 1200,
+      },
+    ]);
+
+    expect(report).toContain("## ❌ Session Failed");
+    expect(report).toContain(
+      "### Errors\n\n- The model is unavailable.\n- The session could not finish.",
+    );
+    expect(report).toContain("**Duration:** 1.2s");
   });
 });
 
