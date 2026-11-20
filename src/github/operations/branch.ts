@@ -8,6 +8,7 @@
 
 import { $ } from "bun";
 import { execFileSync } from "child_process";
+import { randomBytes } from "crypto";
 import type { ParsedGitHubContext } from "../context";
 import { isPullRequestEvent } from "../context";
 import { retryWithBackoff } from "../../utils/retry";
@@ -147,6 +148,17 @@ export function validateBranchName(branchName: string): void {
  */
 function execGit(args: string[], env: NodeJS.ProcessEnv = process.env): void {
   execFileSync("git", args, { stdio: "inherit", env });
+}
+
+async function branchNameInUse(branchName: string): Promise<boolean> {
+  const ref = `refs/heads/${branchName}`;
+  const local = await $`git show-ref --verify --quiet ${ref}`.quiet().nothrow();
+  if (local.exitCode === 0) return true;
+
+  const remote = await $`git ls-remote --exit-code origin ${ref}`
+    .quiet()
+    .nothrow();
+  return remote.exitCode === 0;
 }
 
 export type BranchInfo = {
@@ -328,31 +340,33 @@ export async function setupBranch(
       title,
     );
 
-    // Check if generated branch already exists on remote
-    try {
-      await $`git ls-remote --exit-code origin refs/heads/${newBranch}`.quiet();
+    validateBranchName(newBranch);
 
-      // If we get here, branch exists (exit code 0)
-      console.log(
-        `Branch '${newBranch}' already exists, falling back to default format`,
-      );
-      newBranch = generateBranchName(
-        undefined, // Force default template
+    if (await branchNameInUse(newBranch)) {
+      const defaultName = generateBranchName(
+        undefined,
         branchPrefix,
         entityType,
         entityNumber,
-        sourceSHA,
-        firstLabel,
-        title,
       );
-    } catch {
-      // Branch doesn't exist (non-zero exit code), continue with generated name
-    }
+      validateBranchName(defaultName);
 
-    // Validate before either path uses the name. The signing path hands it to
-    // the file ops server rather than to git, so without this an invalid
-    // template only surfaces as a 422 on the first commit.
-    validateBranchName(newBranch);
+      let fallbackName = defaultName;
+      // The default uses minute precision and can be the same as the occupied name.
+      if (defaultName === newBranch || (await branchNameInUse(defaultName))) {
+        // Keep the whole name so the suffix cannot cut off a configured namespace.
+        fallbackName = `${defaultName}-${randomBytes(6).toString("hex")}`;
+        validateBranchName(fallbackName);
+        if (await branchNameInUse(fallbackName)) {
+          throw new Error(`Fallback branch '${fallbackName}' already exists`);
+        }
+      }
+
+      console.log(
+        `Branch '${newBranch}' already exists, using '${fallbackName}'`,
+      );
+      newBranch = fallbackName;
+    }
 
     // For commit signing, defer branch creation to the file ops server
     if (context.inputs.useCommitSigning) {
