@@ -13,11 +13,93 @@ import type { GitHubContext } from "../context";
 import { GITHUB_SERVER_URL } from "../api/config";
 
 const SSH_SIGNING_KEY_PATH = join(homedir(), ".ssh", "claude_signing_key");
+const CHECKOUT_HEADER = `http.${GITHUB_SERVER_URL}/.extraheader`;
 
 type GitUser = {
   login: string;
   id: number;
 };
+
+async function readConfigValues(
+  cwd: string,
+  scope: string[],
+  key: string,
+): Promise<string[]> {
+  const result = await $`git config ${scope} --null --get-all ${key}`
+    .cwd(cwd)
+    .quiet()
+    .nothrow();
+  if (result.exitCode === 1) return [];
+  if (result.exitCode !== 0) {
+    throw new Error(`Could not read Git configuration key ${key}`);
+  }
+  return result.stdout.toString().split("\0").slice(0, -1);
+}
+
+async function checkoutIncludes(cwd: string): Promise<string[]> {
+  return (await readConfigValues(cwd, ["--local"], "include.path"))
+    .map((path) => path.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Capture the keys the action changes so later steps can use the credentials
+ * and identity supplied by checkout. Keep the values in process memory.
+ */
+export async function saveCheckoutGitAuth(): Promise<
+  (() => Promise<void>) | undefined
+> {
+  const cwd = process.cwd();
+  const local = ["--local"];
+  const repo = await $`git rev-parse --git-dir`.cwd(cwd).quiet().nothrow();
+  if (repo.exitCode !== 0) return undefined;
+
+  const keys = [
+    "remote.origin.url",
+    "credential.helper",
+    CHECKOUT_HEADER,
+    "user.name",
+    "user.email",
+  ].map((key) => ({ scope: local, key }));
+  for (const path of new Set(await checkoutIncludes(cwd))) {
+    keys.push({ scope: ["--file", path], key: CHECKOUT_HEADER });
+  }
+  const saved = await Promise.all(
+    keys.map(async ({ scope, key }) => ({
+      scope,
+      key,
+      values: await readConfigValues(cwd, scope, key),
+    })),
+  );
+
+  return async () => {
+    const failedKeys: string[] = [];
+    for (const { scope, key, values } of saved) {
+      try {
+        const current = await readConfigValues(cwd, scope, key);
+        if (
+          current.length === values.length &&
+          current.every((value, index) => value === values[index])
+        ) {
+          continue;
+        }
+        if (current.length > 0) {
+          await $`git config ${scope} --unset-all ${key}`.cwd(cwd).quiet();
+        }
+        for (const value of values) {
+          await $`git config ${scope} --add ${key} ${value}`.cwd(cwd).quiet();
+        }
+      } catch {
+        failedKeys.push(key);
+      }
+    }
+    if (failedKeys.length > 0) {
+      throw new Error(
+        `Could not restore Git configuration keys ${failedKeys.join(", ")}`,
+      );
+    }
+  };
+}
 
 export async function configureGitAuth(
   githubToken: string,
@@ -75,22 +157,17 @@ export async function replaceCheckoutCredentials(
 
   // Remove the authorization header that actions/checkout sets
   console.log("Removing existing git authentication headers...");
-  const extraheaderKey = `http.${GITHUB_SERVER_URL}/.extraheader`;
   let removedHeader = false;
   try {
-    await $`git config --unset-all ${extraheaderKey}`;
+    await $`git config --unset-all ${CHECKOUT_HEADER}`;
     removedHeader = true;
   } catch {
     // No extraheader in the local config (expected on the v6+ include layout).
   }
   try {
-    const includePaths =
-      await $`git config --local --get-all include.path`.text();
-    for (const includePath of includePaths.split("\n")) {
-      const path = includePath.trim();
-      if (!path) continue;
+    for (const path of await checkoutIncludes(process.cwd())) {
       try {
-        await $`git config --file ${path} --unset-all ${extraheaderKey}`;
+        await $`git config --file ${path} --unset-all ${CHECKOUT_HEADER}`;
         removedHeader = true;
       } catch {
         // This include does not define the header; leave it untouched.

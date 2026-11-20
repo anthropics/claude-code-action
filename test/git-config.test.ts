@@ -6,6 +6,7 @@ import { join } from "path";
 import {
   configureGitAuth,
   replaceCheckoutCredentials,
+  saveCheckoutGitAuth,
 } from "../src/github/operations/git-config";
 import { GITHUB_SERVER_URL } from "../src/github/api/config";
 import { createMockAutomationContext } from "./mockContext";
@@ -260,6 +261,73 @@ describe("git-config", () => {
       expect(remoteUrl()).toBe(
         `https://x-access-token:test-token@${SERVER.host}/test-owner/test-repo.git`,
       );
+    });
+  });
+
+  describe("saveCheckoutGitAuth", () => {
+    test.each([false, true])(
+      "restores checkout authentication after using the action token (helper: %j)",
+      async (useHelper) => {
+        if (useHelper) process.env.ALLOWED_NON_WRITE_USERS = "someone";
+        const originalUrl = remoteUrl();
+        const headers = gitConfigGetAll(EXTRAHEADER_KEY);
+        const included = join(tempDir, "checkout credentials.config");
+        git([
+          "config",
+          "--file",
+          included,
+          "--add",
+          EXTRAHEADER_KEY,
+          "AUTHORIZATION: basic included",
+        ]);
+        git(["config", "--local", "--add", "include.path", included]);
+        git([
+          "config",
+          "--local",
+          "--add",
+          "credential.helper",
+          "original-helper",
+        ]);
+
+        const restore = await saveCheckoutGitAuth();
+        await configureGitAuth("test-token", createMockAutomationContext(), {
+          login: "claude[bot]",
+          id: 42,
+        });
+        expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe("");
+        expect(remoteUrl()).not.toBe(originalUrl);
+        git(["config", "--local", "fetch.prune", "true"]);
+
+        await restore!();
+        expect(remoteUrl()).toBe(originalUrl);
+        expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe(headers);
+        expect(
+          runGit(["config", "--file", included, "--get-all", EXTRAHEADER_KEY]),
+        ).toBe("AUTHORIZATION: basic included");
+        expect(gitConfigGetAll("credential.helper")).toBe("original-helper");
+        expect(gitConfigGetAll("user.name")).toBe("pre-existing");
+        expect(gitConfigGetAll("user.email")).toBe("");
+        expect(gitConfigGetAll("fetch.prune")).toBe("true");
+      },
+    );
+
+    test("restores keys changed before a failed authentication setup", async () => {
+      git(["remote", "remove", "origin"]);
+      const headers = gitConfigGetAll(EXTRAHEADER_KEY);
+      const restore = await saveCheckoutGitAuth();
+
+      await expect(
+        configureGitAuth("test-token", createMockAutomationContext(), {
+          login: "claude[bot]",
+          id: 42,
+        }),
+      ).rejects.toThrow();
+      expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe("");
+
+      await restore!();
+      expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe(headers);
+      expect(gitConfigGetAll("user.name")).toBe("pre-existing");
+      expect(gitConfigGetAll("remote.origin.url")).toBe("");
     });
   });
 
