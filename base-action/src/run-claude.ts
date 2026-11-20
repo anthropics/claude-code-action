@@ -14,6 +14,7 @@ export type ClaudeOptions = {
   mcpConfig?: string;
   systemPrompt?: string;
   appendSystemPrompt?: string;
+  systemPromptContext?: string;
   fallbackModel?: string;
   showFullOutput?: string;
   /** Mode to switch to when auto mode was asked for but isn't available. */

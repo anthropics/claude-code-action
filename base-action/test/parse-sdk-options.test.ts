@@ -5,6 +5,47 @@ import { parseSdkOptions } from "../src/parse-sdk-options";
 import type { ClaudeOptions } from "../src/run-claude";
 
 describe("parseSdkOptions", () => {
+  describe("system prompt context", () => {
+    const systemPromptContext = "Older commits may be missing.";
+
+    test("adds repository context alongside the configured system prompt append", () => {
+      const { sdkOptions } = parseSdkOptions({
+        appendSystemPrompt: "Keep responses concise.",
+        systemPromptContext,
+      });
+      expect(sdkOptions.systemPrompt).toEqual({
+        type: "preset",
+        preset: "claude_code",
+        append: "Keep responses concise.\n\nOlder commits may be missing.",
+      });
+    });
+
+    test("adds repository context to an inline CLI append without replacing it", () => {
+      const { sdkOptions } = parseSdkOptions({
+        claudeArgs: '--append-system-prompt "Keep responses concise."',
+        systemPromptContext,
+      });
+      expect(sdkOptions.extraArgs?.["append-system-prompt"]).toBe(
+        "Keep responses concise.\n\nOlder commits may be missing.",
+      );
+      expect(sdkOptions.systemPrompt).toEqual({
+        type: "preset",
+        preset: "claude_code",
+      });
+    });
+
+    test.each([
+      "--system-prompt",
+      "--system-prompt-file",
+      "--append-system-prompt-file",
+    ])("preserves explicit prompt flag %s", (flag) => {
+      const claudeArgs = `${flag} custom-prompt`;
+      expect(parseSdkOptions({ claudeArgs, systemPromptContext })).toEqual(
+        parseSdkOptions({ claudeArgs }),
+      );
+    });
+  });
+
   describe("allowedTools merging", () => {
     test("should extract allowedTools from claudeArgs", () => {
       const options: ClaudeOptions = {
