@@ -138,7 +138,7 @@ runs:
     - name: Install Dependencies
       shell: bash
       run: |
-        cd ${GITHUB_ACTION_PATH}
+        cd "${GITHUB_ACTION_PATH}"
         bun install --production
 
     - name: Install Claude Code
@@ -187,7 +187,7 @@ runs:
         # rest first and stop there. With exec instead, cancelling the run would
         # interrupt Bun at once, before it can clean up.
         {
-          bun run ${GITHUB_ACTION_PATH}/src/index.ts
+          bun run "${GITHUB_ACTION_PATH}/src/index.ts"
           exit
         }
       env:
