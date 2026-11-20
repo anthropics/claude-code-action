@@ -27,6 +27,10 @@ describe("validateBranchName", () => {
     it("should accept names with periods", () => {
       expect(() => validateBranchName("v1.0.0")).not.toThrow();
       expect(() => validateBranchName("release.1.2.3")).not.toThrow();
+      expect(() => validateBranchName("release/v1.2/notes")).not.toThrow();
+      expect(() =>
+        validateBranchName("release/notes.locked/edit"),
+      ).not.toThrow();
     });
 
     it("should accept branch names containing parentheses", () => {
@@ -175,6 +179,15 @@ describe("validateBranchName", () => {
     it("should reject .lock suffix", () => {
       expect(() => validateBranchName("branch.lock")).toThrow(/\.lock/);
       expect(() => validateBranchName("feature.lock")).toThrow(/\.lock/);
+      expect(() => validateBranchName("release/archive.lock/edit")).toThrow(
+        /\.lock/,
+      );
+    });
+
+    it("should reject a branch name component starting with a dot", () => {
+      expect(() => validateBranchName("release/.changes/edit")).toThrow(
+        /start with a period/,
+      );
     });
 
     it("should reject consecutive slashes", () => {
