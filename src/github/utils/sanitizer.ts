@@ -25,24 +25,35 @@ export function stripMarkdownLinkTitles(content: string): string {
   return content;
 }
 
+// An HTML start tag: name, then attributes (quoted values may contain ">"), up
+// to ">" or the end of input. Unclosed quotes and tags run to the end because
+// the renderer hides them, so their attributes must be stripped too.
+const HTML_TAG = /<[a-zA-Z][^\s>/]*(?:"[^"]*"?|'[^']*'?|[^>"'])*(?:>|$)/g;
+
 export function stripHiddenAttributes(content: string): string {
+  // Only inside tags: elsewhere `title="..."` is code or config, not an attribute.
+  return content.replace(HTML_TAG, stripHiddenTagAttributes);
+}
+
+function stripHiddenTagAttributes(content: string): string {
   // Quoted values are matched per quote type so that a value containing the
   // other quote character (e.g. an apostrophe inside a double-quoted value)
   // does not terminate the match early and mangle surrounding content (#1366).
-  content = content.replace(/\salt\s*=\s*"[^"]*"/gi, "");
-  content = content.replace(/\salt\s*=\s*'[^']*'/gi, "");
+  // An unclosed quote runs to the end of input, as the renderer hides it.
+  content = content.replace(/\salt\s*=\s*"[^"]*(?:"|$)/gi, "");
+  content = content.replace(/\salt\s*=\s*'[^']*(?:'|$)/gi, "");
   content = content.replace(/\salt\s*=\s*[^\s>]+/gi, "");
-  content = content.replace(/\stitle\s*=\s*"[^"]*"/gi, "");
-  content = content.replace(/\stitle\s*=\s*'[^']*'/gi, "");
+  content = content.replace(/\stitle\s*=\s*"[^"]*(?:"|$)/gi, "");
+  content = content.replace(/\stitle\s*=\s*'[^']*(?:'|$)/gi, "");
   content = content.replace(/\stitle\s*=\s*[^\s>]+/gi, "");
-  content = content.replace(/\saria-label\s*=\s*"[^"]*"/gi, "");
-  content = content.replace(/\saria-label\s*=\s*'[^']*'/gi, "");
+  content = content.replace(/\saria-label\s*=\s*"[^"]*(?:"|$)/gi, "");
+  content = content.replace(/\saria-label\s*=\s*'[^']*(?:'|$)/gi, "");
   content = content.replace(/\saria-label\s*=\s*[^\s>]+/gi, "");
-  content = content.replace(/\sdata-[a-zA-Z0-9-]+\s*=\s*"[^"]*"/gi, "");
-  content = content.replace(/\sdata-[a-zA-Z0-9-]+\s*=\s*'[^']*'/gi, "");
+  content = content.replace(/\sdata-[a-zA-Z0-9-]+\s*=\s*"[^"]*(?:"|$)/gi, "");
+  content = content.replace(/\sdata-[a-zA-Z0-9-]+\s*=\s*'[^']*(?:'|$)/gi, "");
   content = content.replace(/\sdata-[a-zA-Z0-9-]+\s*=\s*[^\s>]+/gi, "");
-  content = content.replace(/\splaceholder\s*=\s*"[^"]*"/gi, "");
-  content = content.replace(/\splaceholder\s*=\s*'[^']*'/gi, "");
+  content = content.replace(/\splaceholder\s*=\s*"[^"]*(?:"|$)/gi, "");
+  content = content.replace(/\splaceholder\s*=\s*'[^']*(?:'|$)/gi, "");
   content = content.replace(/\splaceholder\s*=\s*[^\s>]+/gi, "");
   return content;
 }
