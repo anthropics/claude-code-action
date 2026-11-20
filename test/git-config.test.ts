@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { execFileSync } from "child_process";
-import { mkdirSync, mkdtempSync, rmSync, statSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
@@ -212,6 +220,107 @@ describe("git-config", () => {
         expect(fill(SERVER.host, "helper-token")).toContain(
           "password=helper-token",
         );
+      });
+    });
+
+    describe("rotating GitHub App credential helper", () => {
+      const repoUrl = `https://x-access-token@${SERVER.host}/test-owner/test-repo.git`;
+      let tokenPath: string;
+      let globalConfig: string;
+      let credentialLog: string;
+
+      function credential(
+        url: string,
+        operation = "fill",
+        password?: string,
+      ): string {
+        return execFileSync("git", ["credential", operation], {
+          cwd: repoDir,
+          encoding: "utf8",
+          input: `url=${url}\n${password ? `password=${password}\n` : ""}\n`,
+          stdio: "pipe",
+          env: {
+            ...process.env,
+            GH_TOKEN: "stale-token",
+            GIT_CONFIG_GLOBAL: globalConfig,
+            GIT_CONFIG_NOSYSTEM: "1",
+            GIT_ASKPASS: "",
+            GIT_TERMINAL_PROMPT: "0",
+            TEST_CREDENTIAL_LOG: credentialLog,
+          },
+        });
+      }
+
+      beforeEach(async () => {
+        tokenPath = join(tempDir, "token dir's file");
+        globalConfig = join(tempDir, "global-config");
+        credentialLog = join(tempDir, "credential-log");
+        writeFileSync(tokenPath, "first-token\n", { mode: 0o600 });
+        git([
+          "config",
+          "--file",
+          globalConfig,
+          "credential.helper",
+          '!f() { if [ "$1" = get ]; then printf \'username=fallback\\npassword=fallback-token\\n\'; else printf \'%s\\n\' "$1" >> "$TEST_CREDENTIAL_LOG"; fi; }; f',
+        ]);
+        await replaceCheckoutCredentials(
+          "stale-token",
+          createMockAutomationContext(),
+          tokenPath,
+        );
+      });
+
+      test("reads the current token on each lookup without embedding it in Git config", () => {
+        expect(gitConfigGetAll(EXTRAHEADER_KEY)).toBe("");
+        expect(remoteUrl()).toBe(repoUrl);
+        expect(
+          runGit([
+            "config",
+            "--get-urlmatch",
+            "credential.useHttpPath",
+            repoUrl.replace("x-access-token@", ""),
+          ]),
+        ).toBe("true");
+        expect(credential(repoUrl)).toContain("password=first-token");
+
+        const pending = `${tokenPath}.next`;
+        writeFileSync(pending, "next-token\n", { mode: 0o600 });
+        renameSync(pending, tokenPath);
+
+        expect(credential(repoUrl)).toContain("password=next-token");
+        expect(runGit(["config", "--local", "--list"])).not.toMatch(
+          /(?:first|next|stale)-token/,
+        );
+      });
+
+      test("does not supply the action token for another repository, host, or protocol", () => {
+        for (const url of [
+          `${repoUrl}/other`,
+          `https://x-access-token@${SERVER.host}/test-owner/other.git`,
+          "https://x-access-token@other.example.com/test-owner/test-repo.git",
+          repoUrl.replace("https:", "http:"),
+        ]) {
+          try {
+            expect(credential(url)).not.toContain("password=first-token");
+          } catch (error) {
+            expect((error as { status?: number }).status).toBe(128);
+          }
+        }
+      });
+
+      test("rejects a malformed or missing token without consulting stale credentials", () => {
+        writeFileSync(tokenPath, "bad-token\npassword=injected");
+        expect(() => credential(repoUrl)).toThrow(/told us to quit/i);
+
+        rmSync(tokenPath);
+        expect(() => credential(repoUrl)).toThrow(/told us to quit/i);
+      });
+
+      test("does not store or erase tokens when Git reports an authentication result", () => {
+        expect(credential(repoUrl, "approve", "other-token")).toBe("");
+        expect(credential(repoUrl, "reject", "other-token")).toBe("");
+        expect(existsSync(credentialLog)).toBe(false);
+        expect(credential(repoUrl)).toContain("password=first-token");
       });
     });
 

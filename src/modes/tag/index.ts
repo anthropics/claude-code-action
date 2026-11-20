@@ -40,11 +40,13 @@ export async function prepareTagMode({
   context,
   octokit,
   githubToken,
+  githubTokenPath,
   skipLfsDownloads,
 }: {
   context: GitHubContext;
   octokit: Octokits;
   githubToken: string;
+  githubTokenPath?: string;
   skipLfsDownloads: boolean;
 }) {
   // Tag mode only handles entity-based events
@@ -118,7 +120,7 @@ export async function prepareTagMode({
       id: parseInt(context.inputs.botId),
     };
     try {
-      await configureGitAuth(githubToken, context, user);
+      await configureGitAuth(githubToken, context, user, githubTokenPath);
     } catch (error) {
       console.error("Failed to configure git authentication:", error);
       throw error;
@@ -131,7 +133,7 @@ export async function prepareTagMode({
     };
 
     try {
-      await configureGitAuth(githubToken, context, user);
+      await configureGitAuth(githubToken, context, user, githubTokenPath);
     } catch (error) {
       console.error("Failed to configure git authentication:", error);
       throw error;
@@ -141,7 +143,7 @@ export async function prepareTagMode({
     // the credential actions/checkout left in git config should still be
     // replaced with the action's own.
     try {
-      await replaceCheckoutCredentials(githubToken, context);
+      await replaceCheckoutCredentials(githubToken, context, githubTokenPath);
     } catch (error) {
       console.error("Failed to configure git credentials:", error);
       throw error;
@@ -207,6 +209,7 @@ export async function prepareTagMode({
   // Get our GitHub MCP servers configuration
   const ourMcpConfig = await prepareMcpConfig({
     githubToken,
+    githubTokenPath,
     owner: context.repository.owner,
     repo: context.repository.repo,
     branch: sessionBranch,

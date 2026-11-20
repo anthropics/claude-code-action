@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import * as core from "@actions/core";
+import { GITHUB_API_URL } from "./api/config";
 import { retryWithBackoff } from "../utils/retry";
 
 export class WorkflowValidationSkipError extends Error {
@@ -24,6 +25,8 @@ type AppTokenExchangeErrorResponse = {
 const WORKFLOW_VALIDATION_ERROR_CODES = new Set([
   "workflow_not_found_on_default_branch",
 ]);
+const TOKEN_REQUEST_TIMEOUT_MS = 10_000;
+type TokenRequestPhase = "setup" | "renewal";
 
 function getAppTokenExchangeErrorMessage(
   responseJson: AppTokenExchangeErrorResponse,
@@ -53,13 +56,15 @@ function isWorkflowValidationError(
   );
 }
 
-async function getOidcToken(): Promise<string> {
+async function getOidcToken(
+  phase: TokenRequestPhase = "setup",
+): Promise<string> {
   try {
     const oidcToken = await core.getIDToken("claude-code-github-action");
 
     return oidcToken;
   } catch (error) {
-    console.error("Failed to get OIDC token:", error);
+    if (phase === "setup") console.error("Failed to get OIDC token:", error);
     throw new Error(
       "Could not fetch an OIDC token. Did you remember to add `id-token: write` to your workflow permissions?",
     );
@@ -103,6 +108,7 @@ export function parseAdditionalPermissions():
 async function exchangeForAppToken(
   oidcToken: string,
   permissions?: Record<string, string>,
+  phase: TokenRequestPhase = "setup",
 ): Promise<string> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${oidcToken}`,
@@ -111,6 +117,10 @@ async function exchangeForAppToken(
     method: "POST",
     headers,
   };
+  if (phase === "renewal") {
+    fetchOptions.signal = AbortSignal.timeout(TOKEN_REQUEST_TIMEOUT_MS);
+    fetchOptions.redirect = "error";
+  }
 
   if (permissions) {
     headers["Content-Type"] = "application/json";
@@ -128,13 +138,20 @@ async function exchangeForAppToken(
 
     if (isWorkflowValidationError(response.status, responseJson)) {
       const message = getAppTokenExchangeErrorMessage(responseJson);
-      core.warning(`Skipping action due to workflow validation: ${message}`);
-      console.log(
-        "Action skipped due to workflow validation error. This is expected when adding Claude Code workflows to new repositories or on PRs with workflow changes. If you're seeing this, your workflow will begin working once you merge your PR.",
-      );
+      if (phase === "setup") {
+        core.warning(`Skipping action due to workflow validation: ${message}`);
+        console.log(
+          "Action skipped due to workflow validation error. This is expected when adding Claude Code workflows to new repositories or on PRs with workflow changes. If you're seeing this, your workflow will begin working once you merge your PR.",
+        );
+      }
       throw new WorkflowValidationSkipError(message);
     }
 
+    if (phase === "renewal") {
+      throw new Error(
+        `GitHub App token renewal failed (HTTP ${response.status})`,
+      );
+    }
     const message = getAppTokenExchangeErrorMessage(responseJson);
     console.error(
       `App token exchange failed: ${response.status} ${response.statusText} - ${message}`,
@@ -182,4 +199,37 @@ export async function setupGitHubToken(): Promise<string> {
 
   console.log("Using GITHUB_TOKEN from OIDC");
   return appToken;
+}
+
+export async function renewGitHubAppToken(): Promise<string> {
+  const oidcToken = await getOidcToken("renewal");
+  const appToken = await exchangeForAppToken(
+    oidcToken,
+    parseAdditionalPermissions(),
+    "renewal",
+  );
+  core.setSecret(appToken);
+  return appToken;
+}
+
+export async function revokeGitHubAppToken(token: string): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `${GITHUB_API_URL.replace(/\/+$/, "")}/installation/token`,
+      {
+        method: "DELETE",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${token}`,
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        redirect: "error",
+        signal: AbortSignal.timeout(TOKEN_REQUEST_TIMEOUT_MS),
+      },
+    );
+    // GitHub rejects tokens that have already expired or been revoked.
+    return response.status === 204 || response.status === 401;
+  } catch {
+    return false;
+  }
 }

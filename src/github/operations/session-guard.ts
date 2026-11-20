@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from "fs";
 import { homedir } from "os";
-import { dirname, isAbsolute, join, resolve } from "path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "path";
 
 // A session may write to one that keeps its writes, but not put a link in its place.
 type TrackedFile = { label: string; path: string; keepsWrites?: boolean };
@@ -38,6 +38,8 @@ const SESSION_STATE_FILES = [
   ".no-hooks",
   ".git-repo",
   ".restored-paths",
+  ".record-failed-push",
+  ".failed-push",
 ];
 
 const NO_IMPLICIT_BARE_REPOSITORY: [string, string] = [
@@ -319,6 +321,69 @@ export function pinPushBranch(branch: string): void {
   } catch (error) {
     // With no file and no variable, the wrapper refuses to push.
     core.warning(`Could not record the session's branch (${codeOf(error)})`);
+  }
+}
+
+/** Records the starting commit of a branch whose authorized pushes may be recovered. */
+export function preparePushRecovery(
+  branch: string,
+  expectedPushUrl: string,
+): string | undefined {
+  if (gitOutput("symbolic-ref", "-q", "HEAD") !== `refs/heads/${branch}`) {
+    return;
+  }
+  if (
+    gitOutput("remote", "get-url", "--push", "--all", "origin") !==
+    expectedPushUrl
+  ) {
+    return;
+  }
+  const sha = gitOutput("rev-parse", "--verify", "HEAD^{commit}");
+  if (!sha || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(sha)) return;
+  try {
+    const marker = sessionFile(".record-failed-push");
+    const root = gitOutput("rev-parse", "--show-toplevel");
+    if (!marker || !root) return;
+    const fromRoot = relative(
+      realpathSync(root),
+      realpathSync(dirname(marker)),
+    );
+    // Local actions can run from the checkout. Their receipts are not used for replay.
+    if (
+      !isAbsolute(fromRoot) &&
+      fromRoot !== ".." &&
+      !fromRoot.startsWith(`..${sep}`)
+    ) {
+      return;
+    }
+    writeSessionFile(".record-failed-push", expectedPushUrl);
+    return sha;
+  } catch (error) {
+    core.warning(`Could not enable Git push recovery (${codeOf(error)})`);
+  }
+}
+
+export function failedPushCommit(): string | undefined {
+  const path = sessionFile(".failed-push");
+  if (!path) return;
+  let fd: number | undefined;
+  try {
+    if (!lstatSync(path).isFile()) return;
+    fd = openSync(
+      path,
+      constants.O_RDONLY |
+        (constants.O_NONBLOCK ?? 0) |
+        (constants.O_NOFOLLOW ?? 0),
+    );
+    const stats = fstatSync(fd);
+    if (!stats.isFile() || ![41, 65].includes(stats.size)) return;
+    const content = readFileSync(fd, "utf8");
+    const match = /^(?:[a-f0-9]{40}|[a-f0-9]{64})\n$/.exec(content);
+    return match?.[0].slice(0, -1);
+  } catch {
+    return;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
   }
 }
 

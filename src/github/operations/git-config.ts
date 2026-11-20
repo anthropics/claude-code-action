@@ -7,7 +7,7 @@
 
 import { $ } from "bun";
 import { mkdir, writeFile, rm } from "fs/promises";
-import { join } from "path";
+import { isAbsolute, join } from "path";
 import { homedir } from "os";
 import type { GitHubContext } from "../context";
 import { GITHUB_SERVER_URL } from "../api/config";
@@ -23,6 +23,7 @@ export async function configureGitAuth(
   githubToken: string,
   context: GitHubContext,
   user: GitUser,
+  githubTokenPath?: string,
 ) {
   console.log("Configuring git authentication for non-signing mode");
 
@@ -42,7 +43,7 @@ export async function configureGitAuth(
   await $`git config user.email "${botId}+${botName}@${noreplyDomain}"`;
   console.log(`✓ Set git user as ${botName}`);
 
-  await replaceCheckoutCredentials(githubToken, context);
+  await replaceCheckoutCredentials(githubToken, context, githubTokenPath);
 
   console.log("Git authentication configured successfully");
 }
@@ -70,6 +71,7 @@ export async function configureGitAuth(
 export async function replaceCheckoutCredentials(
   githubToken: string,
   context: GitHubContext,
+  githubTokenPath?: string,
 ) {
   const serverUrl = new URL(GITHUB_SERVER_URL);
 
@@ -143,6 +145,13 @@ export async function replaceCheckoutCredentials(
     console.log(
       "Later steps that use the origin remote need their own credentials: GH_TOKEN, GIT_ASKPASS, a credential saved for the username x-access-token, or their own remote URL",
     );
+  } else if (githubTokenPath !== undefined) {
+    const repoPath = `${context.repository.owner}/${context.repository.repo}.git`;
+    await configureRotatingCredential(
+      serverUrl.host,
+      repoPath,
+      githubTokenPath,
+    );
   } else {
     // Update the remote URL to include the token for authentication
     console.log("Updating remote URL with authentication...");
@@ -150,6 +159,59 @@ export async function replaceCheckoutCredentials(
     await $`git remote set-url origin ${remoteUrl}`;
     console.log("✓ Updated remote URL with authentication token");
   }
+}
+
+async function configureRotatingCredential(
+  host: string,
+  repoPath: string,
+  tokenPath: string,
+) {
+  if (!isAbsolute(tokenPath)) {
+    throw new Error("GitHub App token file must have an absolute path");
+  }
+
+  const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+  const shellPath =
+    process.platform === "win32" ? tokenPath.replaceAll("\\", "/") : tokenPath;
+  const helper = `!credential() {
+    [ "$1" = get ] || return 0
+    LC_ALL=C
+    protocol= host= path= username=
+    while IFS= read -r line && [ -n "$line" ]; do
+      case "$line" in
+        protocol=*) protocol="\${line#*=}" ;;
+        host=*) host="\${line#*=}" ;;
+        path=*) path="\${line#*=}" ;;
+        username=*) username="\${line#*=}" ;;
+      esac
+    done
+    [ "$protocol" = https ] && [ "$host" = ${quote(host)} ] &&
+      [ "$path" = ${quote(repoPath)} ] && [ "$username" = x-access-token ] || return 0
+    if [ ! -f ${quote(shellPath)} ] || [ -L ${quote(shellPath)} ]; then
+      printf 'quit=true\\n'
+      return 0
+    fi
+    if ! {
+      { IFS= read -r token || [ -n "$token" ]; } &&
+        ! { IFS= read -r extra || [ -n "$extra" ]; }
+    } 2>/dev/null < ${quote(shellPath)}; then
+      printf 'quit=true\\n'
+      return 0
+    fi
+    case "$token" in
+      ''|*[!A-Za-z0-9._-]*) printf 'quit=true\\n' ;;
+      *) printf 'username=x-access-token\\npassword=%s\\n' "$token" ;;
+    esac
+  }; credential`;
+
+  // Git LFS looks up useHttpPath and helper using the remote without its username.
+  const config = `credential.https://${host}/${repoPath}`;
+  await $`git config --local --replace-all ${`${config}.useHttpPath`} true`;
+  // Do not consult or give the installation token to other credential helpers.
+  await $`git config --local --replace-all ${`${config}.helper`} ""`;
+  await $`git config --local --add ${`${config}.helper`} ${helper}`;
+  await $`git remote set-url origin ${`https://x-access-token@${host}/${repoPath}`}`;
+  console.log("✓ Configured rotating GitHub App credential helper");
 }
 
 /**
