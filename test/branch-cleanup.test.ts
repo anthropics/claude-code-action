@@ -3,6 +3,8 @@ import { checkAndCommitOrDeleteBranch } from "../src/github/operations/branch-cl
 import type { Octokits } from "../src/github/api/client";
 import { GITHUB_SERVER_URL } from "../src/github/api/config";
 
+const BRANCH_SHA = "1234567890abcdef1234567890abcdef12345678";
+
 describe("checkAndCommitOrDeleteBranch", () => {
   let consoleLogSpy: any;
   let consoleErrorSpy: any;
@@ -20,8 +22,8 @@ describe("checkAndCommitOrDeleteBranch", () => {
 
   const createMockOctokit = (
     compareResponse?: any,
-    deleteRefError?: Error,
     branchExists: boolean = true,
+    sha: string | undefined = BRANCH_SHA,
   ): Octokits => {
     return {
       rest: {
@@ -35,15 +37,7 @@ describe("checkAndCommitOrDeleteBranch", () => {
               error.status = 404;
               throw error;
             }
-            return { data: {} };
-          },
-        },
-        git: {
-          deleteRef: async () => {
-            if (deleteRefError) {
-              throw deleteRefError;
-            }
-            return { data: {} };
+            return { data: { commit: { sha } } };
           },
         },
       },
@@ -64,24 +58,6 @@ describe("checkAndCommitOrDeleteBranch", () => {
     expect(result.shouldDeleteBranch).toBe(false);
     expect(result.branchLink).toBe("");
     expect(consoleLogSpy).not.toHaveBeenCalled();
-  });
-
-  test("should mark branch for deletion when commit signing is enabled and no commits", async () => {
-    const mockOctokit = createMockOctokit({ total_commits: 0 });
-    const result = await checkAndCommitOrDeleteBranch(
-      mockOctokit,
-      "owner",
-      "repo",
-      "claude/issue-123-20240101-1234",
-      "main",
-      true, // commit signing enabled
-    );
-
-    expect(result.shouldDeleteBranch).toBe(true);
-    expect(result.branchLink).toBe("");
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      "Branch claude/issue-123-20240101-1234 has no commits from Claude, will delete it",
-    );
   });
 
   test("should not delete branch and return link when branch has commits", async () => {
@@ -111,7 +87,7 @@ describe("checkAndCommitOrDeleteBranch", () => {
           compareCommitsWithBasehead: async () => {
             throw new Error("API error");
           },
-          getBranch: async () => ({ data: {} }), // Branch exists
+          getBranch: async () => ({ data: { commit: { sha: BRANCH_SHA } } }),
         },
         git: {
           deleteRef: async () => ({ data: {} }),
@@ -138,9 +114,8 @@ describe("checkAndCommitOrDeleteBranch", () => {
     );
   });
 
-  test("should handle branch deletion errors gracefully", async () => {
-    const deleteError = new Error("Delete failed");
-    const mockOctokit = createMockOctokit({ total_commits: 0 }, deleteError);
+  test("should preserve a branch when its observed SHA is invalid", async () => {
+    const mockOctokit = createMockOctokit({ total_commits: 0 }, true, "");
 
     const result = await checkAndCommitOrDeleteBranch(
       mockOctokit,
@@ -148,21 +123,21 @@ describe("checkAndCommitOrDeleteBranch", () => {
       "repo",
       "claude/issue-123-20240101-1234",
       "main",
-      true, // commit signing enabled - will try to delete
+      true,
     );
 
-    expect(result.shouldDeleteBranch).toBe(true);
-    expect(result.branchLink).toBe("");
+    expect(result.shouldDeleteBranch).toBe(false);
+    expect(result.branchLink).toBe(
+      `\n[View branch](${GITHUB_SERVER_URL}/owner/repo/tree/claude/issue-123-20240101-1234)`,
+    );
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Failed to delete branch claude/issue-123-20240101-1234:",
-      deleteError,
+      "Cannot safely clean up branch claude/issue-123-20240101-1234: missing commit SHA",
     );
   });
 
   test("should return no branch link when branch doesn't exist remotely", async () => {
     const mockOctokit = createMockOctokit(
       { total_commits: 0 },
-      undefined,
       false, // branch doesn't exist
     );
 
