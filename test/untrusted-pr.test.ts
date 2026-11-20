@@ -293,6 +293,19 @@ describe("getUntrustedPrDisallowedTools", () => {
     expect(uncoveredWarning()).toBeUndefined();
   });
 
+  test.each(["bash", "dash", "powershell", "pwsh", "sh", "zsh"])(
+    "covers every shell in the Shells category (%s)",
+    async (shell) => {
+      process.env.CLAUDE_ARGS = `--allowedTools "Bash(${shell}:*)"`;
+      const { octokit } = octokitWithPermission("none");
+      await getUntrustedPrDisallowedTools(
+        octokit,
+        mockPullRequestOpenedContext,
+      );
+      expect(uncoveredWarning()).toBeUndefined();
+    },
+  );
+
   test("does not mistake a longer command for a denied one", async () => {
     process.env.CLAUDE_ARGS = `--allowedTools "Bash(gofmt:*)"`;
     const { octokit } = octokitWithPermission("none");

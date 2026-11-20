@@ -69,6 +69,8 @@ export const UNTRUSTED_PR_DISALLOWED_TOOLS = [
   // Shells
   "Bash(bash:*)",
   "Bash(dash:*)",
+  "Bash(powershell:*)",
+  "Bash(pwsh:*)",
   "Bash(sh:*)",
   "Bash(zsh:*)",
   // The simplest ways to point git at a program. Other git commands can still
