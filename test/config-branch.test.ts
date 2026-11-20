@@ -313,7 +313,7 @@ describe("in a shallow checkout whose history contains the config branch", () =>
   );
 });
 
-test("run.ts restores both kinds of config from the chosen branch", () => {
+test("run.ts restores every kind of config from the chosen branch", () => {
   const source = readFileSync(
     join(import.meta.dir, "../src/entrypoints/run.ts"),
     "utf8",
@@ -327,5 +327,8 @@ test("run.ts restores both kinds of config from the chosen branch", () => {
   expect(source).toContain("restoreHeadHistory?.();");
   expect(source).toContain("pinRestoredPaths(restoredConfigPaths)");
   expect(source).toContain("restoreToolConfigFromBase(configBranch)");
+  expect(source.replace(/\s+/g, " ")).toContain(
+    "restoreConfigPathsFromBase( configBranch, namedConfigPaths(prepareResult.claudeArgs), )",
+  );
   expect(source).toContain("fetchBranch(restoreBase)");
 });
