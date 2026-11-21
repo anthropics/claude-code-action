@@ -118,7 +118,13 @@ export function formatReviewComments(
 
           body = sanitizeContent(body);
 
-          let formatted = `  [Comment on ${comment.path}:${comment.line || "?"}]: ${body}`;
+          const line = comment.line ?? comment.originalLine ?? "?";
+          const originalLineNote =
+            comment.line == null && comment.originalLine != null
+              ? " (original line)"
+              : "";
+          const commentType = comment.outdated ? "Outdated comment" : "Comment";
+          let formatted = `  [${commentType} on ${comment.path}:${line}${originalLineNote}]: ${body}`;
 
           // The diff hunk is the code the comment was left on. Without it the
           // comment arrives without the context it was written against.
