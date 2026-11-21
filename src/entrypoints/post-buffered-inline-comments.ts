@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 /**
  * Reads buffered inline-comment calls from /tmp/inline-comments-buffer.jsonl,
- * classifies each as "real review" vs "test/probe" using Haiku, and posts
- * only the real ones. Calls with confirmed=false are never posted.
+ * classifies each as "real review" vs "test/probe" using the configured model,
+ * and posts only the real ones. Calls with confirmed=false are never posted.
  *
  * If the Anthropic API is unavailable (Bedrock/Vertex users without a direct
  * key), falls back to posting everything with confirmed !== false. This
@@ -10,6 +10,7 @@
  * calls posted immediately.
  */
 import { readFileSync } from "fs";
+import { parse as parseShellArgs } from "shell-quote";
 import { createOctokit } from "../github/api/client";
 import { redactSecrets } from "../github/utils/sanitizer";
 
@@ -43,7 +44,74 @@ For each numbered comment body below, respond with ONLY a JSON array of booleans
 Comments:
 `;
 
-async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
+export function getAnthropicMessagesUrl(
+  baseUrl = process.env.ANTHROPIC_BASE_URL,
+): string {
+  const resolvedBaseUrl = baseUrl?.trim() || "https://api.anthropic.com";
+  return `${resolvedBaseUrl.replace(/\/+$/, "")}/v1/messages`;
+}
+
+function isMiniMaxEndpoint(): boolean {
+  try {
+    const url = new URL(getAnthropicMessagesUrl());
+    return (
+      (url.origin === "https://api.minimax.io" ||
+        url.origin === "https://api.minimaxi.com") &&
+      url.pathname === "/anthropic/v1/messages" &&
+      !url.search &&
+      !url.hash &&
+      !url.username &&
+      !url.password
+    );
+  } catch {
+    return false;
+  }
+}
+
+function stripShellComments(input: string): string {
+  return input
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("#"))
+    .join("\n");
+}
+
+export function getClassificationModel(): string {
+  const envModel = process.env.ANTHROPIC_MODEL?.trim();
+  if (envModel) {
+    return envModel;
+  }
+
+  const claudeArgs = process.env.CLAUDE_ARGS?.trim();
+  if (claudeArgs) {
+    const args = parseShellArgs(stripShellComments(claudeArgs))
+      .map((arg) => {
+        if (typeof arg === "string") return arg;
+        if (typeof arg === "object" && arg !== null && "pattern" in arg) {
+          return (arg as { pattern: string }).pattern;
+        }
+        return undefined;
+      })
+      .filter((arg): arg is string => typeof arg === "string");
+
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === "--model" && i + 1 < args.length) {
+        const model = args[i + 1];
+        if (model && !model.startsWith("--")) {
+          return model;
+        }
+      }
+      if (args[i]?.startsWith("--model=")) {
+        return args[i]!.slice("--model=".length);
+      }
+    }
+  }
+
+  return isMiniMaxEndpoint() ? "MiniMax-M3.1-Flash" : "claude-haiku-4-5";
+}
+
+export async function classifyComments(
+  bodies: string[],
+): Promise<boolean[] | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.log(
@@ -57,7 +125,9 @@ async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
     bodies.map((b, i) => `${i + 1}. ${JSON.stringify(b)}`).join("\n");
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const model = getClassificationModel();
+    const isFlash = model === "MiniMax-M3.1-Flash";
+    const res = await fetch(getAnthropicMessagesUrl(), {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -65,8 +135,13 @@ async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5",
-        max_tokens: 1024,
+        model,
+        // Flash always thinks; allow room for reasoning and the JSON verdicts.
+        max_tokens: isFlash ? 4096 : 1024,
+        ...(isFlash && {
+          thinking: { type: "adaptive" },
+          output_config: { effort: "low" },
+        }),
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -228,7 +303,9 @@ async function main() {
   console.log(`Posted ${posted}/${toPost.length}`);
 }
 
-main().catch((e) => {
-  console.error("post-buffered-inline-comments failed:", e);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((e) => {
+    console.error("post-buffered-inline-comments failed:", e);
+    process.exit(1);
+  });
+}
