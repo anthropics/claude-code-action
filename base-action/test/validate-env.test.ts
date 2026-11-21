@@ -95,22 +95,15 @@ describe("validateEnvironmentVariables", () => {
       expect(() => validateEnvironmentVariables()).not.toThrow();
     });
 
-    test("should construct Bedrock base URL from AWS_REGION when ANTHROPIC_BEDROCK_BASE_URL is not provided", () => {
-      // This test verifies our action.yml change, which constructs:
-      // ANTHROPIC_BEDROCK_BASE_URL: ${{ env.ANTHROPIC_BEDROCK_BASE_URL || (env.AWS_REGION && format('https://bedrock-runtime.{0}.amazonaws.com', env.AWS_REGION)) }}
-
+    test("should pass when ANTHROPIC_BEDROCK_BASE_URL is not provided", () => {
       process.env.CLAUDE_CODE_USE_BEDROCK = "1";
       process.env.AWS_REGION = "us-west-2";
       process.env.AWS_ACCESS_KEY_ID = "test-access-key";
       process.env.AWS_SECRET_ACCESS_KEY = "test-secret-key";
-      // ANTHROPIC_BEDROCK_BASE_URL is intentionally not set
+      // ANTHROPIC_BEDROCK_BASE_URL is intentionally not set; Claude Code then
+      // uses the default Bedrock endpoints for AWS_REGION.
 
-      // The actual URL construction happens in the composite action in action.yml
-      // This test is a placeholder to document the behavior
       expect(() => validateEnvironmentVariables()).not.toThrow();
-
-      // In the actual action, ANTHROPIC_BEDROCK_BASE_URL would be:
-      // https://bedrock-runtime.us-west-2.amazonaws.com
     });
 
     test("should fail when AWS_REGION is missing", () => {
