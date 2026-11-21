@@ -33,8 +33,13 @@ async function validateAndPreparePrompt(
       throw new Error(`Prompt file '${input.promptFile}' does not exist.`);
     }
 
-    // Validate that the file is not empty
     const stats = statSync(input.promptFile);
+    if (!stats.isFile()) {
+      throw new Error(
+        `Prompt path '${input.promptFile}' must point to a regular file.`,
+      );
+    }
+
     if (stats.size === 0) {
       throw new Error(
         "Prompt file is empty. Please provide a non-empty prompt.",
