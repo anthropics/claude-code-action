@@ -229,6 +229,16 @@ async function run() {
       throw error;
     }
 
+    // Publish the token as an output now, not only in the finally block.
+    // The "Revoke app token" step in action.yml keys off this output, and
+    // setOutput appends to $GITHUB_OUTPUT synchronously, so the value is
+    // on disk before anything later can be interrupted. If a run is
+    // cancelled and this process is left running past the end of its step
+    // without reaching the finally, the output is still there for the
+    // revoke step (#2111). The finally block sets it again, so it stays
+    // the last value written on every path that completes.
+    core.setOutput("github_token", githubToken);
+
     octokit = createOctokit(githubToken);
 
     // Set GITHUB_TOKEN and GH_TOKEN in process env for downstream usage
