@@ -120,15 +120,15 @@ describe("action metadata", () => {
       },
     );
 
-    test("should let Bun finish when the shell is interrupted", async () => {
+    test("should let Bun clean up when the step is interrupted", async () => {
       const { output, exitCode } = await runStep(
         path,
-        `exec "${process.execPath}" -e 'console.log("started"); setTimeout(() => console.log("finished"), 500)'`,
+        `exec "${process.execPath}" -e 'process.once("SIGINT", () => { console.log("cleaned up"); process.exit(130) }); setTimeout(() => {}, 5000); console.log("started")'`,
         true,
       );
 
-      expect(output).toBe("started\nfinished\n");
-      expect(exitCode).toBe(0);
+      expect(output).toBe("started\ncleaned up\n");
+      expect(exitCode).toBe(130);
     });
   });
 

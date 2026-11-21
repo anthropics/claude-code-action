@@ -74,6 +74,7 @@ import { validateEnvironmentVariables } from "../../base-action/src/validate-env
 import { setupClaudeCodeSettings } from "../../base-action/src/setup-claude-code-settings";
 import { installPlugins } from "../../base-action/src/install-plugins";
 import { preparePrompt } from "../../base-action/src/prepare-prompt";
+import { onCancel } from "../../base-action/src/cancel";
 import { runClaude } from "../../base-action/src/run-claude";
 import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
 import { setExecutionFileOutputIfPresent } from "../../base-action/src/execution-file";
@@ -202,6 +203,29 @@ async function run() {
   let restoredConfigPaths: string[] = [];
   // Track whether we've completed prepare phase, so we can attribute errors correctly
   let prepareCompleted = false;
+  // Set while a session could be running
+  let restoreSessionFiles: ReturnType<typeof snapshotSessionFiles> | undefined;
+  let isFinishing = false;
+
+  // Revoking the app token depends on this output, and a session can write it.
+  const keepRevocationOn = () =>
+    core.setOutput("skipped_due_to_workflow_validation_mismatch", "false");
+
+  onCancel(
+    [
+      () => restoreSessionFiles?.({ cancelled: true }),
+      () => restoreSessionFiles && keepRevocationOn(),
+      // The step that revokes the app token reads it from here.
+      () => githubToken && core.setOutput("github_token", githubToken),
+      () => core.setOutput("branch_name", claudeBranch),
+      // A session can write this one too.
+      () => core.setOutput("conclusion", claudeSuccess ? "success" : "failure"),
+      clearSessionState,
+      () => workloadIdentity?.stop(),
+    ],
+    () => isFinishing,
+  );
+
   try {
     // Phase 1: Prepare
     const actionInputsPresent = collectActionInputsPresence();
@@ -430,7 +454,7 @@ async function run() {
       process.env.CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR = "1";
     }
 
-    const restoreSessionFiles = snapshotSessionFiles(() =>
+    restoreSessionFiles = snapshotSessionFiles(() =>
       prepareGitForSession({ hooks: hooksOff }),
     );
 
@@ -451,8 +475,8 @@ async function run() {
       // The action's own git commands from here on hold the job's credentials,
       // and the session could have edited a tracked hook.
       disableGitPrograms({ hooks: true });
-      // Revoking the app token depends on this output, and a session can write it.
-      core.setOutput("skipped_due_to_workflow_validation_mismatch", "false");
+      keepRevocationOn();
+      restoreSessionFiles = undefined;
     }
 
     claudeSuccess = claudeResult.conclusion === "success";
@@ -480,6 +504,7 @@ async function run() {
     core.setFailed(`Action failed with error: ${redactSecrets(errorMessage)}`);
   } finally {
     // Phase 4: Cleanup (always runs)
+    isFinishing = true;
     clearSessionState();
 
     // Stop refreshing the workload identity token file and delete the token

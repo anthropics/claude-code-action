@@ -216,28 +216,35 @@ function isItsOwnFile(before: FileSnapshot): boolean {
 /**
  * Records the files later steps trust, and returns a function that puts them
  * back. Call the returned function as soon as the session ends and before the
- * action runs git again. Replacing a file rather than writing to it means a
- * session cannot redirect the write by swapping in a symlink.
+ * action runs git again. If the session was cancelled, that also drops the outputs it
+ * wrote, because a half-written one would take the action's own with it. Replacing a
+ * file rather than writing to it means a session cannot redirect the write by swapping
+ * in a symlink.
  *
  * This stops a session that can only write through its tools. It is not a
  * sandbox: code running as the runner's user can stop the action before it
  * restores anything.
  */
-export function snapshotSessionFiles(beforeSession?: () => void): () => void {
+export function snapshotSessionFiles(
+  beforeSession?: () => void,
+): (options?: { cancelled: boolean }) => void {
   const files = filesLaterStepsTrust();
   const snapshots = files.map(readSnapshot);
   // What the action changes for the session goes back too, without a warning.
   beforeSession?.();
   const atStart = files.map(readSnapshot);
 
-  return () => {
+  return ({ cancelled } = { cancelled: false }) => {
     const restored: string[] = [];
     for (const [index, before] of snapshots.entries()) {
       try {
         const now = readSnapshot(before);
-        if (before.keepsWrites && isItsOwnFile(before)) continue;
+        const dropsWrites = cancelled && before.label === "GITHUB_OUTPUT";
+        const ownFile = before.keepsWrites && isItsOwnFile(before);
+        if (ownFile && !dropsWrites) continue;
         // The file it leads to can have the same content so far.
-        const leadsElsewhere = before.keepsWrites && now.state === "file";
+        const leadsElsewhere =
+          before.keepsWrites && !ownFile && now.state === "file";
         if (!leadsElsewhere && isUnchanged(before, now)) continue;
         const changedBySession =
           leadsElsewhere || !isUnchanged(atStart[index]!, now);
