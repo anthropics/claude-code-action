@@ -96,6 +96,7 @@ export type GitHubPullRequest = {
   // misreported as 0 in that case, so the null must be guarded and treated as
   // "file list unavailable" rather than "no files changed".
   files: {
+    totalCount?: number;
     nodes: GitHubFile[];
   } | null;
   comments: {

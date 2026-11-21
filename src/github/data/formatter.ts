@@ -13,6 +13,16 @@ function formatLabels(labelNodes: Array<{ name: string }>): string {
   return labelNodes.map((l) => l.name).join(", ");
 }
 
+function formatChangedFileCount(files: GitHubPullRequest["files"]): string {
+  if (!files) return "unknown (file list unavailable)";
+
+  const listed = files.nodes.length;
+  const total = files.totalCount ?? listed;
+  return total > listed
+    ? `${total} files (${listed} listed)`
+    : `${listed} files`;
+}
+
 export function formatContext(
   contextData: GitHubPullRequest | GitHubIssue,
   isPR: boolean,
@@ -28,7 +38,7 @@ PR Labels: ${formatLabels(prData.labels.nodes)}
 PR Additions: ${prData.additions}
 PR Deletions: ${prData.deletions}
 Total Commits: ${prData.commits.totalCount}
-Changed Files: ${prData.files ? `${prData.files.nodes.length} files` : "unknown (file list unavailable)"}`;
+Changed Files: ${formatChangedFileCount(prData.files)}`;
   } else {
     const issueData = contextData as GitHubIssue;
     const sanitizedTitle = sanitizeContent(issueData.title);
