@@ -100,9 +100,15 @@ export function parseAdditionalPermissions():
   return { ...DEFAULT_PERMISSIONS, ...additional };
 }
 
-async function exchangeForAppToken(
+// The exchange is a network call to a fixed endpoint; bound it so a stalled
+// connection cannot hang the job until timeout-minutes. Mirrors the bounds on
+// fetchImage() (#1625) and downloadJobLog() (#1719).
+const APP_TOKEN_EXCHANGE_TIMEOUT_MS = 30_000;
+
+export async function exchangeForAppToken(
   oidcToken: string,
   permissions?: Record<string, string>,
+  timeoutMs: number = APP_TOKEN_EXCHANGE_TIMEOUT_MS,
 ): Promise<string> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${oidcToken}`,
@@ -110,6 +116,7 @@ async function exchangeForAppToken(
   const fetchOptions: RequestInit = {
     method: "POST",
     headers,
+    signal: AbortSignal.timeout(timeoutMs),
   };
 
   if (permissions) {
