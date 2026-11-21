@@ -204,21 +204,22 @@ async function run() {
   // Track whether we've completed prepare phase, so we can attribute errors correctly
   let prepareCompleted = false;
   // Set while a session could be running
-  let restoreSessionFiles: ReturnType<typeof snapshotSessionFiles> | undefined;
+  let restoreSessionFiles: (() => void) | undefined;
   let isFinishing = false;
 
-  // Revoking the app token depends on this output, and a session can write it.
+  // Revoking the app token depends on this output. A session can write it, and what it
+  // wrote is still there if the file could not be restored.
   const keepRevocationOn = () =>
     core.setOutput("skipped_due_to_workflow_validation_mismatch", "false");
 
   onCancel(
     [
-      () => restoreSessionFiles?.({ cancelled: true }),
+      () => restoreSessionFiles?.(),
       () => restoreSessionFiles && keepRevocationOn(),
       // The step that revokes the app token reads it from here.
       () => githubToken && core.setOutput("github_token", githubToken),
       () => core.setOutput("branch_name", claudeBranch),
-      // A session can write this one too.
+      // The same goes for this one.
       () => core.setOutput("conclusion", claudeSuccess ? "success" : "failure"),
       clearSessionState,
       () => workloadIdentity?.stop(),
