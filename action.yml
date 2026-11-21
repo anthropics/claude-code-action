@@ -289,16 +289,13 @@ runs:
         # takes its settings from the action's directory. Bun before 1.4.3 logs
         # "directory mismatch" for --tsconfig-override (oven-sh/bun#25730).
         #
-        # Bash reads this script as it runs. The braces and exit make it read the
-        # rest first and stop there. With exec instead, cancelling the run would
-        # interrupt Bun at once, before it can clean up.
-        {
-          bun --no-env-file \
-            --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-            --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
-            run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
-          exit
-        }
+        # Bash reads this script as it runs, so exec also keeps it from running what a
+        # session adds. When the run is cancelled, the runner signals only this step's
+        # own process, and Bun has to get that signal to stop the session.
+        exec bun --no-env-file \
+          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
+          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
+          run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
       env:
         # Turns off Bun's cache of transpiled files, which is outside the action's
         # directory. Set it wherever the action runs its own scripts.

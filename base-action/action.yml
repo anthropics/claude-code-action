@@ -183,13 +183,10 @@ runs:
           echo "Changing directory to CLAUDE_WORKING_DIR: $CLAUDE_WORKING_DIR"
           cd "$CLAUDE_WORKING_DIR"
         fi
-        # Bash reads this script as it runs. The braces and exit make it read the
-        # rest first and stop there. With exec instead, cancelling the run would
-        # interrupt Bun at once, before it can clean up.
-        {
-          bun run ${GITHUB_ACTION_PATH}/src/index.ts
-          exit
-        }
+        # Bash reads this script as it runs, so exec also keeps it from running what a
+        # session adds. When the run is cancelled, the runner signals only this step's
+        # own process, and Bun has to get that signal to stop the session.
+        exec bun run ${GITHUB_ACTION_PATH}/src/index.ts
       env:
         # Turns off Bun's cache of transpiled files, which is outside the action's
         # directory
