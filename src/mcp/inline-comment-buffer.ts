@@ -4,6 +4,8 @@ export type BufferedCommentMatch = {
   path: string;
   line?: number;
   startLine?: number;
+  side?: "LEFT" | "RIGHT";
+  commit_id?: string;
   body: string;
 };
 
@@ -17,17 +19,21 @@ export type BufferedCommentMatch = {
  * reply; previously the original buffered entry was left behind and replayed,
  * producing duplicate inline comments.
  *
- * Entries are matched on path, line, startLine and body. Lines that cannot be
- * parsed are kept untouched.
+ * Match the diff location, commit and body. An omitted side means RIGHT, and
+ * an omitted commit uses the PR head observed when posting. Keep lines that
+ * cannot be parsed.
  */
 export function removeBufferedComment(
   match: BufferedCommentMatch,
   bufferPath: string,
+  headSha?: string,
 ): void {
   if (!existsSync(bufferPath)) {
     return;
   }
 
+  const postedCommit = match.commit_id || headSha;
+  const postedSide = match.side || "RIGHT";
   const remaining = readFileSync(bufferPath, "utf8")
     .split("\n")
     .filter((line) => line.trim() !== "")
@@ -43,6 +49,8 @@ export function removeBufferedComment(
         entry.path === match.path &&
         entry.line === match.line &&
         entry.startLine === match.startLine &&
+        (entry.side || "RIGHT") === postedSide &&
+        (entry.commit_id || headSha) === postedCommit &&
         entry.body === match.body;
       return !isSameComment;
     });
