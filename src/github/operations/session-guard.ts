@@ -16,7 +16,8 @@ import {
 import { homedir } from "os";
 import { dirname, isAbsolute, join, resolve } from "path";
 
-type TrackedFile = { label: string; path: string };
+// A session may write to one that keeps its writes, but not put a link in its place.
+type TrackedFile = { label: string; path: string; keepsWrites?: boolean };
 
 // "opaque" is anything that can't be saved and compared: a directory, a FIFO, a
 // device, a file too large to hold, or one that can't be read.
@@ -25,13 +26,24 @@ type FileSnapshot = TrackedFile & {
   wasSymlink: boolean;
   content?: Buffer;
   mode?: number;
+  names?: number;
   // For a symlink: what it points to, and the regular file that ends up at.
   link?: { target: string; resolved: string };
 };
 
 const MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024;
 
-const SESSION_STATE_FILES = [".push-branch", ".no-hooks", ".git-repo"];
+const SESSION_STATE_FILES = [
+  ".push-branch",
+  ".no-hooks",
+  ".git-repo",
+  ".restored-paths",
+];
+
+const NO_IMPLICIT_BARE_REPOSITORY: [string, string] = [
+  "safe.bareRepository",
+  "explicit",
+];
 
 // How many GIT_CONFIG_* entries were there before disableGitPrograms added any.
 let entriesBeforeAction: number | undefined;
@@ -111,8 +123,15 @@ function filesLaterStepsTrust(): TrackedFile[] {
     path ? [{ label, path }] : [],
   );
 
+  // The action adds to these after the session, so a link there would redirect that to
+  // a file later steps trust.
+  const written = ["GITHUB_OUTPUT", "GITHUB_STEP_SUMMARY"].flatMap((label) => {
+    const path = process.env[label];
+    return path ? [{ label, path, keepsWrites: true }] : [];
+  });
+
   const seen = new Set<string>();
-  return [...named, ...gitConfigFilesInUse()].filter(({ path }) => {
+  return [...named, ...gitConfigFilesInUse(), ...written].filter(({ path }) => {
     const absolute = resolve(path);
     if (seen.has(absolute)) return false;
     seen.add(absolute);
@@ -142,6 +161,7 @@ function readSnapshot(file: TrackedFile): FileSnapshot {
       wasSymlink,
       content: readFileSync(fd),
       mode: stats.mode & 0o777,
+      names: stats.nlink,
       ...(wasSymlink && {
         link: {
           target: readlinkSync(file.path),
@@ -181,6 +201,19 @@ function restorePath(before: FileSnapshot): string {
 }
 
 /**
+ * Whether what is written to a file now ends up in that file and no other. A new name
+ * for a file that later steps trust is as good as a symlink to it.
+ */
+function isItsOwnFile(before: FileSnapshot): boolean {
+  try {
+    const stats = lstatSync(restorePath(before));
+    return stats.isFile() && stats.nlink <= (before.names ?? 1);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Records the files later steps trust, and returns a function that puts them
  * back. Call the returned function as soon as the session ends and before the
  * action runs git again. Replacing a file rather than writing to it means a
@@ -202,8 +235,12 @@ export function snapshotSessionFiles(beforeSession?: () => void): () => void {
     for (const [index, before] of snapshots.entries()) {
       try {
         const now = readSnapshot(before);
-        if (isUnchanged(before, now)) continue;
-        const changedBySession = !isUnchanged(atStart[index]!, now);
+        if (before.keepsWrites && isItsOwnFile(before)) continue;
+        // The file it leads to can have the same content so far.
+        const leadsElsewhere = before.keepsWrites && now.state === "file";
+        if (!leadsElsewhere && isUnchanged(before, now)) continue;
+        const changedBySession =
+          leadsElsewhere || !isUnchanged(atStart[index]!, now);
         if (before.state === "opaque") {
           core.warning(
             `Could not restore ${before.label} after the session: it was not a regular file before`,
@@ -246,7 +283,14 @@ export function disableGitPrograms({ hooks }: { hooks: boolean }): void {
       process.env[`GIT_CONFIG_VALUE_${i}`],
     );
   }
-  for (const [key, value] of gitProgramSettings({ hooks })) {
+  const settings = gitProgramSettings({ hooks });
+  // A workflow may run the action in a bare repository, where this setting would stop git.
+  const setting = NO_IMPLICIT_BARE_REPOSITORY.join("=");
+  const stopsGit =
+    gitOutput("rev-parse", "--git-dir") !== null &&
+    gitOutput("-c", setting, "rev-parse", "--git-dir") === null;
+  if (hooks || !stopsGit) settings.push(NO_IMPLICIT_BARE_REPOSITORY);
+  for (const [key, value] of settings) {
     if (current.get(key) === value) continue;
     process.env[`GIT_CONFIG_KEY_${count}`] = key;
     process.env[`GIT_CONFIG_VALUE_${count}`] = value;
@@ -275,6 +319,26 @@ export function pinPushBranch(branch: string): void {
   } catch (error) {
     // With no file and no variable, the wrapper refuses to push.
     core.warning(`Could not record the session's branch (${codeOf(error)})`);
+  }
+}
+
+/**
+ * Records the paths that the commit wrapper leaves out, because the action took them
+ * from a branch other than the pull request's base.
+ */
+export function pinRestoredPaths(paths: string[]): void {
+  const pathspecs = paths.map((path) =>
+    // Its commands are replaced in subdirectories too.
+    path === "package.json"
+      ? ":(top,glob)**/package.json"
+      : `:(top,literal)${path}`,
+  );
+  try {
+    writeSessionFile(".restored-paths", `${pathspecs.join("\n")}\n`);
+  } catch (error) {
+    core.warning(
+      `Could not record the restored files, so a commit can include them (${codeOf(error)})`,
+    );
   }
 }
 
@@ -307,8 +371,8 @@ const gitOutput = (...args: string[]): string | null => {
  * Moves the settings from disableGitPrograms out of the environment for the session.
  * Repository config and the wrappers keep them in force instead, and
  * snapshotSessionFiles puts the config back afterwards. Elsewhere the concern is a
- * repository git finds in a plain folder, with its own config. Git only reads
- * safe.bareRepository from global config or the command line.
+ * repository git finds in a plain folder, with its own config. Git ignores
+ * safe.bareRepository in repository config, so the session gets it from global config.
  */
 export function prepareGitForSession({ hooks }: { hooks: boolean }): void {
   const count = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? "", 10) || 0;
@@ -333,7 +397,7 @@ export function prepareGitForSession({ hooks }: { hooks: boolean }): void {
   const gitDir = gitOutput("rev-parse", "--absolute-git-dir");
   const workTree = gitDir && gitOutput("rev-parse", "--show-toplevel");
   if (gitDir) setConfig("--local", gitProgramSettings({ hooks }));
-  setConfig("--global", [["safe.bareRepository", "explicit"]]);
+  setConfig("--global", [NO_IMPLICIT_BARE_REPOSITORY]);
 
   try {
     if (hooks) writeSessionFile(".no-hooks", "");

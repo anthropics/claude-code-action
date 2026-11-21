@@ -2,6 +2,7 @@
 node_modules
 scripts/.push-branch
 scripts/.no-hooks
+scripts/.restored-paths
 scripts/.git-repo
 
 **/.claude/settings.local.json

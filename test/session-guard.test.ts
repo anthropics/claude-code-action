@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import * as core from "@actions/core";
 import { execFileSync } from "child_process";
 import {
+  appendFileSync,
   existsSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -19,6 +21,7 @@ import {
   clearSessionState,
   disableGitPrograms,
   pinPushBranch,
+  pinRestoredPaths,
   prepareGitForSession,
   snapshotSessionFiles,
 } from "../src/github/operations/session-guard";
@@ -26,7 +29,9 @@ import {
 const KEYS = [
   "GITHUB_ACTION_PATH",
   "GITHUB_ENV",
+  "GITHUB_OUTPUT",
   "GITHUB_PATH",
+  "GITHUB_STEP_SUMMARY",
   "HOME",
   "XDG_CONFIG_HOME",
   "GIT_CONFIG_GLOBAL",
@@ -37,6 +42,8 @@ const KEYS = [
   "GIT_CONFIG_VALUE_1",
   "GIT_CONFIG_KEY_2",
   "GIT_CONFIG_VALUE_2",
+  "GIT_CONFIG_KEY_3",
+  "GIT_CONFIG_VALUE_3",
   // git exports these into hooks, such as a pre-commit hook running this suite.
   // If inherited, git would act on the enclosing repository, not the temp one.
   "GIT_DIR",
@@ -151,6 +158,104 @@ describe("session guard", () => {
     expect(statSync(path).mode & 0o777).toBe(0o640);
   });
 
+  describe.each(["GITHUB_OUTPUT", "GITHUB_STEP_SUMMARY"])(
+    "%s, which the action adds to after the session",
+    (name) => {
+      let path: string;
+
+      beforeEach(() => {
+        path = join(dir, name);
+        process.env[name] = path;
+        writeFileSync(path, "by an earlier part\n");
+      });
+
+      test("keeps what a session wrote", () => {
+        const restore = snapshotSessionFiles();
+        appendFileSync(path, "by the session\n");
+        restore();
+        expect(readFileSync(path, "utf8")).toBe(
+          "by an earlier part\nby the session\n",
+        );
+        expect(warnings()).toEqual([]);
+      });
+
+      test("keeps it if the session replaced the file", () => {
+        const restore = snapshotSessionFiles();
+        rmSync(path);
+        writeFileSync(path, "by the session\n");
+        restore();
+        expect(readFileSync(path, "utf8")).toBe("by the session\n");
+        expect(warnings()).toEqual([]);
+      });
+
+      test.each([
+        ["a symlink", symlinkSync],
+        ["a hard link", linkSync],
+      ])("doesn't follow %s to a file later steps trust", (_, link) => {
+        const restore = snapshotSessionFiles();
+        rmSync(path);
+        link(process.env.GITHUB_PATH!, path);
+        restore();
+        appendFileSync(path, "/tmp/shims\n");
+        expect(readFileSync(process.env.GITHUB_PATH!, "utf8")).toBe(
+          "/opt/tool\n",
+        );
+        expect(readFileSync(path, "utf8")).toBe(
+          "by an earlier part\n/tmp/shims\n",
+        );
+        expect(warnings()[0]).toContain(name);
+      });
+
+      test("doesn't follow a hard link to a file with the same content", () => {
+        writeFileSync(path, "");
+        writeFileSync(process.env.GITHUB_ENV!, "");
+        const restore = snapshotSessionFiles();
+        rmSync(path);
+        linkSync(process.env.GITHUB_ENV!, path);
+        restore();
+        appendFileSync(path, "X=1\n");
+        expect(readFileSync(process.env.GITHUB_ENV!, "utf8")).toBe("");
+        expect(warnings()[0]).toContain(name);
+      });
+
+      test("puts back a file the session deleted", () => {
+        const restore = snapshotSessionFiles();
+        rmSync(path);
+        restore();
+        expect(readFileSync(path, "utf8")).toBe("by an earlier part\n");
+      });
+
+      test("says nothing if there was no file before and after", () => {
+        rmSync(path);
+        snapshotSessionFiles()();
+        expect(existsSync(path)).toBe(false);
+        expect(warnings()).toEqual([]);
+      });
+
+      test("keeps what a session wrote to a file that had a second name before", () => {
+        linkSync(path, join(dir, "second-name"));
+        const restore = snapshotSessionFiles();
+        appendFileSync(path, "by the session\n");
+        restore();
+        expect(readFileSync(path, "utf8")).toContain("by the session\n");
+        expect(warnings()).toEqual([]);
+      });
+
+      test("keeps a link that was there before, and what a session wrote to it", () => {
+        const target = join(dir, "target");
+        rmSync(path);
+        writeFileSync(target, "");
+        symlinkSync(target, path);
+        const restore = snapshotSessionFiles();
+        appendFileSync(path, "by the session\n");
+        restore();
+        expect(lstatSync(path).isSymbolicLink()).toBe(true);
+        expect(readFileSync(target, "utf8")).toBe("by the session\n");
+        expect(warnings()).toEqual([]);
+      });
+    },
+  );
+
   describe("a config that was already a symlink", () => {
     let target: string;
     let link: string;
@@ -220,7 +325,7 @@ describe("session guard", () => {
 
     test("moves the action's settings from the environment to the repository", () => {
       disableGitPrograms({ hooks: true });
-      expect(process.env.GIT_CONFIG_COUNT).toBe("2");
+      expect(process.env.GIT_CONFIG_COUNT).toBe("3");
       const restore = snapshotSessionFiles(() =>
         prepareGitForSession({ hooks: true }),
       );
@@ -333,9 +438,15 @@ describe("session guard", () => {
       expect(readFileSync(repoFile, "utf8")).toBe(
         `${repoRoot}/.git\n${repoRoot}\n${process.env.HOME}\n`,
       );
+      pinRestoredPaths([".claude", "package.json"]);
+      const restoredFile = join(dir, "scripts/.restored-paths");
+      expect(readFileSync(restoredFile, "utf8")).toBe(
+        ":(top,literal).claude\n:(top,glob)**/package.json\n",
+      );
       clearSessionState();
       expect(existsSync(join(dir, "scripts/.push-branch"))).toBe(false);
       expect(existsSync(join(dir, "scripts/.no-hooks"))).toBe(false);
+      expect(existsSync(restoredFile)).toBe(false);
       expect(existsSync(repoFile)).toBe(false);
     });
 
@@ -437,14 +548,46 @@ describe("session guard", () => {
 
   test("leaves hooks alone when not asked", () => {
     disableGitPrograms({ hooks: false });
-    expect(process.env.GIT_CONFIG_COUNT).toBe("1");
+    expect(process.env.GIT_CONFIG_COUNT).toBe("2");
     expect(process.env.GIT_CONFIG_KEY_0).toBe("core.fsmonitor");
+  });
+
+  test.each([true, false])(
+    "sets safe.bareRepository for the action's git commands (disable hooks: %p)",
+    (hooks) => {
+      disableGitPrograms({ hooks });
+      expect(git("config", "safe.bareRepository").trim()).toBe("explicit");
+      git("init", "-q", "--bare", join(dir, "repo", "folder"));
+      expect(() => git("-C", "folder", "rev-parse", "--git-dir")).toThrow();
+    },
+  );
+
+  test("finds a bare repository in the current directory when hooks stay on", () => {
+    git("init", "-q", "--bare", join(dir, "bare.git"));
+    process.chdir(join(dir, "bare.git"));
+    disableGitPrograms({ hooks: false });
+    expect(git("rev-parse", "--is-bare-repository").trim()).toBe("true");
+  });
+
+  test("sets safe.bareRepository in a repository whose .git file names a bare one", () => {
+    git("init", "-q", "--bare", join(dir, "tree", ".bare"));
+    writeFileSync(join(dir, "tree", ".git"), "gitdir: ./.bare\n");
+    process.chdir(join(dir, "tree"));
+    disableGitPrograms({ hooks: false });
+    expect(git("config", "safe.bareRepository").trim()).toBe("explicit");
+  });
+
+  test("refuses a bare repository in the current directory when hooks are off", () => {
+    git("init", "-q", "--bare", join(dir, "bare.git"));
+    process.chdir(join(dir, "bare.git"));
+    disableGitPrograms({ hooks: true });
+    expect(() => git("rev-parse", "--is-bare-repository")).toThrow();
   });
 
   test("does not add a setting twice", () => {
     disableGitPrograms({ hooks: true });
     disableGitPrograms({ hooks: true });
-    expect(process.env.GIT_CONFIG_COUNT).toBe("2");
+    expect(process.env.GIT_CONFIG_COUNT).toBe("3");
   });
 
   test("keeps existing GIT_CONFIG entries", () => {
@@ -452,7 +595,7 @@ describe("session guard", () => {
     process.env.GIT_CONFIG_KEY_0 = "user.name";
     process.env.GIT_CONFIG_VALUE_0 = "someone";
     disableGitPrograms({ hooks: true });
-    expect(process.env.GIT_CONFIG_COUNT).toBe("3");
+    expect(process.env.GIT_CONFIG_COUNT).toBe("4");
     expect(process.env.GIT_CONFIG_KEY_0).toBe("user.name");
     expect(process.env.GIT_CONFIG_KEY_1).toBe("core.fsmonitor");
     expect(process.env.GIT_CONFIG_KEY_2).toBe("core.hooksPath");

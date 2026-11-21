@@ -280,6 +280,94 @@ describe("git wrappers", () => {
       expect(existsSync(marker)).toBe(true);
     });
 
+    describe("with files taken from another branch", () => {
+      const RESTORED =
+        ":(top,literal).claude\n:(top,literal)CLAUDE.md\n:(top,literal)AGENTS.md\n:(top,literal).mcp.json\n:(top,glob)**/package.json\n";
+      const write = (path: string, content: string) => {
+        mkdirSync(join(repo, path, ".."), { recursive: true });
+        writeFileSync(join(repo, path), content);
+      };
+      const wrapper = (name: string, args: string[], state = RESTORED) =>
+        spawnSync(
+          join(
+            copyScripts(state ? { ".restored-paths": state } : {}),
+            `git-${name}.sh`,
+          ),
+          args,
+          { cwd: repo, env: env(), encoding: "utf8" },
+        );
+      beforeEach(() => {
+        const tracked = ["a.txt", "CLAUDE.md", "AGENTS.md", "app/package.json"];
+        for (const path of [...tracked, ".claude/settings.json"]) {
+          write(path, "pull request");
+        }
+        git("add", "-A");
+        git("commit", "-q", "-m", "pull request");
+        for (const path of ["a.txt", "CLAUDE.md", "app/package.json"]) {
+          write(path, "changed");
+        }
+        rmSync(join(repo, "AGENTS.md"));
+        write(".claude/settings.json", "changed");
+        write(".claude/new.json", "new");
+        write("new.txt", "new");
+      });
+
+      test.each([
+        [["-A"]],
+        [["."]],
+        [["a.txt", "new.txt", "CLAUDE.md", "app"]],
+      ])("what git-add.sh %j stages of them is not committed", (args) => {
+        write(".gitignore", ".claude/\n");
+        expect(wrapper("add", ["--", "a.txt"]).status).toBe(0);
+        expect(wrapper("add", args).status).toBe(0);
+        git("reset", "-q", "--", ".gitignore");
+        const result = wrapper("commit", ["-m", "x"]);
+        expect(result.status).toBe(0);
+        expect(result.stderr).toContain("not committed");
+        expect(git("show", "--name-only", "--format=")).toBe("a.txt\nnew.txt");
+        expect(readFileSync(join(repo, "CLAUDE.md"), "utf8")).toBe("changed");
+      });
+
+      test("a staged deletion of one is not committed", () => {
+        git("rm", "-q", "-f", "CLAUDE.md");
+        git("add", "a.txt");
+        expect(wrapper("commit", ["-m", "x"]).status).toBe(0);
+        expect(git("show", "--name-only", "--format=")).toBe("a.txt");
+      });
+
+      test.each([
+        [["-a", "-m", "-a"]],
+        [["-am", "-a"]],
+        [["--all", "-m", "-a"]],
+        [["-m", "-a", "a.txt", "CLAUDE.md"]],
+        [["-m", "-a", "--", "."]],
+      ])("git-commit.sh %j leaves them out", (args) => {
+        expect(wrapper("commit", args).status).toBe(0);
+        expect(git("show", "--name-only", "--format=%s")).toBe("-a\n\na.txt");
+      });
+
+      test("git-commit.sh commits what is staged", () => {
+        git("add", "new.txt");
+        const result = wrapper("commit", ["-m", "x"]);
+        expect(result.status).toBe(0);
+        expect(result.stderr).not.toContain("not committed");
+        expect(git("show", "--name-only", "--format=%s")).toBe("x\n\nnew.txt");
+      });
+
+      test("nothing is left out when nothing is recorded", () => {
+        const result = wrapper("commit", ["-am", "all"], "");
+        expect(result.status).toBe(0);
+        expect(result.stderr).not.toContain("not committed");
+        expect(git("show", "--name-only", "--format=").split("\n")).toEqual([
+          ".claude/settings.json",
+          "AGENTS.md",
+          "CLAUDE.md",
+          "a.txt",
+          "app/package.json",
+        ]);
+      });
+    });
+
     test("the wrappers use the recorded home", () => {
       const { marker, program } = withMarker();
       const fakeHome = join(dir, "fake-home");
