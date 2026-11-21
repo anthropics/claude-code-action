@@ -5,6 +5,7 @@
  */
 
 const NUM_DESCRIPTION_WORDS = 5;
+const MAX_DEFAULT_BRANCH_LENGTH = 50;
 
 /**
  * Extracts the first 5 words from a title and converts them to kebab-case
@@ -124,7 +125,11 @@ export function generateBranchName(
     );
   }
 
-  const branchName = `${branchPrefix}${entityType}-${entityNumber}-${variables.timestamp}`;
-  // Kubernetes compatible: lowercase, max 50 chars, alphanumeric and hyphens only
-  return branchName.toLowerCase().substring(0, 50);
+  const suffix =
+    `${entityType}-${entityNumber}-${variables.timestamp}`.toLowerCase();
+  // Reserve room for the issue or PR number and timestamp before trimming.
+  const prefix = branchPrefix
+    .toLowerCase()
+    .slice(0, MAX_DEFAULT_BRANCH_LENGTH - suffix.length);
+  return `${prefix}${suffix}`;
 }
