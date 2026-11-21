@@ -57,6 +57,14 @@ describe("action metadata", () => {
     );
   });
 
+  test("should expose the structured output file from the run step", () => {
+    const metadata = readMetadata("action.yml");
+
+    expect(metadata).toMatch(
+      /^  structured_output_file:\n    description: .+\n    value: \$\{\{ steps\.run\.outputs\.structured_output_file \}\}$/m,
+    );
+  });
+
   test("should keep restrict_untrusted_prs on by default and pass it to the run step", () => {
     const metadata = readMetadata("action.yml");
 
