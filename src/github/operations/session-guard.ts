@@ -217,8 +217,9 @@ function isItsOwnFile(before: FileSnapshot): boolean {
  * Records the files later steps trust, and returns a function that puts them
  * back. Call the returned function as soon as the session ends and before the
  * action runs git again. If the session was cancelled, that also drops the outputs it
- * wrote, because a half-written one would take the action's own with it. Replacing a file rather than writing to it means a
- * session cannot redirect the write by swapping in a symlink.
+ * wrote, because a half-written one would take the action's own with it. Replacing a
+ * file rather than writing to it means a session cannot redirect the write by swapping
+ * in a symlink.
  *
  * This stops a session that can only write through its tools. It is not a
  * sandbox: code running as the runner's user can stop the action before it
