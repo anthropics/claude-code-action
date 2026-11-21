@@ -158,19 +158,13 @@ export function formatResultContent(content: any): string {
       parsedContent = content;
     }
 
-    if (
-      Array.isArray(parsedContent) &&
-      parsedContent.length > 0 &&
-      typeof parsedContent[0] === "object" &&
-      parsedContent[0]?.type === "text"
-    ) {
-      // Keep every text block, not just the first: a tool result may split its
-      // output across several, and dropping the rest silently loses findings,
-      // file paths and follow-up instructions from the rendered summary. Blocks
-      // of other types (for example images) are skipped. Tool output is
-      // arbitrary, so `text` is not guaranteed to be a string.
-      contentStr = parsedContent
-        .filter((block: any) => block?.type === "text")
+    const textBlocks = Array.isArray(parsedContent)
+      ? parsedContent.filter((block) => block?.type === "text")
+      : [];
+    if (textBlocks.length > 0) {
+      // Tool results can include images before or between text blocks. Only
+      // render the text, and keep its original order.
+      contentStr = textBlocks
         .map((block: any) => String(block?.text || ""))
         .join("\n");
     } else {
