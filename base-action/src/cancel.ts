@@ -34,7 +34,7 @@ function listProcesses(): Process[] {
     encoding: "utf8",
   });
   if (ps.error) throw ps.error;
-  if (ps.status !== 0) throw new Error(`ps exited with ${ps.status}`);
+  if (ps.status !== 0) throw new Error("ps failed");
   return ps.stdout.split("\n").flatMap((line) => {
     const [pid, parent, state] = line.trim().split(/\s+/);
     if (!pid || Number(pid) === ps.pid || state!.startsWith("Z")) return [];
@@ -133,11 +133,14 @@ export function onCancel(
       try {
         step();
       } catch (error) {
-        console.error("Error cleaning up the cancelled run:", error);
+        // A message could hold anything, such as a value that was being written.
+        const { code, name } = error as { code?: string; name?: string };
+        console.error(`Error cleaning up the cancelled run (${code ?? name})`);
       }
     }
     process.exit(130);
   };
   process.on("SIGINT", cancel);
   process.on("SIGTERM", cancel);
+  process.on("SIGBREAK", cancel); // The runner's second signal on Windows
 }
