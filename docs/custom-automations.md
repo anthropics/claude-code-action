@@ -69,6 +69,8 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
+The action skips pull requests from forks unless [`allow_fork_prs`](./security.md#pull-requests-from-forks) is `true`.
+
 Perfect for automatically reviewing PRs from new team members, external contributors, or specific developers who need extra guidance. The action automatically runs in agent mode when a `prompt` is provided.
 
 ## Custom Prompt Templates

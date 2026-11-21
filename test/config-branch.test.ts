@@ -140,6 +140,7 @@ describe("in a shallow checkout of the default branch", () => {
   let originalCwd: string;
   let dir: string;
   let head: string;
+  const allowForkPrs = process.env.ALLOW_FORK_PRS;
   const git = (cwd: string, ...args: string[]) =>
     execFileSync(
       "git",
@@ -173,9 +174,12 @@ describe("in a shallow checkout of the default branch", () => {
     git(checkout, "fetch", "--depth=1", "origin", "trunk");
     git(checkout, "checkout", "-B", "trunk", "origin/trunk");
     process.chdir(checkout);
+    process.env.ALLOW_FORK_PRS = "true";
   });
 
   afterEach(() => {
+    if (allowForkPrs === undefined) delete process.env.ALLOW_FORK_PRS;
+    else process.env.ALLOW_FORK_PRS = allowForkPrs;
     process.chdir(originalCwd);
     rmSync(dir, { recursive: true, force: true });
   });
