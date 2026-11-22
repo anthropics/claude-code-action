@@ -114,6 +114,14 @@ These inputs are deprecated and will be removed in a future version:
 
 > **Note**: This action is currently in beta. Features and APIs may change as we continue to improve the integration.
 
+## GitHub authentication in long-running jobs
+
+The action's default GitHub App installation token expires after one hour. For trusted sessions that already receive the App credential, the action starts renewing it after 55 minutes. Git and the action's built-in progress comment, inline comment, and signed file tools read the current credential for each operation.
+
+Workflows that supply `github_token` manage that token's lifetime. Custom tools that capture `GH_TOKEN` or `GITHUB_TOKEN` at startup keep the startup value. Sessions with subprocess isolation or restricted actor settings keep their existing credential handling and can renew the default token during finalization.
+
+For a branch created by tag mode, the action can retry an authentication-rejected push with the renewed token. It retries the exact commit from the action's Git push wrapper when the branch still points to that commit and the remote can accept a fast-forward. Recovery leaves uncommitted changes in the checkout and respects custom push destinations, pre-push hooks, and workflow tool policies.
+
 ## Permission Mode
 
 The action runs Claude in [auto mode](https://code.claude.com/docs/en/permission-modes) by default. Reads and file edits in the workspace run without asking, and a safety review decides any other tool call that your allow rules don't cover. Narrow allow rules like `Bash(npm test)` skip the review, and broad ones like `Bash(*)` or package-manager run commands are ignored in this mode.

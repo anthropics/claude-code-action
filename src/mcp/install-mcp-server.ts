@@ -4,9 +4,11 @@ import type { GitHubContext } from "../github/context";
 import { isEntityContext } from "../github/context";
 import { Octokit } from "@octokit/rest";
 import type { AutoDetectedMode } from "../modes/detector";
+import { GITHUB_TOKEN_FILE_ENV } from "./github-token";
 
 type PrepareConfigParams = {
   githubToken: string;
+  githubTokenPath?: string;
   owner: string;
   repo: string;
   branch: string;
@@ -72,6 +74,7 @@ export async function prepareMcpConfig(
 ): Promise<string> {
   const {
     githubToken,
+    githubTokenPath,
     owner,
     repo,
     branch,
@@ -83,6 +86,10 @@ export async function prepareMcpConfig(
   } = params;
   try {
     const allowedToolsList = allowedTools || [];
+    const builtInGitHubAuth =
+      githubTokenPath === undefined
+        ? { GITHUB_TOKEN: githubToken }
+        : { [GITHUB_TOKEN_FILE_ENV]: githubTokenPath };
 
     // Detect if we're in agent mode (explicit prompt provided)
     const isAgentMode = mode === "agent";
@@ -123,7 +130,7 @@ export async function prepareMcpConfig(
         args: bunServerArgs("src/mcp/github-comment-server.ts"),
         env: {
           ...bunServerEnv,
-          GITHUB_TOKEN: githubToken,
+          ...builtInGitHubAuth,
           REPO_OWNER: owner,
           REPO_NAME: repo,
           ...(claudeCommentId && { CLAUDE_COMMENT_ID: claudeCommentId }),
@@ -140,7 +147,7 @@ export async function prepareMcpConfig(
         args: bunServerArgs("src/mcp/github-file-ops-server.ts"),
         env: {
           ...bunServerEnv,
-          GITHUB_TOKEN: githubToken,
+          ...builtInGitHubAuth,
           REPO_OWNER: owner,
           REPO_NAME: repo,
           BRANCH_NAME: branch,
@@ -164,7 +171,7 @@ export async function prepareMcpConfig(
         args: bunServerArgs("src/mcp/github-inline-comment-server.ts"),
         env: {
           ...bunServerEnv,
-          GITHUB_TOKEN: githubToken,
+          ...builtInGitHubAuth,
           REPO_OWNER: owner,
           REPO_NAME: repo,
           PR_NUMBER: context.entityNumber?.toString() || "",

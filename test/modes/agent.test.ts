@@ -469,6 +469,7 @@ describe("Agent Mode", () => {
   });
 
   describe("git credential configuration", () => {
+    const tokenPaths = [undefined, "/runner-temp/github-token"];
     const mockOctokit = {
       rest: {
         users: {
@@ -481,45 +482,63 @@ describe("Agent Mode", () => {
       },
     } as any;
 
-    test("uses full git auth on the non-signing path", async () => {
-      const context = createMockAutomationContext({
-        eventName: "workflow_dispatch",
-      });
+    test.each(tokenPaths)(
+      "uses full git auth on the non-signing path with token file %p",
+      async (githubTokenPath) => {
+        const context = createMockAutomationContext({
+          eventName: "workflow_dispatch",
+        });
 
-      await prepareAgentMode({
-        context,
-        octokit: mockOctokit,
-        githubToken: "test-token",
-      });
+        await prepareAgentMode({
+          context,
+          octokit: mockOctokit,
+          githubToken: "test-token",
+          githubTokenPath,
+        });
 
-      expect(configureGitAuthSpy).toHaveBeenCalledTimes(1);
-      expect(configureGitAuthSpy).toHaveBeenCalledWith("test-token", context, {
-        login: context.inputs.botName,
-        id: parseInt(context.inputs.botId),
-      });
-      // configureGitAuth performs the credential replacement itself; the mock
-      // stands in for it here, so the standalone helper is not invoked.
-      expect(replaceCheckoutCredentialsSpy).not.toHaveBeenCalled();
-    });
+        expect(configureGitAuthSpy).toHaveBeenCalledTimes(1);
+        expect(configureGitAuthSpy).toHaveBeenCalledWith(
+          "test-token",
+          context,
+          {
+            login: context.inputs.botName,
+            id: parseInt(context.inputs.botId),
+          },
+          githubTokenPath,
+        );
+        // configureGitAuth performs the credential replacement itself; the mock
+        // stands in for it here, so the standalone helper is not invoked.
+        expect(replaceCheckoutCredentialsSpy).not.toHaveBeenCalled();
+      },
+    );
 
-    test("still replaces the checkout credential when API commit signing is enabled", async () => {
-      const context = createMockAutomationContext({
-        eventName: "workflow_dispatch",
-        inputs: { useCommitSigning: true },
-      });
+    test.each(tokenPaths)(
+      "replaces the checkout credential when API commit signing is enabled with token file %p",
+      async (githubTokenPath) => {
+        const context = createMockAutomationContext({
+          eventName: "workflow_dispatch",
+          inputs: { useCommitSigning: true },
+        });
 
-      await prepareAgentMode({
-        context,
-        octokit: mockOctokit,
-        githubToken: "test-token",
-      });
+        const result = await prepareAgentMode({
+          context,
+          octokit: mockOctokit,
+          githubToken: "test-token",
+          githubTokenPath,
+        });
 
-      expect(configureGitAuthSpy).not.toHaveBeenCalled();
-      expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledTimes(1);
-      expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledWith(
-        "test-token",
-        context,
-      );
-    });
+        expect(configureGitAuthSpy).not.toHaveBeenCalled();
+        expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledTimes(1);
+        expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledWith(
+          "test-token",
+          context,
+          githubTokenPath,
+        );
+        const { mcpServers } = JSON.parse(result.mcpConfig);
+        expect(
+          mcpServers.github_file_ops.env.CLAUDE_CODE_GITHUB_TOKEN_FILE,
+        ).toBe(githubTokenPath);
+      },
+    );
   });
 });

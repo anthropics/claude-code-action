@@ -20,6 +20,7 @@ describe("Tag Mode", () => {
   });
 
   describe("git credential configuration", () => {
+    const tokenPaths = [undefined, "/runner-temp/github-token"];
     let spies: Array<{ mockRestore: () => void }>;
     let configureGitAuthSpy: any;
     let replaceCheckoutCredentialsSpy: any;
@@ -62,25 +63,34 @@ describe("Tag Mode", () => {
       }
     });
 
-    test("uses full git auth on the non-signing path", async () => {
-      const context = { ...mockIssueCommentContext };
+    test.each(tokenPaths)(
+      "uses full git auth on the non-signing path with token file %p",
+      async (githubTokenPath) => {
+        const context = { ...mockIssueCommentContext };
 
-      await prepareTagMode({
-        context,
-        octokit: {} as any,
-        githubToken: "test-token",
-        skipLfsDownloads: false,
-      });
+        await prepareTagMode({
+          context,
+          octokit: {} as any,
+          githubToken: "test-token",
+          githubTokenPath,
+          skipLfsDownloads: false,
+        });
 
-      expect(configureGitAuthSpy).toHaveBeenCalledTimes(1);
-      expect(configureGitAuthSpy).toHaveBeenCalledWith("test-token", context, {
-        login: context.inputs.botName,
-        id: parseInt(context.inputs.botId),
-      });
-      // configureGitAuth performs the credential replacement itself; the mock
-      // stands in for it here, so the standalone helper is not invoked.
-      expect(replaceCheckoutCredentialsSpy).not.toHaveBeenCalled();
-    });
+        expect(configureGitAuthSpy).toHaveBeenCalledTimes(1);
+        expect(configureGitAuthSpy).toHaveBeenCalledWith(
+          "test-token",
+          context,
+          {
+            login: context.inputs.botName,
+            id: parseInt(context.inputs.botId),
+          },
+          githubTokenPath,
+        );
+        // configureGitAuth performs the credential replacement itself; the mock
+        // stands in for it here, so the standalone helper is not invoked.
+        expect(replaceCheckoutCredentialsSpy).not.toHaveBeenCalled();
+      },
+    );
 
     test.each([true, false])(
       "tells setupBranch whether to skip Git LFS downloads: %p",
@@ -225,25 +235,33 @@ describe("Tag Mode", () => {
       });
     });
 
-    test("still replaces the checkout credential when API commit signing is enabled", async () => {
-      const context = {
-        ...mockIssueCommentContext,
-        inputs: { ...mockIssueCommentContext.inputs, useCommitSigning: true },
-      };
+    test.each(tokenPaths)(
+      "replaces the checkout credential when API commit signing is enabled with token file %p",
+      async (githubTokenPath) => {
+        const context = {
+          ...mockIssueCommentContext,
+          inputs: { ...mockIssueCommentContext.inputs, useCommitSigning: true },
+        };
 
-      await prepareTagMode({
-        context,
-        octokit: {} as any,
-        githubToken: "test-token",
-        skipLfsDownloads: false,
-      });
+        await prepareTagMode({
+          context,
+          octokit: {} as any,
+          githubToken: "test-token",
+          githubTokenPath,
+          skipLfsDownloads: false,
+        });
 
-      expect(configureGitAuthSpy).not.toHaveBeenCalled();
-      expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledTimes(1);
-      expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledWith(
-        "test-token",
-        context,
-      );
-    });
+        expect(configureGitAuthSpy).not.toHaveBeenCalled();
+        expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledTimes(1);
+        expect(replaceCheckoutCredentialsSpy).toHaveBeenCalledWith(
+          "test-token",
+          context,
+          githubTokenPath,
+        );
+        expect(mcp.prepareMcpConfig).toHaveBeenCalledWith(
+          expect.objectContaining({ githubTokenPath }),
+        );
+      },
+    );
   });
 });

@@ -4,5 +4,7 @@ scripts/.push-branch
 scripts/.no-hooks
 scripts/.restored-paths
 scripts/.git-repo
+scripts/.record-failed-push
+scripts/.failed-push
 
 **/.claude/settings.local.json

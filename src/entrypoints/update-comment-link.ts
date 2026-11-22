@@ -14,7 +14,11 @@ import {
 } from "../github/context";
 import type { ParsedGitHubContext } from "../github/context";
 import { GITHUB_SERVER_URL } from "../github/api/config";
-import { checkAndCommitOrDeleteBranch } from "../github/operations/branch-cleanup";
+import {
+  checkAndCommitOrDeleteBranch,
+  UnpublishedBranchRecoveryError,
+  type BranchPushRecovery,
+} from "../github/operations/branch-cleanup";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 import { encodeBranchNameForUrl } from "../github/operations/comments/common";
 
@@ -37,6 +41,7 @@ export type UpdateCommentLinkParams = {
    * commits the revert onto the PR author's branch.
    */
   restoredConfigPaths?: string[];
+  pushRecovery?: BranchPushRecovery;
 };
 
 export async function updateCommentLink(
@@ -51,12 +56,34 @@ export async function updateCommentLink(
     octokit,
     useCommitSigning,
     restoredConfigPaths = [],
+    pushRecovery,
   } = params;
 
   const { owner, repo } = context.repository;
 
   const serverUrl = GITHUB_SERVER_URL;
   const jobUrl = `${serverUrl}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+  const checkBranch = () =>
+    checkAndCommitOrDeleteBranch(
+      octokit,
+      owner,
+      repo,
+      claudeBranch,
+      baseBranch,
+      useCommitSigning,
+      restoredConfigPaths,
+      { recovery: pushRecovery },
+    );
+  let recoveryError: UnpublishedBranchRecoveryError | undefined;
+  // The recorded push is independent of whether the tracking comment still exists.
+  const recoveredBranch = pushRecovery
+    ? await checkBranch().catch((error: unknown) => {
+        if (!(error instanceof UnpublishedBranchRecoveryError)) throw error;
+        recoveryError = error;
+        return { shouldDeleteBranch: false, branchLink: "" };
+      })
+    : undefined;
 
   let comment;
   let isPRReviewComment = false;
@@ -111,26 +138,19 @@ export async function updateCommentLink(
       console.error("Could not fetch PR info for debugging");
     }
 
-    throw finalError;
+    throw recoveryError ?? finalError;
   }
 
   const currentBody = comment.body ?? "";
 
   // Check if we need to add branch link for new branches
-  const { shouldDeleteBranch, branchLink } = await checkAndCommitOrDeleteBranch(
-    octokit,
-    owner,
-    repo,
-    claudeBranch,
-    baseBranch,
-    useCommitSigning,
-    restoredConfigPaths,
-  );
+  const { shouldDeleteBranch, branchLink } =
+    recoveredBranch ?? (await checkBranch());
 
   // Check if we need to add PR URL when we have a new branch
   let prLink = "";
   // If claudeBranch is set, it means we created a new branch (for issues or closed/merged PRs)
-  if (claudeBranch && !shouldDeleteBranch) {
+  if (claudeBranch && !shouldDeleteBranch && (!pushRecovery || branchLink)) {
     // Check if comment already contains a PR URL
     const serverUrlPattern = serverUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const prUrlPattern = new RegExp(
@@ -213,6 +233,11 @@ export async function updateCommentLink(
     }
   }
 
+  if (recoveryError) {
+    actionFailed = true;
+    errorDetails = recoveryError.message;
+  }
+
   // Prepare input for updateCommentBody function
   const commentInput: CommentUpdateInput = {
     currentBody,
@@ -244,8 +269,9 @@ export async function updateCommentLink(
       `Failed to update ${isPRReviewComment ? "PR review" : "issue"} comment:`,
       updateError,
     );
-    throw updateError;
+    throw recoveryError ?? updateError;
   }
+  if (recoveryError) throw recoveryError;
 }
 
 async function run() {

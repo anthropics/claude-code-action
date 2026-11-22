@@ -50,4 +50,33 @@ case "$2" in
 esac
 
 # The full refspec fixes the target, whatever HEAD points at, and can't be forced.
-exec git "${git_args[@]}" push origin "$SOURCE:refs/heads/$BRANCH"
+marker="$script_dir/.record-failed-push"
+if [[ ! -f "$marker" ]]; then
+  exec git "${git_args[@]}" push origin "$SOURCE:refs/heads/$BRANCH"
+fi
+
+# Discard an earlier receipt when a new authorized push starts.
+receipt="$script_dir/.failed-push"
+rm -f -- "$receipt"
+
+# Replay uses the action's own Git settings. Leave custom push destinations and
+# pre-push hook policies to the original invocation.
+push_url=$(git "${git_args[@]}" remote get-url --push --all origin) || push_url=""
+pre_push_hook=$(git "${git_args[@]}" rev-parse --git-path hooks/pre-push) || pre_push_hook=""
+if [[ -z "$push_url" || "$push_url" != "$(<"$marker")" || -z "$pre_push_hook" || -e "$pre_push_hook" || -L "$pre_push_hook" ]]; then
+  exec git "${git_args[@]}" push origin "$SOURCE:refs/heads/$BRANCH"
+fi
+
+# Keep the exact attempted commit. A later HEAD or working-tree change was
+# never part of this push.
+commit=$(git "${git_args[@]}" rev-parse --verify "$SOURCE^{commit}")
+stderr_file=$(mktemp)
+trap 'rm -f -- "$stderr_file"' EXIT
+status=0
+LC_ALL=C git "${git_args[@]}" push origin "$commit:refs/heads/$BRANCH" 2>"$stderr_file" || status=$?
+cat -- "$stderr_file" >&2 || true
+
+if [[ "$status" -ne 0 ]] && grep -Eq '^fatal: Authentication failed for |^fatal: unable to access .+: The requested URL returned error: 401$' "$stderr_file"; then
+  (umask 077; set -C; printf '%s\n' "$commit" >"$receipt") || true
+fi
+exit "$status"

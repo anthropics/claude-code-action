@@ -7,6 +7,7 @@ import { GITHUB_API_URL } from "../github/api/config";
 import { Octokit } from "@octokit/rest";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 import { redactSecrets, sanitizeContent } from "../github/utils/sanitizer";
+import { readGitHubToken } from "./github-token";
 
 // Get repository information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -32,13 +33,10 @@ server.tool(
   },
   async ({ body }) => {
     try {
-      const githubToken = process.env.GITHUB_TOKEN;
+      const githubToken = await readGitHubToken();
       const claudeCommentId = process.env.CLAUDE_COMMENT_ID;
       const eventName = process.env.GITHUB_EVENT_NAME;
 
-      if (!githubToken) {
-        throw new Error("GITHUB_TOKEN environment variable is required");
-      }
       if (!claudeCommentId) {
         throw new Error("CLAUDE_COMMENT_ID environment variable is required");
       }
