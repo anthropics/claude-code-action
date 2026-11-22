@@ -90,7 +90,7 @@ describe("action metadata", () => {
       expect(command).toContain(
         ' --no-env-file --config="${GITHUB_ACTION_PATH}/bunfig.toml"' +
           ' --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json"' +
-          " run ${GITHUB_ACTION_PATH}/src/entrypoints/",
+          ' run "${GITHUB_ACTION_PATH}/src/entrypoints/',
       );
     }
   });
