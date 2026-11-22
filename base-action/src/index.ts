@@ -1,7 +1,9 @@
 #!/usr/bin/env bun
 
 import * as core from "@actions/core";
-import { preparePrompt } from "./prepare-prompt";
+import { rm } from "fs/promises";
+import { dirname } from "path";
+import { preparePrompt, type PreparePromptConfig } from "./prepare-prompt";
 import { runClaude } from "./run-claude";
 import { setupClaudeCodeSettings } from "./setup-claude-code-settings";
 import { validateEnvironmentVariables } from "./validate-env";
@@ -15,6 +17,7 @@ async function run() {
   delete process.env.BUN_RUNTIME_TRANSPILER_CACHE_PATH;
 
   let workloadIdentity: WorkloadIdentityHandle | undefined;
+  let promptConfig: PreparePromptConfig | undefined;
   try {
     // When workload identity federation is configured, fetch the GitHub OIDC
     // identity token and expose it to the CLI before validating auth env vars.
@@ -42,7 +45,7 @@ async function run() {
       claudeExecutable,
     );
 
-    const promptConfig = await preparePrompt({
+    promptConfig = await preparePrompt({
       prompt: process.env.INPUT_PROMPT || "",
       promptFile: process.env.INPUT_PROMPT_FILE || "",
     });
@@ -76,11 +79,17 @@ async function run() {
     setExecutionFileOutputIfPresent();
     core.setFailed(`Action failed with error: ${error}`);
     core.setOutput("conclusion", "failure");
-    process.exit(1);
   } finally {
     // Stop refreshing the workload identity token file (so the process can
     // exit) and delete the token material so it doesn't outlive this step
     workloadIdentity?.stop();
+    if (promptConfig?.type === "inline") {
+      try {
+        await rm(dirname(promptConfig.path), { recursive: true, force: true });
+      } catch (error) {
+        core.warning(`Failed to remove the temporary prompt: ${error}`);
+      }
+    }
   }
 }
 
