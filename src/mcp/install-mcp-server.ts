@@ -81,6 +81,7 @@ export async function prepareMcpConfig(
     context,
     mode,
   } = params;
+  const bunCommand = process.env.CUSTOM_BUN_PATH || "bun";
   try {
     const allowedToolsList = allowedTools || [];
 
@@ -119,7 +120,7 @@ export async function prepareMcpConfig(
 
     if (shouldIncludeCommentServer) {
       baseMcpConfig.mcpServers.github_comment = {
-        command: "bun",
+        command: bunCommand,
         args: bunServerArgs("src/mcp/github-comment-server.ts"),
         env: {
           ...bunServerEnv,
@@ -136,7 +137,7 @@ export async function prepareMcpConfig(
     // Include file ops server when commit signing is enabled
     if (context.inputs.useCommitSigning) {
       baseMcpConfig.mcpServers.github_file_ops = {
-        command: "bun",
+        command: bunCommand,
         args: bunServerArgs("src/mcp/github-file-ops-server.ts"),
         env: {
           ...bunServerEnv,
@@ -160,7 +161,7 @@ export async function prepareMcpConfig(
       (hasGitHubMcpTools || hasInlineCommentTools)
     ) {
       baseMcpConfig.mcpServers.github_inline_comment = {
-        command: "bun",
+        command: bunCommand,
         args: bunServerArgs("src/mcp/github-inline-comment-server.ts"),
         env: {
           ...bunServerEnv,
@@ -203,7 +204,7 @@ export async function prepareMcpConfig(
         );
       } else {
         baseMcpConfig.mcpServers.github_ci = {
-          command: "bun",
+          command: bunCommand,
           args: bunServerArgs("src/mcp/github-actions-server.ts"),
           env: {
             ...bunServerEnv,
