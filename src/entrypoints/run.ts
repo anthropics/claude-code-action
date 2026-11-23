@@ -16,6 +16,7 @@ import {
   checkBotActorPullRequestAuthor,
   checkWritePermissions,
 } from "../github/validation/permissions";
+import { checkHumanActor } from "../github/validation/actor";
 import {
   isCommentOnRefusedForkPr,
   isRefusedForkEvent,
@@ -207,14 +208,23 @@ async function run() {
     const actionInputsPresent = collectActionInputsPresence();
     context = parseGitHubContext();
 
-    // GitHub gives a fork's pull_request and review events no credentials, so those
-    // are skipped before a token is needed. pull_request_target and workflow_run have
-    // the repository's, so they go through the write checks first: a run those refuse
-    // must fail, as later steps in the job could use the repository's secrets.
+    // A fork's event with no credentials is skipped before a token is needed. One that
+    // has them goes through the actor checks first: a run those refuse must fail, as
+    // later steps in the job could use the credentials. pull_request_target and
+    // workflow_run always have them. Other events from forks can have them only in a
+    // private repository, depending on its settings.
     const isRefusedFork = isRefusedForkEvent(context);
     const hasRepositoryCredentials =
       isWorkflowRunEvent(context) ||
-      process.env.GITHUB_EVENT_NAME === "pull_request_target";
+      process.env.GITHUB_EVENT_NAME === "pull_request_target" ||
+      ((context.payload.repository as { private?: boolean } | undefined)
+        ?.private === true &&
+        !!(
+          process.env.OVERRIDE_GITHUB_TOKEN ||
+          process.env.ACTIONS_ID_TOKEN_REQUEST_URL ||
+          process.env.ANTHROPIC_API_KEY ||
+          process.env.CLAUDE_CODE_OAUTH_TOKEN
+        ));
     if (isRefusedFork && !hasRepositoryCredentials) {
       core.warning(FORK_REFUSED);
       return;
@@ -292,6 +302,8 @@ async function run() {
       isRefusedFork ||
       (await isCommentOnRefusedForkPr(octokit.rest, context))
     ) {
+      // Prepare would have refused a bot that isn't allowed
+      await checkHumanActor(octokit.rest, context);
       core.warning(FORK_REFUSED);
       return;
     }

@@ -45,7 +45,7 @@ inputs:
     required: false
     default: ""
   allow_fork_prs:
-    description: "Set to 'true' to run on pull requests from forks, and on workflow_run events for a fork's run. By default, and with any other value, the action skips them, whoever opened them, before it checks anything out. See docs/security.md."
+    description: "Set to 'true' to run on pull requests from forks, and on workflow_run events for a fork's run. By default, and with any other value, the action skips them, whoever opened them, before it checks anything out. Where the event has credentials, a run that the actor checks refuse fails instead. See docs/security.md."
     required: false
     default: "false"
   restrict_untrusted_prs:

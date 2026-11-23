@@ -202,6 +202,10 @@ describe("run.ts with allow_fork_prs off, the default", () => {
       fetch(request) {
         const { pathname } = new URL(request.url);
         requests.push(pathname);
+        if (pathname.startsWith("/users/")) {
+          const type = pathname.includes("bot") ? "Bot" : "User";
+          return Response.json({ type });
+        }
         if (pathname.endsWith("/permission")) {
           const writer = pathname.includes("/writer/");
           return Response.json({ permission: writer ? "write" : "read" });
@@ -288,6 +292,7 @@ describe("run.ts with allow_fork_prs off, the default", () => {
     expect(result.requests).toEqual([
       "/repos/o/r/collaborators/writer/permission",
       "/repos/o/r/pulls/7",
+      "/users/writer",
     ]);
   });
 
@@ -343,6 +348,59 @@ describe("run.ts with allow_fork_prs off, the default", () => {
     expect(result.exitCode).toBe(1);
     expect(result.log).toContain("A bot acted on this pull request");
   });
+
+  test.each([
+    ["writer", "t", "", 0],
+    ["outsider", "t", "", 1],
+    ["outsider", "", "", 0],
+    ["outsider", "", "key", 1],
+  ])(
+    "%s's fork in a private repository with token %p and key %p exits %p",
+    async (login, token, key, exitCode) => {
+      const actor = { login, type: "User" };
+      const result = await run(
+        "pull_request",
+        {
+          action: "opened",
+          repository: { ...repository, private: true },
+          sender: actor,
+          pull_request: { number: 7, user: actor, ...pullRequest(FORK) },
+        },
+        pullRequest(FORK),
+        {
+          GITHUB_ACTOR: login,
+          PROMPT: "Review",
+          OVERRIDE_GITHUB_TOKEN: token,
+          ANTHROPIC_API_KEY: key,
+        },
+      );
+      expect(result.exitCode).toBe(exitCode);
+    },
+    30_000, // without a token, the action retries before it fails
+  );
+
+  test.each([
+    ["", 1],
+    ["helper", 0],
+  ])(
+    "a bot's own fork with allowed_bots %p exits %p",
+    async (bots, exitCode) => {
+      const bot = { login: "helper[bot]", type: "Bot" };
+      const result = await run(
+        "pull_request_target",
+        {
+          action: "opened",
+          repository,
+          sender: bot,
+          pull_request: { number: 7, user: bot, ...pullRequest(FORK) },
+        },
+        pullRequest(FORK),
+        { GITHUB_ACTOR: bot.login, ALLOWED_BOTS: bots, PROMPT: "Review" },
+      );
+      expect(result.exitCode).toBe(exitCode);
+      if (exitCode) expect(result.log).toContain("non-human actor");
+    },
+  );
 
   test("goes on with a comment on a pull request in this repository", async () => {
     const result = await run(

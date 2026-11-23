@@ -255,7 +255,7 @@ Get validated JSON results from Claude that automatically become GitHub Action o
       --json-schema '{"type":"object","properties":{"is_flaky":{"type":"boolean"},"confidence":{"type":"number"},"summary":{"type":"string"}},"required":["is_flaky"]}'
 
 - name: Retry if flaky
-  if: fromJSON(steps.analyze.outputs.structured_output).is_flaky == true
+  if: fromJSON(steps.analyze.outputs.structured_output || '{}').is_flaky == true
   run: gh workflow run CI
 ```
 
@@ -268,14 +268,14 @@ Get validated JSON results from Claude that automatically become GitHub Action o
 
 ### Accessing Structured Outputs
 
-All structured output fields are available in the `structured_output` output as a JSON string:
+All structured output fields are available in the `structured_output` output as a JSON string. It is empty when the action skips the run, which is why these expressions fall back to `'{}'`. Test fields against `true`, because a missing field also equals `false`:
 
 **In GitHub Actions expressions:**
 
 ```yaml
 if: |
-  fromJSON(steps.analyze.outputs.structured_output).is_flaky == true &&
-  fromJSON(steps.analyze.outputs.structured_output).confidence >= 0.7
+  fromJSON(steps.analyze.outputs.structured_output || '{}').is_flaky == true &&
+  fromJSON(steps.analyze.outputs.structured_output || '{}').confidence >= 0.7
 run: ./retry-tests.sh
 ```
 

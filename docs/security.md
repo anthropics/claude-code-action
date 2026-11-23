@@ -85,7 +85,7 @@ By default, the action skips pull requests from forks, so that it never checks o
 
 Without that, the action skips a pull request whose branch is in another repository, or in a fork that was deleted. It does so for every event that names the pull request, including comments on the conversation, whoever opened the pull request and whether it is open or closed. It also skips `workflow_run` events for a fork's run. It logs a warning, checks nothing out and doesn't start Claude, and the step succeeds without Claude's outputs, so a required check that only runs the action passes without a review. A later step that needs the action's outputs has to handle empty ones. Any value other than `true` turns forks off, including an empty one.
 
-`pull_request_target` and `workflow_run` events have your repository's credentials, so the action checks write access first on those. If that check refuses the run, the step fails instead of being skipped.
+Where a fork's event comes with credentials, the action first checks write access and, for a bot, `allowed_bots`, and a run that those checks refuse fails instead of being skipped. This covers comments on the conversation, `pull_request_target` and `workflow_run`, and in a private repository other events that get a token or the Anthropic secrets.
 
 For a comment on the conversation that triggers it, the action asks GitHub where the branch is, after it has checked the commenter's write access. It does so for pull requests from your own repository too, so the token needs `pull-requests: read`. If the answer can't be read, the run fails before anything is checked out.
 
@@ -97,7 +97,7 @@ This covers what the action does with the event that started it. It doesn't cove
 - **Commits already in your repository**, such as a `pr-N` branch from an earlier run, or a fork's commits that someone pushed to a branch of yours.
 - **Text.** Issues and comments from outside contributors still reach Claude.
 
-**Upgrading:** `allow_fork_prs` used to default to `true`. Workflows that use a floating tag or branch such as `@v1` or `@main` get the new default without changing anything. If yours relied on Claude working on pull requests from forks, including your team's own forks, or on `workflow_run` events for a fork's run, set `allow_fork_prs: "true"`. This is needed with `allowed_non_write_users` too. If it runs on comments on pull requests with a token of its own, check that the token has `pull-requests: read`.
+**Upgrading:** `allow_fork_prs` used to default to `true`. Workflows that use a floating tag or branch such as `@v1` or `@main` get the new default without changing anything. If yours relied on Claude working on pull requests from forks, including your team's own forks, or on `workflow_run` events for a fork's run, set `allow_fork_prs: "true"`. This is needed with `allowed_non_write_users` too. Otherwise, a required check on those pull requests can now pass without Claude having run. If you already set it to `"false"`, runs with credentials that the write and bot checks refuse now fail where they used to be skipped. If it runs on comments on pull requests with a token of its own, check that the token has `pull-requests: read`.
 
 ### Running code from pull requests
 

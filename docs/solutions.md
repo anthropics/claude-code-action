@@ -196,7 +196,7 @@ jobs:
 
 **When to use:** Apply stricter review criteria for external or new contributors.
 
-> As written, this covers branches in your repository only. The action skips pull requests from forks, as described in [Security](./security.md#pull-requests-from-forks).
+> As written, this doesn't run Claude on pull requests from forks, which is where first-time contributors' pull requests come from. See [Security](./security.md#pull-requests-from-forks) before you allow them.
 
 **Complete Example:**
 
