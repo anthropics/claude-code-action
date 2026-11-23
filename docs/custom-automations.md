@@ -105,6 +105,8 @@ You can access any GitHub context variable using the standard GitHub Actions syn
 - `${{ github.base_ref }}` - Base branch for PRs
 - `${{ github.head_ref }}` - Head branch for PRs
 
+Titles, descriptions, comments and branch names can come from people without write access. Prefer to pass only numbers, and let Claude read the rest with its tools, especially in a public repository.
+
 ## Advanced Configuration with claude_args
 
 For more control over Claude's behavior, use the `claude_args` input to pass CLI arguments directly:

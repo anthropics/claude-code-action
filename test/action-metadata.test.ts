@@ -57,6 +57,24 @@ describe("action metadata", () => {
     );
   });
 
+  test("should not pass credentials from inputs to steps after the run step", () => {
+    const steps = readMetadata("action.yml").split(/^    - name: /m);
+    const later = steps.slice(
+      steps.findIndex((step) => step.startsWith("Run Claude Code Action")) + 1,
+    );
+
+    expect(later.length).toBeGreaterThan(0);
+    for (const step of later) {
+      const body = step.replace(/^      if: .+$/m, "");
+      expect(body).not.toMatch(
+        /inputs\.|env\.|ANTHROPIC_API_KEY|CLAUDE_CODE_OAUTH_TOKEN/,
+      );
+      if (body.includes("outputs.github_token")) {
+        expect(step).toContain("inputs.github_token == ''");
+      }
+    }
+  });
+
   test("should keep restrict_untrusted_prs on by default and pass it to the run step", () => {
     const metadata = readMetadata("action.yml");
 
@@ -85,7 +103,7 @@ describe("action metadata", () => {
       .split("\n")
       .filter((line) => line.includes("${GITHUB_ACTION_PATH}/src/"));
 
-    expect(commands).toHaveLength(3);
+    expect(commands).toHaveLength(2);
     for (const command of commands) {
       expect(command).toContain(
         ' --no-env-file --config="${GITHUB_ACTION_PATH}/bunfig.toml"' +
@@ -99,7 +117,7 @@ describe("action metadata", () => {
     test("should turn off Bun's transpiler cache for the action's scripts", () => {
       const steps = stepsRunningScripts(path);
 
-      expect(steps).toHaveLength(path === "action.yml" ? 3 : 1);
+      expect(steps).toHaveLength(path === "action.yml" ? 2 : 1);
       for (const step of steps) {
         expect(step).toMatch(
           /^      env:\n(?: {8}.*\n|\n)*? {8}BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0"$/m,

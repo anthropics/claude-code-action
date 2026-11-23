@@ -7,6 +7,7 @@ import { setupClaudeCodeSettings } from "./setup-claude-code-settings";
 import { validateEnvironmentVariables } from "./validate-env";
 import { installPlugins } from "./install-plugins";
 import { onCancel } from "./cancel";
+import { escapeConsoleOutput } from "./log";
 import { setExecutionFileOutputIfPresent } from "./execution-file";
 import { setupWorkloadIdentity } from "./workload-identity";
 import type { WorkloadIdentityHandle } from "./workload-identity";
@@ -95,5 +96,6 @@ async function run() {
 }
 
 if (import.meta.main) {
+  escapeConsoleOutput();
   run();
 }

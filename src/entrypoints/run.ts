@@ -64,6 +64,7 @@ import {
 import { validateBranchName } from "../github/operations/branch";
 import type { BranchInfo } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
+import { postBufferedInlineComments } from "./post-buffered-inline-comments";
 import { updateCommentLink } from "./update-comment-link";
 import { formatTurnsFromData } from "./format-turns";
 import type { Turn } from "./format-turns";
@@ -76,6 +77,7 @@ import { setupClaudeCodeSettings } from "../../base-action/src/setup-claude-code
 import { installPlugins } from "../../base-action/src/install-plugins";
 import { preparePrompt } from "../../base-action/src/prepare-prompt";
 import { onCancel } from "../../base-action/src/cancel";
+import { escapeConsoleOutput } from "../../base-action/src/log";
 import { runClaude } from "../../base-action/src/run-claude";
 import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
 import { setExecutionFileOutputIfPresent } from "../../base-action/src/execution-file";
@@ -206,6 +208,7 @@ async function run() {
   let prepareCompleted = false;
   // Set while a session could be running
   let restoreSessionFiles: ReturnType<typeof snapshotSessionFiles> | undefined;
+  let hadSession = false;
   let isFinishing = false;
 
   // Revoking the app token depends on this output, and a session can write it.
@@ -300,7 +303,6 @@ async function run() {
         : !!context.inputs?.prompt &&
           !(isEntityContext(context) && isModeration(context));
     console.log(`Mode: ${modeName}`);
-    console.log(`Context prompt: ${context.inputs?.prompt || "NO PROMPT"}`);
     console.log(`Trigger result: ${containsTrigger}`);
 
     if (!containsTrigger) {
@@ -481,6 +483,7 @@ async function run() {
     );
 
     let claudeResult: ClaudeRunResult;
+    hadSession = true;
     try {
       claudeResult = await runClaude(promptConfig.path, {
         claudeArgs: prepareResult.claudeArgs,
@@ -574,9 +577,22 @@ async function run() {
     // Set remaining action-level outputs
     core.setOutput("branch_name", claudeBranch);
     core.setOutput("github_token", githubToken);
+
+    // Last, because the step that revokes the app token needs the outputs. This isn't a
+    // step of its own, so that only the run step is given the API key.
+    if (hadSession && context?.inputs.classifyInlineComments && githubToken) {
+      try {
+        await postBufferedInlineComments({ context, githubToken });
+      } catch (error) {
+        core.setFailed(
+          `Posting buffered inline comments failed: ${redactSecrets(String(error))}`,
+        );
+      }
+    }
   }
 }
 
 if (import.meta.main) {
+  escapeConsoleOutput();
   run();
 }

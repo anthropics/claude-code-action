@@ -1,3 +1,12 @@
+/** For an input that has no environment variable of its own. */
+export function getActionInput(name: string): string | undefined {
+  try {
+    return JSON.parse(process.env.ALL_INPUTS ?? "{}")[name] || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function collectActionInputsPresence(): string {
   const inputDefaults: Record<string, string> = {
     trigger_phrase: "@claude",
