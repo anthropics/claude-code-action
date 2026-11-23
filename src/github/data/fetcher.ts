@@ -508,6 +508,8 @@ export async function fetchGitHubData({
         // Use git hash-object to compute the SHA for the current file content
         const sha = execFileSync("git", ["hash-object", file.path], {
           encoding: "utf-8",
+          // Its errors name the file, so they are only logged below.
+          stdio: ["ignore", "pipe", "pipe"],
         }).trim();
         return {
           ...file,
