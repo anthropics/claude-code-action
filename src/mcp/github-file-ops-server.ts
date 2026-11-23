@@ -3,7 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { readFile, stat } from "fs/promises";
-import { resolve } from "path";
+import { resolve, sep } from "path";
 import { constants } from "fs";
 import fetch from "node-fetch";
 import { GITHUB_API_URL } from "../github/api/config";
@@ -222,7 +222,10 @@ server.tool(
           // Calculate the relative path for the git tree entry
           // Use the original filePath (normalized) for the git path, not the symlink-resolved path
           const normalizedPath = resolve(resolvedRepoDir, filePath);
-          const relativePath = normalizedPath.slice(resolvedRepoDir.length + 1);
+          const relativePath = normalizedPath
+            .slice(resolvedRepoDir.length + 1)
+            .split(sep)
+            .join("/");
           return { fullPath, relativePath };
         }),
       );
@@ -433,7 +436,10 @@ server.tool(
         paths.map(async (filePath) => {
           await validatePathWithinRepo(filePath, REPO_DIR);
           const normalizedPath = resolve(resolvedRepoDir, filePath);
-          return normalizedPath.slice(resolvedRepoDir.length + 1);
+          return normalizedPath
+            .slice(resolvedRepoDir.length + 1)
+            .split(sep)
+            .join("/");
         }),
       );
 
