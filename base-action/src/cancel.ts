@@ -1,3 +1,4 @@
+import * as core from "@actions/core";
 import { spawnSync } from "child_process";
 import { readdirSync, readFileSync } from "fs";
 
@@ -109,8 +110,8 @@ export function stopDescendants(): void {
     signal(known, "SIGKILL");
     const left = [...known].filter((pid) => cannotSignal.has(pid));
     if (left.length > 0) {
-      console.log(
-        `::warning::Processes of another user could not be stopped: ${left.join(", ")}`,
+      core.warning(
+        `Processes of another user could not be stopped: ${left.join(", ")}`,
       );
     }
   }

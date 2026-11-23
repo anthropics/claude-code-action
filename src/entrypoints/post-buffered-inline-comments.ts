@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 /**
  * Reads buffered inline-comment calls from /tmp/inline-comments-buffer.jsonl,
  * classifies each as "real review" vs "test/probe" using Haiku, and posts
@@ -9,9 +8,12 @@
  * preserves backward compatibility — before this change, all unconfirmed
  * calls posted immediately.
  */
+import * as core from "@actions/core";
 import { readFileSync } from "fs";
 import { createOctokit } from "../github/api/client";
+import { isEntityContext, type GitHubContext } from "../github/context";
 import { redactSecrets } from "../github/utils/sanitizer";
+import { getActionInput } from "./collect-inputs";
 
 const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
 
@@ -44,10 +46,11 @@ Comments:
 `;
 
 async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // Not from the environment, where it can be a key for another ANTHROPIC_BASE_URL.
+  const apiKey = getActionInput("anthropic_api_key");
   if (!apiKey) {
     console.log(
-      "ANTHROPIC_API_KEY not set — skipping classification, posting all unconfirmed comments",
+      "anthropic_api_key not set — skipping classification, posting all unconfirmed comments",
     );
     return null;
   }
@@ -144,10 +147,18 @@ async function postComment(
   }
 }
 
-async function main() {
+export async function postBufferedInlineComments({
+  context,
+  githubToken,
+  bufferPath = BUFFER_PATH,
+}: {
+  context: GitHubContext;
+  githubToken: string;
+  bufferPath?: string;
+}): Promise<void> {
   let raw: string;
   try {
-    raw = readFileSync(BUFFER_PATH, "utf8");
+    raw = readFileSync(bufferPath, "utf8");
   } catch {
     console.log("No buffered inline comments");
     return;
@@ -165,17 +176,13 @@ async function main() {
 
   console.log(`Found ${comments.length} buffered inline comment(s)`);
 
-  const githubToken = process.env.GITHUB_TOKEN;
-  const owner = process.env.REPO_OWNER;
-  const repo = process.env.REPO_NAME;
-  const prNumber = process.env.PR_NUMBER;
-
-  if (!githubToken || !owner || !repo || !prNumber) {
-    console.log(
-      "::warning::Missing GITHUB_TOKEN/REPO_OWNER/REPO_NAME/PR_NUMBER — cannot post buffered comments",
+  if (!isEntityContext(context) || !context.isPR) {
+    core.warning(
+      "The event is not for a pull request — cannot post buffered comments",
     );
     return;
   }
+  const { owner, repo } = context.repository;
 
   // Partition: confirmed=false are never posted; the rest are candidates
   const neverPost = comments.filter((c) => c.confirmed === false);
@@ -199,11 +206,13 @@ async function main() {
     verdicts === null ? [] : candidates.filter((_, i) => verdicts[i] === false);
 
   if (filtered.length > 0) {
-    console.log(
-      `::warning::${filtered.length} buffered comment(s) classified as test/probe — NOT posted:`,
+    core.warning(
+      `${filtered.length} buffered comment(s) classified as test/probe — NOT posted:`,
     );
     for (const c of filtered) {
-      console.log(`  [${c.path}:${c.line}] ${c.body.slice(0, 120)}`);
+      console.log(
+        `  [${c.path}:${c.line}] ${redactSecrets(c.body).slice(0, 120)}`,
+      );
     }
   }
 
@@ -213,7 +222,7 @@ async function main() {
   }
 
   const octokit = createOctokit(githubToken).rest;
-  const pull_number = parseInt(prNumber, 10);
+  const pull_number = context.entityNumber;
   const pr = await octokit.pulls.get({ owner, repo, pull_number });
   const headSha = pr.data.head.sha;
 
@@ -227,8 +236,3 @@ async function main() {
   }
   console.log(`Posted ${posted}/${toPost.length}`);
 }
-
-main().catch((e) => {
-  console.error("post-buffered-inline-comments failed:", e);
-  process.exit(1);
-});
