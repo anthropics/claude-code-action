@@ -17,6 +17,8 @@ This guide provides complete, ready-to-use solutions for common automation scena
 
 ## Automatic PR Code Review
 
+> The action skips pull requests from forks unless [`allow_fork_prs`](./security.md#pull-requests-from-forks) is `true`.
+
 **When to use:** Automatically review every PR opened or updated in your repository.
 
 ### Basic Example (No Tracking)
@@ -193,6 +195,8 @@ jobs:
 ## Review PRs from External Contributors
 
 **When to use:** Apply stricter review criteria for external or new contributors.
+
+> As written, this doesn't run Claude on pull requests from forks, which is where first-time contributors' pull requests come from. See [Security](./security.md#pull-requests-from-forks) before you allow them.
 
 **Complete Example:**
 

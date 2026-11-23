@@ -16,6 +16,7 @@ import {
   checkBotActorPullRequestAuthor,
   checkWritePermissions,
 } from "../github/validation/permissions";
+import { checkHumanActor } from "../github/validation/actor";
 import {
   isCommentOnRefusedForkPr,
   isRefusedForkEvent,
@@ -181,7 +182,7 @@ async function writeStepSummary(executionFile: string): Promise<void> {
 }
 
 const FORK_REFUSED =
-  "Skipped, because allow_fork_prs is not true and this pull request or workflow run is from a fork.";
+  "Skipped, because allow_fork_prs is not true and this pull request or workflow run is from a fork. To allow forks, read 'Pull requests from forks' in docs/security.md in anthropics/claude-code-action, then set allow_fork_prs: \"true\".";
 
 async function run() {
   // Bun has read this by now, and it's only for the action's own scripts
@@ -231,8 +232,24 @@ async function run() {
     const actionInputsPresent = collectActionInputsPresence();
     context = parseGitHubContext();
 
-    // Before a token, which GitHub doesn't give to some of these events
-    if (isRefusedForkEvent(context)) {
+    // A fork's event with no credentials is skipped before a token is needed. One that
+    // has them goes through the actor checks first: a run those refuse must fail, as
+    // later steps in the job could use the credentials. pull_request_target and
+    // workflow_run always have them. Other events from forks can have them only in a
+    // private repository, depending on its settings.
+    const isRefusedFork = isRefusedForkEvent(context);
+    const hasRepositoryCredentials =
+      isWorkflowRunEvent(context) ||
+      process.env.GITHUB_EVENT_NAME === "pull_request_target" ||
+      ((context.payload.repository as { private?: boolean } | undefined)
+        ?.private === true &&
+        !!(
+          process.env.OVERRIDE_GITHUB_TOKEN ||
+          process.env.ACTIONS_ID_TOKEN_REQUEST_URL ||
+          process.env.ANTHROPIC_API_KEY ||
+          process.env.CLAUDE_CODE_OAUTH_TOKEN
+        ));
+    if (isRefusedFork && !hasRepositoryCredentials) {
       core.warning(FORK_REFUSED);
       return;
     }
@@ -292,12 +309,6 @@ async function run() {
       return;
     }
 
-    // Before the action checks anything out
-    if (await isCommentOnRefusedForkPr(octokit.rest, context)) {
-      core.warning(FORK_REFUSED);
-      return;
-    }
-
     const botActorAllowed = await checkBotActorPullRequestAuthor(
       octokit.rest,
       context,
@@ -308,6 +319,17 @@ async function run() {
       throw new Error(
         "A bot acted on this pull request, but its author does not have write access",
       );
+    }
+
+    // Before the action checks anything out
+    if (
+      isRefusedFork ||
+      (await isCommentOnRefusedForkPr(octokit.rest, context))
+    ) {
+      // Prepare would have refused a bot that isn't allowed
+      await checkHumanActor(octokit.rest, context);
+      core.warning(FORK_REFUSED);
+      return;
     }
 
     // Run prepare

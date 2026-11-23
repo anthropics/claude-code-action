@@ -45,9 +45,9 @@ inputs:
     required: false
     default: ""
   allow_fork_prs:
-    description: "Whether to run on pull requests from forks, and on workflow_run events for a fork's run. With any value other than 'true', the action skips them, whoever opened them, before it checks anything out. See docs/security.md."
+    description: "Set to 'true' to run on pull requests from forks, and on workflow_run events for a fork's run. By default, and with any other value, the action skips them, whoever opened them, before it checks anything out. Where the event has credentials, a run that the actor checks refuse fails instead. See docs/security.md."
     required: false
-    default: "true"
+    default: "false"
   restrict_untrusted_prs:
     description: "On pull requests whose author does not have write access, deny commands that commonly run code from the checkout (package managers, test runners, interpreters, shells), even if claude_args allows them. Set to 'false' to turn this off. See docs/security.md."
     required: false

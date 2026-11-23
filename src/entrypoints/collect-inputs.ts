@@ -6,7 +6,7 @@ export function collectActionInputsPresence(): string {
     base_branch: "",
     branch_prefix: "claude/",
     allowed_bots: "",
-    allow_fork_prs: "true",
+    allow_fork_prs: "false",
     restrict_untrusted_prs: "true",
     mode: "tag",
     model: "",

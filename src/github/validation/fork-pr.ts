@@ -15,7 +15,7 @@ const isSameRepository = (head: Repository, base: Repository): boolean =>
 
 // Only "true" allows forks, so a mistyped or empty value refuses them.
 export const forksAllowed = (): boolean =>
-  (process.env.ALLOW_FORK_PRS ?? "true").trim().toLowerCase() === "true";
+  process.env.ALLOW_FORK_PRS?.trim().toLowerCase() === "true";
 
 /**
  * Whether allow_fork_prs is off and the event says that it is about a fork's pull
