@@ -308,6 +308,11 @@ export function snapshotSessionFiles(beforeSession?: () => void): () => void {
         `The session changed files that later steps trust, so they were restored: ${restored.join(", ")}`,
       );
     }
+    if (restored.includes("GITHUB_OUTPUT")) {
+      core.warning(
+        "What a session writes to GITHUB_OUTPUT is dropped. To pass results on, use --json-schema in claude_args.",
+      );
+    }
   };
 }
 

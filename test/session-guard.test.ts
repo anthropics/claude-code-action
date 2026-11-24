@@ -287,6 +287,7 @@ describe("session guard", () => {
       expect(readFileSync(path, "utf8")).toBe("by_action=1\n");
       expect(statSync(path).mode & 0o777).toBe(0o640);
       expect(warnings()[0]).toContain("GITHUB_OUTPUT");
+      expect(warnings()[1]).toContain("--json-schema");
     });
 
     test("keeps a link that was there before", () => {
