@@ -76,6 +76,24 @@ export function formatComments(
     .join("\n\n");
 }
 
+// GitHub's diffHunk runs from the top of the hunk to the commented line, so on
+// a newly added file it can hold the whole file. Only the last lines are the
+// code the comment points at; keeping every hunk in full can make the prompt
+// grow past the context window on long reviews.
+const MAX_DIFF_HUNK_LINES = 20;
+
+function trimDiffHunk(diffHunk: string): string {
+  const lines = diffHunk.split("\n");
+  if (lines.length <= MAX_DIFF_HUNK_LINES) {
+    return diffHunk;
+  }
+  const omitted = lines.length - MAX_DIFF_HUNK_LINES;
+  return [
+    `... (${omitted} earlier lines of the hunk omitted)`,
+    ...lines.slice(-MAX_DIFF_HUNK_LINES),
+  ].join("\n");
+}
+
 export function formatReviewComments(
   reviewData: { nodes: GitHubReview[] } | null,
   imageUrlMap?: Map<string, string>,
@@ -123,7 +141,7 @@ export function formatReviewComments(
           // The diff hunk is the code the comment was left on. Without it the
           // comment arrives without the context it was written against.
           if (comment.diffHunk) {
-            const diffHunk = sanitizeContent(comment.diffHunk);
+            const diffHunk = sanitizeContent(trimDiffHunk(comment.diffHunk));
             formatted += `\n  Diff context:\n\`\`\`diff\n${diffHunk}\n\`\`\``;
           }
 

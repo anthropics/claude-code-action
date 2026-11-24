@@ -544,6 +544,47 @@ describe("formatReviewComments", () => {
     expect(result).toContain("+const a = 2;");
   });
 
+  test("keeps only the last lines of a long diff hunk", () => {
+    const hunk = [
+      "@@ -0,0 +1,100 @@",
+      ...Array.from({ length: 100 }, (_, i) => `+line ${i + 1}`),
+    ].join("\n");
+    const reviewData = {
+      nodes: [
+        {
+          id: "review1",
+          databaseId: "300001",
+          author: { login: "reviewer1" },
+          body: "",
+          state: "COMMENTED",
+          submittedAt: "2023-01-01T00:00:00Z",
+          comments: {
+            nodes: [
+              {
+                id: "comment1",
+                databaseId: "200001",
+                body: "Check this",
+                author: { login: "reviewer1" },
+                createdAt: "2023-01-01T00:00:00Z",
+                path: "src/index.ts",
+                line: 100,
+                diffHunk: hunk,
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const result = formatReviewComments(reviewData);
+
+    expect(result).toContain("+line 100");
+    expect(result).toContain("+line 81");
+    expect(result).not.toContain("+line 80\n");
+    expect(result).not.toContain("@@ -0,0 +1,100 @@");
+    expect(result).toContain("81 earlier lines of the hunk omitted");
+  });
+
   test("omits the diff context when the comment has no diff hunk", () => {
     const reviewData = {
       nodes: [
