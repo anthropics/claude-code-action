@@ -3,6 +3,8 @@ import { execFileSync } from "child_process";
 import {
   closeSync,
   constants,
+  fchmodSync,
+  fchownSync,
   fstatSync,
   lstatSync,
   mkdirSync,
@@ -16,8 +18,14 @@ import {
 import { homedir } from "os";
 import { dirname, isAbsolute, join, resolve } from "path";
 
-// A session may write to one that keeps its writes, but not put a link in its place.
-type TrackedFile = { label: string; path: string; keepsWrites?: boolean };
+// The action itself writes to some after the session. A session may write to one that
+// keeps its writes, but not put a link in its place.
+type TrackedFile = {
+  label: string;
+  path: string;
+  isWritten?: boolean;
+  keepsWrites?: boolean;
+};
 
 // "opaque" is anything that can't be saved and compared: a directory, a FIFO, a
 // device, a file too large to hold, or one that can't be read.
@@ -26,6 +34,7 @@ type FileSnapshot = TrackedFile & {
   wasSymlink: boolean;
   content?: Buffer;
   mode?: number;
+  owner?: { uid: number; gid: number };
   names?: number;
   // For a symlink: what it points to, and the regular file that ends up at.
   link?: { target: string; resolved: string };
@@ -124,10 +133,12 @@ function filesLaterStepsTrust(): TrackedFile[] {
   );
 
   // The action adds to these after the session, so a link there would redirect that to
-  // a file later steps trust.
+  // a file later steps trust. What a session adds to GITHUB_OUTPUT could only pass for
+  // the action's own outputs, or keep the runner from reading those.
   const written = ["GITHUB_OUTPUT", "GITHUB_STEP_SUMMARY"].flatMap((label) => {
     const path = process.env[label];
-    return path ? [{ label, path, keepsWrites: true }] : [];
+    const keepsWrites = label === "GITHUB_STEP_SUMMARY";
+    return path ? [{ label, path, isWritten: true, keepsWrites }] : [];
   });
 
   const seen = new Set<string>();
@@ -161,6 +172,7 @@ function readSnapshot(file: TrackedFile): FileSnapshot {
       wasSymlink,
       content: readFileSync(fd),
       mode: stats.mode & 0o777,
+      owner: { uid: stats.uid, gid: stats.gid },
       names: stats.nlink,
       ...(wasSymlink && {
         link: {
@@ -180,7 +192,16 @@ function isUnchanged(before: FileSnapshot, now: FileSnapshot): boolean {
   if (before.state !== now.state || before.wasSymlink !== now.wasSymlink) {
     return false;
   }
-  return before.state !== "file" || before.content!.equals(now.content!);
+  if (before.state !== "file") return true;
+  // Without the right mode and owner, the action's own writes fail.
+  const { owner } = before;
+  if (
+    before.isWritten &&
+    (before.mode !== now.mode || owner!.uid !== now.owner!.uid)
+  ) {
+    return false;
+  }
+  return before.content!.equals(now.content!);
 }
 
 /**
@@ -213,38 +234,53 @@ function isItsOwnFile(before: FileSnapshot): boolean {
   }
 }
 
+/** The runner may be another user, so it needs the same mode and owner to read it. */
+function writeAsBefore(path: string, before: FileSnapshot): void {
+  const fd = openSync(path, "wx", before.mode);
+  try {
+    writeFileSync(fd, before.content!);
+    fchmodSync(fd, before.mode!);
+    const { uid, gid } = fstatSync(fd);
+    const { owner } = before;
+    if (owner!.uid !== uid || owner!.gid !== gid) {
+      try {
+        fchownSync(fd, owner!.uid, owner!.gid);
+      } catch {
+        // Only root can give a file away
+      }
+    }
+  } finally {
+    closeSync(fd);
+  }
+}
+
 /**
  * Records the files later steps trust, and returns a function that puts them
  * back. Call the returned function as soon as the session ends and before the
- * action runs git again. If the session was cancelled, that also drops the outputs it
- * wrote, because a half-written one would take the action's own with it. Replacing a
- * file rather than writing to it means a session cannot redirect the write by swapping
- * in a symlink.
+ * action runs git again. Replacing a file rather than writing to it means a session
+ * cannot redirect the write by swapping in a symlink.
  *
  * This stops a session that can only write through its tools. It is not a
  * sandbox: code running as the runner's user can stop the action before it
  * restores anything.
  */
-export function snapshotSessionFiles(
-  beforeSession?: () => void,
-): (options?: { cancelled: boolean }) => void {
+export function snapshotSessionFiles(beforeSession?: () => void): () => void {
   const files = filesLaterStepsTrust();
   const snapshots = files.map(readSnapshot);
   // What the action changes for the session goes back too, without a warning.
   beforeSession?.();
   const atStart = files.map(readSnapshot);
 
-  return ({ cancelled } = { cancelled: false }) => {
+  return () => {
     const restored: string[] = [];
     for (const [index, before] of snapshots.entries()) {
       try {
         const now = readSnapshot(before);
-        const dropsWrites = cancelled && before.label === "GITHUB_OUTPUT";
-        const ownFile = before.keepsWrites && isItsOwnFile(before);
-        if (ownFile && !dropsWrites) continue;
+        const isOwnFile = before.isWritten && isItsOwnFile(before);
+        if (isOwnFile && before.keepsWrites) continue;
         // The file it leads to can have the same content so far.
         const leadsElsewhere =
-          before.keepsWrites && !ownFile && now.state === "file";
+          before.isWritten && !isOwnFile && now.state === "file";
         if (!leadsElsewhere && isUnchanged(before, now)) continue;
         const changedBySession =
           leadsElsewhere || !isUnchanged(atStart[index]!, now);
@@ -257,7 +293,7 @@ export function snapshotSessionFiles(
         const path = restorePath(before);
         rmSync(path, { force: true, recursive: true });
         if (before.state === "file") {
-          writeFileSync(path, before.content!, { mode: before.mode });
+          writeAsBefore(path, before);
         }
         if (changedBySession) restored.push(before.label);
       } catch (error) {
@@ -270,6 +306,11 @@ export function snapshotSessionFiles(
     if (restored.length > 0) {
       core.warning(
         `The session changed files that later steps trust, so they were restored: ${restored.join(", ")}`,
+      );
+    }
+    if (restored.includes("GITHUB_OUTPUT")) {
+      core.warning(
+        "What a session writes to GITHUB_OUTPUT is dropped. To pass results on, use --json-schema in claude_args.",
       );
     }
   };
