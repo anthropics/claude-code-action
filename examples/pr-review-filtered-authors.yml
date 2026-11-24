@@ -6,7 +6,8 @@ on:
 
 jobs:
   review-by-author:
-    # Only run for PRs from specific authors
+    # Only run for PRs from specific authors. The action skips PRs from forks by
+    # default: see docs/security.md.
     if: |
       github.event.pull_request.user.login == 'developer1' ||
       github.event.pull_request.user.login == 'developer2' ||

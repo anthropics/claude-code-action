@@ -97,9 +97,9 @@ describe("allow_fork_prs", () => {
     },
   );
 
-  test("allows forks when action.yml didn't pass the input", async () => {
+  test("refuses forks when the input isn't passed", async () => {
     delete process.env.ALLOW_FORK_PRS;
-    expect(await isRefusedForkPr(unused, fork)).toBe(false);
+    expect(await isRefusedForkPr(unused, fork)).toBe(true);
   });
 
   test.each(["false", "False", "", "no", "flase", "0"])(
@@ -185,10 +185,15 @@ test("setupBranch refuses a fork when allow_fork_prs is off", async () => {
   }
 });
 
-describe("run.ts with allow_fork_prs: false", () => {
+describe("run.ts with allow_fork_prs off, the default", () => {
   // Returns the exit code, the output and the requests made. The directory is not a
   // git repository, so a run that goes on to check something out fails.
-  async function run(eventName: string, event: object, pull?: object) {
+  async function run(
+    eventName: string,
+    event: object,
+    pull?: object,
+    env: Record<string, string> = {},
+  ) {
     const dir = mkdtempSync(join(tmpdir(), "fork-pr-"));
     const requests: string[] = [];
     const server = Bun.serve({
@@ -197,8 +202,13 @@ describe("run.ts with allow_fork_prs: false", () => {
       fetch(request) {
         const { pathname } = new URL(request.url);
         requests.push(pathname);
+        if (pathname.startsWith("/users/")) {
+          const type = pathname.includes("bot") ? "Bot" : "User";
+          return Response.json({ type });
+        }
         if (pathname.endsWith("/permission")) {
-          return Response.json({ permission: "write" });
+          const writer = pathname.includes("/writer/");
+          return Response.json({ permission: writer ? "write" : "read" });
         }
         return pull && pathname.endsWith("/pulls/7")
           ? Response.json(pull)
@@ -231,9 +241,9 @@ describe("run.ts with allow_fork_prs: false", () => {
             GITHUB_ENV: join(dir, "env"),
             GITHUB_API_URL: `http://127.0.0.1:${server.port}`,
             TRIGGER_PHRASE: "@claude",
-            ALLOW_FORK_PRS: "false",
             // With no token, a run that asks for one fails.
             ...(pull && { OVERRIDE_GITHUB_TOKEN: "t" }),
+            ...env,
           },
         },
       );
@@ -282,8 +292,115 @@ describe("run.ts with allow_fork_prs: false", () => {
     expect(result.requests).toEqual([
       "/repos/o/r/collaborators/writer/permission",
       "/repos/o/r/pulls/7",
+      "/users/writer",
     ]);
   });
+
+  test.each([
+    ["writer", "pull_request_target", 0],
+    ["outsider", "pull_request_target", 1],
+    ["writer", "workflow_run", 0],
+    ["outsider", "workflow_run", 1],
+  ])("%s's fork on %s exits %p", async (login, eventName, exitCode) => {
+    const actor = { login, type: "User" };
+    const head = { ...FORK, full_name: `${login}/r` };
+    const event =
+      eventName === "workflow_run"
+        ? {
+            action: "completed",
+            repository: { ...repository, full_name: "o/r" },
+            sender: actor,
+            workflow_run: { id: 1, actor, head_repository: head },
+          }
+        : {
+            action: "opened",
+            repository,
+            sender: actor,
+            pull_request: { number: 7, user: actor, ...pullRequest(FORK) },
+          };
+    const env = { GITHUB_ACTOR: login, PROMPT: "Review this" };
+    const result = await run(eventName, event, pullRequest(FORK), env);
+    expect(result.exitCode).toBe(exitCode);
+    expect(result.log).toContain(
+      exitCode
+        ? "Actor does not have write permissions"
+        : "Skipped, because allow_fork_prs",
+    );
+  });
+
+  test("a bot's action on an outsider's fork still fails", async () => {
+    const bot = { login: "helper[bot]", type: "Bot" };
+    const result = await run(
+      "pull_request_target",
+      {
+        action: "synchronize",
+        repository,
+        sender: bot,
+        pull_request: {
+          number: 7,
+          user: { login: "outsider" },
+          ...pullRequest(FORK),
+        },
+      },
+      pullRequest(FORK),
+      { GITHUB_ACTOR: bot.login, ALLOWED_BOTS: "*", PROMPT: "Review this" },
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.log).toContain("A bot acted on this pull request");
+  });
+
+  test.each([
+    ["writer", "t", "", 0],
+    ["outsider", "t", "", 1],
+    ["outsider", "", "", 0],
+    ["outsider", "", "key", 1],
+  ])(
+    "%s's fork in a private repository with token %p and key %p exits %p",
+    async (login, token, key, exitCode) => {
+      const actor = { login, type: "User" };
+      const result = await run(
+        "pull_request",
+        {
+          action: "opened",
+          repository: { ...repository, private: true },
+          sender: actor,
+          pull_request: { number: 7, user: actor, ...pullRequest(FORK) },
+        },
+        pullRequest(FORK),
+        {
+          GITHUB_ACTOR: login,
+          PROMPT: "Review",
+          OVERRIDE_GITHUB_TOKEN: token,
+          ANTHROPIC_API_KEY: key,
+        },
+      );
+      expect(result.exitCode).toBe(exitCode);
+    },
+    30_000, // without a token, the action retries before it fails
+  );
+
+  test.each([
+    ["", 1],
+    ["helper", 0],
+  ])(
+    "a bot's own fork with allowed_bots %p exits %p",
+    async (bots, exitCode) => {
+      const bot = { login: "helper[bot]", type: "Bot" };
+      const result = await run(
+        "pull_request_target",
+        {
+          action: "opened",
+          repository,
+          sender: bot,
+          pull_request: { number: 7, user: bot, ...pullRequest(FORK) },
+        },
+        pullRequest(FORK),
+        { GITHUB_ACTOR: bot.login, ALLOWED_BOTS: bots, PROMPT: "Review" },
+      );
+      expect(result.exitCode).toBe(exitCode);
+      if (exitCode) expect(result.log).toContain("non-human actor");
+    },
+  );
 
   test("goes on with a comment on a pull request in this repository", async () => {
     const result = await run(

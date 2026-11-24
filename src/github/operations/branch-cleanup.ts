@@ -3,6 +3,16 @@ import { GITHUB_SERVER_URL } from "../api/config";
 import { encodeBranchNameForUrl } from "./comments/common";
 import { $ } from "bun";
 
+/** Git's output can hold file names, so it's logged through console. */
+async function git(...args: string[]): Promise<void> {
+  const result = await $`git ${args}`.quiet().nothrow();
+  const output = `${result.stdout}${result.stderr}`.trim();
+  if (output) console.log(output);
+  if (result.exitCode !== 0) {
+    throw new Error(`Command failed: git ${args.join(" ")}`);
+  }
+}
+
 async function pushLfsObjects(branch: string): Promise<void> {
   let tracked: string;
   try {
@@ -10,7 +20,7 @@ async function pushLfsObjects(branch: string): Promise<void> {
   } catch {
     return; // Git LFS isn't installed here
   }
-  if (tracked.trim()) await $`git lfs push origin ${branch}`;
+  if (tracked.trim()) await git("lfs", "push", "origin", branch);
 }
 
 export async function checkAndCommitOrDeleteBranch(
@@ -37,7 +47,7 @@ export async function checkAndCommitOrDeleteBranch(
   // .claude/settings.json. Excluding those there would silently drop the work.
   const pathspecArgs =
     restoredConfigPaths.length > 0
-      ? ["--", ".", ...restoredConfigPaths.map((p) => `:(exclude)${p}`)]
+      ? ["--", ".", ...restoredConfigPaths.map((p) => `:(exclude,literal)${p}`)]
       : [];
 
   if (pathspecArgs.length > 0) {
@@ -102,18 +112,18 @@ export async function checkAndCommitOrDeleteBranch(
               console.log("Found uncommitted changes, committing them...");
 
               // Add all changes, minus anything restored from the base branch
-              await $`git add -A ${pathspecArgs}`;
+              await git("add", "-A", ...pathspecArgs);
 
               // Commit with a descriptive message
               const runId = process.env.GITHUB_RUN_ID || "unknown";
               const commitMessage = `Auto-commit: Save uncommitted changes from Claude\n\nRun ID: ${runId}`;
-              await $`git commit -m ${commitMessage}`;
+              await git("commit", "-m", commitMessage);
 
               // Hooks are off by now, and Git LFS uploads from a hook.
               await pushLfsObjects(claudeBranch);
 
               // Push the changes
-              await $`git push origin ${claudeBranch}`;
+              await git("push", "origin", claudeBranch);
 
               console.log(
                 "✅ Successfully committed and pushed uncommitted changes",

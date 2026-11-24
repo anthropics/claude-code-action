@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import * as core from "@actions/core";
 import { execFileSync } from "child_process";
 import {
+  appendFileSync,
+  chmodSync,
   existsSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -27,7 +30,9 @@ import {
 const KEYS = [
   "GITHUB_ACTION_PATH",
   "GITHUB_ENV",
+  "GITHUB_OUTPUT",
   "GITHUB_PATH",
+  "GITHUB_STEP_SUMMARY",
   "HOME",
   "XDG_CONFIG_HOME",
   "GIT_CONFIG_GLOBAL",
@@ -152,6 +157,150 @@ describe("session guard", () => {
     restore();
     expect(readFileSync(path, "utf8")).toBe("/opt/tool\n");
     expect(statSync(path).mode & 0o777).toBe(0o640);
+  });
+
+  describe.each(["GITHUB_OUTPUT", "GITHUB_STEP_SUMMARY"])(
+    "%s, which the action adds to after the session",
+    (name) => {
+      let path: string;
+
+      beforeEach(() => {
+        path = join(dir, name);
+        process.env[name] = path;
+        writeFileSync(path, "by an earlier part\n");
+      });
+
+      test.each([
+        ["a symlink", symlinkSync],
+        ["a hard link", linkSync],
+      ])("doesn't follow %s to a file later steps trust", (_, link) => {
+        const restore = snapshotSessionFiles();
+        rmSync(path);
+        link(process.env.GITHUB_PATH!, path);
+        restore();
+        appendFileSync(path, "/tmp/shims\n");
+        expect(readFileSync(process.env.GITHUB_PATH!, "utf8")).toBe(
+          "/opt/tool\n",
+        );
+        expect(readFileSync(path, "utf8")).toBe(
+          "by an earlier part\n/tmp/shims\n",
+        );
+        expect(warnings()[0]).toContain(name);
+      });
+
+      test("doesn't follow a hard link to a file with the same content", () => {
+        writeFileSync(path, "");
+        writeFileSync(process.env.GITHUB_ENV!, "");
+        const restore = snapshotSessionFiles();
+        rmSync(path);
+        linkSync(process.env.GITHUB_ENV!, path);
+        restore();
+        appendFileSync(path, "X=1\n");
+        expect(readFileSync(process.env.GITHUB_ENV!, "utf8")).toBe("");
+        expect(warnings()[0]).toContain(name);
+      });
+
+      test("puts back a file the session deleted", () => {
+        const restore = snapshotSessionFiles();
+        rmSync(path);
+        restore();
+        expect(readFileSync(path, "utf8")).toBe("by an earlier part\n");
+      });
+
+      test("says nothing if there was no file before and after", () => {
+        rmSync(path);
+        snapshotSessionFiles()();
+        expect(existsSync(path)).toBe(false);
+        expect(warnings()).toEqual([]);
+      });
+    },
+  );
+
+  describe("GITHUB_STEP_SUMMARY, which keeps what a session wrote", () => {
+    let path: string;
+
+    beforeEach(() => {
+      path = process.env.GITHUB_STEP_SUMMARY = join(dir, "summary");
+      writeFileSync(path, "by an earlier part\n");
+    });
+
+    test("to the file", () => {
+      const restore = snapshotSessionFiles();
+      appendFileSync(path, "by the session\n");
+      restore();
+      expect(readFileSync(path, "utf8")).toBe(
+        "by an earlier part\nby the session\n",
+      );
+      expect(warnings()).toEqual([]);
+    });
+
+    test("to one it put in the file's place", () => {
+      const restore = snapshotSessionFiles();
+      rmSync(path);
+      writeFileSync(path, "by the session\n");
+      restore();
+      expect(readFileSync(path, "utf8")).toBe("by the session\n");
+      expect(warnings()).toEqual([]);
+    });
+
+    test("to a file that had a second name before", () => {
+      linkSync(path, join(dir, "second-name"));
+      const restore = snapshotSessionFiles();
+      appendFileSync(path, "by the session\n");
+      restore();
+      expect(readFileSync(path, "utf8")).toContain("by the session\n");
+      expect(warnings()).toEqual([]);
+    });
+
+    test("through a link that was there before", () => {
+      const target = join(dir, "target");
+      rmSync(path);
+      writeFileSync(target, "");
+      symlinkSync(target, path);
+      const restore = snapshotSessionFiles();
+      appendFileSync(path, "by the session\n");
+      restore();
+      expect(lstatSync(path).isSymbolicLink()).toBe(true);
+      expect(readFileSync(target, "utf8")).toBe("by the session\n");
+      expect(warnings()).toEqual([]);
+    });
+  });
+
+  describe("GITHUB_OUTPUT, which the action's own outputs go to", () => {
+    let path: string;
+
+    beforeEach(() => {
+      path = process.env.GITHUB_OUTPUT = join(dir, "output");
+      writeFileSync(path, "by_action=1\n");
+      chmodSync(path, 0o640);
+    });
+
+    test.each([
+      ["wrote to it", () => appendFileSync(path, "report<<EOF\n")],
+      ["replaced it", () => (rmSync(path), writeFileSync(path, "x=1\n"))],
+      ["made it read-only", () => chmodSync(path, 0o440)],
+      ["made it unreadable", () => chmodSync(path, 0)],
+    ])("restores it when a session %s", (_, inSession) => {
+      const restore = snapshotSessionFiles();
+      inSession();
+      restore();
+      expect(readFileSync(path, "utf8")).toBe("by_action=1\n");
+      expect(statSync(path).mode & 0o777).toBe(0o640);
+      expect(warnings()[0]).toContain("GITHUB_OUTPUT");
+      expect(warnings()[1]).toContain("--json-schema");
+    });
+
+    test("keeps a link that was there before", () => {
+      const target = join(dir, "target");
+      rmSync(path);
+      writeFileSync(target, "by_action=1\n");
+      symlinkSync(target, path);
+      const restore = snapshotSessionFiles();
+      appendFileSync(path, "x=1\n");
+      restore();
+      expect(lstatSync(path).isSymbolicLink()).toBe(true);
+      expect(readFileSync(target, "utf8")).toBe("by_action=1\n");
+    });
   });
 
   describe("a config that was already a symlink", () => {
@@ -339,7 +488,7 @@ describe("session guard", () => {
       pinRestoredPaths([".claude", "package.json"]);
       const restoredFile = join(dir, "scripts/.restored-paths");
       expect(readFileSync(restoredFile, "utf8")).toBe(
-        ":(top).claude\n:(top,glob)**/package.json\n",
+        ":(top,literal).claude\n:(top,glob)**/package.json\n",
       );
       clearSessionState();
       expect(existsSync(join(dir, "scripts/.push-branch"))).toBe(false);

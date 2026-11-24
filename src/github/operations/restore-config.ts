@@ -52,7 +52,12 @@ type TrackedPaths = { files: Set<string>; dirs: Set<string> };
 // links into one are recorded as placeholders.
 function listTrackedPaths(): TrackedPaths {
   const gitPathList = (args: string[]) =>
-    execFileSync("git", args, { encoding: "utf8", maxBuffer: Infinity })
+    execFileSync("git", args, {
+      encoding: "utf8",
+      maxBuffer: Infinity,
+      // Git's warnings can name files.
+      stdio: ["ignore", "pipe", "pipe"],
+    })
       .split("\0")
       .filter(Boolean);
   const modified = new Set(

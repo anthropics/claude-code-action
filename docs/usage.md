@@ -84,7 +84,7 @@ jobs:
 | `include_comments_by_actor`      | Comma-separated list of actor usernames to INCLUDE in comments. Supports the `*[bot]` wildcard to match all bot accounts. Empty (default) includes all actors                                                                          | No       | ""                          |
 | `exclude_comments_by_actor`      | Comma-separated list of actor usernames to EXCLUDE from comments. Supports the `*[bot]` wildcard to match all bot accounts. If an actor matches both lists, exclusion takes priority                                                   | No       | ""                          |
 | `allowed_bots`                   | Comma-separated list of allowed bot usernames, or '\*' to allow all bots. Empty string (default) allows no bots. **⚠️ On public repos with `'*'`, external Apps may be able to invoke this action.** See [Security](./security.md)     | No       | ""                          |
-| `allow_fork_prs`                 | Whether to run on pull requests from forks, and on `workflow_run` events for a fork's run. With any value other than `true`, the action skips them. See [Security](./security.md#refusing-pull-requests-from-forks).                   | No       | `true`                      |
+| `allow_fork_prs`                 | Set to `true` to run on pull requests from forks, and on `workflow_run` events for a fork's run. By default, and with any other value, the action skips them. See [Security](./security.md#pull-requests-from-forks).                  | No       | `false`                     |
 | `restrict_untrusted_prs`         | On pull requests whose author does not have write access, deny commands that commonly run code from the checkout, even if `claude_args` allows them. See [Security](./security.md#running-code-from-pull-requests).                    | No       | `true`                      |
 | `allowed_non_write_users`        | **⚠️ RISKY**: Comma-separated list of usernames to allow without write permissions, or '\*' for all users. Only works with `github_token` input. See [Security](./security.md)                                                         | No       | ""                          |
 | `path_to_claude_code_executable` | Optional path to a custom Claude Code executable. Skips automatic installation. Useful for Nix, custom containers, or specialized environments                                                                                         | No       | ""                          |
@@ -255,7 +255,7 @@ Get validated JSON results from Claude that automatically become GitHub Action o
       --json-schema '{"type":"object","properties":{"is_flaky":{"type":"boolean"},"confidence":{"type":"number"},"summary":{"type":"string"}},"required":["is_flaky"]}'
 
 - name: Retry if flaky
-  if: fromJSON(steps.analyze.outputs.structured_output).is_flaky == true
+  if: fromJSON(steps.analyze.outputs.structured_output || '{}').is_flaky == true
   run: gh workflow run CI
 ```
 
@@ -268,14 +268,14 @@ Get validated JSON results from Claude that automatically become GitHub Action o
 
 ### Accessing Structured Outputs
 
-All structured output fields are available in the `structured_output` output as a JSON string:
+All structured output fields are available in the `structured_output` output as a JSON string. It is empty when the action skips the run, which is why these expressions fall back to `'{}'`. Test fields against `true`, because a missing field also equals `false`:
 
 **In GitHub Actions expressions:**
 
 ```yaml
 if: |
-  fromJSON(steps.analyze.outputs.structured_output).is_flaky == true &&
-  fromJSON(steps.analyze.outputs.structured_output).confidence >= 0.7
+  fromJSON(steps.analyze.outputs.structured_output || '{}').is_flaky == true &&
+  fromJSON(steps.analyze.outputs.structured_output || '{}').confidence >= 0.7
 run: ./retry-tests.sh
 ```
 

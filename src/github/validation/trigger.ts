@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 
-import * as core from "@actions/core";
 import {
   isIssuesEvent,
   isIssuesAssignedEvent,
@@ -12,13 +11,11 @@ import {
 import type { ParsedGitHubContext } from "../context";
 import { isSameLogin } from "./actor";
 
-export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
-  const {
-    inputs: { assigneeTrigger, labelTrigger, triggerPhrase, prompt },
-  } = context;
-
-  // Deleting or editing someone else's comment or review fires these events with
-  // the moderator as the actor. The text must come from the person who was checked.
+/**
+ * Whether the text of a comment or review event comes from the person who was checked.
+ * Deleting or editing someone else's fires these events with the moderator as the actor.
+ */
+function isTextFromActor(context: ParsedGitHubContext): boolean {
   if (
     (isIssueCommentEvent(context) ||
       isPullRequestReviewCommentEvent(context)) &&
@@ -35,6 +32,26 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     console.log("Review was written by someone other than the actor");
     return false;
   }
+  return true;
+}
+
+/**
+ * Whether a comment or review event comes from moderation, so that its text must not
+ * start a run. A new comment or review is always its author's own, and some apps have
+ * one login as its author and another as the actor.
+ */
+export function isModeration(context: ParsedGitHubContext): boolean {
+  const isNew =
+    context.eventAction === "created" || context.eventAction === "submitted";
+  return !isNew && !isTextFromActor(context);
+}
+
+export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
+  const {
+    inputs: { assigneeTrigger, labelTrigger, triggerPhrase, prompt },
+  } = context;
+
+  if (!isTextFromActor(context)) return false;
 
   // A prompt replaces the trigger phrase, but a configured label or assignee
   // still decides which label or assignment event starts a run. Otherwise any
@@ -194,10 +211,4 @@ function matchesAssigneeTrigger(
 
 export function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-export async function checkTriggerAction(context: ParsedGitHubContext) {
-  const containsTrigger = checkContainsTrigger(context);
-  core.setOutput("contains_trigger", containsTrigger.toString());
-  return containsTrigger;
 }

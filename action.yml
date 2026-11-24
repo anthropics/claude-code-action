@@ -45,9 +45,9 @@ inputs:
     required: false
     default: ""
   allow_fork_prs:
-    description: "Whether to run on pull requests from forks, and on workflow_run events for a fork's run. With any value other than 'true', the action skips them, whoever opened them, before it checks anything out. See docs/security.md."
+    description: "Set to 'true' to run on pull requests from forks, and on workflow_run events for a fork's run. By default, and with any other value, the action skips them, whoever opened them, before it checks anything out. Where the event has credentials, a run that the actor checks refuse fails instead. See docs/security.md."
     required: false
-    default: "true"
+    default: "false"
   restrict_untrusted_prs:
     description: "On pull requests whose author does not have write access, deny commands that commonly run code from the checkout (package managers, test runners, interpreters, shells), even if claude_args allows them. Set to 'false' to turn this off. See docs/security.md."
     required: false
@@ -292,16 +292,13 @@ runs:
         # takes its settings from the action's directory. Bun before 1.4.3 logs
         # "directory mismatch" for --tsconfig-override (oven-sh/bun#25730).
         #
-        # Bash reads this script as it runs. The braces and exit make it read the
-        # rest first and stop there. With exec instead, cancelling the run would
-        # interrupt Bun at once, before it can clean up.
-        {
-          bun --no-env-file \
-            --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-            --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
-            run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
-          exit
-        }
+        # Bash reads this script as it runs, so exec also keeps it from running what a
+        # session adds. When the run is cancelled, the runner signals only this step's
+        # own process, and Bun has to get that signal to stop the session.
+        exec bun --no-env-file \
+          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
+          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
+          run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
       env:
         # Turns off Bun's cache of transpiled files, which is outside the action's
         # directory. Set it wherever the action runs its own scripts.
@@ -452,24 +449,6 @@ runs:
           --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
           --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
           run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
-
-    - name: Post buffered inline comments
-      if: always() && inputs.classify_inline_comments != 'false'
-      shell: bash
-      env:
-        BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0"
-        GITHUB_TOKEN: ${{ steps.run.outputs.github_token || inputs.github_token || github.token }}
-        REPO_OWNER: ${{ github.event.repository.owner.login }}
-        REPO_NAME: ${{ github.event.repository.name }}
-        PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
-      run: |
-        BUN_BIN="${GITHUB_ACTION_PATH}/bin/bun"
-        [ -x "$BUN_BIN" ] || BUN_BIN="bun"
-        "$BUN_BIN" --no-env-file \
-          --config="${GITHUB_ACTION_PATH}/bunfig.toml" \
-          --tsconfig-override="${GITHUB_ACTION_PATH}/tsconfig.json" \
-          run ${GITHUB_ACTION_PATH}/src/entrypoints/post-buffered-inline-comments.ts
 
     - name: Revoke app token
       if: always() && inputs.github_token == '' && steps.run.outputs.github_token != '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'

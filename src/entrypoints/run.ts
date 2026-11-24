@@ -16,6 +16,7 @@ import {
   checkBotActorPullRequestAuthor,
   checkWritePermissions,
 } from "../github/validation/permissions";
+import { checkHumanActor } from "../github/validation/actor";
 import {
   isCommentOnRefusedForkPr,
   isRefusedForkEvent,
@@ -35,7 +36,10 @@ import type { GitHubContext } from "../github/context";
 import { detectMode } from "../modes/detector";
 import { prepareTagMode } from "../modes/tag";
 import { prepareAgentMode } from "../modes/agent";
-import { checkContainsTrigger } from "../github/validation/trigger";
+import {
+  checkContainsTrigger,
+  isModeration,
+} from "../github/validation/trigger";
 import {
   clearSessionState,
   disableGitPrograms,
@@ -53,9 +57,14 @@ import {
   restoreToolConfigFromBase,
   toolConfigDenyRules,
 } from "../github/operations/tool-config";
+import {
+  namedConfigPaths,
+  restoreConfigPathsFromBase,
+} from "../github/operations/config-paths";
 import { validateBranchName } from "../github/operations/branch";
 import type { BranchInfo } from "../github/operations/branch";
 import { collectActionInputsPresence } from "./collect-inputs";
+import { postBufferedInlineComments } from "./post-buffered-inline-comments";
 import { updateCommentLink } from "./update-comment-link";
 import { formatTurnsFromData } from "./format-turns";
 import type { Turn } from "./format-turns";
@@ -67,6 +76,8 @@ import { validateEnvironmentVariables } from "../../base-action/src/validate-env
 import { setupClaudeCodeSettings } from "../../base-action/src/setup-claude-code-settings";
 import { installPlugins } from "../../base-action/src/install-plugins";
 import { preparePrompt } from "../../base-action/src/prepare-prompt";
+import { onCancel } from "../../base-action/src/cancel";
+import { escapeConsoleOutput } from "../../base-action/src/log";
 import { runClaude } from "../../base-action/src/run-claude";
 import type { ClaudeRunResult } from "../../base-action/src/run-claude-sdk";
 import { setExecutionFileOutputIfPresent } from "../../base-action/src/execution-file";
@@ -103,7 +114,7 @@ async function installClaudeCode(): Promise<string> {
     return customExecutable;
   }
 
-  const claudeCodeVersion = "2.1.327";
+  const claudeCodeVersion = "2.1.331";
   console.log(`Installing Claude Code v${claudeCodeVersion}...`);
 
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -174,7 +185,7 @@ async function writeStepSummary(executionFile: string): Promise<void> {
 }
 
 const FORK_REFUSED =
-  "Skipped, because allow_fork_prs is not true and this pull request or workflow run is from a fork.";
+  "Skipped, because allow_fork_prs is not true and this pull request or workflow run is from a fork. To allow forks, read 'Pull requests from forks' in docs/security.md in anthropics/claude-code-action, then set allow_fork_prs: \"true\".";
 
 async function run() {
   // Bun has read this by now, and it's only for the action's own scripts
@@ -196,13 +207,54 @@ async function run() {
   let restoredConfigPaths: string[] = [];
   // Track whether we've completed prepare phase, so we can attribute errors correctly
   let prepareCompleted = false;
+  // Set while a session could be running
+  let restoreSessionFiles: (() => void) | undefined;
+  let hadSession = false;
+  let isFinishing = false;
+
+  // Revoking the app token depends on this output. A session can write it, and what it
+  // wrote is still there if the file could not be restored.
+  const keepRevocationOn = () =>
+    core.setOutput("skipped_due_to_workflow_validation_mismatch", "false");
+
+  onCancel(
+    [
+      () => restoreSessionFiles?.(),
+      () => restoreSessionFiles && keepRevocationOn(),
+      // The step that revokes the app token reads it from here.
+      () => githubToken && core.setOutput("github_token", githubToken),
+      () => core.setOutput("branch_name", claudeBranch),
+      // The same goes for this one.
+      () => core.setOutput("conclusion", claudeSuccess ? "success" : "failure"),
+      clearSessionState,
+      () => workloadIdentity?.stop(),
+    ],
+    () => isFinishing,
+  );
+
   try {
     // Phase 1: Prepare
     const actionInputsPresent = collectActionInputsPresence();
     context = parseGitHubContext();
 
-    // Before a token, which GitHub doesn't give to some of these events
-    if (isRefusedForkEvent(context)) {
+    // A fork's event with no credentials is skipped before a token is needed. One that
+    // has them goes through the actor checks first: a run those refuse must fail, as
+    // later steps in the job could use the credentials. pull_request_target and
+    // workflow_run always have them. Other events from forks can have them only in a
+    // private repository, depending on its settings.
+    const isRefusedFork = isRefusedForkEvent(context);
+    const hasRepositoryCredentials =
+      isWorkflowRunEvent(context) ||
+      process.env.GITHUB_EVENT_NAME === "pull_request_target" ||
+      ((context.payload.repository as { private?: boolean } | undefined)
+        ?.private === true &&
+        !!(
+          process.env.OVERRIDE_GITHUB_TOKEN ||
+          process.env.ACTIONS_ID_TOKEN_REQUEST_URL ||
+          process.env.ANTHROPIC_API_KEY ||
+          process.env.CLAUDE_CODE_OAUTH_TOKEN
+        ));
+    if (isRefusedFork && !hasRepositoryCredentials) {
       core.warning(FORK_REFUSED);
       return;
     }
@@ -250,20 +302,14 @@ async function run() {
     const containsTrigger =
       modeName === "tag"
         ? isEntityContext(context) && checkContainsTrigger(context)
-        : !!context.inputs?.prompt;
+        : !!context.inputs?.prompt &&
+          !(isEntityContext(context) && isModeration(context));
     console.log(`Mode: ${modeName}`);
-    console.log(`Context prompt: ${context.inputs?.prompt || "NO PROMPT"}`);
     console.log(`Trigger result: ${containsTrigger}`);
 
     if (!containsTrigger) {
       console.log("No trigger found, skipping remaining steps");
       core.setOutput("github_token", githubToken);
-      return;
-    }
-
-    // Before the action checks anything out
-    if (await isCommentOnRefusedForkPr(octokit.rest, context)) {
-      core.warning(FORK_REFUSED);
       return;
     }
 
@@ -277,6 +323,17 @@ async function run() {
       throw new Error(
         "A bot acted on this pull request, but its author does not have write access",
       );
+    }
+
+    // Before the action checks anything out
+    if (
+      isRefusedFork ||
+      (await isCommentOnRefusedForkPr(octokit.rest, context))
+    ) {
+      // Prepare would have refused a bot that isn't allowed
+      await checkHumanActor(octokit.rest, context);
+      core.warning(FORK_REFUSED);
+      return;
     }
 
     // Run prepare
@@ -329,6 +386,7 @@ async function run() {
     const isUntrustedCheckout =
       checkedOutPrHead && untrustedPrDisallowedTools.length > 0;
     let restoredToolConfig: string[] = [];
+    let configPathDenyRules: string[] = [];
 
     // On PRs, .claude/ and .mcp.json in the checkout are attacker-controlled.
     // Restore them from a trusted branch before the CLI reads them.
@@ -370,7 +428,15 @@ async function run() {
         // Before plugins are installed, which can already start package managers here.
         if (isUntrustedCheckout) {
           restoredToolConfig = restoreToolConfigFromBase(configBranch);
-          restoredConfigPaths.push(...restoredToolConfig);
+          const configPaths = restoreConfigPathsFromBase(
+            configBranch,
+            namedConfigPaths(prepareResult.claudeArgs),
+          );
+          configPathDenyRules = configPaths.denyRules;
+          restoredConfigPaths.push(
+            ...restoredToolConfig,
+            ...configPaths.replaced,
+          );
         }
         if (isOtherBranch) {
           // A branch from the base has none of the pull request's version of them.
@@ -404,6 +470,7 @@ async function run() {
       ? [
           ...untrustedPrDisallowedTools,
           ...toolConfigDenyRules(restoredToolConfig),
+          ...configPathDenyRules,
         ]
       : [];
 
@@ -413,11 +480,12 @@ async function run() {
       process.env.CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR = "1";
     }
 
-    const restoreSessionFiles = snapshotSessionFiles(() =>
+    restoreSessionFiles = snapshotSessionFiles(() =>
       prepareGitForSession({ hooks: hooksOff }),
     );
 
     let claudeResult: ClaudeRunResult;
+    hadSession = true;
     try {
       claudeResult = await runClaude(promptConfig.path, {
         claudeArgs: prepareResult.claudeArgs,
@@ -434,8 +502,8 @@ async function run() {
       // The action's own git commands from here on hold the job's credentials,
       // and the session could have edited a tracked hook.
       disableGitPrograms({ hooks: true });
-      // Revoking the app token depends on this output, and a session can write it.
-      core.setOutput("skipped_due_to_workflow_validation_mismatch", "false");
+      keepRevocationOn();
+      restoreSessionFiles = undefined;
     }
 
     claudeSuccess = claudeResult.conclusion === "success";
@@ -463,6 +531,7 @@ async function run() {
     core.setFailed(`Action failed with error: ${redactSecrets(errorMessage)}`);
   } finally {
     // Phase 4: Cleanup (always runs)
+    isFinishing = true;
     clearSessionState();
 
     // Stop refreshing the workload identity token file and delete the token
@@ -510,9 +579,22 @@ async function run() {
     // Set remaining action-level outputs
     core.setOutput("branch_name", claudeBranch);
     core.setOutput("github_token", githubToken);
+
+    // Last, because the step that revokes the app token needs the outputs. This isn't a
+    // step of its own, so that only the run step is given the API key.
+    if (hadSession && context?.inputs.classifyInlineComments && githubToken) {
+      try {
+        await postBufferedInlineComments({ context, githubToken });
+      } catch (error) {
+        core.setFailed(
+          `Posting buffered inline comments failed: ${redactSecrets(String(error))}`,
+        );
+      }
+    }
   }
 }
 
 if (import.meta.main) {
+  escapeConsoleOutput();
   run();
 }

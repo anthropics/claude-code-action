@@ -69,6 +69,8 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
+The action skips pull requests from forks unless [`allow_fork_prs`](./security.md#pull-requests-from-forks) is `true`.
+
 Perfect for automatically reviewing PRs from new team members, external contributors, or specific developers who need extra guidance. The action automatically runs in agent mode when a `prompt` is provided.
 
 ## Custom Prompt Templates
@@ -102,6 +104,8 @@ You can access any GitHub context variable using the standard GitHub Actions syn
 - `${{ github.actor }}` - User who triggered the workflow
 - `${{ github.base_ref }}` - Base branch for PRs
 - `${{ github.head_ref }}` - Head branch for PRs
+
+Titles, descriptions, comments and branch names can come from people without write access. Prefer to pass only numbers, and let Claude read the rest with its tools, especially in a public repository.
 
 ## Advanced Configuration with claude_args
 

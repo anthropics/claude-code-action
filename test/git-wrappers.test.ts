@@ -282,7 +282,7 @@ describe("git wrappers", () => {
 
     describe("with files taken from another branch", () => {
       const RESTORED =
-        ":(top).claude\n:(top)CLAUDE.md\n:(top)AGENTS.md\n:(top).mcp.json\n:(top,glob)**/package.json\n";
+        ":(top,literal).claude\n:(top,literal)CLAUDE.md\n:(top,literal)AGENTS.md\n:(top,literal).mcp.json\n:(top,glob)**/package.json\n";
       const write = (path: string, content: string) => {
         mkdirSync(join(repo, path, ".."), { recursive: true });
         writeFileSync(join(repo, path), content);
