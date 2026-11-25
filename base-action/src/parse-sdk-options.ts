@@ -26,6 +26,26 @@ const ACCUMULATING_FLAGS = new Set([
 // Delimiter used to join accumulated flag values
 export const ACCUMULATE_DELIMITER = "\x00";
 
+/**
+ * Splits a comma-separated list of tool rules. Commas inside a rule's parentheses are
+ * part of the rule, so they don't split it and the space after them is kept.
+ */
+export function splitToolRules(value: string): string[] {
+  const rules: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i <= value.length; i++) {
+    const c = value[i];
+    if (c === "(") depth++;
+    else if (c === ")" && depth > 0) depth--;
+    else if ((c === "," && depth === 0) || i === value.length) {
+      rules.push(value.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  return rules.filter(Boolean);
+}
+
 // shell-quote treats ()|&;<> as control operators and splits adjacent text
 // around them into separate tokens (returned as `{op}` objects, which we then
 // dropped). For CLI args these must be literal characters — e.g. unquoted
@@ -243,15 +263,9 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     .filter(Boolean)
     .join(ACCUMULATE_DELIMITER);
   const extraArgsAllowedTools = allowedToolsValues
-    ? allowedToolsValues
-        .split(ACCUMULATE_DELIMITER)
-        .flatMap((v) => v.split(","))
-        .map((t) => t.trim())
-        .filter(Boolean)
-    : [];
-  const directAllowedTools = options.allowedTools
-    ? options.allowedTools.split(",").map((t) => t.trim())
-    : [];
+    .split(ACCUMULATE_DELIMITER)
+    .flatMap(splitToolRules);
+  const directAllowedTools = splitToolRules(options.allowedTools ?? "");
   const mergedAllowedTools = [
     ...new Set([...extraArgsAllowedTools, ...directAllowedTools]),
   ];
@@ -266,17 +280,11 @@ export function parseSdkOptions(options: ClaudeOptions): ParsedSdkOptions {
     .filter(Boolean)
     .join(ACCUMULATE_DELIMITER);
   const extraArgsDisallowedTools = disallowedToolsValues
-    ? disallowedToolsValues
-        .split(ACCUMULATE_DELIMITER)
-        .flatMap((v) => v.split(","))
-        .map((t) => t.trim())
-        .filter(Boolean)
-    : [];
-  const directDisallowedTools = options.disallowedTools
-    ? options.disallowedTools.split(",").map((t) => t.trim())
-    : [];
-  // Not deduplicated: a rule can hold a comma, so these can be pieces of rules, and the
-  // SDK joins them again. Dropping a repeated piece would break a rule and the ones after it.
+    .split(ACCUMULATE_DELIMITER)
+    .flatMap(splitToolRules);
+  const directDisallowedTools = splitToolRules(options.disallowedTools ?? "");
+  // Not deduplicated: with unbalanced parentheses an entry can still be a piece of a rule,
+  // which the SDK joins again. Dropping a repeated piece would break the rules after it.
   const mergedDisallowedTools = [
     ...extraArgsDisallowedTools,
     ...directDisallowedTools,
