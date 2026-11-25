@@ -19,10 +19,7 @@ export async function setupClaudeCodeSettings(
     const existingSettings = await $`cat ${settingsPath}`.quiet().text();
     if (existingSettings.trim()) {
       settings = JSON.parse(existingSettings);
-      console.log(
-        `Found existing settings:`,
-        JSON.stringify(settings, null, 2),
-      );
+      console.log(`Loaded existing settings`);
     } else {
       console.log(`Settings file exists but is empty`);
     }
@@ -39,18 +36,20 @@ export async function setupClaudeCodeSettings(
       // First try to parse as JSON
       inputSettings = JSON.parse(settingsInput);
       console.log(`Parsed settings input as JSON`);
-    } catch (e) {
-      // If not JSON, treat as file path
-      console.log(
-        `Settings input is not JSON, treating as file path: ${settingsInput}`,
-      );
+    } catch {
+      // If not JSON, treat as a file path.
+      console.log(`Trying to read settings from a file`);
       try {
         const fileContent = await readFile(settingsInput, "utf-8");
         inputSettings = JSON.parse(fileContent);
         console.log(`Successfully read and parsed settings from file`);
-      } catch (fileError) {
-        console.error(`Failed to read or parse settings file: ${fileError}`);
-        throw new Error(`Failed to process settings input: ${fileError}`);
+      } catch (error) {
+        // Filesystem and parser errors can include the input or settings text.
+        const detail =
+          error instanceof SyntaxError
+            ? "invalid JSON in settings file"
+            : "expected inline JSON or a readable settings file";
+        throw new Error(`Failed to process settings input: ${detail}`);
       }
     }
 

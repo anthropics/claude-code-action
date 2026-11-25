@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import { setupClaudeCodeSettings } from "../src/setup-claude-code-settings";
 import { tmpdir } from "os";
 import { mkdir, writeFile, readFile, rm } from "fs/promises";
@@ -94,16 +94,44 @@ describe("setupClaudeCodeSettings", () => {
     expect(settings.model).toBe("test-model");
   });
 
-  test("should throw error for invalid JSON string", async () => {
-    expect(() =>
+  test("reports invalid inline settings with a safe error message", async () => {
+    await expect(
       setupClaudeCodeSettings("{ invalid json", testHomeDir),
-    ).toThrow();
+    ).rejects.toThrow(
+      /^Failed to process settings input: expected inline JSON or a readable settings file$/,
+    );
   });
 
-  test("should throw error for non-existent file path", async () => {
-    expect(() =>
-      setupClaudeCodeSettings("/non/existent/file.json", testHomeDir),
-    ).toThrow();
+  test("reports a missing settings file without logging the input", async () => {
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(
+        setupClaudeCodeSettings(testSettingsPath, testHomeDir),
+      ).rejects.toThrow(
+        /^Failed to process settings input: expected inline JSON or a readable settings file$/,
+      );
+      const output = [...log.mock.calls, ...error.mock.calls].flat().join(" ");
+      expect(output).not.toContain(testSettingsPath);
+    } finally {
+      error.mockRestore();
+      log.mockRestore();
+    }
+  });
+
+  test("reports invalid JSON in a settings file with a safe error message", async () => {
+    await writeFile(testSettingsPath, '{ "model": }');
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(
+        setupClaudeCodeSettings(testSettingsPath, testHomeDir),
+      ).rejects.toThrow(
+        /^Failed to process settings input: invalid JSON in settings file$/,
+      );
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
   });
 
   test("should handle empty string input", async () => {
@@ -122,6 +150,22 @@ describe("setupClaudeCodeSettings", () => {
     const settings = JSON.parse(settingsContent);
 
     expect(settings.enableAllProjectMcpServers).toBe(true);
+  });
+
+  test("keeps loaded settings values out of logs", async () => {
+    const model = "example-model";
+    await setupClaudeCodeSettings(JSON.stringify({ model }), testHomeDir);
+
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await setupClaudeCodeSettings(undefined, testHomeDir);
+      expect(log.mock.calls.flat().join(" ")).not.toContain(model);
+      expect(JSON.parse(await readFile(settingsPath, "utf-8")).model).toBe(
+        model,
+      );
+    } finally {
+      log.mockRestore();
+    }
   });
 
   test("should merge with existing settings", async () => {
