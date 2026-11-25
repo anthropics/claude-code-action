@@ -390,8 +390,9 @@ describe("git wrappers", () => {
         });
       expect(run(scripts).status).toBe(0);
       expect(existsSync(marker)).toBe(false);
-      // Without the recorded home, that config is read, so the check above means something.
-      run(SCRIPTS);
+      // Change the file so Git stages it again and runs the configured filter.
+      writeFileSync(join(repo, "a.txt"), "updated");
+      expect(run(SCRIPTS).status).toBe(0);
       expect(existsSync(marker)).toBe(true);
     });
 
