@@ -180,9 +180,20 @@ describe("normalizeHtmlEntities", () => {
     expect(normalizeHtmlEntities("&#x41;&#x42;&#x43;")).toBe("ABC");
   });
 
-  it("should remove non-printable entities", () => {
-    expect(normalizeHtmlEntities("&#0;&#31;")).toBe("");
-    expect(normalizeHtmlEntities("&#x00;&#x1F;")).toBe("");
+  it("should decode printable Unicode entities", () => {
+    expect(normalizeHtmlEntities("&#233;&#8212;&#20320;&#128512;")).toBe(
+      "é—你😀",
+    );
+    expect(normalizeHtmlEntities("&#xE9;&#x20AC;&#x4F60;&#x1F600;")).toBe(
+      "é€你😀",
+    );
+  });
+
+  it("should remove non-printable and control entities", () => {
+    expect(normalizeHtmlEntities("&#0;&#31;&#x00;&#x1F;")).toBe("");
+    expect(
+      normalizeHtmlEntities("&#x7F;&#x80;&#173;&#8203;&#8238;&#x110000;"),
+    ).toBe("");
   });
 
   it("should preserve normal text", () => {
