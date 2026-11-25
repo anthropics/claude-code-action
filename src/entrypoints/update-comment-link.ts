@@ -30,6 +30,7 @@ export type UpdateCommentLinkParams = {
   outputFile?: string;
   prepareSuccess: boolean;
   prepareError?: string;
+  executionError?: string;
   useCommitSigning: boolean;
   /**
    * Paths restored from the PR base branch by restoreConfigFromBase. The
@@ -207,6 +208,9 @@ export async function updateCommentLink(
       }
 
       actionFailed = !params.claudeSuccess;
+      if (actionFailed && params.executionError) {
+        errorDetails = params.executionError;
+      }
     } catch (error) {
       console.error("Error reading output file:", error);
       actionFailed = !params.claudeSuccess;
