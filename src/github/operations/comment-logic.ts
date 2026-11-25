@@ -20,21 +20,42 @@ export type CommentUpdateInput = {
   errorDetails?: string;
 };
 
+/**
+ * Decodes the percent escapes in a partially encoded value. A "%" that does not
+ * start a valid escape (as in "100% done") is kept as a literal character
+ * instead of making the whole value fail to decode.
+ */
+function decodePercentEscapes(value: string): string {
+  return value.replace(/(?:%[0-9a-fA-F]{2})+/g, (escapes) => {
+    try {
+      return decodeURIComponent(escapes);
+    } catch {
+      return escapes;
+    }
+  });
+}
+
 export function ensureProperlyEncodedUrl(url: string): string | null {
   try {
     // First, try to parse the URL to see if it's already properly encoded
     new URL(url);
     if (url.includes(" ")) {
-      const [baseUrl, queryString] = url.split("?");
+      // Only the first "?" starts the query and only the first "=" ends a key:
+      // an unencoded title or body can contain either character.
+      const queryStart = url.indexOf("?");
+      const baseUrl = queryStart === -1 ? url : url.slice(0, queryStart);
+      const queryString = queryStart === -1 ? "" : url.slice(queryStart + 1);
       if (queryString) {
         // Parse query parameters and re-encode them properly
         const params = new URLSearchParams();
         const pairs = queryString.split("&");
         for (const pair of pairs) {
-          const [key, value = ""] = pair.split("=");
+          const separator = pair.indexOf("=");
+          const key = separator === -1 ? pair : pair.slice(0, separator);
+          const value = separator === -1 ? "" : pair.slice(separator + 1);
           if (key) {
             // Decode first in case it's partially encoded, then encode properly
-            params.set(key, decodeURIComponent(value));
+            params.set(key, decodePercentEscapes(value));
           }
         }
         return `${baseUrl}?${params.toString()}`;

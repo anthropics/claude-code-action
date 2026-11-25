@@ -64,6 +64,38 @@ describe("ensureProperlyEncodedUrl", () => {
     expect(ensureProperlyEncodedUrl(url)).toBe(expected);
   });
 
+  it("should keep an equals sign inside a parameter value", () => {
+    const url =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=fix: retry&body=Sets timeout=30 for retries";
+    const expected =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=fix%3A+retry&body=Sets+timeout%3D30+for+retries";
+    expect(ensureProperlyEncodedUrl(url)).toBe(expected);
+  });
+
+  it("should keep a question mark inside a parameter value", () => {
+    const url =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=fix: retry&body=Does this work? Yes it does";
+    const expected =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=fix%3A+retry&body=Does+this+work%3F+Yes+it+does";
+    expect(ensureProperlyEncodedUrl(url)).toBe(expected);
+  });
+
+  it("should encode a literal percent sign in a parameter value", () => {
+    const url =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=fix: retry&body=Cuts CPU use by 100% on idle";
+    const expected =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=fix%3A+retry&body=Cuts+CPU+use+by+100%25+on+idle";
+    expect(ensureProperlyEncodedUrl(url)).toBe(expected);
+  });
+
+  it("should decode existing escapes next to a literal percent sign", () => {
+    const url =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=fix%3A retry&body=100% of a%3Db cases";
+    const expected =
+      "https://github.com/owner/repo/compare/main...branch?quick_pull=1&title=fix%3A+retry&body=100%25+of+a%3Db+cases";
+    expect(ensureProperlyEncodedUrl(url)).toBe(expected);
+  });
+
   it("should return null for completely invalid URLs", () => {
     const url = "not-a-url-at-all";
     expect(ensureProperlyEncodedUrl(url)).toBe(null);
