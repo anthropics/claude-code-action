@@ -862,6 +862,60 @@ describe("generatePrompt", () => {
     );
   });
 
+  test("replaces downloaded image URLs inside trigger_comment in default and simple prompts", async () => {
+    const imageUrl =
+      "https://github.com/user-attachments/assets/f871c23e-a84d-4f1f-b9a0-86626c63f161";
+    const localPath = "/tmp/github-images/image-1704067200000-0.png";
+    const commentBody = `@claude what causes this?\n![bug](${imageUrl})`;
+    const envVars: PreparedContext = {
+      repository: "owner/repo",
+      claudeCommentId: "12345",
+      triggerPhrase: "@claude",
+      eventData: {
+        eventName: "issue_comment",
+        commentId: "67890",
+        isPR: false,
+        issueNumber: "123",
+        baseBranch: "main",
+        claudeBranch: "claude/issue-123-20240101-1200",
+        commentBody,
+      },
+      githubContext: {
+        eventName: "issue_comment",
+        actor: "maintainer",
+        payload: { comment: { user: { login: "maintainer" } } },
+      } as any,
+    };
+    const dataWithImage = {
+      ...mockGitHubData,
+      imageUrlMap: new Map([[imageUrl, localPath]]),
+    };
+
+    const defaultPrompt = generatePrompt(envVars, dataWithImage, false, "tag");
+    expect(defaultPrompt).toContain(
+      `<trigger_comment>\n@claude what causes this?\n![](${localPath})\n</trigger_comment>`,
+    );
+    expect(defaultPrompt).not.toContain(imageUrl);
+    expect(defaultPrompt).toContain("<images_info>");
+
+    const userRequest = extractUserRequestFromContext(envVars, dataWithImage);
+    expect(userRequest).toBe(`what causes this?\n![bug](${localPath})`);
+
+    const prev = process.env.USE_SIMPLE_PROMPT;
+    process.env.USE_SIMPLE_PROMPT = "true";
+    try {
+      const simplePrompt = generatePrompt(envVars, dataWithImage, false, "tag");
+      expect(simplePrompt).toContain(
+        `<trigger_comment>\n@claude what causes this?\n![](${localPath})\n</trigger_comment>`,
+      );
+      expect(simplePrompt).not.toContain(imageUrl);
+      expect(simplePrompt).toContain("<images_info>");
+    } finally {
+      if (prev === undefined) delete process.env.USE_SIMPLE_PROMPT;
+      else process.env.USE_SIMPLE_PROMPT = prev;
+    }
+  });
+
   describe("simplified prompt (USE_SIMPLE_PROMPT)", () => {
     const withSimplePrompt = async (fn: () => Promise<void>) => {
       const previous = process.env.USE_SIMPLE_PROMPT;

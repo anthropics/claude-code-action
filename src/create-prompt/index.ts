@@ -11,7 +11,6 @@ import {
   formatReviewComments,
   formatChangedFilesWithSHA,
 } from "../github/data/formatter";
-import { sanitizeContent } from "../github/utils/sanitizer";
 import {
   isIssuesEvent,
   isIssueCommentEvent,
@@ -580,7 +579,7 @@ ${
   eventData.commentBody
     ? `
 <trigger_comment>
-${sanitizeContent(eventData.commentBody)}
+${formatBody(eventData.commentBody, imageUrlMap)}
 </trigger_comment>`
     : ""
 }
@@ -713,7 +712,7 @@ ${
     eventData.eventName === "pull_request_review") &&
   eventData.commentBody
     ? `<trigger_comment>
-${sanitizeContent(eventData.commentBody)}
+${formatBody(eventData.commentBody, imageUrlMap)}
 </trigger_comment>`
     : ""
 }
@@ -915,6 +914,18 @@ function getCommentOrReviewAuthor(
  * // Issue body with "@claude fix this" -> returns "fix this"
  * // Issue assigned without @claude in body -> returns null
  */
+function replaceImageUrls(
+  text: string | null,
+  imageUrlMap?: Map<string, string>,
+): string | null {
+  if (!text || !imageUrlMap) return text;
+  let result = text;
+  for (const [originalUrl, localPath] of imageUrlMap) {
+    result = result.replaceAll(originalUrl, localPath);
+  }
+  return result;
+}
+
 export function extractUserRequestFromContext(
   context: PreparedContext,
   githubData: FetchDataResult,
@@ -938,7 +949,10 @@ export function extractUserRequestFromContext(
       getCommentOrReviewAuthor(context.githubContext),
       context.githubContext?.actor,
     )
-      ? extractUserRequest(eventData.commentBody, triggerPhrase)
+      ? replaceImageUrls(
+          extractUserRequest(eventData.commentBody, triggerPhrase),
+          githubData.imageUrlMap,
+        )
       : null;
   }
 
@@ -956,7 +970,7 @@ export function extractUserRequestFromContext(
       triggerPhrase,
     );
     if (request) {
-      return request;
+      return replaceImageUrls(request, githubData.imageUrlMap);
     }
   }
 
