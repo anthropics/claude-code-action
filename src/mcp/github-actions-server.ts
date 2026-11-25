@@ -84,11 +84,13 @@ server.tool(
         ...(status && { status }),
       });
 
-      // Process runs to create summary
+      // Process runs to create summary. Every run lands in exactly one
+      // bucket, so passed + failed + skipped + pending === total_runs.
       const summary = {
         total_runs: runs.length,
         failed: 0,
         passed: 0,
+        skipped: 0,
         pending: 0,
       };
 
@@ -97,7 +99,18 @@ server.tool(
         if (run.status === "completed") {
           if (run.conclusion === "success") {
             summary.passed++;
-          } else if (run.conclusion === "failure") {
+          } else if (
+            run.conclusion === "skipped" ||
+            run.conclusion === "neutral"
+          ) {
+            // GitHub treats both as a success for dependent checks.
+            summary.skipped++;
+          } else if (run.conclusion === "action_required") {
+            // A run waiting for a maintainer to approve it has not run yet.
+            summary.pending++;
+          } else {
+            // failure, timed_out, cancelled, startup_failure, stale: the run
+            // ended without succeeding.
             summary.failed++;
           }
         } else {
