@@ -7,7 +7,9 @@ import { createMockContext } from "./mockContext";
 const octokits = {
   rest: {
     repos: { get: async () => ({ data: { default_branch: "main" } }) },
-    git: { getRef: async () => ({ data: { object: { sha: "abc1234" } } }) },
+    git: {
+      getRef: async () => ({ data: { object: { sha: "a".repeat(40) } } }),
+    },
   },
 } as any;
 
@@ -77,4 +79,27 @@ describe("setupBranch generated branch name validation", () => {
       );
     });
   }
+
+  test("rejects a malformed source SHA before passing it to git", async () => {
+    const invalidSource = {
+      rest: {
+        ...octokits.rest,
+        git: {
+          getRef: async () => ({
+            data: { object: { sha: "--upload-pack=other" } },
+          }),
+        },
+      },
+    } as any;
+
+    await expect(
+      setupBranch(
+        invalidSource,
+        githubData,
+        createMockContext({ isPR: false }),
+      ),
+    ).rejects.toThrow("process.exit called");
+    expect(exitCode).toBe(1);
+    expect(loggedErrors.join("\n")).toContain("Unexpected source SHA");
+  });
 });
