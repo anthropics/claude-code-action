@@ -206,6 +206,10 @@ However, tools from these servers still need to be explicitly allowed via `claud
 
 Check the GitHub Action log for Claude's run for the full execution trace.
 
+### Why did Claude exit with `result is_error:true`?
+
+The SDK reports this when the session fails even though the result has the `success` subtype. Look for an `assistant` event with an `error` category such as `authentication_failed` or `model_not_found` in the default logs. When the SDK supplies no category, inspect the `execution_file` from a later workflow step that runs after failure. The file can contain prompts and tool results, so treat it as sensitive.
+
 ### Why can't I trigger Claude with `@claude-mention` or `claude!`?
 
 The trigger uses word boundaries, so `@claude` must be a complete word. Variations like `@claude-bot`, `@claude!`, or `claude@mention` won't work unless you customize the `trigger_phrase`.

@@ -218,6 +218,61 @@ describe("runClaudeWithSdk", () => {
     }
   });
 
+  test.each(["model_not_found", "unexpected-fixture-value"])(
+    "filters SDK error categories in the default log (%s)",
+    async (error) => {
+      const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
+      const coreErrorSpy = spyOn(
+        await import("@actions/core"),
+        "error",
+      ).mockImplementation(() => {});
+      tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+      process.env.RUNNER_TEMP = tempDir;
+      const promptPath = join(tempDir, "prompt.txt");
+      await writeFile(promptPath, "fixture prompt");
+
+      mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+        query: async function* () {
+          yield {
+            type: "assistant",
+            error,
+            message: {
+              content: [{ type: "text", text: "fixture-private-detail" }],
+            },
+          };
+          yield { type: "result", subtype: "success", is_error: true };
+        },
+      }));
+
+      try {
+        const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+        await expect(
+          runClaudeWithSdk(promptPath, {
+            sdkOptions: {},
+            showFullOutput: false,
+            hasJsonSchema: false,
+          }),
+        ).rejects.toThrow("result is_error:true");
+        const logs = JSON.stringify(consoleLogSpy.mock.calls);
+        if (error === "model_not_found") {
+          expect(logs).toContain("model_not_found");
+        } else {
+          expect(logs).not.toContain(error);
+        }
+        expect(logs).not.toContain("fixture-private-detail");
+        expect(
+          await readFile(
+            join(tempDir, "claude-execution-output.json"),
+            "utf-8",
+          ),
+        ).toContain("fixture-private-detail");
+      } finally {
+        consoleLogSpy.mockRestore();
+        coreErrorSpy.mockRestore();
+      }
+    },
+  );
+
   test("fails closed when a successful result exceeds maxTurns", async () => {
     const consoleErrorSpy = spyOn(console, "error").mockImplementation(
       () => {},
