@@ -3,7 +3,7 @@
 You can authenticate with Claude using any of these four methods:
 
 1. Direct Anthropic API (default)
-2. Amazon Bedrock with OIDC authentication
+2. Amazon Bedrock with OIDC or [AWS credentials](#amazon-bedrock-without-aws-oidc)
 3. Google Vertex AI with OIDC authentication
 4. Microsoft Foundry with OIDC authentication
 
@@ -11,7 +11,6 @@ For detailed setup instructions for AWS Bedrock and Google Vertex AI, see the [o
 
 **Note**:
 
-- Bedrock, Vertex, and Microsoft Foundry use OIDC authentication exclusively
 - AWS Bedrock automatically uses cross-region inference profiles for certain models
 - For cross-region inference profile models, you need to request and be granted access to the Claude models in all regions that the inference profile uses
 
@@ -50,6 +49,32 @@ Use provider-specific model names based on your chosen provider:
       --model claude-sonnet-4-5
     # ... other inputs
 ```
+
+## Amazon Bedrock without AWS OIDC
+
+Set `use_bedrock: "true"` and supply the region and AWS credentials in the
+action step's environment. For an Amazon Bedrock API key, set
+`AWS_BEARER_TOKEN_BEDROCK`.
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    use_bedrock: "true"
+    github_token: ${{ steps.app-token.outputs.token }}
+    prompt: "Summarize the changes in this pull request."
+  env:
+    AWS_REGION: us-west-2
+    AWS_BEARER_TOKEN_BEDROCK: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK }}
+```
+
+To use an AWS access key, replace the bearer token with
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. Also pass
+`AWS_SESSION_TOKEN` when the credentials are temporary.
+
+AWS credentials authorize requests to Bedrock. The example assumes an earlier
+step generated a GitHub App token for repository access. GitHub authentication
+still follows your chosen [GitHub App setup](./setup.md#using-a-custom-github-app).
+See the [Claude Code Bedrock authentication guide](https://code.claude.com/docs/en/amazon-bedrock).
 
 ## OIDC Authentication for Cloud Providers
 
