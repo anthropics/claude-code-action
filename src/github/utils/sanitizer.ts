@@ -9,20 +9,188 @@ export function stripInvisibleCharacters(content: string): string {
   return content;
 }
 
+function findClosingBracket(content: string, start: number): number {
+  // `start` points just past the opening `[`. CommonMark link text and image
+  // alt text can hold nested brackets, and `\]` is a literal bracket rather
+  // than a closer, so the first `]` is not necessarily the end.
+  let depth = 0;
+  for (let i = start; i < content.length; i += 1) {
+    const char = content[i];
+    if (char === "\\") {
+      i += 1;
+      continue;
+    }
+    if (char === "[") {
+      depth += 1;
+    } else if (char === "]") {
+      if (depth === 0) {
+        return i;
+      }
+      depth -= 1;
+    }
+  }
+  return -1;
+}
+
+function findClosingParen(content: string, start: number): number {
+  // `start` points just past the opening `(`. Parentheses inside the
+  // destination can be balanced (e.g. `.../Foo_(bar)`) and a quoted title can
+  // contain `)` too, so count nested parentheses outside quotes.
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = start; i < content.length; i += 1) {
+    const char = content[i];
+    if (char === "\\") {
+      i += 1;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (
+      (char === '"' || char === "'") &&
+      (i === start || /\s/.test(content[i - 1] ?? ""))
+    ) {
+      quote = char;
+      continue;
+    }
+    if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      if (depth === 0) {
+        return i;
+      }
+      depth -= 1;
+    }
+  }
+  return -1;
+}
+
+function isMarkdownTitle(value: string): boolean {
+  if (value.length < 2) {
+    return false;
+  }
+  const first = value[0];
+  const last = value[value.length - 1];
+  if (first === '"' || first === "'") {
+    if (last !== first) {
+      return false;
+    }
+    for (let i = 1; i < value.length - 1; i += 1) {
+      if (value[i] === "\\") {
+        i += 1;
+        continue;
+      }
+      if (value[i] === first) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (first === "(" && last === ")") {
+    let depth = 0;
+    for (let i = 0; i < value.length; i += 1) {
+      const char = value[i];
+      if (char === "\\") {
+        i += 1;
+        continue;
+      }
+      if (char === "(") {
+        depth += 1;
+      } else if (char === ")") {
+        depth -= 1;
+        if (depth < 0 || (depth === 0 && i !== value.length - 1)) {
+          return false;
+        }
+      }
+    }
+    return depth === 0;
+  }
+  return false;
+}
+
+function findLinkTitleStart(destination: string): number {
+  // A title follows the destination after whitespace. Unbracketed destinations
+  // cannot contain whitespace, so the first top-level whitespace starts the
+  // title candidate; accept it only if the remainder is a complete title.
+  let depth = 0;
+  for (let i = 0; i < destination.length; i += 1) {
+    const char = destination.charAt(i);
+    if (char === "\\") {
+      i += 1;
+      continue;
+    }
+    if (char === "(") {
+      depth += 1;
+      continue;
+    }
+    if (char === ")") {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (depth === 0 && /\s/.test(char)) {
+      return isMarkdownTitle(destination.slice(i).trim()) ? i : -1;
+    }
+  }
+  return -1;
+}
+
 export function stripMarkdownImageAltText(content: string): string {
-  // Inline images: ![alt](url) -> ![](url)
-  content = content.replace(/!\[[^\]]*\]\(/g, "![](");
-  // Reference-style images: ![alt][ref] -> ![][ref] (keep the label, drop the
-  // alt text, which is otherwise a hidden-instruction channel just like the
-  // inline form above).
-  content = content.replace(/!\[[^\]]*\](\[[^\]]*\])/g, "![]$1");
-  return content;
+  // Drop the alt text of inline and reference-style images, including alt text
+  // with nested or escaped brackets: ![alt](url) -> ![](url),
+  // ![alt][ref] -> ![][ref].
+  let result = "";
+  let i = 0;
+  while (i < content.length) {
+    if (content[i] === "!" && content[i + 1] === "[") {
+      const altEnd = findClosingBracket(content, i + 2);
+      if (altEnd !== -1) {
+        const after = content[altEnd + 1];
+        if (after === "(" || after === "[") {
+          result += "![]";
+          i = altEnd + 1;
+          continue;
+        }
+      }
+    }
+    result += content[i];
+    i += 1;
+  }
+  return result;
 }
 
 export function stripMarkdownLinkTitles(content: string): string {
-  content = content.replace(/(\[[^\]]*\]\([^)]+)\s+"[^"]*"/g, "$1");
-  content = content.replace(/(\[[^\]]*\]\([^)]+)\s+'[^']*'/g, "$1");
-  return content;
+  // Drop quoted and parenthesised link titles, including link text with nested
+  // or escaped brackets: [text](url "title") -> [text](url).
+  let result = "";
+  let i = 0;
+  while (i < content.length) {
+    if (content[i] === "[") {
+      const textEnd = findClosingBracket(content, i + 1);
+      if (textEnd !== -1 && content[textEnd + 1] === "(") {
+        const destinationStart = textEnd + 2;
+        const destinationEnd = findClosingParen(content, destinationStart);
+        if (destinationEnd !== -1) {
+          const destination = content.slice(destinationStart, destinationEnd);
+          const titleStart = findLinkTitleStart(destination);
+          if (titleStart !== -1) {
+            result +=
+              content.slice(i, destinationStart + titleStart).trimEnd() + ")";
+          } else {
+            result += content.slice(i, destinationEnd + 1);
+          }
+          i = destinationEnd + 1;
+          continue;
+        }
+      }
+    }
+    result += content[i];
+    i += 1;
+  }
+  return result;
 }
 
 export function stripHiddenAttributes(content: string): string {
