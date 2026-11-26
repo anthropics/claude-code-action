@@ -202,6 +202,29 @@ However, tools from these servers still need to be explicitly allowed via `claud
 
 ## Troubleshooting
 
+### Why did the action stop working after I set `path` in `actions/checkout`?
+
+The GitHub-integrated action expects the repository it works on at the root of
+`GITHUB_WORKSPACE`. Omit `path` for that checkout. A `cd` in a previous
+`run` step only changes that step's directory.
+
+If you check out another repository for reference, put the additional
+checkout in a subdirectory and keep the primary repository at the workspace
+root. For a scripted Claude task that needs to start in a subdirectory and
+doesn't need GitHub triggers or progress comments, use the standalone action:
+
+```yaml
+- uses: actions/checkout@v6
+  with:
+    path: source
+- uses: anthropics/claude-code-action/base-action@v1
+  env:
+    CLAUDE_WORKING_DIR: ${{ github.workspace }}/source
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    prompt: Summarize this repository.
+```
+
 ### How can I debug what Claude is doing?
 
 Check the GitHub Action log for Claude's run for the full execution trace.
