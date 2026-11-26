@@ -255,6 +255,28 @@ describe("parseSdkOptions", () => {
       expect(result.sdkOptions.allowedTools).toContain("Write");
       expect(result.sdkOptions.allowedTools).toContain("Glob");
     });
+
+    test("should keep commas and following spaces inside a rule", () => {
+      const result = parseSdkOptions({
+        claudeArgs: `--allowedTools "Bash(echo a, b),Read"`,
+      });
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(echo a, b)",
+        "Read",
+      ]);
+    });
+
+    test("should keep commas inside braces within a rule", () => {
+      const result = parseSdkOptions({
+        claudeArgs: `--allowedTools 'Bash(/x.sh {a, b}/*),Read'`,
+      });
+
+      expect(result.sdkOptions.allowedTools).toEqual([
+        "Bash(/x.sh {a, b}/*)",
+        "Read",
+      ]);
+    });
   });
 
   describe("disallowedTools merging", () => {
@@ -278,6 +300,32 @@ describe("parseSdkOptions", () => {
       expect(result.sdkOptions.disallowedTools?.join(",")).toBe(
         "Bash(/x.sh {a,b}/*),Bash(git add {a,b}/*),Bash(bun:*)",
       );
+    });
+
+    test("keeps a comma and space inside a rule from claudeArgs and direct input", () => {
+      const result = parseSdkOptions({
+        claudeArgs: `--disallowedTools "Bash(echo a, b)"`,
+        disallowedTools: "Bash(rm -rf, x)",
+      });
+
+      expect(result.sdkOptions.disallowedTools).toEqual([
+        "Bash(echo a, b)",
+        "Bash(rm -rf, x)",
+      ]);
+      expect(result.sdkOptions.disallowedTools?.join(",")).toBe(
+        "Bash(echo a, b),Bash(rm -rf, x)",
+      );
+    });
+
+    test("trims only the whitespace between rules", () => {
+      const result = parseSdkOptions({
+        claudeArgs: `--disallowedTools "Bash(echo a, b) , Write"`,
+      });
+
+      expect(result.sdkOptions.disallowedTools).toEqual([
+        "Bash(echo a, b)",
+        "Write",
+      ]);
     });
 
     test("should merge disallowedTools from both sources", () => {
