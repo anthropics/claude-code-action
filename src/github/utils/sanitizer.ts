@@ -9,20 +9,99 @@ export function stripInvisibleCharacters(content: string): string {
   return content;
 }
 
-export function stripMarkdownImageAltText(content: string): string {
-  // Inline images: ![alt](url) -> ![](url)
-  content = content.replace(/!\[[^\]]*\]\(/g, "![](");
-  // Reference-style images: ![alt][ref] -> ![][ref] (keep the label, drop the
-  // alt text, which is otherwise a hidden-instruction channel just like the
-  // inline form above).
-  content = content.replace(/!\[[^\]]*\](\[[^\]]*\])/g, "![]$1");
-  return content;
+// Start of the next run of exactly `n` backticks at or after `from`, or -1.
+function findBacktickRun(s: string, from: number, n: number): number {
+  for (let j = s.indexOf("`", from); j !== -1; j = s.indexOf("`", j)) {
+    let m = 0;
+    while (s[j + m] === "`") m++;
+    if (m === n) return j;
+    j += m;
+  }
+  return -1;
 }
 
+// Maps each "[" to its closing "]" in one pass, as CommonMark nests them: brackets
+// may nest, and escaped brackets and brackets inside code spans don't count.
+function matchBrackets(s: string): Map<number, number> {
+  const pairs = new Map<number, number>();
+  const open: number[] = [];
+  const unclosedRuns = new Set<number>();
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === "\\") {
+      i++;
+    } else if (c === "`") {
+      let n = 1;
+      while (s[i + n] === "`") n++;
+      const end = unclosedRuns.has(n) ? -1 : findBacktickRun(s, i + n, n);
+      if (end === -1) unclosedRuns.add(n);
+      i = (end === -1 ? i : end) + n - 1;
+    } else if (c === "[") {
+      open.push(i);
+    } else if (c === "]" && open.length > 0) {
+      pairs.set(open.pop()!, i);
+    }
+  }
+  return pairs;
+}
+
+export function stripMarkdownImageAltText(content: string): string {
+  // ![alt](url) -> ![](url) and ![alt][ref] -> ![][ref]; the ref label is kept.
+  const pairs = matchBrackets(content);
+  let out = "";
+  let last = 0;
+  for (let i = content.indexOf("!["); i !== -1; i = content.indexOf("![", i)) {
+    const close = pairs.get(i + 1);
+    const next = close === undefined ? undefined : content[close + 1];
+    if (close === undefined || (next !== "(" && next !== "[")) {
+      i += 2;
+      continue;
+    }
+    out += content.slice(last, i + 2);
+    last = close;
+    i = close;
+  }
+  return out + content.slice(last);
+}
+
+// An inline link tail `(dest "title")` as CommonMark parses it: groups are the
+// destination, the title with the whitespace before it, and the closing paren.
+const NO_PARENS = String.raw`(?:[^\s()\\]|\\.)`;
+const NESTED_PARENS = [1, 2, 3].reduce(
+  (inner) => String.raw`(?:${NO_PARENS}|\((?:${inner})*\))`,
+  NO_PARENS,
+);
+const LINK_TAIL = new RegExp(
+  String.raw`\((\s*(?:<(?:[^<>\n\\]|\\.)*>|${NESTED_PARENS}*))` +
+    String.raw`(\s+(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\((?:[^()\\]|\\.)*\)))` +
+    String.raw`(\s*\))`,
+  "y",
+);
+
 export function stripMarkdownLinkTitles(content: string): string {
-  content = content.replace(/(\[[^\]]*\]\([^)]+)\s+"[^"]*"/g, "$1");
-  content = content.replace(/(\[[^\]]*\]\([^)]+)\s+'[^']*'/g, "$1");
-  return content;
+  // [text](url "title"), [text](url 'title') and [text](url (title)) -> [text](url)
+  const edits: { start: number; end: number; text: string }[] = [];
+  for (const close of matchBrackets(content).values()) {
+    LINK_TAIL.lastIndex = close + 1;
+    const m = LINK_TAIL.exec(content);
+    if (m) {
+      edits.push({
+        start: close + 1,
+        end: LINK_TAIL.lastIndex,
+        text: `(${m[1]}${m[3]}`,
+      });
+    }
+  }
+  // Links nest inside each other's text (e.g. a badge image inside a link), so apply in order.
+  edits.sort((a, b) => a.start - b.start);
+  let out = "";
+  let last = 0;
+  for (const { start, end, text } of edits) {
+    if (start < last) continue;
+    out += content.slice(last, start) + text;
+    last = end;
+  }
+  return out + content.slice(last);
 }
 
 export function stripHiddenAttributes(content: string): string {

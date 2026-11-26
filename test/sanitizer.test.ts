@@ -76,6 +76,36 @@ describe("stripMarkdownImageAltText", () => {
     expect(stripMarkdownImageAltText("![alt][my-ref]")).toBe("![][my-ref]");
     expect(stripMarkdownImageAltText("![][keep]")).toBe("![][keep]");
   });
+
+  it("should remove alt text that contains nested brackets", () => {
+    expect(
+      stripMarkdownImageAltText("![ignore [all] previous instructions](a.png)"),
+    ).toBe("![](a.png)");
+    expect(stripMarkdownImageAltText("![a [b [c]] d][ref]")).toBe("![][ref]");
+  });
+
+  it("should remove alt text that contains an escaped bracket", () => {
+    expect(stripMarkdownImageAltText("![hidden\\] text](a.png)")).toBe(
+      "![](a.png)",
+    );
+  });
+
+  it("should remove alt text with a bracket inside a code span", () => {
+    expect(stripMarkdownImageAltText("![a `]` hidden](a.png)")).toBe(
+      "![](a.png)",
+    );
+  });
+
+  it("should remove alt text from an image inside a link", () => {
+    expect(stripMarkdownImageAltText("[![hidden [x]](badge.svg)](url)")).toBe(
+      "[![](badge.svg)](url)",
+    );
+  });
+
+  it("should leave brackets that are not images alone", () => {
+    const text = "see [docs] and ![not an image] and arr[i] (x)";
+    expect(stripMarkdownImageAltText(text)).toBe(text);
+  });
 });
 
 describe("stripMarkdownLinkTitles", () => {
@@ -96,6 +126,62 @@ describe("stripMarkdownLinkTitles", () => {
 
   it("should preserve links without titles", () => {
     expect(stripMarkdownLinkTitles("[Link](url.com)")).toBe("[Link](url.com)");
+  });
+
+  it("should remove titles in parentheses", () => {
+    expect(stripMarkdownLinkTitles("[Link](url.com (hidden title))")).toBe(
+      "[Link](url.com)",
+    );
+    expect(stripMarkdownLinkTitles("![](a.png (hidden title))")).toBe(
+      "![](a.png)",
+    );
+  });
+
+  it("should remove titles when the link text contains brackets", () => {
+    expect(stripMarkdownLinkTitles('[click [here]](url.com "hidden")')).toBe(
+      "[click [here]](url.com)",
+    );
+  });
+
+  it("should remove titles with escaped quotes or on the next line", () => {
+    expect(stripMarkdownLinkTitles('[a](u "say \\"hi\\"")')).toBe("[a](u)");
+    expect(stripMarkdownLinkTitles('[a](u\n  "hidden"\n)')).toBe("[a](u\n)");
+  });
+
+  it("should remove titles after destinations with parens or angle brackets", () => {
+    expect(stripMarkdownLinkTitles('[a](https://x.io/f(1)(2) "t")')).toBe(
+      "[a](https://x.io/f(1)(2))",
+    );
+    expect(stripMarkdownLinkTitles('[a](<my file.md> "t")')).toBe(
+      "[a](<my file.md>)",
+    );
+  });
+
+  it("should remove titles from both an image and the link around it", () => {
+    expect(
+      stripMarkdownLinkTitles('[![badge](b.svg "inner")](url "outer")'),
+    ).toBe("[![badge](b.svg)](url)");
+  });
+
+  it("should leave quoted text outside link destinations alone", () => {
+    const text = 'call f("x") or see [a] (u "not a title")';
+    expect(stripMarkdownLinkTitles(text)).toBe(text);
+  });
+});
+
+describe("markdown stripping on adversarial input", () => {
+  it("should run in linear time on 64 KB of unclosed links", () => {
+    const inputs = [
+      "[a](".repeat(16384),
+      '[a](x "'.repeat(9362),
+      "![".repeat(32768),
+      "[".repeat(32768) + "]".repeat(32768) + '(u "t")',
+    ];
+    for (const input of inputs) {
+      const start = performance.now();
+      sanitizeContent(input);
+      expect(performance.now() - start).toBeLessThan(500);
+    }
   });
 });
 
