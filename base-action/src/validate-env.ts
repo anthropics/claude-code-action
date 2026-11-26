@@ -44,19 +44,21 @@ export function validateEnvironmentVariables() {
     const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
     const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
     const awsBearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
+    const awsRoleArn = process.env.AWS_ROLE_ARN;
+    const awsWebIdentityTokenFile = process.env.AWS_WEB_IDENTITY_TOKEN_FILE;
 
     // AWS_REGION is always required for Bedrock
     if (!awsRegion) {
       errors.push("AWS_REGION is required when using AWS Bedrock.");
     }
 
-    // Either bearer token OR access key credentials must be provided
     const hasAccessKeyCredentials = awsAccessKeyId && awsSecretAccessKey;
-    const hasBearerToken = awsBearerToken;
+    const hasWebIdentity =
+      awsRoleArn?.trim() && awsWebIdentityTokenFile?.trim();
 
-    if (!hasAccessKeyCredentials && !hasBearerToken) {
+    if (!hasAccessKeyCredentials && !awsBearerToken && !hasWebIdentity) {
       errors.push(
-        "Either AWS_BEARER_TOKEN_BEDROCK or both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required when using AWS Bedrock.",
+        "AWS Bedrock requires AWS_BEARER_TOKEN_BEDROCK, both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or both AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE.",
       );
     }
   } else if (useVertex) {
