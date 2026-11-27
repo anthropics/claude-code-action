@@ -158,8 +158,8 @@ export async function prepareTagMode({
   );
 
   const userClaudeArgs = process.env.CLAUDE_ARGS || "";
-  const userAllowedMCPTools = parseAllowedTools(userClaudeArgs).filter((tool) =>
-    tool.startsWith("mcp__github_"),
+  const userAllowedMCPTools = parseAllowedTools(userClaudeArgs).filter(
+    (tool) => tool === "mcp__github" || tool.startsWith("mcp__github_"),
   );
 
   const sessionBranch = branchInfo.claudeBranch || branchInfo.currentBranch;
