@@ -249,4 +249,14 @@ describe("parseAllowedTools", () => {
       "mcp__github_comment__*",
     ]);
   });
+
+  test("parses inline --allowedTools=value form", () => {
+    const args =
+      '--allowedTools="mcp__github__get_commit,Read" --allowed-tools=mcp__github_comment__create_inline_comment';
+    expect(parseAllowedTools(args)).toEqual([
+      "mcp__github__get_commit",
+      "Read",
+      "mcp__github_comment__create_inline_comment",
+    ]);
+  });
 });
