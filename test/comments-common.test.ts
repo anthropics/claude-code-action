@@ -9,11 +9,24 @@ import { GITHUB_SERVER_URL } from "../src/github/api/config";
 
 describe("comments/common", () => {
   describe("createJobRunLink", () => {
-    test("builds a markdown link to the workflow run", () => {
-      const result = createJobRunLink("anthropics", "claude-code-action", "42");
-      expect(result).toBe(
-        `[View job run](${GITHUB_SERVER_URL}/anthropics/claude-code-action/actions/runs/42)`,
-      );
+    test.each([
+      ["", "/actions/runs/42"],
+      ["1", "/actions/runs/42/attempts/1"],
+      ["2", "/actions/runs/42/attempts/2"],
+    ])("builds a markdown link for run attempt %j", (attempt, path) => {
+      const originalAttempt = process.env.GITHUB_RUN_ATTEMPT;
+      try {
+        if (attempt) process.env.GITHUB_RUN_ATTEMPT = attempt;
+        else delete process.env.GITHUB_RUN_ATTEMPT;
+
+        expect(createJobRunLink("anthropics", "claude-code-action", "42")).toBe(
+          `[View job run](${GITHUB_SERVER_URL}/anthropics/claude-code-action${path})`,
+        );
+      } finally {
+        if (originalAttempt === undefined)
+          delete process.env.GITHUB_RUN_ATTEMPT;
+        else process.env.GITHUB_RUN_ATTEMPT = originalAttempt;
+      }
     });
 
     test("honors GITHUB_SERVER_URL (GHES) rather than hardcoding github.com", () => {
