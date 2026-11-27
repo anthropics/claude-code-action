@@ -151,12 +151,13 @@ Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federa
 
 ## Outputs
 
-| Output              | Description                                                                                       |
-| ------------------- | ------------------------------------------------------------------------------------------------- |
-| `conclusion`        | Execution status of Claude Code ('success' or 'failure')                                          |
-| `execution_file`    | Path to the JSON file containing Claude Code execution log                                        |
-| `structured_output` | JSON string containing structured output fields when `--json-schema` is provided in `claude_args` |
-| `session_id`        | The Claude Code session ID that can be used with `--resume` to continue this conversation         |
+| Output               | Description                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| `conclusion`         | Execution status of Claude Code ('success' or 'failure')                                          |
+| `execution_file`     | Path to the JSON file containing Claude Code execution log                                        |
+| `structured_output`  | JSON string containing structured output fields when `--json-schema` is provided in `claude_args` |
+| `permission_denials` | JSON object mapping denied tool names to counts from the Agent SDK result.                        |
+| `session_id`         | The Claude Code session ID that can be used with `--resume` to continue this conversation         |
 
 ## Environment Variables
 
