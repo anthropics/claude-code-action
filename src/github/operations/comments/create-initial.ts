@@ -16,10 +16,15 @@ import type { Octokit } from "@octokit/rest";
 
 const CLAUDE_APP_BOT_ID = 209825114;
 
+export type TrackingComment = {
+  id: number;
+  isReviewComment: boolean;
+};
+
 export async function createInitialComment(
   octokit: Octokit,
   context: ParsedGitHubContext,
-) {
+): Promise<TrackingComment> {
   const { owner, repo } = context.repository;
 
   const jobRunLink = createJobRunLink(owner, repo, context.runId);
@@ -27,6 +32,7 @@ export async function createInitialComment(
 
   try {
     let response;
+    let isReviewComment = false;
 
     if (
       context.inputs.useStickyComment &&
@@ -72,6 +78,7 @@ export async function createInitialComment(
         comment_id: context.payload.comment.id,
         body: initialBody,
       });
+      isReviewComment = true;
     } else {
       // For all other cases (issues, issue comments, or missing comment_id)
       response = await octokit.rest.issues.createComment({
@@ -86,7 +93,7 @@ export async function createInitialComment(
     const githubOutput = process.env.GITHUB_OUTPUT!;
     appendFileSync(githubOutput, `claude_comment_id=${response.data.id}\n`);
     console.log(`✅ Created initial comment with ID: ${response.data.id}`);
-    return response.data;
+    return { id: response.data.id, isReviewComment };
   } catch (error) {
     console.error("Error in initial comment:", error);
 
@@ -102,7 +109,7 @@ export async function createInitialComment(
       const githubOutput = process.env.GITHUB_OUTPUT!;
       appendFileSync(githubOutput, `claude_comment_id=${response.data.id}\n`);
       console.log(`✅ Created fallback comment with ID: ${response.data.id}`);
-      return response.data;
+      return { id: response.data.id, isReviewComment: false };
     } catch (fallbackError) {
       console.error("Error creating fallback comment:", fallbackError);
       throw fallbackError;

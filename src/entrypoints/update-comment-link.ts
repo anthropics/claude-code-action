@@ -17,9 +17,10 @@ import { GITHUB_SERVER_URL } from "../github/api/config";
 import { checkAndCommitOrDeleteBranch } from "../github/operations/branch-cleanup";
 import { updateClaudeComment } from "../github/operations/comments/update-claude-comment";
 import { encodeBranchNameForUrl } from "../github/operations/comments/common";
+import type { TrackingComment } from "../github/operations/comments/create-initial";
 
 export type UpdateCommentLinkParams = {
-  commentId: number;
+  trackingComment: TrackingComment;
   githubToken: string;
   claudeBranch?: string;
   baseBranch: string;
@@ -43,7 +44,7 @@ export async function updateCommentLink(
   params: UpdateCommentLinkParams,
 ): Promise<void> {
   const {
-    commentId,
+    trackingComment: { id: commentId, isReviewComment },
     claudeBranch,
     baseBranch,
     triggerUsername,
@@ -58,37 +59,17 @@ export async function updateCommentLink(
   const serverUrl = GITHUB_SERVER_URL;
   const jobUrl = `${serverUrl}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
 
-  let comment;
-  let isPRReviewComment = false;
-
+  let currentBody: string;
   try {
-    // GitHub has separate ID namespaces for review comments and issue comments
-    // We need to use the correct API based on the event type
-    if (isPullRequestReviewCommentEvent(context)) {
-      // For PR review comments, use the pulls API
-      console.log(`Fetching PR review comment ${commentId}`);
-      const { data: prComment } = await octokit.rest.pulls.getReviewComment({
-        owner,
-        repo,
-        comment_id: commentId,
-      });
-      comment = prComment;
-      isPRReviewComment = true;
-      console.log("Successfully fetched as PR review comment");
-    }
-
-    // For all other event types, use the issues API
-    if (!comment) {
-      console.log(`Fetching issue comment ${commentId}`);
-      const { data: issueComment } = await octokit.rest.issues.getComment({
-        owner,
-        repo,
-        comment_id: commentId,
-      });
-      comment = issueComment;
-      isPRReviewComment = false;
-      console.log("Successfully fetched as issue comment");
-    }
+    // The initial reply can fall back to a top-level comment with its own ID namespace.
+    const target = { owner, repo, comment_id: commentId };
+    console.log(
+      `Fetching ${isReviewComment ? "PR review" : "issue"} comment ${commentId}`,
+    );
+    const { data } = isReviewComment
+      ? await octokit.rest.pulls.getReviewComment(target)
+      : await octokit.rest.issues.getComment(target);
+    currentBody = data.body ?? "";
   } catch (finalError) {
     // If all attempts fail, try to determine more information about the comment
     console.error("Failed to fetch comment. Debug info:");
@@ -113,8 +94,6 @@ export async function updateCommentLink(
 
     throw finalError;
   }
-
-  const currentBody = comment.body ?? "";
 
   // Check if we need to add branch link for new branches
   const { shouldDeleteBranch, branchLink } = await checkAndCommitOrDeleteBranch(
@@ -234,14 +213,14 @@ export async function updateCommentLink(
       repo,
       commentId,
       body: updatedBody,
-      isPullRequestReviewComment: isPRReviewComment,
+      isPullRequestReviewComment: isReviewComment,
     });
     console.log(
-      `✅ Updated ${isPRReviewComment ? "PR review" : "issue"} comment ${commentId} with job link`,
+      `✅ Updated ${isReviewComment ? "PR review" : "issue"} comment ${commentId} with job link`,
     );
   } catch (updateError) {
     console.error(
-      `Failed to update ${isPRReviewComment ? "PR review" : "issue"} comment:`,
+      `Failed to update ${isReviewComment ? "PR review" : "issue"} comment:`,
       updateError,
     );
     throw updateError;
@@ -259,7 +238,10 @@ async function run() {
     const octokit = createOctokit(githubToken);
 
     await updateCommentLink({
-      commentId: parseInt(process.env.CLAUDE_COMMENT_ID!),
+      trackingComment: {
+        id: parseInt(process.env.CLAUDE_COMMENT_ID!),
+        isReviewComment: isPullRequestReviewCommentEvent(context),
+      },
       githubToken,
       claudeBranch: process.env.CLAUDE_BRANCH,
       baseBranch:
