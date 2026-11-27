@@ -138,6 +138,12 @@ Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federa
 | `use_bedrock`                    | Use Amazon Bedrock with OIDC authentication                                                                             | No       | `'false'`     |
 | `use_vertex`                     | Use Google Vertex AI with OIDC authentication                                                                           | No       | `'false'`     |
 | `use_foundry`                    | Use Microsoft Foundry with OIDC authentication                                                                          | No       | `'false'`     |
+| `orcarouter_provider`            | Route inference through OrcaRouter (`https://api.orcarouter.ai/v1`)                                                     | No       | `'false'`     |
+| `orcarouter_api_key`             | OrcaRouter API key (`sk-orca-...`). The "OrcaRouter - API" entry point                                                  | No       | `''`          |
+| `orcarouter_auth`                | Use the "OrcaRouter - Auth" entry point (OAuth 2.0 + PKCE)                                                              | No       | `'false'`     |
+| `orcarouter_model`               | Model ID to use, in `vendor/model` form (e.g. `openai/gpt-5.5`)                                                         | No       | `''`          |
+| `orcarouter_code`                | Authorization code from the OrcaRouter consent screen, used with `orcarouter_stage: connect`                            | No       | `''`          |
+| `orcarouter_stage`               | Standalone credential command: `connect`, `logout`, or `status`                                                         | No       | `''`          |
 | `use_node_cache`                 | Enable Node.js dependency caching for projects with lock files                                                          | No       | `'false'`     |
 | `path_to_claude_code_executable` | Path to a custom Claude Code executable                                                                                 | No       | `''`          |
 | `path_to_bun_executable`         | Path to a custom Bun executable                                                                                         | No       | `''`          |
@@ -422,6 +428,8 @@ You can authenticate with Claude using any of these methods:
 1. Direct Anthropic API (default) - requires API key or OAuth token
 2. Amazon Bedrock - requires OIDC authentication and automatically uses cross-region inference profiles
 3. Google Vertex AI - requires OIDC authentication
+4. Microsoft Foundry - requires OIDC authentication
+5. OrcaRouter - an OpenAI-compatible gateway, signed in with either a pasted `sk-orca-...` API key or OAuth 2.0 + PKCE
 
 **Note**:
 
