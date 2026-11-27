@@ -25,16 +25,32 @@ export function ensureProperlyEncodedUrl(url: string): string | null {
     // First, try to parse the URL to see if it's already properly encoded
     new URL(url);
     if (url.includes(" ")) {
-      const [baseUrl, queryString] = url.split("?");
-      if (queryString) {
+      const queryIndex = url.indexOf("?");
+      if (queryIndex !== -1) {
+        // Encode spaces in the path portion; the query string is re-encoded
+        // below. (Splitting on the first "?" only — a literal "?" inside a
+        // value is part of that value, not a new query string.)
+        const baseUrl = url.slice(0, queryIndex).replace(/ /g, "%20");
         // Parse query parameters and re-encode them properly
         const params = new URLSearchParams();
-        const pairs = queryString.split("&");
+        const pairs = url.slice(queryIndex + 1).split("&");
         for (const pair of pairs) {
-          const [key, value = ""] = pair.split("=");
+          // Split on the first "=" only: values may themselves contain "=",
+          // and destructuring pair.split("=") silently drops everything after
+          // the second one.
+          const eqIndex = pair.indexOf("=");
+          const key = eqIndex === -1 ? pair : pair.slice(0, eqIndex);
+          const value = eqIndex === -1 ? "" : pair.slice(eqIndex + 1);
           if (key) {
             // Decode first in case it's partially encoded, then encode properly
-            params.set(key, decodeURIComponent(value));
+            let decoded = value;
+            try {
+              decoded = decodeURIComponent(value);
+            } catch {
+              // Value contains a stray "%": keep it raw so URLSearchParams
+              // percent-encodes it (as %25) instead of throwing.
+            }
+            params.set(key, decoded);
           }
         }
         return `${baseUrl}?${params.toString()}`;
