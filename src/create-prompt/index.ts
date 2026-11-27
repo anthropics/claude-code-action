@@ -560,7 +560,12 @@ ${formattedReviewComments || "No review comments"}
 </review_comments>
 
 <changed_files>
-${formattedChangedFiles || "No files changed"}
+${
+  formattedChangedFiles ||
+  ("files" in contextData && contextData.files === null
+    ? "Changed-file list unavailable from GitHub."
+    : "No files changed")
+}
 </changed_files>`
     : ""
 }${imagesInfo}
@@ -692,7 +697,12 @@ ${formattedReviewComments || "No review comments"}
 ${
   eventData.isPR
     ? `<changed_files>
-${formattedChangedFiles || "No files changed"}
+${
+  formattedChangedFiles ||
+  ("files" in contextData && contextData.files === null
+    ? "Changed-file list unavailable from GitHub."
+    : "No files changed")
+}
 </changed_files>`
     : ""
 }${imagesInfo}
