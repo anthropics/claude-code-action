@@ -74,4 +74,33 @@ Focus on security issues.`,
       "/review-pr",
     );
   });
+
+  test("ignores trigger phrase embedded mid-token and finds valid trigger later", () => {
+    const comment =
+      "Email security@claude.dev ASAP. @claude please review the auth module";
+    expect(extractUserRequest(comment, "@claude")).toBe(
+      "please review the auth module",
+    );
+  });
+
+  test("ignores trigger phrase embedded in username or URL token", () => {
+    expect(
+      extractUserRequest("cc @claude-helper and @claude run tests", "@claude"),
+    ).toBe("run tests");
+    expect(
+      extractUserRequest(
+        "visit https://example.com/@claude/info and @claude help me",
+        "@claude",
+      ),
+    ).toBe("help me");
+  });
+
+  test("returns null when trigger phrase only appears mid-token", () => {
+    expect(
+      extractUserRequest("Contact security@claude.dev for support", "@claude"),
+    ).toBeNull();
+    expect(
+      extractUserRequest("See https://github.com/claude/repo", "@claude"),
+    ).toBeNull();
+  });
 });
