@@ -1,9 +1,14 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { execFileSync } from "child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
+import type { Octokit } from "@octokit/rest";
 import { setupBranch } from "../src/github/operations/branch";
-import { fetchDepthArgs } from "../src/github/operations/fetch-depth";
+import {
+  ensurePullRequestMergeBase,
+  fetchDepthArgs,
+} from "../src/github/operations/fetch-depth";
+import { restoreConfigFromBase } from "../src/github/operations/restore-config";
 import { createMockContext } from "./mockContext";
 
 const octokits = {
@@ -106,9 +111,85 @@ describe("setupBranch fetch depth", () => {
     expect(fetchDepthArgs(20)).toEqual([]);
   });
 
-  function git(args: string[]): string {
+  test.each(["feature", "pr-merge"])(
+    "fetches a missing merge base from a shallow %s checkout",
+    async (branch) => {
+      git(["checkout", "-b", "feature"]);
+      writeFileSync(join(repoDir, "feature.txt"), "Feature content\n");
+      git(["add", "feature.txt"]);
+      git(["commit", "-m", "Feature"]);
+      git(["checkout", "main"]);
+      writeFileSync(join(repoDir, "base.txt"), "Base-only content\n");
+      git(["add", "base.txt"]);
+      git(["commit", "-m", "Base update"]);
+      git(["checkout", "-b", "pr-merge"]);
+      git(["merge", "--no-ff", "feature", "-m", "PR test merge"]);
+      git(["push", "origin", "main", "feature", "pr-merge"]);
+
+      const shallow = join(tempDir, "shallow-pr");
+      git([
+        "clone",
+        "--depth=1",
+        "--branch",
+        branch,
+        `file://${join(tempDir, "origin.git")}`,
+        shallow,
+      ]);
+      const head = git(["rev-parse", branch]).trim();
+      const base = git(["rev-parse", "main"]).trim();
+      const mergeBase = git(["merge-base", base, head]).trim();
+      const [behind, ahead] = git([
+        "rev-list",
+        "--left-right",
+        "--count",
+        `${base}...${head}`,
+      ])
+        .trim()
+        .split(/\s+/)
+        .map(Number);
+      const compare = mock(async () => ({
+        data: { ahead_by: ahead, behind_by: behind },
+      }));
+      const rest = { rest: { repos: { compareCommitsWithBasehead: compare } } };
+      const repository = { owner: "fixture", repo: "repo" };
+
+      process.chdir(shallow);
+      restoreConfigFromBase("main");
+      expect(git(["rev-parse", "origin/main"], shallow).trim()).toBe(base);
+      expect(() =>
+        git(["merge-base", "origin/main", "HEAD"], shallow),
+      ).toThrow();
+
+      await ensurePullRequestMergeBase(
+        rest as unknown as Octokit,
+        repository,
+        "main",
+      );
+      expect(compare).toHaveBeenCalledWith({
+        ...repository,
+        basehead: `${base}...${head}`,
+        per_page: 1,
+      });
+      expect(git(["merge-base", "origin/main", "HEAD"], shallow).trim()).toBe(
+        mergeBase,
+      );
+      expect(git(["rev-parse", "HEAD"], shallow).trim()).toBe(head);
+      expect(
+        git(["diff", "--name-only", "origin/main...HEAD"], shallow).trim(),
+      ).toBe("feature.txt");
+
+      await ensurePullRequestMergeBase(
+        rest as unknown as Octokit,
+        repository,
+        "main",
+      );
+      expect(compare).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  function git(args: string[], cwd = repoDir): string {
     return execFileSync("git", args, {
-      cwd: repoDir,
+      cwd,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     });
