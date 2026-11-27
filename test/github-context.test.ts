@@ -48,6 +48,7 @@ const ENV_KEYS = [
   "BRANCH_PREFIX",
   "BRANCH_NAME_TEMPLATE",
   "USE_STICKY_COMMENT",
+  "SUPPRESS_COMPLETION_MENTION",
   "CLASSIFY_INLINE_COMMENTS",
   "USE_COMMIT_SIGNING",
   "SSH_SIGNING_KEY",
@@ -346,6 +347,7 @@ describe("parseGitHubContext", () => {
       expect(inputs.branchPrefix).toBe("claude/");
       expect(inputs.branchNameTemplate).toBeUndefined();
       expect(inputs.useStickyComment).toBe(false);
+      expect(inputs.suppressCompletionMention).toBe(false);
       expect(inputs.classifyInlineComments).toBe(true);
       expect(inputs.useCommitSigning).toBe(false);
       expect(inputs.sshSigningKey).toBe("");
@@ -369,6 +371,7 @@ describe("parseGitHubContext", () => {
       process.env.BRANCH_PREFIX = "bot/";
       process.env.BRANCH_NAME_TEMPLATE = "{{description}}";
       process.env.USE_STICKY_COMMENT = "true";
+      process.env.SUPPRESS_COMPLETION_MENTION = "true";
       process.env.CLASSIFY_INLINE_COMMENTS = "false";
       process.env.USE_COMMIT_SIGNING = "true";
       process.env.SSH_SIGNING_KEY = "ssh-key-material";
@@ -397,6 +400,7 @@ describe("parseGitHubContext", () => {
       expect(inputs.branchPrefix).toBe("bot/");
       expect(inputs.branchNameTemplate).toBe("{{description}}");
       expect(inputs.useStickyComment).toBe(true);
+      expect(inputs.suppressCompletionMention).toBe(true);
       expect(inputs.classifyInlineComments).toBe(false);
       expect(inputs.useCommitSigning).toBe(true);
       expect(inputs.sshSigningKey).toBe("ssh-key-material");
@@ -412,6 +416,7 @@ describe("parseGitHubContext", () => {
 
     test("boolean inputs only accept the lowercase string true", () => {
       process.env.USE_STICKY_COMMENT = "TRUE";
+      process.env.SUPPRESS_COMPLETION_MENTION = "TRUE";
       process.env.USE_COMMIT_SIGNING = "1";
 
       setEvent("issues", {
@@ -423,6 +428,7 @@ describe("parseGitHubContext", () => {
       const { inputs } = parseGitHubContext();
 
       expect(inputs.useStickyComment).toBe(false);
+      expect(inputs.suppressCompletionMention).toBe(false);
       expect(inputs.useCommitSigning).toBe(false);
     });
   });
