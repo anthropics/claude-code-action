@@ -64,6 +64,40 @@ describe("runClaudeWithSdk", () => {
     }
   });
 
+  test("reports structured startup failures even with a JSON schema configured", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+    process.env.RUNNER_TEMP = tempDir;
+    const promptPath = join(tempDir, "prompt.txt");
+    await writeFile(promptPath, "test prompt");
+
+    const startupFailure = {
+      type: "result",
+      subtype: "error_during_execution",
+      is_error: true,
+      startup_failure_reason: "config_file_invalid",
+      errors: ["fixture diagnostic"],
+    };
+    mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+      query: async function* () {
+        yield startupFailure;
+      },
+    }));
+
+    const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+    await expect(
+      runClaudeWithSdk(promptPath, {
+        sdkOptions: {},
+        showFullOutput: false,
+        hasJsonSchema: true,
+      }),
+    ).rejects.toThrow(/^Claude Code could not start \(config_file_invalid\)$/);
+
+    const executionFile = join(tempDir, "claude-execution-output.json");
+    expect(JSON.parse(await readFile(executionFile, "utf-8"))).toEqual([
+      startupFailure,
+    ]);
+  });
+
   test("logs resolved model limits without exposing token usage", async () => {
     const consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
 
