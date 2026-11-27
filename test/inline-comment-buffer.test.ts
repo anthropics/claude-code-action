@@ -106,6 +106,30 @@ describe("removeBufferedComment", () => {
     expect(readBuffer().map((e) => e.body)).toEqual(["Comment A", "Comment B"]);
   });
 
+  it("only removes comments on the posted side and commit", () => {
+    const head = "a".repeat(40);
+    const previous = "b".repeat(40);
+    const implicitHead = { ...entryA, side: undefined };
+    const explicitHead = { ...entryA, commit_id: head };
+    const otherSide = { ...explicitHead, side: "LEFT" };
+    const otherCommit = { ...entryA, commit_id: previous };
+    writeBuffer([implicitHead, explicitHead, otherSide, otherCommit]);
+
+    removeBufferedComment(
+      {
+        path: entryA.path,
+        line: entryA.line,
+        side: "RIGHT",
+        body: entryA.body,
+        commit_id: head,
+      },
+      bufferPath,
+      head,
+    );
+
+    expect(readBuffer()).toEqual([otherSide, otherCommit]);
+  });
+
   it("does nothing when the buffer file does not exist", () => {
     expect(() =>
       removeBufferedComment(

@@ -186,8 +186,16 @@ server.tool(
       // re-issues a buffered call with confirmed=true after the buffer reply).
       if (CLASSIFY_ENABLED) {
         removeBufferedComment(
-          { path, line, startLine, body: sanitizedBody },
+          {
+            path,
+            line,
+            startLine,
+            side,
+            commit_id: params.commit_id,
+            body: sanitizedBody,
+          },
           BUFFER_PATH,
+          pr.data.head.sha,
         );
       }
 
