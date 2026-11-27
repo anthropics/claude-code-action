@@ -53,6 +53,7 @@ import {
   keepHeadHistory,
   restoreConfigFromBase,
 } from "../github/operations/restore-config";
+import { saveCheckoutGitAuth } from "../github/operations/git-config";
 import {
   restoreToolConfigFromBase,
   toolConfigDenyRules,
@@ -204,6 +205,7 @@ async function run() {
   // Paths reverted to the PR base branch, which cleanup must not commit back
   // onto the PR author's branch. Empty unless restoreConfigFromBase ran.
   let restoredConfigPaths: string[] = [];
+  let restoreCheckoutGitAuth: (() => Promise<void>) | undefined;
   // Track whether we've completed prepare phase, so we can attribute errors correctly
   let prepareCompleted = false;
   // Set while a session could be running
@@ -349,6 +351,7 @@ async function run() {
     console.log(
       `Preparing with mode: ${modeName} for event: ${context.eventName}`,
     );
+    restoreCheckoutGitAuth = await saveCheckoutGitAuth();
     const prepareResult =
       modeName === "tag"
         ? await prepareTagMode({
@@ -533,36 +536,48 @@ async function run() {
     isFinishing = true;
     clearSessionState();
 
-    // Stop refreshing the workload identity token file and delete the token
-    // material so it doesn't outlive this step
-    workloadIdentity?.stop();
+    try {
+      // Stop refreshing the workload identity token file and delete the token
+      // material so it doesn't outlive this step
+      workloadIdentity?.stop();
 
-    // Update tracking comment
-    if (
-      commentId &&
-      context &&
-      isEntityContext(context) &&
-      githubToken &&
-      octokit
-    ) {
+      // Update tracking comment before restoring checkout credentials so any
+      // cleanup commits still use the action's Git authentication.
+      if (
+        commentId &&
+        context &&
+        isEntityContext(context) &&
+        githubToken &&
+        octokit
+      ) {
+        try {
+          await updateCommentLink({
+            commentId,
+            githubToken,
+            claudeBranch,
+            baseBranch:
+              baseBranch || context.repository.default_branch || "main",
+            triggerUsername: context.actor,
+            context,
+            octokit,
+            claudeSuccess,
+            outputFile: executionFile,
+            prepareSuccess,
+            prepareError,
+            useCommitSigning: context.inputs.useCommitSigning,
+            restoredConfigPaths,
+          });
+        } catch (error) {
+          console.error("Error updating comment with job link:", error);
+        }
+      }
+    } finally {
       try {
-        await updateCommentLink({
-          commentId,
-          githubToken,
-          claudeBranch,
-          baseBranch: baseBranch || context.repository.default_branch || "main",
-          triggerUsername: context.actor,
-          context,
-          octokit,
-          claudeSuccess,
-          outputFile: executionFile,
-          prepareSuccess,
-          prepareError,
-          useCommitSigning: context.inputs.useCommitSigning,
-          restoredConfigPaths,
-        });
+        await restoreCheckoutGitAuth?.();
       } catch (error) {
-        console.error("Error updating comment with job link:", error);
+        core.setFailed(
+          redactSecrets(error instanceof Error ? error.message : String(error)),
+        );
       }
     }
 
