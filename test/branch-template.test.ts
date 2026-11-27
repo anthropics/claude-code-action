@@ -97,6 +97,19 @@ describe("branch template utilities", () => {
       expect(result.length).toBeLessThanOrEqual(50);
     });
 
+    it("keeps different issues distinguishable with a long default prefix", () => {
+      const prefix = "Automation/Customer-Application-Integration-Triage/";
+      const first = generateBranchName(undefined, prefix, "issue", 123);
+      const second = generateBranchName(undefined, prefix, "issue", 124);
+
+      expect(first).toMatch(/^automation\/.*issue-123-\d{8}-\d{4}$/);
+      expect(second).toMatch(/^automation\/.*issue-124-\d{8}-\d{4}$/);
+      expect(first.length).toBeLessThanOrEqual(50);
+      expect(second.length).toBeLessThanOrEqual(50);
+      expect(() => validateBranchName(first)).not.toThrow();
+      expect(() => validateBranchName(second)).not.toThrow();
+    });
+
     it("should handle SHA in template", () => {
       const template = "{{prefix}}{{entityType}}-{{entityNumber}}-{{sha}}";
       const result = generateBranchName(
