@@ -200,6 +200,14 @@ Claude Code Action automatically configures two MCP servers:
 
 However, tools from these servers still need to be explicitly allowed via `claude_args` with `--allowedTools`.
 
+### Why is the tracking comment tool unavailable?
+
+`mcp__github_comment__update_claude_comment` edits the action's tracking
+comment. Use tag mode or set `track_progress: true` on a
+[supported event](./usage.md#inputs) so the action creates a comment to update.
+Agent-mode workflows can publish a new top-level PR comment with the GitHub CLI
+as shown in the [automatic review example](./solutions.md#basic-example-no-tracking).
+
 ## Troubleshooting
 
 ### How can I debug what Claude is doing?
