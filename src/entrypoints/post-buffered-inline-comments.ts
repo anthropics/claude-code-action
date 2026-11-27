@@ -16,6 +16,7 @@ import { redactSecrets } from "../github/utils/sanitizer";
 import { getActionInput } from "./collect-inputs";
 
 const BUFFER_PATH = "/tmp/inline-comments-buffer.jsonl";
+const CLASSIFICATION_TIMEOUT_MS = 30_000;
 
 type BufferedComment = {
   ts: string;
@@ -62,6 +63,7 @@ async function classifyComments(bodies: string[]): Promise<boolean[] | null> {
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
+      signal: AbortSignal.timeout(CLASSIFICATION_TIMEOUT_MS),
       headers: {
         "content-type": "application/json",
         "x-api-key": apiKey,
