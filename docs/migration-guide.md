@@ -134,6 +134,7 @@ The `track_progress` input only works with these GitHub events:
 - `synchronize` - PR updated with new commits
 - `ready_for_review` - Draft PR marked as ready
 - `reopened` - Previously closed PR reopened
+- `labeled` - Label added to PR
 
 **Issue Events:**
 
