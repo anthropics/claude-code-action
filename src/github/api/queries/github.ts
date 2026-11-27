@@ -87,6 +87,8 @@ export const PR_QUERY = `
                 body
                 path
                 line
+                originalLine
+                outdated
                 diffHunk
                 author {
                   __typename

@@ -27,6 +27,8 @@ export type GitHubComment = {
 export type GitHubReviewComment = GitHubComment & {
   path: string;
   line: number | null;
+  originalLine?: number | null;
+  outdated?: boolean;
   diffHunk?: string | null;
 };
 
