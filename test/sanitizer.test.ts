@@ -41,6 +41,70 @@ describe("stripInvisibleCharacters", () => {
   });
 });
 
+// A table rather than individual assertions, so a code point that stops being
+// handled shows up as a named failing case instead of going unnoticed.
+describe("stripInvisibleCharacters code point coverage", () => {
+  const removed: Array<[string, number]> = [
+    ["U+00AD soft hyphen", 0x00ad],
+    ["U+180E mongolian vowel separator", 0x180e],
+    ["U+200B zero width space", 0x200b],
+    ["U+200D zero width joiner", 0x200d],
+    ["U+2060 word joiner", 0x2060],
+    ["U+2061 function application", 0x2061],
+    ["U+202E right-to-left override", 0x202e],
+    ["U+2066 left-to-right isolate", 0x2066],
+    ["U+FEFF byte order mark", 0xfeff],
+    ["U+FFF9 interlinear annotation anchor", 0xfff9],
+    ["U+E0001 language tag", 0xe0001],
+    ["U+E0053 tag letter S", 0xe0053],
+    ["U+0000 null", 0x0000],
+    ["U+001F unit separator", 0x001f],
+    ["U+007F delete", 0x007f],
+  ];
+
+  const preserved: Array<[string, number]> = [
+    ["tab", 0x0009],
+    ["newline", 0x000a],
+    ["carriage return", 0x000d],
+    ["space", 0x0020],
+    ["U+2800 braille pattern blank", 0x2800],
+    ["U+3164 hangul filler", 0x3164],
+    ["U+115F hangul choseong filler", 0x115f],
+    // Format characters that carry meaning. A \p{Cf} category match would
+    // remove these, which is why the ranges above are enumerated.
+    ["U+0600 arabic number sign", 0x0600],
+    ["U+06DD arabic end of ayah", 0x06dd],
+    ["U+061C arabic letter mark", 0x061c],
+    ["U+070F syriac abbreviation mark", 0x070f],
+    ["U+200E left-to-right mark", 0x200e],
+    ["U+1D173 musical symbol begin beam", 0x1d173],
+  ];
+
+  for (const [name, cp] of removed) {
+    it(`removes ${name}`, () => {
+      expect(
+        stripInvisibleCharacters("A" + String.fromCodePoint(cp) + "B"),
+      ).toBe("AB");
+    });
+  }
+
+  for (const [name, cp] of preserved) {
+    it(`preserves ${name}`, () => {
+      const ch = String.fromCodePoint(cp);
+      expect(stripInvisibleCharacters("A" + ch + "B")).toBe("A" + ch + "B");
+    });
+  }
+
+  it("removes a run of tag characters without touching the visible text", () => {
+    const tagged = [..."HIDDEN"]
+      .map((c) => String.fromCodePoint(0xe0000 + c.codePointAt(0)!))
+      .join("");
+    expect(stripInvisibleCharacters(`before ${tagged}after`)).toBe(
+      "before after",
+    );
+  });
+});
+
 describe("stripMarkdownImageAltText", () => {
   it("should remove alt text from markdown images", () => {
     expect(stripMarkdownImageAltText("![example alt text](image.png)")).toBe(
