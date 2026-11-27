@@ -244,12 +244,7 @@ export async function setupBranch(
             `PR #${entityNumber} was updated after the trigger (${eventSha} -> ${headSha}). Push again or mention Claude to run on the latest version.`,
           );
         }
-      } else if (triggerTime) {
-        if (!prData.headRepository) {
-          throw new Error(
-            `PR #${entityNumber}: head repository is not available, cannot pin the PR version`,
-          );
-        }
+      } else if (triggerTime && prData.headRepository) {
         const pushedAt = await headPushedAt(
           octokits,
           {
@@ -270,7 +265,35 @@ export async function setupBranch(
         ? `pr-${entityNumber}`
         : branchName;
       console.log(`PR #${entityNumber}: pinning ${localBranch} to ${headSha}`);
-      execGit(["fetch", "origin", ...depthArgs, headSha]);
+
+      if (prData.headRepository) {
+        execGit(["fetch", "origin", ...depthArgs, headSha]);
+      } else {
+        // GitHub omits headRepository when the action token cannot read a
+        // private fork. Fetch the pinned SHA from the base repository as usual;
+        // if the server will not serve it directly, fall back to the PR's head
+        // ref there and verify that it still resolves to the SHA returned by
+        // GraphQL before checking anything out.
+        try {
+          execGit(["fetch", "origin", ...depthArgs, headSha]);
+        } catch {
+          execGit([
+            "fetch",
+            "origin",
+            ...depthArgs,
+            `refs/pull/${entityNumber}/head`,
+          ]);
+          const fetchedSha = execFileSync("git", ["rev-parse", "FETCH_HEAD"], {
+            encoding: "utf8",
+          }).trim();
+          if (fetchedSha !== headSha) {
+            throw new Error(
+              `PR #${entityNumber} was updated while its head was being fetched (${headSha} -> ${fetchedSha}). Mention Claude again to run on the latest version.`,
+            );
+          }
+        }
+      }
+
       execGit(
         ["checkout", "-B", localBranch, headSha, "--"],
         // Files that Git LFS would download stay as pointer files.
