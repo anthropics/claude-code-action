@@ -154,9 +154,13 @@ Do not set `anthropic_api_key` or `claude_code_oauth_token` alongside the federa
 | Output              | Description                                                                                       |
 | ------------------- | ------------------------------------------------------------------------------------------------- |
 | `conclusion`        | Execution status of Claude Code ('success' or 'failure')                                          |
+| `result_subtype`    | The SDK result subtype, such as `error_max_turns`, when the SDK returns a result                  |
+| `stop_reason`       | The model stop reason, such as `max_tokens`, when the SDK reports one                             |
 | `execution_file`    | Path to the JSON file containing Claude Code execution log                                        |
 | `structured_output` | JSON string containing structured output fields when `--json-schema` is provided in `claude_args` |
 | `session_id`        | The Claude Code session ID that can be used with `--resume` to continue this conversation         |
+
+See [Checking how a run ended](https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md#checking-how-a-run-ended) for an example of reading these outputs after a failed step.
 
 ## Environment Variables
 

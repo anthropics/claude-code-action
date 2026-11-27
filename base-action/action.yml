@@ -96,6 +96,12 @@ outputs:
   conclusion:
     description: "Execution status of Claude Code ('success' or 'failure')"
     value: ${{ steps.run_claude.outputs.conclusion }}
+  result_subtype:
+    description: "The SDK's result subtype, such as 'success' or 'error_max_turns', when a result is received"
+    value: ${{ steps.run_claude.outputs.result_subtype }}
+  stop_reason:
+    description: "The SDK's model stop reason, such as 'end_turn' or 'max_tokens', when available"
+    value: ${{ steps.run_claude.outputs.stop_reason }}
   execution_file:
     description: "Path to the JSON file containing Claude Code execution log"
     value: ${{ steps.run_claude.outputs.execution_file }}

@@ -218,6 +218,60 @@ describe("runClaudeWithSdk", () => {
     }
   });
 
+  test.each([
+    ["success", "max_tokens"],
+    ["error_max_turns", null],
+  ])(
+    "publishes the SDK result before reporting %s",
+    async (subtype, stopReason) => {
+      tempDir = await mkdtemp(join(tmpdir(), "claude-sdk-"));
+      process.env.RUNNER_TEMP = tempDir;
+      const promptPath = join(tempDir, "prompt.txt");
+      await writeFile(promptPath, "test prompt");
+      const setOutput = spyOn(
+        await import("@actions/core"),
+        "setOutput",
+      ).mockImplementation(() => {});
+
+      mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+        query: async function* () {
+          yield {
+            type: "result",
+            subtype,
+            stop_reason: stopReason,
+            is_error: subtype !== "success",
+          };
+        },
+      }));
+
+      try {
+        const { runClaudeWithSdk } = await import("../src/run-claude-sdk");
+        const result = runClaudeWithSdk(promptPath, {
+          sdkOptions: {},
+          showFullOutput: false,
+          hasJsonSchema: false,
+        });
+        if (subtype === "success") {
+          await expect(result).resolves.toMatchObject({
+            conclusion: "success",
+          });
+        } else {
+          await expect(result).rejects.toThrow("Claude execution failed");
+        }
+        expect(setOutput.mock.calls).toEqual(
+          stopReason
+            ? [
+                ["result_subtype", subtype],
+                ["stop_reason", stopReason],
+              ]
+            : [["result_subtype", subtype]],
+        );
+      } finally {
+        setOutput.mockRestore();
+      }
+    },
+  );
+
   test("fails closed when a successful result exceeds maxTurns", async () => {
     const consoleErrorSpy = spyOn(console, "error").mockImplementation(
       () => {},

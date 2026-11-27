@@ -287,6 +287,12 @@ export async function runClaudeWithSdk(
     throw new Error("No result message received from Claude");
   }
 
+  // Publish the SDK result before the action reports a failure.
+  core.setOutput("result_subtype", resultMessage.subtype);
+  if (resultMessage.stop_reason) {
+    core.setOutput("stop_reason", resultMessage.stop_reason);
+  }
+
   if (
     resultMessage.subtype === "success" &&
     !resultMessage.is_error &&
