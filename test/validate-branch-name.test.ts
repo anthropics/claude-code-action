@@ -38,6 +38,15 @@ describe("validateBranchName", () => {
       ).not.toThrow();
     });
 
+    it("should accept branch names containing semicolons", () => {
+      expect(() =>
+        validateBranchName("FIDA-3971;-adjust-mapping"),
+      ).not.toThrow();
+      expect(() =>
+        validateBranchName("FIDA-3983;-+3P-prod-costs-fix"),
+      ).not.toThrow();
+    });
+
     it("should accept typical branch name formats", () => {
       expect(() =>
         validateBranchName("claude/issue-123-20250101-1234"),
