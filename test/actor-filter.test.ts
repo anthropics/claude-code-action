@@ -71,13 +71,25 @@ describe("actorMatchesPattern", () => {
     expect(actorMatchesPattern("dependabot[bot]", "renovate[bot]")).toBe(false);
   });
 
-  test("is case sensitive", () => {
-    expect(actorMatchesPattern("User1", "user1")).toBe(false);
-    expect(actorMatchesPattern("user1", "User1")).toBe(false);
+  test("matches GitHub logins regardless of capitalization", () => {
+    expect(actorMatchesPattern("User1", "user1")).toBe(true);
+    expect(actorMatchesPattern("user1", "User1")).toBe(true);
+    expect(actorMatchesPattern("Renovate[bot]", "RENOVATE[bot]")).toBe(true);
+    expect(actorMatchesPattern("Dependabot[bot]", "*[BOT]")).toBe(true);
   });
 });
 
 describe("shouldIncludeCommentByActor", () => {
+  test("applies mixed-case include and exclude filters to the same login", () => {
+    expect(
+      shouldIncludeCommentByActor("Renovate[bot]", [], ["renovate[bot]"]),
+    ).toBe(false);
+    expect(shouldIncludeCommentByActor("aLiCe", ["Alice"], [])).toBe(true);
+    expect(shouldIncludeCommentByActor("ALICE", ["alice"], ["Alice"])).toBe(
+      false,
+    );
+  });
+
   test("includes all when no filters", () => {
     expect(shouldIncludeCommentByActor("user1", [], [])).toBe(true);
     expect(shouldIncludeCommentByActor("bot[bot]", [], [])).toBe(true);
