@@ -133,6 +133,57 @@ describe("git-config", () => {
       expect(gitConfigGetAll("user.name")).toBe("pre-existing");
     });
 
+    // actions/checkout v6+ (non-global path) writes the header to a file under
+    // RUNNER_TEMP and pulls it in with includeIf.gitdir:, not include.path (#1721).
+    test("removes the checkout extraheader from an includeIf.gitdir: credentials file", async () => {
+      git(["config", "--local", "--unset-all", EXTRAHEADER_KEY]);
+      const gitDir = runGit(["rev-parse", "--absolute-git-dir"]);
+      const credentialsPath = join(tempDir, "git-credentials-1234.config");
+      runGit([
+        "config",
+        "--file",
+        credentialsPath,
+        EXTRAHEADER_KEY,
+        "AUTHORIZATION: basic checkout",
+      ]);
+      git([
+        "config",
+        "--local",
+        `includeIf.gitdir:${gitDir}.path`,
+        credentialsPath,
+      ]);
+      git([
+        "config",
+        "--local",
+        `includeIf.gitdir:${gitDir}/worktrees/*.path`,
+        credentialsPath,
+      ]);
+      expect(
+        runGit(["config", "--includes", "--get-all", EXTRAHEADER_KEY]),
+      ).toContain("AUTHORIZATION");
+
+      await replaceCheckoutCredentials(
+        "test-token",
+        createMockAutomationContext(),
+      );
+
+      let effective = "";
+      try {
+        effective = runGit([
+          "config",
+          "--includes",
+          "--get-all",
+          EXTRAHEADER_KEY,
+        ]);
+      } catch {
+        // No value left anywhere git reads from.
+      }
+      expect(effective).toBe("");
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        "✓ Removed existing authentication headers",
+      );
+    });
+
     test("uses a credential helper when non-write users are allowed", async () => {
       process.env.ALLOWED_NON_WRITE_USERS = "someone";
 
