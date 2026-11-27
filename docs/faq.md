@@ -100,6 +100,10 @@ Yes! Claude can access GitHub Actions workflow runs, job logs, and test results 
 
 Claude will then be able to analyze CI failures and help debug workflow issues. For running tests locally before commits, you can still instruct Claude to do so in your request, except on pull requests whose author does not have write access. For pull requests from forks, which need `allow_fork_prs: "true"`, see [Security](./security.md#running-code-from-pull-requests) for another way to get test results.
 
+### Why does `gh pr view` or `gh pr checks` fail with `Resource not accessible by integration`?
+
+If the error mentions `statusCheckRollup`, the GitHub CLI is requesting check or commit status data that the action's GitHub token may lack permission to read. When you only need the PR's conversation comments, run `gh pr view <number> --json comments` to request just that field. For GitHub Actions workflow run statuses, use `mcp__github_ci__get_ci_status` with the `actions: read` setup above.
+
 ### Why does Claude only update one comment instead of creating new ones?
 
 Claude is configured to update a single comment to avoid cluttering PR/issue discussions. All of Claude's responses, including progress updates and final results, will appear in the same comment with checkboxes showing task progress.
