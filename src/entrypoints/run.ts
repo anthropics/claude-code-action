@@ -53,6 +53,7 @@ import {
   keepHeadHistory,
   restoreConfigFromBase,
 } from "../github/operations/restore-config";
+import { getShallowCheckoutContext } from "../github/operations/fetch-depth";
 import {
   restoreToolConfigFromBase,
   toolConfigDenyRules,
@@ -490,6 +491,7 @@ async function run() {
         claudeArgs: prepareResult.claudeArgs,
         disallowedTools: disallowedTools.join(","),
         appendSystemPrompt: process.env.APPEND_SYSTEM_PROMPT,
+        systemPromptContext: getShallowCheckoutContext(),
         model: process.env.ANTHROPIC_MODEL,
         pathToClaudeCodeExecutable: claudeExecutable,
         showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
