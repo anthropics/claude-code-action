@@ -25,8 +25,9 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
-          # Enable progress tracking
+          # Update one progress comment on each PR.
           track_progress: true
+          use_sticky_comment: true
 
           # Your custom review instructions
           prompt: |
@@ -60,15 +61,16 @@ jobs:
                - Verify README updates for new features
                - Check API documentation accuracy
 
-            Provide detailed feedback using inline comments for specific issues.
-            Use top-level comments for general observations or praise.
+            Use the tracking comment for your review summary and general observations.
+            Post inline comments for actionable findings that do not already have a comment.
+            Summarize any resolved findings in the tracking comment.
 
           # Tools for comprehensive PR review
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*)"
 
 # When track_progress is enabled:
-# - Creates a tracking comment with progress checkboxes
+# - Keeps one tracking comment with progress checkboxes
 # - Includes all PR context (comments, attachments, images)
 # - Updates progress as the review proceeds
 # - Marks as completed when done
