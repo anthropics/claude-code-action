@@ -266,23 +266,31 @@ export async function setupBranch(
         : branchName;
       console.log(`PR #${entityNumber}: pinning ${localBranch} to ${headSha}`);
 
-      // GitHub omits headRepository when the action token cannot read a private
-      // fork. The base repository still exposes the PR head ref, so fetch it
-      // there and verify that it resolves to the SHA returned by GraphQL before
-      // checking anything out.
-      const fetchRef = prData.headRepository
-        ? headSha
-        : `refs/pull/${entityNumber}/head`;
-      execGit(["fetch", "origin", ...depthArgs, fetchRef]);
-
-      if (!prData.headRepository) {
-        const fetchedSha = execFileSync("git", ["rev-parse", "FETCH_HEAD"], {
-          encoding: "utf8",
-        }).trim();
-        if (fetchedSha !== headSha) {
-          throw new Error(
-            `PR #${entityNumber} was updated while its head was being fetched (${headSha} -> ${fetchedSha}). Mention Claude again to run on the latest version.`,
-          );
+      if (prData.headRepository) {
+        execGit(["fetch", "origin", ...depthArgs, headSha]);
+      } else {
+        // GitHub omits headRepository when the action token cannot read a
+        // private fork. Fetch the pinned SHA from the base repository as usual;
+        // if the server will not serve it directly, fall back to the PR's head
+        // ref there and verify that it still resolves to the SHA returned by
+        // GraphQL before checking anything out.
+        try {
+          execGit(["fetch", "origin", ...depthArgs, headSha]);
+        } catch {
+          execGit([
+            "fetch",
+            "origin",
+            ...depthArgs,
+            `refs/pull/${entityNumber}/head`,
+          ]);
+          const fetchedSha = execFileSync("git", ["rev-parse", "FETCH_HEAD"], {
+            encoding: "utf8",
+          }).trim();
+          if (fetchedSha !== headSha) {
+            throw new Error(
+              `PR #${entityNumber} was updated while its head was being fetched (${headSha} -> ${fetchedSha}). Mention Claude again to run on the latest version.`,
+            );
+          }
         }
       }
 

@@ -16,8 +16,11 @@ describe("setupBranch PR version pinning", () => {
   let sourceDir: string;
   let checkoutDir: string;
   let headSha: string;
+  // A private fork PR is checked out only when fork PRs are allowed.
+  const savedAllowForkPrs = process.env.ALLOW_FORK_PRS;
 
   beforeEach(() => {
+    process.env.ALLOW_FORK_PRS = "true";
     originalCwd = process.cwd();
     tempDir = mkdtempSync(join(tmpdir(), "pr-version-pin-"));
     originDir = join(tempDir, "origin.git");
@@ -49,6 +52,8 @@ describe("setupBranch PR version pinning", () => {
   });
 
   afterEach(() => {
+    if (savedAllowForkPrs === undefined) delete process.env.ALLOW_FORK_PRS;
+    else process.env.ALLOW_FORK_PRS = savedAllowForkPrs;
     process.chdir(originalCwd);
     rmSync(tempDir, { recursive: true, force: true });
   });
@@ -71,15 +76,27 @@ describe("setupBranch PR version pinning", () => {
       privateForkData(),
       prCommentContext(),
       TRIGGER_TIME,
+      false,
     );
 
-    expect(result).toEqual({ baseBranch: "main", currentBranch: "pr-42" });
+    expect(result).toEqual({
+      baseBranch: "main",
+      currentBranch: "pr-42",
+      isFork: true,
+    });
     expect(git(checkoutDir, "rev-parse", "HEAD")).toBe(headSha);
     expect(activityRequests).toBe(0);
   });
 
   test("rejects a private fork pull ref that changed after its SHA was read", async () => {
-    git(sourceDir, "commit", "--allow-empty", "-qm", "new private fork head");
+    git(
+      sourceDir,
+      "commit",
+      "--amend",
+      "--allow-empty",
+      "-qm",
+      "rewritten private fork head",
+    );
     const updatedSha = git(sourceDir, "rev-parse", "HEAD");
     git(
       sourceDir,
@@ -89,6 +106,10 @@ describe("setupBranch PR version pinning", () => {
       "origin",
       `HEAD:refs/pull/${PR_NUMBER}/head`,
     );
+    // After a force-push the old head is no longer served, so the pinned SHA
+    // cannot be fetched directly and the pull ref is used instead.
+    git(originDir, "reflog", "expire", "--expire=now", "--all");
+    git(originDir, "gc", "-q", "--prune=now");
 
     await expect(
       setupBranch(
@@ -96,6 +117,7 @@ describe("setupBranch PR version pinning", () => {
         privateForkData(),
         prCommentContext(),
         TRIGGER_TIME,
+        false,
       ),
     ).rejects.toThrow(
       `PR #${PR_NUMBER} was updated while its head was being fetched (${headSha} -> ${updatedSha})`,
@@ -125,6 +147,7 @@ describe("setupBranch PR version pinning", () => {
         }),
         prCommentContext(),
         TRIGGER_TIME,
+        false,
       ),
     ).rejects.toThrow(
       `PR #${PR_NUMBER} was updated after the trigger (${TRIGGER_TIME} >= ${TRIGGER_TIME})`,
