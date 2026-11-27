@@ -12,6 +12,12 @@
 
 > Don't want to store a static API key at all? See [Workload Identity Federation](#workload-identity-federation) below.
 
+### Subscription usage
+
+The action runs Claude Code through the Agent SDK. When you configure `claude_code_oauth_token` with a token from `claude setup-token`, those runs draw from the same subscription allowance as your interactive Claude Code sessions. You can check your remaining allowance and reset times in **Settings → Usage** on Claude.
+
+The [Claude Agent SDK subscription guide](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan) explains which credentials use the subscription allowance or API billing. It does not specify a conversion rate between SDK and interactive usage.
+
 ## Workload Identity Federation
 
 Workload Identity Federation (WIF) lets the action authenticate to the Claude API by exchanging the workflow's GitHub Actions OIDC token for a short-lived Anthropic access token — no `ANTHROPIC_API_KEY` secret to create, store, or rotate.
