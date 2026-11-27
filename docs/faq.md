@@ -168,6 +168,27 @@ claude_args: |
   --append-system-prompt "Focus on security"
 ```
 
+### How do I load a system prompt from a file?
+
+Pass `--system-prompt-file` in `claude_args` to replace the default system
+prompt with a file. Check out the repository before invoking the action and
+quote the path if it contains spaces. Relative paths resolve from the
+runner's working directory.
+
+```yaml
+- uses: actions/checkout@v6
+
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    prompt: "Review this pull request."
+    claude_args: |
+      --system-prompt-file '.github/prompts/review rules.md'
+```
+
+Use `prompt` for the task and keep reusable instructions in the system prompt
+file. See the [Claude Code CLI reference](https://code.claude.com/docs/en/cli-reference#system-prompt-flags).
+
 ### Why doesn't Claude execute my bash commands?
 
 In [auto mode](./usage.md#permission-mode), the default, a safety review decides any Bash command that no allow rule covers, and it can block yours. With `--permission-mode acceptEdits` or `default`, most Bash commands are denied unless allowed. To allow individual bash commands using `claude_args`:
