@@ -36,11 +36,11 @@ function extractFirstLabel(githubData: FetchDataResult): string | undefined {
  * Valid branch names:
  * - Start with alphanumeric character, underscore, or @ (not dash, to prevent option injection)
  * - Contain only alphanumeric, forward slash, hyphen, underscore, period, hash (#), plus (+), comma (,), at sign (@), or parentheses
- * - Do not start or end with a period
+ * - Do not end with a period or have any component starting with a period
  * - Do not end with a slash
  * - Do not contain '..' (path traversal)
  * - Do not contain '//' (consecutive slashes)
- * - Do not end with '.lock'
+ * - Do not have any component ending with '.lock'
  * - Do not contain '@{'
  * - Are not the single character '@' (HEAD shorthand in git revision syntax)
  * - Do not contain control characters or special git characters (~^:?*[\])
@@ -117,9 +117,15 @@ export function validateBranchName(branchName: string): void {
     );
   }
 
-  if (branchName.endsWith(".lock")) {
+  if (branchName.includes("/.")) {
     throw new Error(
-      `Invalid branch name: "${branchName}". Branch names cannot end with '.lock'`,
+      `Invalid branch name: "${branchName}". Branch name components cannot start with a period.`,
+    );
+  }
+
+  if (branchName.endsWith(".lock") || branchName.includes(".lock/")) {
+    throw new Error(
+      `Invalid branch name: "${branchName}". Branch name components cannot end with '.lock'.`,
     );
   }
 
