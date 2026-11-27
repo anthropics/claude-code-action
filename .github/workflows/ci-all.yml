@@ -19,6 +19,9 @@ jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
+  test-agent-approval-check:
+    uses: ./.github/workflows/test-agent-approval-check.yml
+
   test-base-action:
     uses: ./.github/workflows/test-base-action.yml
 
