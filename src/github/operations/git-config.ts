@@ -60,7 +60,8 @@ export async function configureGitAuth(
  * actions/checkout < v6 stored the header directly in the repo-local config,
  * where `git config --unset-all` removes it. Since v6.0.0 (backported to
  * v5.0.1 and v4.3.1) the header is written to a separate file under
- * RUNNER_TEMP that the repo config pulls in via `include.path`; `--unset-all`
+ * RUNNER_TEMP that the repo config pulls in via `include.path` or
+ * `includeIf.gitdir:<gitdir>.path`; `--unset-all`
  * on the local config cannot touch an include-provided value, so the removal
  * was a silent no-op and the checkout credential (typically the workflow
  * GITHUB_TOKEN) stayed usable by git for the rest of the job. Clear the
@@ -77,27 +78,31 @@ export async function replaceCheckoutCredentials(
   console.log("Removing existing git authentication headers...");
   const extraheaderKey = `http.${GITHUB_SERVER_URL}/.extraheader`;
   let removedHeader = false;
+  // Ask git which files the active header values come from, so every layout is
+  // covered: the local config itself, include.path, and the includeIf.gitdir:
+  // entries actions/checkout writes for a normal (non-global) checkout (#1721).
+  // --null prints "<origin>\0<value>\0" per value.
+  const configPaths = new Set<string>();
   try {
-    await $`git config --unset-all ${extraheaderKey}`;
-    removedHeader = true;
-  } catch {
-    // No extraheader in the local config (expected on the v6+ include layout).
-  }
-  try {
-    const includePaths =
-      await $`git config --local --get-all include.path`.text();
-    for (const includePath of includePaths.split("\n")) {
-      const path = includePath.trim();
-      if (!path) continue;
-      try {
-        await $`git config --file ${path} --unset-all ${extraheaderKey}`;
-        removedHeader = true;
-      } catch {
-        // This include does not define the header; leave it untouched.
+    const fields = (
+      await $`git config --local --includes --null --show-origin --get-all ${extraheaderKey}`.text()
+    ).split("\0");
+    for (let i = 0; i + 1 < fields.length; i += 2) {
+      const origin = fields[i];
+      if (origin?.startsWith("file:")) {
+        configPaths.add(origin.slice("file:".length));
       }
     }
   } catch {
-    // No include.path entries in the local config.
+    // No extraheader in the local config or anything it includes.
+  }
+  for (const path of configPaths) {
+    try {
+      await $`git config --file ${path} --unset-all ${extraheaderKey}`;
+      removedHeader = true;
+    } catch {
+      // Already gone from this file; continue with the rest.
+    }
   }
   console.log(
     removedHeader
