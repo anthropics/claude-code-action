@@ -8,12 +8,21 @@ export type WorkflowRunsParams = Parameters<
 
 export type WorkflowJobsParams = Parameters<
   ActionsClient["listJobsForWorkflowRun"]
->[0];
+>[0] & { attempt_number?: number };
 
 export function listWorkflowRuns(client: Octokit, params: WorkflowRunsParams) {
   return client.paginate(client.actions.listWorkflowRunsForRepo, params);
 }
 
-export function listWorkflowJobs(client: Octokit, params: WorkflowJobsParams) {
+export function listWorkflowJobs(
+  client: Octokit,
+  { attempt_number, ...params }: WorkflowJobsParams,
+) {
+  if (attempt_number !== undefined) {
+    return client.paginate(client.actions.listJobsForWorkflowRunAttempt, {
+      ...params,
+      attempt_number,
+    });
+  }
   return client.paginate(client.actions.listJobsForWorkflowRun, params);
 }
