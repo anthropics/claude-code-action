@@ -224,13 +224,28 @@ server.tool(
           "\n\nThis usually means the PR number, repository, or file path is incorrect.";
       }
 
+      // Octokit can assign a synthetic status to transport errors. Only report
+      // an HTTP status when GitHub actually returned a response.
+      const response = (error as { response?: { status?: unknown } } | null)
+        ?.response;
+      const details = {
+        success: false,
+        error: errorMessage,
+        ...(typeof response?.status === "number"
+          ? { http_status: response.status }
+          : {}),
+        message: `Error creating inline comment: ${errorMessage}${helpMessage}`,
+      };
+
       return {
         content: [
           {
             type: "text",
-            text: `Error creating inline comment: ${errorMessage}${helpMessage}`,
+            // Failure hooks may receive only this text, not structuredContent.
+            text: JSON.stringify(details, null, 2),
           },
         ],
+        structuredContent: details,
         error: errorMessage,
         isError: true,
       };
