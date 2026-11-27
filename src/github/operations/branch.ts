@@ -7,7 +7,10 @@
  */
 
 import { $ } from "bun";
-import { execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
+import { closeSync, mkdtempSync, openSync, readFileSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import type { ParsedGitHubContext } from "../context";
 import { isPullRequestEvent } from "../context";
 import { retryWithBackoff } from "../../utils/retry";
@@ -137,16 +140,36 @@ export function validateBranchName(branchName: string): void {
 }
 
 /**
- * Executes a git command safely using execFileSync to avoid shell interpolation.
+ * Executes a git command safely using spawnSync to avoid shell interpolation.
  *
- * Security: execFileSync passes arguments directly to the git binary without
+ * Security: spawnSync passes arguments directly to the git binary without
  * invoking a shell, preventing command injection attacks where malicious input
  * could be interpreted as shell commands (e.g., branch names containing `;`, `|`, `&&`).
+ * Git's output can hold commit subjects and file names, so it's logged through console.
  *
  * @param args - Git command arguments (e.g., ["checkout", "branch-name"])
  */
-function execGit(args: string[], env: NodeJS.ProcessEnv = process.env): void {
-  execFileSync("git", args, { stdio: "inherit", env });
+export function execGit(
+  args: string[],
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  // Not a pipe, which a process that a hook leaves running would keep open
+  const dir = mkdtempSync(join(tmpdir(), "claude-git-"));
+  const path = join(dir, "output");
+  const fd = openSync(path, "wx");
+  try {
+    const { error, status } = spawnSync("git", args, {
+      stdio: ["inherit", fd, fd],
+      env,
+    });
+    const output = readFileSync(path, "utf8").trim();
+    if (output) console.log(output);
+    if (error) throw error;
+    if (status !== 0) throw new Error(`Command failed: git ${args.join(" ")}`);
+  } finally {
+    closeSync(fd);
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 export type BranchInfo = {

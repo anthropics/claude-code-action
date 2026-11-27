@@ -140,6 +140,7 @@ describe("in a shallow checkout of the default branch", () => {
   let originalCwd: string;
   let dir: string;
   let head: string;
+  const allowForkPrs = process.env.ALLOW_FORK_PRS;
   const git = (cwd: string, ...args: string[]) =>
     execFileSync(
       "git",
@@ -173,9 +174,12 @@ describe("in a shallow checkout of the default branch", () => {
     git(checkout, "fetch", "--depth=1", "origin", "trunk");
     git(checkout, "checkout", "-B", "trunk", "origin/trunk");
     process.chdir(checkout);
+    process.env.ALLOW_FORK_PRS = "true";
   });
 
   afterEach(() => {
+    if (allowForkPrs === undefined) delete process.env.ALLOW_FORK_PRS;
+    else process.env.ALLOW_FORK_PRS = allowForkPrs;
     process.chdir(originalCwd);
     rmSync(dir, { recursive: true, force: true });
   });
@@ -313,7 +317,7 @@ describe("in a shallow checkout whose history contains the config branch", () =>
   );
 });
 
-test("run.ts restores both kinds of config from the chosen branch", () => {
+test("run.ts restores every kind of config from the chosen branch", () => {
   const source = readFileSync(
     join(import.meta.dir, "../src/entrypoints/run.ts"),
     "utf8",
@@ -327,5 +331,8 @@ test("run.ts restores both kinds of config from the chosen branch", () => {
   expect(source).toContain("restoreHeadHistory?.();");
   expect(source).toContain("pinRestoredPaths(restoredConfigPaths)");
   expect(source).toContain("restoreToolConfigFromBase(configBranch)");
+  expect(source.replace(/\s+/g, " ")).toContain(
+    "restoreConfigPathsFromBase( configBranch, namedConfigPaths(prepareResult.claudeArgs), )",
+  );
   expect(source).toContain("fetchBranch(restoreBase)");
 });

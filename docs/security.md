@@ -2,7 +2,7 @@
 
 ## Access Control
 
-- **Text From Other People**: Triggering a run does not make someone else's text a request. When a maintainer labels or assigns another person's issue, slash commands in its body do not run, but Claude still reads the body to understand the task, so review it first. A pull request's body can also start a run when a maintainer pushes to, reopens or labels it, where `track_progress` is set. Editing or deleting another person's comment or review does not start a run, even with a `prompt`.
+- **Text From Other People**: Triggering a run does not make someone else's text a request. When a maintainer labels or assigns another person's issue, slash commands in its body do not run, but Claude still reads the body to understand the task, so review it first. A pull request's body can also start a run when a maintainer pushes to, reopens or labels it, where `track_progress` is set. Editing or dismissing another person's comment or review, or deleting any comment, does not start a run, even with a `prompt`.
 - **Repository Access**: The action can only be triggered by users with write access to the repository. This is checked for issue, pull request, comment, and review events, and for `workflow_run` events, where both the workflow actor and the actor that started the upstream run are checked. `workflow_dispatch`, `repository_dispatch`, and `schedule` events are not checked separately — GitHub itself requires write access to dispatch a workflow, and scheduled runs have no external actor.
 - **Bot User Control**: By default, GitHub Apps and bots cannot trigger this action for security reasons. Use the `allowed_bots` parameter to enable specific bots or all bots
   - **⚠️ Allowed bots are not checked for repository permissions.** A bot that matches an entry does **not** need to be installed on your repository or have write access. On a **public repository**, external parties — including GitHub Apps created by anyone — may be able to trigger workflow events such as opening issues, commenting, or reviewing pull requests. If your workflow listens on those events and `allowed_bots` is set to `'*'`, any such App can invoke this action with a prompt it controls.
@@ -26,7 +26,7 @@
 
 ## Using this action with `pull_request_target` or `workflow_run`
 
-For `workflow_run` events, the action checks the repository access of the actor that started the upstream run (for example, the author of the fork pull request that triggered your CI workflow) in addition to the workflow actor. When the run came from a fork, it also checks the fork's owner, because GitHub credits a run to whoever caused it, such as a maintainer reopening the pull request. If any of these accounts does not have write access, the action stops before running Claude. To run on `workflow_run` events downstream of pull requests from contributors without write access, add those users to `allowed_non_write_users` and pass `github_token: ${{ secrets.GITHUB_TOKEN }}` — see the notes on that input above and keep the workflow's permissions minimal.
+For `workflow_run` events, the action checks the repository access of the actor that started the upstream run (for example, the author of the fork pull request that triggered your CI workflow) in addition to the workflow actor. When the run came from a fork, it also checks the fork's owner, because GitHub credits a run to whoever caused it, such as a maintainer reopening the pull request. If any of these accounts does not have write access, the action stops before running Claude. The action skips a run from a fork unless [`allow_fork_prs`](#pull-requests-from-forks) is `true`. To run on `workflow_run` events downstream of pull requests from contributors without write access, also add those users to `allowed_non_write_users` and pass `github_token: ${{ secrets.GITHUB_TOKEN }}` — see the notes on that input above and keep the workflow's permissions minimal.
 
 `pull_request_target` and `workflow_run` execute with the **base repository's secrets**. If your workflow checks out the PR head (`ref: ${{ github.event.pull_request.head.sha }}` for `pull_request_target`, `ref: ${{ github.event.workflow_run.head_sha }}` for `workflow_run`) into `$GITHUB_WORKSPACE` before this action, the action and Claude run with that checkout as the working directory.
 
@@ -65,23 +65,29 @@ Everything else in the working tree — including `package.json`, lockfiles, `Ma
 
 On pull requests from authors without write access, the action also replaces what npm and Bun read from the repository root with the base branch's version, wherever the two differ: `.npmrc`, `bunfig.toml` and tracked files in `node_modules/`. In a `package.json` whose `name`, `bin`, `directories.bin` or `workspaces` change the commands it provides, only `name`, `bin`, `directories` and `workspaces` are replaced, or the whole file if it can't be understood, including in other directories if the base branch uses workspaces. The pull request's versions are kept under `.claude-pr/` for reading, except for `node_modules/`. Claude can't edit `.npmrc`, `bunfig.toml`, `node_modules/` or, where one was replaced, `package.json` on these pull requests, in any directory. Its Bash commands start in the repository root there, because a hook runs in the session's current directory and only the root's files are replaced. The replaced files stay in the working tree for later steps in the job, and if Claude stages everything, its commit can include them, as with the paths above. `restrict_untrusted_prs: false` turns this off.
 
+On these pull requests, files and directories in the checkout that your workflow's inputs name also come from the base branch where the pull request changes them or a `.gitattributes` that applies to them: `settings`, `plugin_marketplaces`, and in `claude_args` `--settings`, `--mcp-config`, `--plugin-dir`, `--plugin-dir-no-mcp`, `--agents`, `--project-config-root`, `--system-prompt-file`, `--append-system-prompt-file` and `--append-subagent-system-prompt-file`. The pull request's versions are kept under `.claude-pr/` for reading, and Claude can't edit what these inputs name, apart from the paths listed above. The replaced files stay in the working tree here too. A file that only the pull request has is removed. The run stops if an input names the whole repository as a plugin or marketplace, except that a marketplace at the root works if all its plugins are in subdirectories, if it names a path with `..` after another directory, or if it names files in a submodule that the pull request has at another commit. What symbolic links lead to, files that other config names, for example in a `settings.json`, and executables are not covered. Git LFS files are written as pointers.
+
 This doesn't cover other package managers, the `.env` files and `tsconfig.json` that Bun loads, other files that a hook's own command reads, or a git command that resets the working tree during the session, so keep hooks self-contained as described above. Files that git doesn't track, such as packages an earlier step installed, stay as they are. A file that is the same link on both branches is left as a link.
 
 Note that the runtime executing the tool also reads project config. `bunx <tool>` runs the tool's script under `node` when `node` is on `PATH` (as it is on GitHub-hosted runners); when only Bun is available, Bun executes the script itself and reads `bunfig.toml` from the checkout — including `preload` entries — which comes from the PR head. On such runners, make sure `node` is on `PATH` for the hook, and treat `bunfig.toml` and `.npmrc` in the checkout as PR-controlled runtime config on pull requests from authors with write access.
 
-### Refusing pull requests from forks
+<a id="refusing-pull-requests-from-forks"></a>
 
-By default, someone with write access can have the action work on a pull request from a fork. If you don't need that, turn it off, so that the action itself never checks out a fork's code:
+### Pull requests from forks
+
+By default, the action skips pull requests from forks, so that it never checks out a fork's code itself. To let someone with write access have it work on them, read [Running code from pull requests](#running-code-from-pull-requests), then opt in:
 
 ```yaml
 - uses: anthropics/claude-code-action@v1
   with:
-    allow_fork_prs: "false"
+    allow_fork_prs: "true"
 ```
 
-The action then skips a pull request whose branch is in another repository, or in a fork that was deleted. It does so for every event, including comments on the conversation, whoever opened the pull request and whether it is open or closed. It also skips `workflow_run` events for a fork's run. It logs a warning, checks nothing out and doesn't start Claude, and the step succeeds without Claude's outputs, so a required check that only runs the action passes. Any value other than `true` turns forks off, including an empty one.
+Without that, the action skips a pull request whose branch is in another repository, or in a fork that was deleted. It does so for every event that names the pull request, including comments on the conversation, whoever opened the pull request and whether it is open or closed. It also skips `workflow_run` events for a fork's run. It logs a warning, checks nothing out and doesn't start Claude, and the step succeeds without Claude's outputs, so a required check that only runs the action passes without a review. A later step that needs the action's outputs has to handle empty ones. Any value other than `true` turns forks off, including an empty one.
 
-For a comment on the conversation, the action asks GitHub where the branch is, after it has checked the commenter's write access. The token needs `pull-requests: read` for that. If the answer can't be read, the run fails before anything is checked out.
+Where a fork's event comes with credentials, the action first checks write access and, for a bot, `allowed_bots`, and a run that those checks refuse fails instead of being skipped. This covers comments on the conversation, `pull_request_target` and `workflow_run`, and in a private repository other events that get a token or the Anthropic secrets.
+
+For a comment on the conversation that triggers it, the action asks GitHub where the branch is, after it has checked the commenter's write access. It does so for pull requests from your own repository too, so the token needs `pull-requests: read`. If the answer can't be read, the run fails before anything is checked out.
 
 This covers what the action does with the event that started it. It doesn't cover:
 
@@ -90,6 +96,8 @@ This covers what the action does with the event that started it. It doesn't cove
 - **Commands in a session.** On an issue, for example, Claude could fetch a fork's commits with commands that you allow or that auto mode's review passes, such as `git` or `gh`.
 - **Commits already in your repository**, such as a `pr-N` branch from an earlier run, or a fork's commits that someone pushed to a branch of yours.
 - **Text.** Issues and comments from outside contributors still reach Claude.
+
+**Upgrading:** `allow_fork_prs` used to default to `true`. Workflows that use a floating tag or branch such as `@v1` or `@main` get the new default without changing anything. If yours relied on Claude working on pull requests from forks, including your team's own forks, or on `workflow_run` events for a fork's run, set `allow_fork_prs: "true"`. This is needed with `allowed_non_write_users` too. Otherwise, a required check on those pull requests can now pass without Claude having run. If you already set it to `"false"`, runs with credentials that the write and bot checks refuse now fail where they used to be skipped. If it runs on comments on pull requests with a token of its own, check that the token has `pull-requests: read`.
 
 ### Running code from pull requests
 
@@ -103,13 +111,13 @@ By default, when the pull request's author does not have write access, the actio
 - **Text can still steer Claude.** On an issue or a trusted author's pull request these commands stay allowed, so text from an outside contributor could try to get Claude to edit a file and then run it. Keep the rules you grant in `claude_args` as narrow as you can.
 - **Other broad rules weaken the protections.** `Write` lets Claude write outside the workspace, and `Bash(git:*)` can still run programs through forms this list does not deny, such as `git rebase --exec`. Avoid them in workflows that handle outside contributions.
 
-**Pushes on pull requests from forks:** in tag mode on an open pull request from a fork, Claude pushes to `pr-N` in your repository. That branch holds the fork's commits as well as Claude's, and GitHub's limits on runs from forks don't apply to it. A workflow or other CI that builds it runs the contributor's code and can have your secrets.
+**Pushes on pull requests from forks:** with `allow_fork_prs: "true"`, in tag mode on an open pull request from a fork, Claude pushes to `pr-N` in your repository. That branch holds the fork's commits as well as Claude's, and GitHub's limits on runs from forks don't apply to it. A workflow or other CI that builds it runs the contributor's code and can have your secrets.
 
 - Keep `pr-*` out of CI that holds secrets, for example with `branches-ignore: ["pr-*"]` on `push` triggers, and check CI outside GitHub too.
 - Don't deploy or release from `pr-N`. Review the fork's commits before you merge the branch or open a pull request from it, and delete it when you are done.
 - To stop Claude's pushes in a workflow, on all pull requests and issues, add `--disallowedTools "Bash(git push:*)"` to `claude_args`. With `use_commit_signing`, also deny `mcp__github_file_ops`.
 
-**Getting test results:** on pull requests from forks, run the tests in a separate `pull_request` workflow that needs no secrets, and let Claude read the outcome. The pull request's code then runs outside the job that holds Claude's tokens, which is not the case with `restrict_untrusted_prs: false`.
+**Getting test results:** if you [allow pull requests from forks](#pull-requests-from-forks), run their tests in a separate `pull_request` workflow that needs no secrets, and let Claude read the outcome. The pull request's code then runs outside the job that holds Claude's tokens, which is not the case with `restrict_untrusted_prs: false`.
 
 1. In the test workflow, set `permissions: contents: read`. GitHub also limits the token to read access and withholds secrets on pull requests from forks of a public repository. That limit is the real protection, because a pull request can edit the workflow file.
 2. Set your repository to require approval for all external contributors. Review the changes, including workflow files, and then approve the runs. GitHub doesn't ask for approval on pull requests from members of your organization.
@@ -126,9 +134,9 @@ Bots often open pull requests from branches in your own repository. Runs there u
 
 ### What a session can leave behind
 
-Steps that run after Claude, including post steps such as `actions/checkout`'s cleanup, trust `GITHUB_ENV`, `GITHUB_PATH` and git's config files. When the session ends, the action restores those files, including config pulled in through `include.path`, to how they were before it started, and logs a warning naming any it changed. A session therefore can't pass environment variables to later steps through `GITHUB_ENV`, and `git config` changes it made, such as the upstream that `git push -u` records, don't last. Use `GITHUB_OUTPUT` or `--json-schema` to pass results on.
+Steps that run after Claude, including post steps such as `actions/checkout`'s cleanup, trust `GITHUB_ENV`, `GITHUB_PATH` and git's config files, and the action's own outputs in `GITHUB_OUTPUT`. When the session ends, the action restores those files, including config pulled in through `include.path`, to how they were before it started, and logs a warning naming any it changed. A session therefore can't pass environment variables to later steps through `GITHUB_ENV`, and `git config` changes it made, such as the upstream that `git push -u` records, don't last. Use `--json-schema` to pass results on. What a session writes to `GITHUB_OUTPUT` is dropped, because the action passes on only its own outputs. What a session writes to `GITHUB_STEP_SUMMARY` is kept, unless it replaced the file with a link or something else that isn't a file.
 
-While Claude runs, and for the action's own git commands afterwards, git ignores `core.fsmonitor`. Git hooks are off for the action's own commits after the session, and from before the checkout on pull requests that `restrict_untrusted_prs` applies to. During the session these are set in the repository's git config and by the wrapper scripts. Global git config also sets `safe.bareRepository=explicit` for the session, so git won't use a repository it finds in a folder that has no `.git`. A workflow that has Claude work in a bare repository needs to pass `--git-dir`. If a run is cancelled before it restores this, the setting stays in the global config of a self-hosted runner that keeps its home directory. Git LFS uploads through a hook, so the action uploads objects itself for its own commits, but a push Claude makes on such a pull request won't include them.
+While Claude runs, and for the action's own git commands afterwards, git ignores `core.fsmonitor`. Git hooks are off for the action's own commits after the session, and from before the checkout on pull requests that `restrict_untrusted_prs` applies to. During the session these are set in the repository's git config and by the wrapper scripts. Global git config also sets `safe.bareRepository=explicit` for the session, so git won't use a repository it finds in a folder that has no `.git`. A workflow that has Claude work in a bare repository needs to pass `--git-dir`. If a run is killed before it restores this, the setting stays in the global config of a self-hosted runner that keeps its home directory. Git LFS uploads through a hook, so the action uploads objects itself for its own commits, but a push Claude makes on such a pull request won't include them.
 
 The action's own git commands use `safe.bareRepository=explicit` too. If the action starts in a bare repository, it doesn't set this before the session, unless `restrict_untrusted_prs` applies. On pull requests that `restrict_untrusted_prs` applies to, the action also checks out the pull request with `GIT_LFS_SKIP_SMUDGE=1`, so files that Git LFS hasn't downloaded yet stay as pointer files. The variable is set for that checkout only.
 
@@ -137,7 +145,7 @@ Claude's wrapper scripts for `git add`, `git rm`, `git commit` and `git push` al
 This has limits:
 
 - It is not a sandbox. Code running on the runner, for example through an allowed `npm test`, can stop the action before it restores anything, or change the files later steps run, including the code of this and other actions. An allow rule for `Write` can reach those files too, so treat it like allowing code to run.
-- A run that is cancelled or times out during the session does not restore anything, and later `always()` and post steps still run.
+- When a run is cancelled or times out during the session, the action stops Claude and what it started, restores these files and has the app token revoked. Later `always()` and post steps still run, the tracking comment isn't updated, and buffered inline comments aren't posted. Processes that run as another user or no longer belong to one that Claude started keep running, and on Windows Claude itself can too. Nothing is restored or revoked when the action doesn't get the runner's signal, as in a job with `container:`, or can't react before the runner kills it, as during a long `git fetch`.
 - Submodule config, a repository checked out to a subdirectory, and an `include.path` target that does not exist yet are not restored.
 - The git settings need git 2.31 or newer, and `safe.bareRepository` needs 2.38. On older versions they have no effect.
 
@@ -150,7 +158,7 @@ This has limits:
 In its default configuration, **Claude does not create pull requests automatically** when responding to `@claude` mentions. Instead:
 
 - Claude commits code changes to a new branch, or to the pull request's branch, through wrapper scripts in the action. A deny rule for `git add`, `git rm`, `git commit` or `git push` in `claude_args` also covers those scripts, including a narrower rule such as `git add -A:*`. A deny rule in a settings file doesn't, so pass it in `claude_args`
-- Claude's push command can't update any other branch. For a pull request from a fork, its branch is `pr-N` in your repository, which also holds the [fork's commits](#running-code-from-pull-requests), and the fork's branch is not updated
+- Claude's push command can't update any other branch. For a pull request from a fork, with `allow_fork_prs: "true"`, its branch is `pr-N` in your repository, which also holds the [fork's commits](#running-code-from-pull-requests), and the fork's branch is not updated
 - Branch protection on your default branch is still worth having: a workflow can allow other push commands, and a pull request opened from the default branch has that branch as its own
 - Claude provides a **link to the GitHub PR creation page** in its response
 - **The user must click the link and create the PR themselves**, ensuring human oversight before any code is proposed for merging

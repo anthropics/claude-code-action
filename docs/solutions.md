@@ -17,6 +17,8 @@ This guide provides complete, ready-to-use solutions for common automation scena
 
 ## Automatic PR Code Review
 
+> The action skips pull requests from forks unless [`allow_fork_prs`](./security.md#pull-requests-from-forks) is `true`.
+
 **When to use:** Automatically review every PR opened or updated in your repository.
 
 ### Basic Example (No Tracking)
@@ -193,6 +195,8 @@ jobs:
 ## Review PRs from External Contributors
 
 **When to use:** Apply stricter review criteria for external or new contributors.
+
+> As written, this doesn't run Claude on pull requests from forks, which is where first-time contributors' pull requests come from. See [Security](./security.md#pull-requests-from-forks) before you allow them.
 
 **Complete Example:**
 
@@ -405,11 +409,8 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             ISSUE NUMBER: ${{ github.event.issue.number }}
-            TITLE: ${{ github.event.issue.title }}
-            BODY: ${{ github.event.issue.body }}
-            AUTHOR: ${{ github.event.issue.user.login }}
 
-            Analyze this new issue and:
+            Read this new issue with `./scripts/gh.sh issue view`, then:
             1. Determine if it's a bug report, feature request, or question
             2. Assess priority (critical, high, medium, low)
             3. Suggest appropriate labels
@@ -433,7 +434,7 @@ jobs:
 **Key Configuration:**
 
 - Triggered on new issues
-- Issue context in prompt
+- Claude reads the issue itself. The prompt only has its number, because anyone who can open an issue controls its title and body
 - Label management capabilities
 - Requires `scripts/gh.sh` and `scripts/edit-issue-labels.sh` in your repo (see this repo's `scripts/` directory for examples)
 
@@ -586,7 +587,7 @@ prompt: |
 ### Common Tool Permissions
 
 - **PR Comments**: `Bash(gh pr comment:*)`
-- **Inline Comments**: `mcp__github_inline_comment__create_inline_comment` — pass `confirmed: true` to post immediately. When omitted, the comment is buffered and classified after the session ends (real review comments post, test/probe comments are filtered). This prevents subagent test comments from reaching PRs. To disable classification entirely, set `classify_inline_comments: 'false'` on the action.
+- **Inline Comments**: `mcp__github_inline_comment__create_inline_comment` — pass `confirmed: true` to post immediately. When omitted, the comment is buffered and classified after the session ends (real review comments post, test/probe comments are filtered). If the run is cancelled, times out or crashes first, buffered comments are not posted. This prevents subagent test comments from reaching PRs. To disable classification entirely, set `classify_inline_comments: 'false'` on the action.
 - **File Operations**: `Read,Write,Edit`
 - **Git Operations**: `Bash(git:*)`
 

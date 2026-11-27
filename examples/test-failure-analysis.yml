@@ -17,7 +17,10 @@ permissions:
 jobs:
   detect-flaky:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    # The action skips a fork's run by default, so skip it here too
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_repository.id == github.event.repository.id
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
