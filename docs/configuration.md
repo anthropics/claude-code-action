@@ -280,6 +280,29 @@ For provider-specific models:
     # ... other inputs
 ```
 
+### Select a model from an `@claude` comment
+
+In an `issue_comment` workflow with the default `@claude` trigger, add this
+`claude_args` input to your existing Claude step.
+
+```yaml
+- uses: anthropics/claude-code-action@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    claude_args: >-
+      ${{ (startsWith(github.event.comment.body, '@claude opus ') && '--model opus') ||
+      (startsWith(github.event.comment.body, '@claude sonnet ') && '--model sonnet') || '' }}
+```
+
+Start the comment with `@claude opus please fix this` or
+`@claude sonnet please review this`. A regular `@claude` comment keeps the
+configured default. The expression selects a fixed argument and the comment
+continues to supply the task. Leave `ANTHROPIC_MODEL` unset for this step so
+`claude_args` can select the model.
+
+The [model aliases](https://code.claude.com/docs/en/model-config#model-aliases)
+resolve through your configured provider.
+
 ### 1M context models through an API gateway
 
 When `ANTHROPIC_BASE_URL` points to an Anthropic-compatible API gateway,
