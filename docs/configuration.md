@@ -377,6 +377,25 @@ Many individual input parameters have been consolidated into `claude_args` or `s
 | `direct_prompt`       | Use `prompt` input instead                                      |
 | `override_prompt`     | Use `prompt` with GitHub context variables                      |
 
+## Caching Node.js dependencies
+
+The main action uses Bun for its own dependencies. If Claude needs to build or test a Node.js project, set up Node.js and its package manager in the workflow before running Claude.
+
+For an npm project with a committed `package-lock.json`, add these steps before the Claude step:
+
+```yaml
+- uses: actions/checkout@v6
+- uses: actions/setup-node@v6
+  with:
+    node-version-file: ".nvmrc"
+    cache: npm
+- run: npm ci
+```
+
+Use a `node-version` value if the repository has no version file. Set `cache-dependency-path` when the lockfile is outside the repository root, and run `npm ci` in the directory containing that lockfile. The cache stores package downloads, so the install step still runs. See [actions/setup-node](https://github.com/actions/setup-node#caching-global-packages-data) for Yarn and pnpm.
+
+The standalone `base-action` offers `use_node_cache` for npm. The main action has no such input.
+
 ## Custom Executables for Specialized Environments
 
 For specialized environments like Nix, custom container setups, or other package management systems where the default installation doesn't work, you can provide your own executables:
