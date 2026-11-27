@@ -107,6 +107,19 @@ You can add multiple MCP servers by using multiple `--mcp-config` flags:
 - Your custom servers will override any built-in servers with the same name.
 - The `claude_args` supports multiple `--mcp-config` flags that will be merged together.
 
+## Working with pull request review threads
+
+On workflows with a pull request context, add the review thread tools to `claude_args`:
+
+```yaml
+claude_args: |
+  --allowedTools mcp__github_inline_comment__list_review_threads,mcp__github_inline_comment__resolve_review_thread
+```
+
+`list_review_threads` returns up to ten threads per page, with each thread's status, file and line, total comment count, and first five comments. Pass the returned `nextCursor` to read the next page.
+
+Add `resolve_review_thread` explicitly when Claude should mark threads as resolved after addressing them. The tool takes a thread ID from `list_review_threads` and checks that the thread belongs to the current pull request and that the GitHub token can resolve it. For a workflow using `GITHUB_TOKEN`, grant `pull-requests: write` to resolve threads.
+
 ## Additional Permissions for CI/CD Integration
 
 The `additional_permissions` input allows Claude to access GitHub Actions workflow information when you grant the necessary permissions. This is particularly useful for analyzing CI/CD failures and debugging workflow issues.

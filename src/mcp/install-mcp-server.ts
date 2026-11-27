@@ -1,5 +1,9 @@
 import * as core from "@actions/core";
-import { GITHUB_API_URL, GITHUB_SERVER_URL } from "../github/api/config";
+import {
+  GITHUB_API_URL,
+  GITHUB_GRAPHQL_URL,
+  GITHUB_SERVER_URL,
+} from "../github/api/config";
 import type { GitHubContext } from "../github/context";
 import { isEntityContext } from "../github/context";
 import { Octokit } from "@octokit/rest";
@@ -169,6 +173,12 @@ export async function prepareMcpConfig(
           REPO_NAME: repo,
           PR_NUMBER: context.entityNumber?.toString() || "",
           GITHUB_API_URL: GITHUB_API_URL,
+          GITHUB_GRAPHQL_URL,
+          ENABLE_RESOLVE_REVIEW_THREAD: String(
+            allowedToolsList.includes(
+              "mcp__github_inline_comment__resolve_review_thread",
+            ),
+          ),
           CLASSIFY_INLINE_COMMENTS: context.inputs.classifyInlineComments
             ? "true"
             : "false",

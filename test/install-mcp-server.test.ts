@@ -175,6 +175,30 @@ describe("prepareMcpConfig", () => {
     expect(parsed.mcpServers.github_inline_comment.env.PR_NUMBER).toBe("456");
   });
 
+  test.each([
+    ["mcp__github_inline_comment", "false"],
+    ["mcp__github_inline_comment__resolve_review_thread", "true"],
+  ])(
+    "exposes the review thread mutation only when explicitly allowed (%s)",
+    async (tool, expected) => {
+      const result = await prepareMcpConfig({
+        githubToken: "test-token",
+        owner: "test-owner",
+        repo: "test-repo",
+        branch: "test-branch",
+        baseBranch: "main",
+        allowedTools: [tool],
+        mode: "agent",
+        context: mockPRContext,
+      });
+
+      const { mcpServers } = JSON.parse(result);
+      expect(
+        mcpServers.github_inline_comment.env.ENABLE_RESOLVE_REVIEW_THREAD,
+      ).toBe(expected);
+    },
+  );
+
   test("should include comment server when no GitHub tools are allowed and signing disabled", async () => {
     const result = await prepareMcpConfig({
       githubToken: "test-token",
