@@ -247,6 +247,39 @@ export function extractOriginalBody(
   return undefined;
 }
 
+export type TriggerCommentWithImages = Extract<
+  CommentWithImages,
+  { id: string }
+>;
+
+export function extractTriggerComment(
+  context: ParsedGitHubContext,
+): TriggerCommentWithImages | undefined {
+  if (isIssueCommentEvent(context)) {
+    const { id, body } = context.payload.comment ?? {};
+    if (id !== undefined && body) {
+      return { type: "issue_comment", id: String(id), body };
+    }
+  } else if (isPullRequestReviewCommentEvent(context)) {
+    const { id, body } = context.payload.comment ?? {};
+    if (id !== undefined && body) {
+      return { type: "review_comment", id: String(id), body };
+    }
+  } else if (isPullRequestReviewEvent(context)) {
+    const { id, body } = context.payload.review ?? {};
+    if (id !== undefined && body) {
+      return {
+        type: "review_body",
+        id: String(id),
+        pullNumber: String(context.entityNumber),
+        body,
+      };
+    }
+  }
+
+  return undefined;
+}
+
 /**
  * Filters comments to only include those that existed in their final state before the trigger time.
  * This prevents malicious actors from editing comments after the trigger to inject harmful content.
@@ -385,6 +418,7 @@ type FetchDataParams = {
   triggerTime?: string;
   originalTitle?: string;
   originalBody?: string | null;
+  triggerComment?: TriggerCommentWithImages;
   includeCommentsByActor?: string;
   excludeCommentsByActor?: string;
 };
@@ -412,6 +446,7 @@ export async function fetchGitHubData({
   triggerTime,
   originalTitle,
   originalBody,
+  triggerComment,
   includeCommentsByActor,
   excludeCommentsByActor,
 }: FetchDataParams): Promise<FetchDataResult> {
@@ -626,6 +661,18 @@ export async function fetchGitHubData({
     ...reviewBodies,
     ...reviewComments,
   ];
+
+  if (
+    triggerComment &&
+    !allComments.some(
+      (c) =>
+        c.type === triggerComment.type &&
+        "id" in c &&
+        String(c.id) === triggerComment.id,
+    )
+  ) {
+    allComments.push(triggerComment);
+  }
 
   const imageUrlMap = await downloadCommentImages(
     octokits,

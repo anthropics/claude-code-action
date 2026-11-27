@@ -14,6 +14,7 @@ import {
   resolveTriggerTimestamp,
   extractOriginalTitle,
   extractOriginalBody,
+  extractTriggerComment,
 } from "../../github/data/fetcher";
 import { createPrompt } from "../../create-prompt";
 import {
@@ -72,6 +73,7 @@ export async function prepareTagMode({
     triggerTime,
     originalTitle,
     originalBody,
+    triggerComment: extractTriggerComment(context),
     includeCommentsByActor: context.inputs.includeCommentsByActor,
     excludeCommentsByActor: context.inputs.excludeCommentsByActor,
   });
